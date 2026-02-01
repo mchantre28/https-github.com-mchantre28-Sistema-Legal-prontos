@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Legal - Gestão Jurídica</title>
     <meta name="theme-color" content="#111827">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="pwa-icon.svg">
     
     <!-- Meta Tags Básicas -->
     <meta name="description" content="Sistema completo de gestão jurídica para Solicitadores">
@@ -739,9 +737,9 @@
                     <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
                     <div class="flex items-center space-x-4">
                         <!-- Botão PWA removido -->
-                        <button onclick="exportarDados()" class="btn btn-primary">
+                        <button onclick="exportarDadosCompletos()" class="btn btn-primary">
                             <i data-lucide="download" class="w-4 h-4"></i>
-                            Exportar
+                            Exportar Base de Dados
                         </button>
                         <button onclick="importarDados()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
@@ -789,7 +787,7 @@
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
-                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA</p>
+                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
                         </div>
                         
@@ -825,7 +823,7 @@
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
-                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA</p>
+                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Login Administrador - Acesso total ao sistema</p>
                         </div>
                         
@@ -880,7 +878,7 @@
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
-                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA</p>
+                            <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Login Convidado - Acesso limitado a clientes autorizados</p>
                         </div>
                         
@@ -1394,7 +1392,6 @@
             atualizarInterface();
             iniciarSistemaNotificacoes();
             iniciarSistemaBackup();
-            registrarServiceWorker();
             
             // Inicializar funcionalidades mobile
             // inicializarPWA(); // REMOVIDO - PWA desativado
@@ -1406,14 +1403,7 @@
             // calcularJurosAutomaticos(); // REMOVIDO
         }
 
-        function registrarServiceWorker() {
-            if (!('serviceWorker' in navigator)) {
-                return;
-            }
-            navigator.serviceWorker.register('./service-worker.js').catch((error) => {
-                console.error('❌ Falha ao registar service worker:', error);
-            });
-        }
+
 
         // Função robusta para fechar modais
         function fecharModalRobusto() {
@@ -8287,23 +8277,7 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function exportarDados() {
-            const dados = {
-                exportadoEm: new Date().toISOString(),
-                versao: '38.0',
-                dados: { clientes, honorarios, contratos }
-            };
-            
-            const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sistema_legal_backup_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            mostrarNotificacao('Dados exportados com sucesso!', 'success');
+            exportarDadosCompletos();
         }
 
         function importarDados() {
