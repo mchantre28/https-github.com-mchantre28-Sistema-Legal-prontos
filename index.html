@@ -741,7 +741,7 @@
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
                         </button>
-                        <button onclick="importarDados()" class="btn btn-success">
+                        <button onclick="importarDadosCompletos()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
                         </button>
@@ -783,10 +783,12 @@
         
         function mostrarTelaLogin() {
             document.body.innerHTML = `
-                <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
+                    <div class="mb-6">
+                        <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                    </div>
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
-                            <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto mb-4 w-32 h-32 object-contain">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                             <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
@@ -820,10 +822,12 @@
         
         function mostrarLoginAdmin() {
             document.body.innerHTML = `
-                <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
+                    <div class="mb-6">
+                        <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                    </div>
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
-                            <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto mb-4 w-32 h-32 object-contain">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                             <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Login Administrador - Acesso total ao sistema</p>
@@ -876,10 +880,12 @@
         
         function mostrarLoginConvidado() {
             document.body.innerHTML = `
-                <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
+                    <div class="mb-6">
+                        <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                    </div>
                     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                         <div class="text-center mb-8">
-                            <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto mb-4 w-32 h-32 object-contain">
                             <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                             <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
                             <p class="text-gray-600 mt-2">Login Convidado - Acesso limitado a clientes autorizados</p>
@@ -4808,6 +4814,7 @@ Sistema Legal - ANA PAULA MEDINA
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let clientesParaMostrar = clientes;
             let honorariosParaMostrar = honorarios;
+            let contratosParaMostrar = contratos;
             let herancasParaMostrar = herancas;
             let migracoesParaMostrar = migracoes;
             let registosParaMostrar = registos;
@@ -4822,17 +4829,68 @@ Sistema Legal - ANA PAULA MEDINA
                     const clientesAutorizados = convidado.clientesAutorizados;
                     clientesParaMostrar = clientes.filter(c => clientesAutorizados.includes(c.id));
                     honorariosParaMostrar = honorarios.filter(h => clientesAutorizados.includes(h.clienteId));
+                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     herancasParaMostrar = herancas.filter(h => clientesAutorizados.includes(h.clienteId));
                     migracoesParaMostrar = migracoes.filter(m => clientesAutorizados.includes(m.clienteId));
                     registosParaMostrar = registos.filter(r => clientesAutorizados.includes(r.clienteId));
+                    prazosParaMostrar = prazos.filter(p => clientesAutorizados.includes(p.clienteId));
                 } else {
                     // Se não há permissões, mostrar dados vazios
                     clientesParaMostrar = [];
                     honorariosParaMostrar = [];
+                    contratosParaMostrar = [];
                     herancasParaMostrar = [];
                     migracoesParaMostrar = [];
                     registosParaMostrar = [];
+                    prazosParaMostrar = [];
                 }
+            }
+
+            const semDados = clientesParaMostrar.length === 0 &&
+                honorariosParaMostrar.length === 0 &&
+                contratosParaMostrar.length === 0 &&
+                herancasParaMostrar.length === 0 &&
+                migracoesParaMostrar.length === 0 &&
+                registosParaMostrar.length === 0 &&
+                prazosParaMostrar.length === 0 &&
+                notificacoes.length === 0;
+
+            if (semDados && tipoUsuario !== 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Nenhum dado encontrado</h3>
+                        <p class="text-gray-600 mb-4">
+                            Parece que o sistema ainda não tem dados. Isso é normal após mudar de domínio.
+                            Importe o backup para restaurar tudo automaticamente.
+                        </p>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="importarDadosCompletos()" class="btn btn-success">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                Importar backup completo
+                            </button>
+                            <button onclick="carregarSecao('backup')" class="btn btn-secondary">
+                                Ver opções de backup
+                            </button>
+                            <button onclick="carregarSecao('clientes')" class="btn btn-primary">
+                                Criar primeiro cliente
+                            </button>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-500">
+                            Dica: use o arquivo ` + '`' + `backup_sistema_YYYY-MM-DD.json` + '`' + ` exportado do link antigo.
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (semDados && tipoUsuario === 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Sem dados disponíveis</h3>
+                        <p class="text-gray-600">
+                            O administrador ainda não partilhou dados com o seu acesso. Aguarde a autorização.
+                        </p>
+                    </div>
+                `;
             }
             
             const totalClientes = clientesParaMostrar.length;
