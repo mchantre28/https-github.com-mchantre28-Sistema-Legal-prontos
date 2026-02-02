@@ -4819,13 +4819,13 @@ Sistema Legal - ANA PAULA MEDINA
 
         function gerarDashboard() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
-            let clientesParaMostrar = clientes;
-            let honorariosParaMostrar = honorarios;
-            let contratosParaMostrar = contratos;
-            let herancasParaMostrar = herancas;
-            let migracoesParaMostrar = migracoes;
-            let registosParaMostrar = registos;
-            let prazosParaMostrar = prazos;
+            let clientesParaMostrar = Array.isArray(clientes) ? clientes : [];
+            let honorariosParaMostrar = Array.isArray(honorarios) ? honorarios : [];
+            let contratosParaMostrar = Array.isArray(contratos) ? contratos : [];
+            let herancasParaMostrar = Array.isArray(herancas) ? herancas : [];
+            let migracoesParaMostrar = Array.isArray(migracoes) ? migracoes : [];
+            let registosParaMostrar = Array.isArray(registos) ? registos : [];
+            let prazosParaMostrar = Array.isArray(prazos) ? prazos : [];
             
             // Filtrar dados para convidados
             if (tipoUsuario === 'convidado') {
