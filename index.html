@@ -3048,34 +3048,41 @@ END:VCALENDAR`;
             console.log('🔧 gerarConteudoSecao chamado para:', secao);
             console.log('🔧 migracoes array antes:', migracoes);
             
-            
             // Garantir que migracoes existe
             if (!migracoes) {
                 migracoes = [];
                 console.log('🔧 migracoes inicializado como array vazio');
             }
-            
-            const conteudos = {
-                dashboard: gerarDashboard(),
-                clientes: gerarClientes(),
-                honorarios: gerarHonorarios(),
-                contratos: gerarContratos(),
-                prazos: gerarPrazos(),
-                notificacoes: gerarNotificacoes(),
-                herancas: gerarHerancas(),
-                convidados: gerarConvidados(),
-                migracoes: gerarMigracao(),
-                registos: gerarRegistos(),
-                relatorios: gerarRelatorios(),
-                backup: gerarBackup(),
-            };
-            
-            console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
-            console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
-            console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
-            
-            
-            return conteudos[secao] || '<p>Seção não encontrada</p>';
+
+            try {
+                const conteudos = {
+                    dashboard: gerarDashboard(),
+                    clientes: gerarClientes(),
+                    honorarios: gerarHonorarios(),
+                    contratos: gerarContratos(),
+                    prazos: gerarPrazos(),
+                    notificacoes: gerarNotificacoes(),
+                    herancas: gerarHerancas(),
+                    convidados: gerarConvidados(),
+                    migracoes: gerarMigracao(),
+                    registos: gerarRegistos(),
+                    relatorios: gerarRelatorios(),
+                    backup: gerarBackup(),
+                };
+                
+                console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
+                console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
+                console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
+                
+                return conteudos[secao] || '<p>Seção não encontrada</p>';
+            } catch (error) {
+                console.error('❌ Erro ao gerar conteúdo da seção:', secao, error);
+                return `
+                    <div class="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                        Ocorreu um erro ao carregar esta seção. Atualize a página (Ctrl+F5).
+                    </div>
+                `;
+            }
         }
 
         function gerarRelatorioCompleto() {
