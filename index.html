@@ -7362,22 +7362,22 @@ Sistema Legal - ANA PAULA MEDINA
                     `}
                     
                     <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-4">Filtros</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
-                                <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo...">
+                                <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo..." oninput="aplicarFiltrosTarefas()">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
-                                <select id="filtroTarefasCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <select id="filtroTarefasCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                                     <option value="">Todos</option>
                                     ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                <select id="filtroTarefasStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <select id="filtroTarefasStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                                     <option value="">Todos</option>
                                     <option value="aberta">Aberta</option>
                                     <option value="concluida">Concluída</option>
@@ -7385,7 +7385,7 @@ Sistema Legal - ANA PAULA MEDINA
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
-                                <select id="filtroTarefasPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <select id="filtroTarefasPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                                     <option value="">Todas</option>
                                     <option value="baixa">Baixa</option>
                                     <option value="media">Média</option>
@@ -7393,8 +7393,32 @@ Sistema Legal - ANA PAULA MEDINA
                                     <option value="critica">Crítica</option>
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prazo</label>
+                                <select id="filtroTarefasPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
+                                    <option value="">Todos</option>
+                                    <option value="vencidas">Vencidas</option>
+                                    <option value="hoje">Hoje</option>
+                                    <option value="semana">Esta semana</option>
+                                    <option value="mes">Este mês</option>
+                                    <option value="sem_prazo">Sem prazo</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Ordenar por</label>
+                                <select id="filtroTarefasOrdenacao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
+                                    <option value="prazo">Prazo</option>
+                                    <option value="prioridade">Prioridade</option>
+                                    <option value="prioridade_prazo">Prioridade + Prazo</option>
+                                    <option value="prazo_prioridade">Prazo + Prioridade</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 mt-4">
+                        <div class="flex flex-wrap items-center gap-2 mt-4">
+                            <button id="btnSoComPrazo" onclick="alternarFiltroSoComPrazo()" class="btn ${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'btn-primary' : 'btn-secondary'}" data-ativo="${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'true' : 'false'}">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                                ${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'Só com prazo: ON' : 'Só com prazo'}
+                            </button>
                             <button onclick="aplicarFiltrosTarefas()" class="btn btn-primary">
                                 <i data-lucide="filter" class="w-4 h-4"></i>
                                 Aplicar filtros
@@ -7418,11 +7442,31 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function limparFiltrosTarefas() {
-            const ids = ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade'];
+            const ids = ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade', 'filtroTarefasPrazo'];
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
+            const btnSoComPrazo = document.getElementById('btnSoComPrazo');
+            if (btnSoComPrazo) {
+                btnSoComPrazo.dataset.ativo = 'false';
+                btnSoComPrazo.classList.remove('btn-primary');
+                btnSoComPrazo.classList.add('btn-secondary');
+                btnSoComPrazo.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i> Só com prazo';
+            }
+            localStorage.setItem('tarefasFiltroSoComPrazo', 'false');
+            aplicarFiltrosTarefas();
+        }
+
+        function alternarFiltroSoComPrazo() {
+            const btn = document.getElementById('btnSoComPrazo');
+            if (!btn) return;
+            const ativo = btn.dataset.ativo === 'true';
+            btn.dataset.ativo = ativo ? 'false' : 'true';
+            btn.classList.toggle('btn-primary', !ativo);
+            btn.classList.toggle('btn-secondary', ativo);
+            btn.innerHTML = `<i data-lucide="clock" class="w-4 h-4"></i> ${ativo ? 'Só com prazo' : 'Só com prazo: ON'}`;
+            localStorage.setItem('tarefasFiltroSoComPrazo', ativo ? 'false' : 'true');
             aplicarFiltrosTarefas();
         }
 
@@ -7437,10 +7481,45 @@ Sistema Legal - ANA PAULA MEDINA
             const clienteId = document.getElementById('filtroTarefasCliente')?.value || '';
             const status = document.getElementById('filtroTarefasStatus')?.value || '';
             const prioridade = document.getElementById('filtroTarefasPrioridade')?.value || '';
+            const prazo = document.getElementById('filtroTarefasPrazo')?.value || '';
+            const ordenacao = document.getElementById('filtroTarefasOrdenacao')?.value || 'prazo';
+            const soComPrazo = document.getElementById('btnSoComPrazo')?.dataset?.ativo === 'true';
             
             if (clienteId) lista = lista.filter(t => String(t.clienteId) === clienteId);
             if (status) lista = lista.filter(t => t.status === status);
             if (prioridade) lista = lista.filter(t => t.prioridade === prioridade);
+            if (soComPrazo) lista = lista.filter(t => !!t.dataLimite);
+            if (prazo) {
+                const agora = new Date();
+                const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+                const inicioSemana = new Date(hoje);
+                inicioSemana.setDate(hoje.getDate() - hoje.getDay());
+                const fimSemana = new Date(inicioSemana);
+                fimSemana.setDate(inicioSemana.getDate() + 6);
+                const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+                const fimMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0);
+                
+                lista = lista.filter(t => {
+                    if (!t.dataLimite) return prazo === 'sem_prazo';
+                    const dataLimite = new Date(t.dataLimite);
+                    if (isNaN(dataLimite.getTime())) return false;
+                    
+                    switch (prazo) {
+                        case 'vencidas':
+                            return dataLimite < hoje;
+                        case 'hoje':
+                            return dataLimite.toDateString() === hoje.toDateString();
+                        case 'semana':
+                            return dataLimite >= inicioSemana && dataLimite <= fimSemana;
+                        case 'mes':
+                            return dataLimite >= inicioMes && dataLimite <= fimMes;
+                        case 'sem_prazo':
+                            return false;
+                        default:
+                            return true;
+                    }
+                });
+            }
             if (texto) {
                 lista = lista.filter(t => {
                     const alvo = [
@@ -7453,12 +7532,47 @@ Sistema Legal - ANA PAULA MEDINA
                 });
             }
             
+            const prioridadePeso = (valor) => {
+                switch (valor) {
+                    case 'critica':
+                        return 4;
+                    case 'alta':
+                        return 3;
+                    case 'media':
+                        return 2;
+                    case 'baixa':
+                        return 1;
+                    default:
+                        return 0;
+                }
+            };
+            
             lista = lista.sort((a, b) => {
+                const ordenarPorPrioridade = ordenacao === 'prioridade' || ordenacao === 'prioridade_prazo';
+                const ordenarPorPrazo = ordenacao === 'prazo' || ordenacao === 'prazo_prioridade';
+                
+                if (ordenarPorPrioridade) {
+                    const pesoA = prioridadePeso(a.prioridade);
+                    const pesoB = prioridadePeso(b.prioridade);
+                    if (pesoA !== pesoB) return pesoB - pesoA;
+                    if (ordenacao === 'prioridade') {
+                        // fallback para data, como antes
+                    }
+                }
+                
                 const dataA = a.dataLimite ? new Date(a.dataLimite) : null;
                 const dataB = b.dataLimite ? new Date(b.dataLimite) : null;
-                if (dataA && dataB) return dataA - dataB;
-                if (dataA && !dataB) return -1;
-                if (!dataA && dataB) return 1;
+                if (ordenarPorPrazo || ordenacao === 'prioridade_prazo') {
+                    if (dataA && dataB) return dataA - dataB;
+                    if (dataA && !dataB) return -1;
+                    if (!dataA && dataB) return 1;
+                }
+                
+                if (ordenacao === 'prazo_prioridade') {
+                    const pesoA = prioridadePeso(a.prioridade);
+                    const pesoB = prioridadePeso(b.prioridade);
+                    if (pesoA !== pesoB) return pesoB - pesoA;
+                }
                 return (b.dataCriacao || '').localeCompare(a.dataCriacao || '');
             });
             
