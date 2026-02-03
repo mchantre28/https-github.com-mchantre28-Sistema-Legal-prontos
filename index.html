@@ -540,6 +540,16 @@
             color: #991b1b;
         }
 
+        .status-aberta {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-concluida {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
         .calendario-item {
             padding: 2px 6px;
             border-radius: 6px;
@@ -728,6 +738,10 @@
                 <a href="#" onclick="carregarSecao('prazos')" class="sidebar-item" id="nav-prazos">
                     <i data-lucide="clock" class="w-5 h-5 mr-3"></i>
                     Prazos
+                </a>
+                <a href="#" onclick="carregarSecao('tarefas')" class="sidebar-item" id="nav-tarefas">
+                    <i data-lucide="check-square" class="w-5 h-5 mr-3"></i>
+                    Tarefas
                 </a>
                 <a href="#" onclick="carregarSecao('calendario')" class="sidebar-item" id="nav-calendario">
                     <i data-lucide="calendar-days" class="w-5 h-5 mr-3"></i>
@@ -1308,11 +1322,17 @@
         function mostrarTodasSecoes() {
             // Mostrar todas as seções para administradores
             const todasSecoes = [
+                'nav-dashboard',
+                'nav-clientes',
                 'nav-honorarios',
                 'nav-contratos', 
                 'nav-herancas',
                 'nav-migracao',
                 'nav-registos',
+                'nav-prazos',
+                'nav-tarefas',
+                'nav-calendario',
+                'nav-notificacoes',
                 'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
@@ -1338,6 +1358,7 @@
         let migracoes = [];
         let registos = [];
         let documentos = [];
+        let tarefas = [];
         let calendarioModo = 'mensal';
         let calendarioDataRef = new Date();
         let calendarioFiltroCliente = '';
@@ -1357,6 +1378,7 @@
         window.migracoes = migracoes;
         window.registos = registos;
         window.documentos = documentos;
+        window.tarefas = tarefas;
         window.calendarioModo = calendarioModo;
         window.calendarioDataRef = calendarioDataRef;
         window.calendarioFiltroCliente = calendarioFiltroCliente;
@@ -2078,7 +2100,7 @@
         }
 
         function navegarSecaoAnterior() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual > 0) {
                 carregarSecao(secoes[indiceAtual - 1]);
@@ -2086,7 +2108,7 @@
         }
 
         function navegarProximaSecao() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual < secoes.length - 1) {
                 carregarSecao(secoes[indiceAtual + 1]);
@@ -2805,6 +2827,12 @@ END:VCALENDAR`;
                     window.documentos = documentos;
                 }
 
+                const tarefasSalvas = localStorage.getItem('tarefas');
+                if (tarefasSalvas) {
+                    tarefas = JSON.parse(tarefasSalvas);
+                    window.tarefas = tarefas;
+                }
+
                 console.log('✅ Dados carregados com sucesso');
             } catch (error) {
                 console.error('❌ Erro ao carregar dados:', error);
@@ -3350,7 +3378,7 @@ END:VCALENDAR`;
             // Verificar se é convidado e redirecionar para clientes se necessário
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             if (tipoUsuario === 'convidado') {
-                const secoesPermitidas = ['clientes', 'notificacoes', 'documentos'];
+                const secoesPermitidas = ['clientes', 'notificacoes', 'documentos', 'tarefas'];
                 if (!secoesPermitidas.includes(secao)) {
                     secao = 'clientes'; // Redirecionar para clientes
                 }
@@ -3406,6 +3434,12 @@ END:VCALENDAR`;
                 setTimeout(() => {
                     aplicarFiltrosPrazos();
                     lucide.createIcons();
+                }, 100);
+            }
+            
+            if (secao === 'tarefas') {
+                setTimeout(() => {
+                    aplicarFiltrosTarefas();
                 }, 100);
             }
             
@@ -3522,6 +3556,7 @@ END:VCALENDAR`;
                 migracoes: 'Gestão de Migração',
                 registos: 'Gestão de Registos',
                 documentos: 'Gestão de Documentos',
+                tarefas: 'Sistema de Tarefas',
                 calendario: 'Calendário de Prazos',
                 relatorios: 'Gestão de Relatórios',
                 backup: 'Sistema de Backup',
@@ -3576,6 +3611,7 @@ END:VCALENDAR`;
                     migracoes: gerarMigracao(),
                     registos: gerarRegistos(),
                 documentos: gerarDocumentos(),
+                tarefas: gerarTarefas(),
                 calendario: gerarCalendarioPrazos(),
                     relatorios: gerarRelatorios(),
                     backup: gerarBackup(),
@@ -7247,6 +7283,313 @@ Sistema Legal - ANA PAULA MEDINA
                     </div>
                 </div>
             `;
+        }
+
+        function salvarTarefasLocal(novos) {
+            tarefas = novos;
+            window.tarefas = tarefas;
+            salvarDados('tarefas', tarefas);
+        }
+
+        function gerarTarefas() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            const isConvidado = tipoUsuario === 'convidado';
+            let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
+            let tarefasParaMostrar = Array.isArray(tarefas) ? tarefas : [];
+            
+            if (isConvidado) {
+                clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
+                tarefasParaMostrar = tarefasParaMostrar.filter(t => verificarPermissaoCliente(t.clienteId));
+            }
+            
+            return `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">Tarefas</h2>
+                        ${isConvidado ? '' : `
+                            <button onclick="criarTarefa()" class="btn btn-primary">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Adicionar Tarefa
+                            </button>
+                        `}
+                    </div>
+                    
+                    ${isConvidado ? '' : `
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Nova Tarefa</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                    <select id="tarefaCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="">Selecione</option>
+                                        ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                                    <select id="tarefaProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="contrato">Contrato</option>
+                                        <option value="heranca">Herança</option>
+                                        <option value="migracao">Migração</option>
+                                        <option value="registo">Registo</option>
+                                        <option value="prazo">Prazo</option>
+                                        <option value="outro">Outro</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select id="tarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media" selected>Média</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="critica">Crítica</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2 lg:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
+                                    <input id="tarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Recolher documentação do cliente">
+                                </div>
+                                <div class="md:col-span-2 lg:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
+                                    <textarea id="tarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3" placeholder="Detalhes adicionais"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
+                                    <input id="tarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                </div>
+                            </div>
+                        </div>
+                    `}
+                    
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Filtros</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
+                                <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo...">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                                <select id="filtroTarefasCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Todos</option>
+                                    ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                <select id="filtroTarefasStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Todos</option>
+                                    <option value="aberta">Aberta</option>
+                                    <option value="concluida">Concluída</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                <select id="filtroTarefasPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Todas</option>
+                                    <option value="baixa">Baixa</option>
+                                    <option value="media">Média</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="critica">Crítica</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4">
+                            <button onclick="aplicarFiltrosTarefas()" class="btn btn-primary">
+                                <i data-lucide="filter" class="w-4 h-4"></i>
+                                Aplicar filtros
+                            </button>
+                            <button onclick="limparFiltrosTarefas()" class="btn btn-secondary">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                                Limpar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">Tarefas</h3>
+                            <div class="text-sm text-gray-600"><span id="contadorTarefas">0</span> tarefas</div>
+                        </div>
+                        <div id="listaTarefas" class="space-y-3"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function limparFiltrosTarefas() {
+            const ids = ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            aplicarFiltrosTarefas();
+        }
+
+        function aplicarFiltrosTarefas() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            let lista = Array.isArray(tarefas) ? tarefas : [];
+            if (tipoUsuario === 'convidado') {
+                lista = lista.filter(t => verificarPermissaoCliente(t.clienteId));
+            }
+            
+            const texto = (document.getElementById('filtroTarefasTexto')?.value || '').toLowerCase();
+            const clienteId = document.getElementById('filtroTarefasCliente')?.value || '';
+            const status = document.getElementById('filtroTarefasStatus')?.value || '';
+            const prioridade = document.getElementById('filtroTarefasPrioridade')?.value || '';
+            
+            if (clienteId) lista = lista.filter(t => String(t.clienteId) === clienteId);
+            if (status) lista = lista.filter(t => t.status === status);
+            if (prioridade) lista = lista.filter(t => t.prioridade === prioridade);
+            if (texto) {
+                lista = lista.filter(t => {
+                    const alvo = [
+                        t.titulo,
+                        t.descricao,
+                        t.clienteNome,
+                        t.processoTipo
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return alvo.includes(texto);
+                });
+            }
+            
+            lista = lista.sort((a, b) => {
+                const dataA = a.dataLimite ? new Date(a.dataLimite) : null;
+                const dataB = b.dataLimite ? new Date(b.dataLimite) : null;
+                if (dataA && dataB) return dataA - dataB;
+                if (dataA && !dataB) return -1;
+                if (!dataA && dataB) return 1;
+                return (b.dataCriacao || '').localeCompare(a.dataCriacao || '');
+            });
+            
+            renderizarListaTarefas(lista);
+        }
+
+        function renderizarListaTarefas(lista) {
+            const container = document.getElementById('listaTarefas');
+            const contador = document.getElementById('contadorTarefas');
+            if (contador) contador.textContent = lista.length;
+            if (!container) return;
+            
+            if (lista.length === 0) {
+                container.innerHTML = '<div class="text-sm text-gray-500">Nenhuma tarefa encontrada.</div>';
+                return;
+            }
+            
+            const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado';
+            container.innerHTML = lista.map(tarefa => `
+                <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
+                            <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
+                            <div class="text-xs text-gray-500">${tarefa.clienteNome || 'Cliente'} • ${tarefa.processoTipo || 'outro'}</div>
+                            ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="status-badge status-${tarefa.prioridade || 'media'}">${tarefa.prioridade || 'media'}</span>
+                            <span class="status-badge status-${tarefa.status}">${tarefa.status === 'concluida' ? 'Concluída' : 'Aberta'}</span>
+                        </div>
+                    </div>
+                    ${isConvidado ? '' : `
+                        <div class="flex items-center gap-2">
+                            <button onclick="alterarStatusTarefa(${tarefa.id})" class="btn btn-secondary">
+                                <i data-lucide="${tarefa.status === 'concluida' ? 'rotate-ccw' : 'check'}" class="w-4 h-4"></i>
+                                ${tarefa.status === 'concluida' ? 'Reabrir' : 'Concluir'}
+                            </button>
+                            <button onclick="excluirTarefa(${tarefa.id})" class="btn btn-danger">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                Excluir
+                            </button>
+                        </div>
+                    `}
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function criarTarefa() {
+            if (!exigirPermissaoAcao('criar', 'tarefa')) {
+                return;
+            }
+            const clienteId = parseInt(document.getElementById('tarefaCliente')?.value || '');
+            const processoTipo = document.getElementById('tarefaProcessoTipo')?.value || 'outro';
+            const prioridade = document.getElementById('tarefaPrioridade')?.value || 'media';
+            const titulo = document.getElementById('tarefaTitulo')?.value?.trim() || '';
+            const descricao = document.getElementById('tarefaDescricao')?.value?.trim() || '';
+            const dataLimite = document.getElementById('tarefaDataLimite')?.value || '';
+            
+            if (!clienteId) {
+                mostrarNotificacao('Selecione o cliente da tarefa.', 'warning');
+                return;
+            }
+            if (!titulo) {
+                mostrarNotificacao('Informe o título da tarefa.', 'warning');
+                return;
+            }
+            
+            const cliente = clientes.find(c => c.id === clienteId);
+            const tarefa = {
+                id: Date.now(),
+                clienteId,
+                clienteNome: cliente ? cliente.nome : '',
+                processoTipo,
+                titulo,
+                descricao,
+                prioridade,
+                status: 'aberta',
+                dataLimite: dataLimite || null,
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
+                dataCriacao: new Date().toISOString()
+            };
+            
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            lista.unshift(tarefa);
+            salvarTarefasLocal(lista);
+            registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
+            mostrarNotificacao('Tarefa criada com sucesso!', 'success');
+            
+            const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaDataLimite'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const prioridadeEl = document.getElementById('tarefaPrioridade');
+            if (prioridadeEl) prioridadeEl.value = 'media';
+            aplicarFiltrosTarefas();
+        }
+
+        function alterarStatusTarefa(id) {
+            if (!exigirPermissaoAcao('editar', 'tarefa')) {
+                return;
+            }
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const index = lista.findIndex(t => t.id === id);
+            if (index === -1) return;
+            const antes = { ...lista[index] };
+            lista[index].status = lista[index].status === 'concluida' ? 'aberta' : 'concluida';
+            salvarTarefasLocal(lista);
+            registrarAuditoria('editar', 'tarefa', `Status da tarefa: ${lista[index].titulo}`, antes, lista[index]);
+            aplicarFiltrosTarefas();
+        }
+
+        function excluirTarefa(id) {
+            if (!exigirPermissaoAcao('apagar', 'tarefa')) {
+                return;
+            }
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const tarefa = lista.find(t => t.id === id);
+            if (!tarefa) {
+                mostrarNotificacao('Tarefa não encontrada.', 'error');
+                return;
+            }
+            if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+            const novas = lista.filter(t => t.id !== id);
+            salvarTarefasLocal(novas);
+            registrarAuditoria('excluir', 'tarefa', `Tarefa excluída: ${tarefa.titulo}`, tarefa, null);
+            aplicarFiltrosTarefas();
+            mostrarNotificacao('Tarefa excluída com sucesso!', 'success');
         }
 
         function formatarDataLocalCalendario(data) {
