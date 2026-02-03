@@ -1314,6 +1314,7 @@
         let calendarioModo = 'mensal';
         let calendarioDataRef = new Date();
         let calendarioFiltroCliente = '';
+        let calendarioFiltroStatus = '';
         let secaoAtiva = 'dashboard';
         let relatorioAvancadoUltimosResultados = [];
         
@@ -1330,6 +1331,7 @@
         window.calendarioModo = calendarioModo;
         window.calendarioDataRef = calendarioDataRef;
         window.calendarioFiltroCliente = calendarioFiltroCliente;
+        window.calendarioFiltroStatus = calendarioFiltroStatus;
         window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
         // === FUNÇÃO DE TESTE ===
@@ -7239,6 +7241,9 @@ Sistema Legal - ANA PAULA MEDINA
                     const clienteId = String(prazo.clienteId || '');
                     if (clienteId !== String(calendarioFiltroCliente)) return false;
                 }
+                if (calendarioFiltroStatus) {
+                    if (String(prazo.status || '') !== String(calendarioFiltroStatus)) return false;
+                }
                 const dataPrazo = normalizarDataCalendario(prazo.dataLimite);
                 if (!dataPrazo) return false;
                 return formatarDataLocalCalendario(dataPrazo) === alvo;
@@ -7267,9 +7272,20 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
-                                <select id="calendarioFiltroCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltroCalendarioCliente()">
+                                <select id="calendarioFiltroCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
                                     <option value="">Todos os clientes</option>
                                     ${clientes.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                <select id="calendarioFiltroStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
+                                    <option value="">Todos os status</option>
+                                    <option value="ativo">Ativo</option>
+                                    <option value="pendente">Pendente</option>
+                                    <option value="em_andamento">Em andamento</option>
+                                    <option value="concluido">Concluído</option>
+                                    <option value="vencido">Vencido</option>
                                 </select>
                             </div>
                         </div>
@@ -7285,14 +7301,21 @@ Sistema Legal - ANA PAULA MEDINA
             if (select) {
                 select.value = calendarioFiltroCliente || '';
             }
+            const selectStatus = document.getElementById('calendarioFiltroStatus');
+            if (selectStatus) {
+                selectStatus.value = calendarioFiltroStatus || '';
+            }
             atualizarCalendarioPrazos();
             lucide.createIcons();
         }
 
-        function aplicarFiltroCalendarioCliente() {
+        function aplicarFiltrosCalendario() {
             const select = document.getElementById('calendarioFiltroCliente');
+            const selectStatus = document.getElementById('calendarioFiltroStatus');
             calendarioFiltroCliente = select ? select.value : '';
+            calendarioFiltroStatus = selectStatus ? selectStatus.value : '';
             window.calendarioFiltroCliente = calendarioFiltroCliente;
+            window.calendarioFiltroStatus = calendarioFiltroStatus;
             atualizarCalendarioPrazos();
         }
 
