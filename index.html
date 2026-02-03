@@ -1255,6 +1255,7 @@
                 'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
+                'nav-historico',
                 'nav-convidados'
             ];
             
@@ -3305,7 +3306,7 @@ END:VCALENDAR`;
             // Verificar se é convidado e redirecionar para clientes se necessário
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             if (tipoUsuario === 'convidado') {
-                const secoesPermitidas = ['clientes', 'notificacoes'];
+                const secoesPermitidas = ['clientes', 'notificacoes', 'documentos'];
                 if (!secoesPermitidas.includes(secao)) {
                     secao = 'clientes'; // Redirecionar para clientes
                 }
