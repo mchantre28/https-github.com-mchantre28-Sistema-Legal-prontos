@@ -7322,6 +7322,7 @@ Sistema Legal - ANA PAULA MEDINA
 
         function gerarDocumentos() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
+            const isConvidado = tipoUsuario === 'convidado';
             let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
             let documentosParaMostrar = Array.isArray(documentos) ? documentos : [];
             
@@ -7338,48 +7339,52 @@ Sistema Legal - ANA PAULA MEDINA
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
                         <h2 class="text-2xl font-bold">Documentos</h2>
-                        <button onclick="uploadDocumento()" class="btn btn-primary">
-                            <i data-lucide="upload" class="w-4 h-4"></i>
-                            Adicionar Documento
-                        </button>
+                        ${isConvidado ? '' : `
+                            <button onclick="uploadDocumento()" class="btn btn-primary">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                Adicionar Documento
+                            </button>
+                        `}
                     </div>
                     
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="docCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecione</option>
-                                    ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
-                                <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="contrato">Contrato</option>
-                                    <option value="heranca">Herança</option>
-                                    <option value="migracao">Migração</option>
-                                    <option value="registo">Registo</option>
-                                    <option value="prazo">Prazo</option>
-                                    <option value="outro">Outro</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
-                                <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vírgula)</label>
-                                <input id="docTags" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: contrato, assinatura">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
-                                <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
+                    ${isConvidado ? '' : `
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                    <select id="docCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="">Selecione</option>
+                                        ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                                    <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="contrato">Contrato</option>
+                                        <option value="heranca">Herança</option>
+                                        <option value="migracao">Migração</option>
+                                        <option value="registo">Registo</option>
+                                        <option value="prazo">Prazo</option>
+                                        <option value="outro">Outro</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
+                                    <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vírgula)</label>
+                                    <input id="docTags" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: contrato, assinatura">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
+                                    <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    `}
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros</h3>
@@ -7494,6 +7499,7 @@ Sistema Legal - ANA PAULA MEDINA
                 return;
             }
             
+            const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado';
             container.innerHTML = lista.map(doc => `
                 <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
                     <div class="flex justify-between items-start">
@@ -7507,9 +7513,11 @@ Sistema Legal - ANA PAULA MEDINA
                             <button onclick="baixarDocumento(${doc.id})" class="text-blue-600 hover:text-blue-800" title="Baixar">
                                 <i data-lucide="download" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="excluirDocumento(${doc.id})" class="text-red-600 hover:text-red-800" title="Excluir">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
+                            ${isConvidado ? '' : `
+                                <button onclick="excluirDocumento(${doc.id})" class="text-red-600 hover:text-red-800" title="Excluir">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            `}
                         </div>
                     </div>
                     ${doc.tags && doc.tags.length ? `
