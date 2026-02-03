@@ -707,6 +707,10 @@
                     Notificações
                     <span id="badgeNotificacoes" class="hidden bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-2">0</span>
                 </a>
+            <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
+                <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
+                Documentos
+            </a>
             <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
                 <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
                 Relatórios
@@ -1142,7 +1146,8 @@
                 heranca: 'herança',
                 migracao: 'migração',
                 registo: 'registo',
-                prazo: 'prazo'
+                prazo: 'prazo',
+                documento: 'documento'
             };
             return nomes[tipo] || tipo || 'item';
         }
@@ -1247,6 +1252,7 @@
                 'nav-migracao',
                 'nav-registos',
                 'nav-prazos',
+                'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
                 'nav-convidados'
@@ -1274,6 +1280,7 @@
                 'nav-herancas',
                 'nav-migracao',
                 'nav-registos',
+                'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
                 'nav-historico',
@@ -1297,6 +1304,7 @@
         let herancas = [];
         let migracoes = [];
         let registos = [];
+        let documentos = [];
         let secaoAtiva = 'dashboard';
         let relatorioAvancadoUltimosResultados = [];
         
@@ -1309,6 +1317,7 @@
         window.herancas = herancas;
         window.migracoes = migracoes;
         window.registos = registos;
+        window.documentos = documentos;
         window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
         // === FUNÇÃO DE TESTE ===
@@ -2024,7 +2033,7 @@
         }
 
         function navegarSecaoAnterior() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual > 0) {
                 carregarSecao(secoes[indiceAtual - 1]);
@@ -2032,7 +2041,7 @@
         }
 
         function navegarProximaSecao() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual < secoes.length - 1) {
                 carregarSecao(secoes[indiceAtual + 1]);
@@ -2745,6 +2754,12 @@ END:VCALENDAR`;
                     window.registos = registos;
                 }
 
+                const documentosSalvos = localStorage.getItem('documentos');
+                if (documentosSalvos) {
+                    documentos = JSON.parse(documentosSalvos);
+                    window.documentos = documentos;
+                }
+
                 console.log('✅ Dados carregados com sucesso');
             } catch (error) {
                 console.error('❌ Erro ao carregar dados:', error);
@@ -3455,6 +3470,7 @@ END:VCALENDAR`;
                 herancas: 'Gestão de Heranças',
                 migracoes: 'Gestão de Migração',
                 registos: 'Gestão de Registos',
+                documentos: 'Gestão de Documentos',
                 relatorios: 'Gestão de Relatórios',
                 backup: 'Sistema de Backup',
                 historico: 'Histórico de Alterações',
@@ -3507,6 +3523,7 @@ END:VCALENDAR`;
                     convidados: gerarConvidados(),
                     migracoes: gerarMigracao(),
                     registos: gerarRegistos(),
+                documentos: gerarDocumentos(),
                     relatorios: gerarRelatorios(),
                     backup: gerarBackup(),
                 historico: gerarHistoricoDetalhado(),
@@ -7290,6 +7307,310 @@ Sistema Legal - ANA PAULA MEDINA
             `;
         }
 
+        function formatarTamanhoArquivo(bytes) {
+            if (!bytes && bytes !== 0) return 'N/D';
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+
+        function salvarDocumentosLocal(novos) {
+            documentos = novos;
+            window.documentos = documentos;
+            salvarDados('documentos', documentos);
+        }
+
+        function gerarDocumentos() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
+            let documentosParaMostrar = Array.isArray(documentos) ? documentos : [];
+            
+            if (tipoUsuario === 'convidado') {
+                const convidadoId = localStorage.getItem('convidadoId');
+                const convidados = obterConvidados();
+                const convidado = convidados.find(c => c.id === parseInt(convidadoId));
+                const clientesAutorizados = convidado && convidado.ativo ? convidado.clientesAutorizados : [];
+                clientesParaSelect = clientesParaSelect.filter(c => clientesAutorizados.includes(c.id));
+                documentosParaMostrar = documentosParaMostrar.filter(d => clientesAutorizados.includes(d.clienteId));
+            }
+            
+            return `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">Documentos</h2>
+                        <button onclick="uploadDocumento()" class="btn btn-primary">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Adicionar Documento
+                        </button>
+                    </div>
+                    
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                <select id="docCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Selecione</option>
+                                    ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                                <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="contrato">Contrato</option>
+                                    <option value="heranca">Herança</option>
+                                    <option value="migracao">Migração</option>
+                                    <option value="registo">Registo</option>
+                                    <option value="prazo">Prazo</option>
+                                    <option value="outro">Outro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
+                                <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vírgula)</label>
+                                <input id="docTags" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: contrato, assinatura">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
+                                <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Filtros</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
+                                <input id="filtroDocTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="nome, descrição, tag...">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                                <select id="filtroDocCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Todos</option>
+                                    ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                                <select id="filtroDocProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Todos</option>
+                                    <option value="contrato">Contrato</option>
+                                    <option value="heranca">Herança</option>
+                                    <option value="migracao">Migração</option>
+                                    <option value="registo">Registo</option>
+                                    <option value="prazo">Prazo</option>
+                                    <option value="outro">Outro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Tag</label>
+                                <input id="filtroDocTag" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: assinatura">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4">
+                            <button onclick="aplicarFiltrosDocumentos()" class="btn btn-primary">
+                                <i data-lucide="filter" class="w-4 h-4"></i>
+                                Aplicar filtros
+                            </button>
+                            <button onclick="limparFiltrosDocumentos()" class="btn btn-secondary">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                                Limpar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">Documentos guardados</h3>
+                            <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
+                        </div>
+                        <div id="listaDocumentos" class="space-y-3"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function limparFiltrosDocumentos() {
+            const ids = ['filtroDocTexto', 'filtroDocCliente', 'filtroDocProcesso', 'filtroDocTag'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            aplicarFiltrosDocumentos();
+        }
+
+        function aplicarFiltrosDocumentos() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            let lista = Array.isArray(documentos) ? documentos : [];
+            
+            if (tipoUsuario === 'convidado') {
+                const convidadoId = localStorage.getItem('convidadoId');
+                const convidados = obterConvidados();
+                const convidado = convidados.find(c => c.id === parseInt(convidadoId));
+                const clientesAutorizados = convidado && convidado.ativo ? convidado.clientesAutorizados : [];
+                lista = lista.filter(doc => clientesAutorizados.includes(doc.clienteId));
+            }
+            
+            const texto = (document.getElementById('filtroDocTexto')?.value || '').toLowerCase();
+            const clienteId = document.getElementById('filtroDocCliente')?.value || '';
+            const processo = document.getElementById('filtroDocProcesso')?.value || '';
+            const tag = (document.getElementById('filtroDocTag')?.value || '').toLowerCase();
+            
+            if (clienteId) lista = lista.filter(doc => String(doc.clienteId) === clienteId);
+            if (processo) lista = lista.filter(doc => doc.processoTipo === processo);
+            if (texto) {
+                lista = lista.filter(doc => {
+                    const alvo = [
+                        doc.nomeArquivo,
+                        doc.descricao,
+                        doc.clienteNome,
+                        doc.processoTipo,
+                        ...(doc.tags || [])
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return alvo.includes(texto);
+                });
+            }
+            if (tag) {
+                lista = lista.filter(doc => (doc.tags || []).some(t => t.toLowerCase().includes(tag)));
+            }
+            
+            lista = lista.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
+            renderizarListaDocumentos(lista);
+        }
+
+        function renderizarListaDocumentos(lista) {
+            const container = document.getElementById('listaDocumentos');
+            const contador = document.getElementById('contadorDocumentos');
+            if (contador) contador.textContent = lista.length;
+            if (!container) return;
+            
+            if (lista.length === 0) {
+                container.innerHTML = '<div class="text-sm text-gray-500">Nenhum documento encontrado.</div>';
+                return;
+            }
+            
+            container.innerHTML = lista.map(doc => `
+                <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-800">${doc.nomeArquivo}</div>
+                            <div class="text-xs text-gray-500">${doc.descricao || 'Sem descrição'}</div>
+                            <div class="text-xs text-gray-500">${doc.clienteNome || 'Cliente'} • ${doc.processoTipo || 'outro'} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
+                            <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="baixarDocumento(${doc.id})" class="text-blue-600 hover:text-blue-800" title="Baixar">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="excluirDocumento(${doc.id})" class="text-red-600 hover:text-red-800" title="Excluir">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${doc.tags && doc.tags.length ? `
+                        <div class="flex flex-wrap gap-2">
+                            ${doc.tags.map(tag => `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">${tag}</span>`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function uploadDocumento() {
+            if (!exigirPermissaoAcao('criar', 'documento')) {
+                return;
+            }
+            const arquivoInput = document.getElementById('docArquivo');
+            const clienteId = parseInt(document.getElementById('docCliente')?.value || '');
+            const processoTipo = document.getElementById('docProcessoTipo')?.value || 'outro';
+            const descricao = document.getElementById('docDescricao')?.value?.trim() || '';
+            const tagsRaw = document.getElementById('docTags')?.value || '';
+            const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+            
+            if (!clienteId) {
+                mostrarNotificacao('Selecione o cliente do documento.', 'warning');
+                return;
+            }
+            if (!arquivoInput || !arquivoInput.files || arquivoInput.files.length === 0) {
+                mostrarNotificacao('Selecione um ficheiro.', 'warning');
+                return;
+            }
+            const arquivo = arquivoInput.files[0];
+            if (arquivo.size > 5 * 1024 * 1024) {
+                mostrarNotificacao('Ficheiro acima de 5 MB. Tente um ficheiro menor.', 'error');
+                return;
+            }
+            
+            const cliente = clientes.find(c => c.id === clienteId);
+            const reader = new FileReader();
+            reader.onload = () => {
+                const documento = {
+                    id: Date.now(),
+                    clienteId,
+                    clienteNome: cliente ? cliente.nome : '',
+                    processoTipo,
+                    descricao,
+                    tags,
+                    nomeArquivo: arquivo.name,
+                    tipoArquivo: arquivo.type,
+                    tamanho: arquivo.size,
+                    conteudo: reader.result,
+                    criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                    tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
+                    dataCriacao: new Date().toISOString()
+                };
+                const lista = Array.isArray(documentos) ? documentos : [];
+                lista.unshift(documento);
+                salvarDocumentosLocal(lista);
+                registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
+                mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                arquivoInput.value = '';
+                const descInput = document.getElementById('docDescricao');
+                const tagsInput = document.getElementById('docTags');
+                if (descInput) descInput.value = '';
+                if (tagsInput) tagsInput.value = '';
+                aplicarFiltrosDocumentos();
+            };
+            reader.readAsDataURL(arquivo);
+        }
+
+        function baixarDocumento(id) {
+            const doc = documentos.find(d => d.id === id);
+            if (!doc) {
+                mostrarNotificacao('Documento não encontrado.', 'error');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = doc.conteudo;
+            link.download = doc.nomeArquivo || 'documento';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function excluirDocumento(id) {
+            if (!exigirPermissaoAcao('apagar', 'documento')) {
+                return;
+            }
+            const doc = documentos.find(d => d.id === id);
+            if (!doc) {
+                mostrarNotificacao('Documento não encontrado.', 'error');
+                return;
+            }
+            if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+            const lista = documentos.filter(d => d.id !== id);
+            salvarDocumentosLocal(lista);
+            registrarAuditoria('excluir', 'documento', `Documento excluído: ${doc.nomeArquivo}`, doc, null);
+            aplicarFiltrosDocumentos();
+            mostrarNotificacao('Documento excluído com sucesso!', 'success');
+        }
+
         function inicializarRelatoriosAvancados() {
             const btnAplicar = document.getElementById('btnAplicarFiltrosRelatorio');
             const btnCsv = document.getElementById('btnExportarCsvRelatorio');
@@ -7620,6 +7941,11 @@ Sistema Legal - ANA PAULA MEDINA
             if (secao === 'notificacoes') {
                 setTimeout(() => {
                     inicializarAlertasAutomaticos();
+                }, 100);
+            }
+            if (secao === 'documentos') {
+                setTimeout(() => {
+                    aplicarFiltrosDocumentos();
                 }, 100);
             }
             if (secao === 'historico') {
