@@ -741,7 +741,7 @@
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
                         </button>
-                        <button onclick="importarDadosCompletos()" class="btn btn-success">
+                        <button onclick="importarDados()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
                         </button>
@@ -1251,6 +1251,7 @@
         let migracoes = [];
         let registos = [];
         let secaoAtiva = 'dashboard';
+        let relatorioAvancadoUltimosResultados = [];
         
         // Garantir que as variáveis estão definidas globalmente
         window.clientes = clientes;
@@ -1261,6 +1262,7 @@
         window.herancas = herancas;
         window.migracoes = migracoes;
         window.registos = registos;
+        window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
         // === FUNÇÃO DE TESTE ===
         function testarBotao() {
@@ -4837,68 +4839,21 @@ Sistema Legal - ANA PAULA MEDINA
                     const clientesAutorizados = convidado.clientesAutorizados;
                     clientesParaMostrar = clientes.filter(c => clientesAutorizados.includes(c.id));
                     honorariosParaMostrar = honorarios.filter(h => clientesAutorizados.includes(h.clienteId));
-                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     herancasParaMostrar = herancas.filter(h => clientesAutorizados.includes(h.clienteId));
                     migracoesParaMostrar = migracoes.filter(m => clientesAutorizados.includes(m.clienteId));
                     registosParaMostrar = registos.filter(r => clientesAutorizados.includes(r.clienteId));
+                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     prazosParaMostrar = prazos.filter(p => clientesAutorizados.includes(p.clienteId));
                 } else {
                     // Se não há permissões, mostrar dados vazios
                     clientesParaMostrar = [];
                     honorariosParaMostrar = [];
-                    contratosParaMostrar = [];
                     herancasParaMostrar = [];
                     migracoesParaMostrar = [];
                     registosParaMostrar = [];
+                    contratosParaMostrar = [];
                     prazosParaMostrar = [];
                 }
-            }
-
-            const semDados = clientesParaMostrar.length === 0 &&
-                honorariosParaMostrar.length === 0 &&
-                contratosParaMostrar.length === 0 &&
-                herancasParaMostrar.length === 0 &&
-                migracoesParaMostrar.length === 0 &&
-                registosParaMostrar.length === 0 &&
-                prazosParaMostrar.length === 0 &&
-                notificacoes.length === 0;
-
-            if (semDados && tipoUsuario !== 'convidado') {
-                return `
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-2">Nenhum dado encontrado</h3>
-                        <p class="text-gray-600 mb-4">
-                            Parece que o sistema ainda não tem dados. Isso é normal após mudar de domínio.
-                            Importe o backup para restaurar tudo automaticamente.
-                        </p>
-                        <div class="flex flex-wrap gap-3">
-                            <button onclick="importarDadosCompletos()" class="btn btn-success">
-                                <i data-lucide="upload" class="w-4 h-4"></i>
-                                Importar backup completo
-                            </button>
-                            <button onclick="carregarSecao('backup')" class="btn btn-secondary">
-                                Ver opções de backup
-                            </button>
-                            <button onclick="carregarSecao('clientes')" class="btn btn-primary">
-                                Criar primeiro cliente
-                            </button>
-                        </div>
-                        <div class="mt-4 text-sm text-gray-500">
-                            Dica: use o arquivo ` + '`' + `backup_sistema_YYYY-MM-DD.json` + '`' + ` exportado do link antigo.
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (semDados && tipoUsuario === 'convidado') {
-                return `
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-2">Sem dados disponíveis</h3>
-                        <p class="text-gray-600">
-                            O administrador ainda não partilhou dados com o seu acesso. Aguarde a autorização.
-                        </p>
-                    </div>
-                `;
             }
             
             const totalClientes = clientesParaMostrar.length;
@@ -6689,10 +6644,385 @@ Sistema Legal - ANA PAULA MEDINA
                             </button>
                         </div>
                         
-                        
+                        <div class="card p-6 md:col-span-2 lg:col-span-3">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 class="text-lg font-semibold">Relatórios Avançados</h3>
+                                    <p class="text-gray-600">Filtros por datas, cliente e tipo com exportação em Excel (CSV) e PDF.</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button id="btnExportarCsvRelatorio" class="btn btn-secondary">
+                                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                                        Exportar Excel
+                                    </button>
+                                    <button id="btnExportarPdfRelatorio" class="btn btn-primary">
+                                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                                        Exportar PDF
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                                    <select id="relatorioAvancadoCliente" class="form-control">
+                                        <option value="">Todos os clientes</option>
+                                        ${clientes.map(cliente => 
+                                            `<option value="${cliente.nome}">${cliente.nome} (${cliente.email})</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                                    <select id="relatorioAvancadoTipo" class="form-control">
+                                        <option value="todos">Todos</option>
+                                        <option value="honorarios">Honorários</option>
+                                        <option value="contratos">Contratos</option>
+                                        <option value="herancas">Heranças</option>
+                                        <option value="migracoes">Migrações</option>
+                                        <option value="registos">Registos</option>
+                                        <option value="prazos">Prazos</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Data início</label>
+                                    <input type="date" id="relatorioAvancadoDataInicio" class="form-control">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Data fim</label>
+                                    <input type="date" id="relatorioAvancadoDataFim" class="form-control">
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-3 mb-4">
+                                <button id="btnAplicarFiltrosRelatorio" class="btn btn-success">
+                                    <i data-lucide="filter" class="w-4 h-4"></i>
+                                    Aplicar filtros
+                                </button>
+                                <span id="relatorioAvancadoResumo" class="text-sm text-gray-500">Nenhum filtro aplicado.</span>
+                            </div>
+                            
+                            <div id="relatorioAvancadoResultados" class="overflow-x-auto text-sm text-gray-600">
+                                Aplique filtros para visualizar os resultados.
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
+        }
+
+        function inicializarRelatoriosAvancados() {
+            const btnAplicar = document.getElementById('btnAplicarFiltrosRelatorio');
+            const btnCsv = document.getElementById('btnExportarCsvRelatorio');
+            const btnPdf = document.getElementById('btnExportarPdfRelatorio');
+            
+            if (btnAplicar) {
+                btnAplicar.addEventListener('click', aplicarFiltrosRelatorioAvancado);
+            }
+            if (btnCsv) {
+                btnCsv.addEventListener('click', exportarRelatorioAvancadoCsv);
+            }
+            if (btnPdf) {
+                btnPdf.addEventListener('click', exportarRelatorioAvancadoPdf);
+            }
+        }
+
+        function normalizarDataRelatorio(valor) {
+            if (!valor) return null;
+            if (valor instanceof Date) return valor;
+            if (typeof valor === 'number') return new Date(valor);
+            if (typeof valor === 'string') {
+                if (/^\d{4}-\d{2}-\d{2}/.test(valor)) {
+                    return new Date(valor);
+                }
+                if (/^\d{2}\/\d{2}\/\d{4}/.test(valor)) {
+                    const [dia, mes, ano] = valor.split('/');
+                    return new Date(`${ano}-${mes}-${dia}`);
+                }
+                return new Date(valor);
+            }
+            return null;
+        }
+
+        function extrairDataRelatorio(item) {
+            if (!item) return null;
+            const campos = ['data', 'dataCriacao', 'dataInicio', 'dataRegisto', 'dataEntrada', 'dataLimite', 'vencimento'];
+            for (const campo of campos) {
+                if (item[campo]) {
+                    const data = normalizarDataRelatorio(item[campo]);
+                    if (data && !isNaN(data.getTime())) {
+                        return data;
+                    }
+                }
+            }
+            return null;
+        }
+
+        function obterNomeClienteRelatorio(item) {
+            if (!item) return 'N/D';
+            if (item.clienteNome) return item.clienteNome;
+            if (item.cliente) return item.cliente;
+            if (item.clienteId) {
+                const cliente = clientes.find(c => c.id === item.clienteId);
+                return cliente ? cliente.nome : 'N/D';
+            }
+            return 'N/D';
+        }
+
+        function formatarDataRelatorio(data) {
+            return data ? data.toLocaleDateString('pt-PT') : 'N/D';
+        }
+
+        function aplicarFiltrosRelatorioAvancado() {
+            const clienteFiltro = document.getElementById('relatorioAvancadoCliente')?.value || '';
+            const tipoFiltro = document.getElementById('relatorioAvancadoTipo')?.value || 'todos';
+            const dataInicioValor = document.getElementById('relatorioAvancadoDataInicio')?.value || '';
+            const dataFimValor = document.getElementById('relatorioAvancadoDataFim')?.value || '';
+            
+            const dataInicio = normalizarDataRelatorio(dataInicioValor);
+            const dataFim = normalizarDataRelatorio(dataFimValor);
+            if (dataFim) {
+                dataFim.setHours(23, 59, 59, 999);
+            }
+            
+            const fontes = [
+                { tipo: 'honorarios', label: 'Honorários', itens: Array.isArray(honorarios) ? honorarios : [], map: (item, cliente, data) => ({
+                    tipo: 'Honorários',
+                    cliente,
+                    descricao: item.descricao || item.servico || item.tipo || 'Honorário',
+                    valor: item.valor,
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) },
+                { tipo: 'contratos', label: 'Contratos', itens: Array.isArray(contratos) ? contratos : [], map: (item, cliente, data) => ({
+                    tipo: 'Contratos',
+                    cliente,
+                    descricao: item.tipo || item.descricao || 'Contrato',
+                    valor: item.valor,
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) },
+                { tipo: 'herancas', label: 'Heranças', itens: Array.isArray(herancas) ? herancas : [], map: (item, cliente, data) => ({
+                    tipo: 'Heranças',
+                    cliente,
+                    descricao: item.tipo || item.descricao || 'Herança',
+                    valor: item.valor,
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) },
+                { tipo: 'migracoes', label: 'Migrações', itens: Array.isArray(migracoes) ? migracoes : [], map: (item, cliente, data) => ({
+                    tipo: 'Migrações',
+                    cliente,
+                    descricao: item.tipo || item.descricao || 'Migração',
+                    valor: item.valor,
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) },
+                { tipo: 'registos', label: 'Registos', itens: Array.isArray(registos) ? registos : [], map: (item, cliente, data) => ({
+                    tipo: 'Registos',
+                    cliente,
+                    descricao: item.tipo || item.descricao || 'Registo',
+                    valor: item.valor,
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) },
+                { tipo: 'prazos', label: 'Prazos', itens: Array.isArray(prazos) ? prazos : [], map: (item, cliente, data) => ({
+                    tipo: 'Prazos',
+                    cliente,
+                    descricao: item.descricao || item.tipo || 'Prazo',
+                    valor: item.valor || '',
+                    status: item.status || 'N/D',
+                    data: formatarDataRelatorio(data),
+                    _data: data
+                }) }
+            ];
+            
+            let resultados = [];
+            fontes.forEach(fonte => {
+                if (tipoFiltro !== 'todos' && tipoFiltro !== fonte.tipo) {
+                    return;
+                }
+                fonte.itens.forEach(item => {
+                    const clienteNome = obterNomeClienteRelatorio(item);
+                    if (clienteFiltro && clienteNome !== clienteFiltro) return;
+                    
+                    const dataItem = extrairDataRelatorio(item);
+                    if ((dataInicio || dataFim) && (!dataItem || isNaN(dataItem.getTime()))) return;
+                    if (dataInicio && dataItem < dataInicio) return;
+                    if (dataFim && dataItem > dataFim) return;
+                    
+                    resultados.push(fonte.map(item, clienteNome, dataItem));
+                });
+            });
+            
+            resultados.sort((a, b) => {
+                if (!a._data && !b._data) return 0;
+                if (!a._data) return 1;
+                if (!b._data) return -1;
+                return b._data - a._data;
+            });
+            
+            relatorioAvancadoUltimosResultados = resultados;
+            window.relatorioAvancadoUltimosResultados = resultados;
+            
+            const resumo = document.getElementById('relatorioAvancadoResumo');
+            if (resumo) {
+                const filtrosAplicados = [
+                    clienteFiltro ? `Cliente: ${clienteFiltro}` : null,
+                    tipoFiltro !== 'todos' ? `Tipo: ${tipoFiltro}` : null,
+                    dataInicioValor ? `De: ${dataInicioValor}` : null,
+                    dataFimValor ? `Até: ${dataFimValor}` : null
+                ].filter(Boolean).join(' | ');
+                resumo.textContent = `Resultados: ${resultados.length}${filtrosAplicados ? ` • ${filtrosAplicados}` : ''}`;
+            }
+            
+            const container = document.getElementById('relatorioAvancadoResultados');
+            if (!container) return;
+            
+            if (resultados.length === 0) {
+                container.innerHTML = '<div class="text-gray-500">Nenhum resultado encontrado para os filtros selecionados.</div>';
+                return;
+            }
+            
+            const limite = Math.min(resultados.length, 200);
+            const linhas = resultados.slice(0, limite).map(item => `
+                <tr class="border-b border-gray-200">
+                    <td class="py-2 pr-4 font-medium text-gray-700">${item.tipo}</td>
+                    <td class="py-2 pr-4">${item.cliente}</td>
+                    <td class="py-2 pr-4">${item.descricao}</td>
+                    <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
+                    <td class="py-2 pr-4">${item.status}</td>
+                    <td class="py-2">${item.data}</td>
+                </tr>
+            `).join('');
+            
+            container.innerHTML = `
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                            <th class="py-2 pr-4">Tipo</th>
+                            <th class="py-2 pr-4">Cliente</th>
+                            <th class="py-2 pr-4">Descrição</th>
+                            <th class="py-2 pr-4">Valor</th>
+                            <th class="py-2 pr-4">Status</th>
+                            <th class="py-2">Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${linhas}
+                    </tbody>
+                </table>
+                ${resultados.length > limite ? `<div class="mt-2 text-xs text-gray-400">Mostrando ${limite} de ${resultados.length} resultados.</div>` : ''}
+            `;
+        }
+
+        function exportarRelatorioAvancadoCsv() {
+            if (!Array.isArray(relatorioAvancadoUltimosResultados) || relatorioAvancadoUltimosResultados.length === 0) {
+                mostrarNotificacao('Aplique filtros para gerar resultados antes de exportar.', 'warning');
+                return;
+            }
+            
+            const headers = ['Tipo', 'Cliente', 'Descrição', 'Valor', 'Status', 'Data'];
+            const escapeCsv = (valor) => {
+                const texto = valor === null || valor === undefined ? '' : String(valor);
+                if (texto.includes(';') || texto.includes('"') || texto.includes('\n')) {
+                    return `"${texto.replace(/"/g, '""')}"`;
+                }
+                return texto;
+            };
+            
+            const linhas = relatorioAvancadoUltimosResultados.map(item => [
+                item.tipo,
+                item.cliente,
+                item.descricao,
+                item.valor !== undefined && item.valor !== '' ? (parseFloat(item.valor) || 0).toFixed(2) : '',
+                item.status,
+                item.data
+            ].map(escapeCsv).join(';'));
+            
+            const csv = '\uFEFF' + [headers.join(';'), ...linhas].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `relatorio_avancado_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            mostrarNotificacao('Exportação Excel (CSV) concluída!', 'success');
+        }
+
+        function exportarRelatorioAvancadoPdf() {
+            if (!Array.isArray(relatorioAvancadoUltimosResultados) || relatorioAvancadoUltimosResultados.length === 0) {
+                mostrarNotificacao('Aplique filtros para gerar resultados antes de exportar.', 'warning');
+                return;
+            }
+            
+            const janela = window.open('', '_blank');
+            if (!janela) {
+                mostrarNotificacao('Bloqueio de pop-up: permita abrir a janela para exportar PDF.', 'warning');
+                return;
+            }
+            
+            const dataRelatorio = new Date().toLocaleString('pt-PT');
+            const linhas = relatorioAvancadoUltimosResultados.slice(0, 500).map(item => `
+                <tr>
+                    <td>${item.tipo}</td>
+                    <td>${item.cliente}</td>
+                    <td>${item.descricao}</td>
+                    <td>${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
+                    <td>${item.status}</td>
+                    <td>${item.data}</td>
+                </tr>
+            `).join('');
+            
+            janela.document.write(`
+                <html>
+                <head>
+                    <title>Relatório Avançado</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+                        h1 { font-size: 20px; margin-bottom: 6px; }
+                        p { font-size: 12px; color: #6b7280; margin-top: 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+                        th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
+                        th { background: #f3f4f6; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Relatório Avançado</h1>
+                    <p>Gerado em ${dataRelatorio}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Cliente</th>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${linhas}
+                        </tbody>
+                    </table>
+                    ${relatorioAvancadoUltimosResultados.length > 500 ? `<p>Mostrando 500 de ${relatorioAvancadoUltimosResultados.length} resultados.</p>` : ''}
+                </body>
+                </html>
+            `);
+            janela.document.close();
+            setTimeout(() => {
+                janela.focus();
+                janela.print();
+            }, 400);
         }
 
         function inicializarSecao(secao) {
@@ -6701,6 +7031,11 @@ Sistema Legal - ANA PAULA MEDINA
             if (secao === 'dashboard') {
                 setTimeout(() => {
                     criarGraficoHonorarios();
+                }, 100);
+            }
+            if (secao === 'relatorios') {
+                setTimeout(() => {
+                    inicializarRelatoriosAvancados();
                 }, 100);
             }
         }
