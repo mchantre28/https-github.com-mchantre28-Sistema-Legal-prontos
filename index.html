@@ -733,15 +733,24 @@
         <!-- Header -->
         <header class="bg-white shadow-sm border-b">
             <div class="px-6 py-4">
-                <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
-                    <div class="flex items-center space-x-4">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+                        <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
+                        <div id="globalSearchContainer" class="relative w-full max-w-xl">
+                            <input id="globalSearchInput" type="text" placeholder="Pesquisa global: clientes, processos, contratos e prazos..." class="form-control w-full pl-10">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </span>
+                            <div id="globalSearchResults" class="hidden absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
                         <!-- Botão PWA removido -->
                         <button onclick="exportarDadosCompletos()" class="btn btn-primary">
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
                         </button>
-                        <button onclick="importarDados()" class="btn btn-success">
+                        <button onclick="importarDadosCompletos()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
                         </button>
@@ -1123,6 +1132,17 @@
         
         // Verificar login após o DOM estar carregado
         document.addEventListener('DOMContentLoaded', function() {
+            // Garantir que não existe service worker antigo a servir cache
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then((regs) => {
+                    regs.forEach((reg) => reg.unregister());
+                }).catch(() => {});
+            }
+            if ('caches' in window) {
+                caches.keys().then((keys) => {
+                    keys.forEach((key) => caches.delete(key));
+                }).catch(() => {});
+            }
             if (!verificarLogin()) {
                 // A página será substituída pela tela de login
                 // O resto do código não será executado
@@ -1410,6 +1430,7 @@
             }
             
             configurarEventos();
+            inicializarPesquisaGlobal();
             atualizarInterface();
             iniciarSistemaNotificacoes();
             iniciarSistemaBackup();
@@ -1423,6 +1444,188 @@
             
             // Calcular juros automáticos na inicialização
             // calcularJurosAutomaticos(); // REMOVIDO
+        }
+
+        function inicializarPesquisaGlobal() {
+            const input = document.getElementById('globalSearchInput');
+            const results = document.getElementById('globalSearchResults');
+            const container = document.getElementById('globalSearchContainer');
+            if (!input || !results || !container) return;
+            
+            let timer = null;
+            const fecharResultados = () => {
+                results.classList.add('hidden');
+                results.innerHTML = '';
+            };
+            
+            const renderizar = (termo) => {
+                const resultados = executarPesquisaGlobal(termo);
+                if (resultados.length === 0) {
+                    results.innerHTML = `
+                        <div class="px-4 py-3 text-sm text-gray-500">
+                            Nenhum resultado encontrado para "${termo}".
+                        </div>
+                    `;
+                    results.classList.remove('hidden');
+                    return;
+                }
+                
+                const itens = resultados.map(item => `
+                    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0" data-secao="${item.secao}">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800">${item.titulo}</div>
+                                <div class="text-xs text-gray-500">${item.subtitulo || ''}</div>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">${item.tipo}</span>
+                        </div>
+                    </button>
+                `).join('');
+                
+                results.innerHTML = `
+                    <div class="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
+                        Resultados: ${resultados.length}
+                    </div>
+                    <div class="max-h-80 overflow-y-auto">${itens}</div>
+                `;
+                results.classList.remove('hidden');
+            };
+            
+            input.addEventListener('input', () => {
+                const termo = input.value.trim();
+                if (timer) clearTimeout(timer);
+                if (termo.length < 2) {
+                    fecharResultados();
+                    return;
+                }
+                timer = setTimeout(() => renderizar(termo), 250);
+            });
+            
+            input.addEventListener('focus', () => {
+                const termo = input.value.trim();
+                if (termo.length >= 2) {
+                    renderizar(termo);
+                }
+            });
+            
+            results.addEventListener('click', (event) => {
+                const botao = event.target.closest('[data-secao]');
+                if (!botao) return;
+                const secao = botao.getAttribute('data-secao');
+                if (secao) {
+                    carregarSecao(secao);
+                }
+                fecharResultados();
+            });
+            
+            document.addEventListener('click', (event) => {
+                if (!container.contains(event.target)) {
+                    fecharResultados();
+                }
+            });
+            
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    fecharResultados();
+                }
+            });
+        }
+
+        function executarPesquisaGlobal(termo) {
+            const termoLower = termo.toLowerCase();
+            const resultados = [];
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            
+            const clientePermitido = (clienteId) => {
+                if (tipoUsuario !== 'convidado') return true;
+                if (!clienteId) return false;
+                return verificarPermissaoCliente(clienteId);
+            };
+            
+            const clientesParaPesquisar = Array.isArray(clientes) ? clientes : [];
+            clientesParaPesquisar.forEach(cliente => {
+                if (!clientePermitido(cliente.id)) return;
+                const haystack = [
+                    cliente.nome,
+                    cliente.email,
+                    cliente.telefone,
+                    cliente.nif
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (haystack.includes(termoLower)) {
+                    resultados.push({
+                        tipo: 'Cliente',
+                        titulo: cliente.nome,
+                        subtitulo: [cliente.email, cliente.telefone].filter(Boolean).join(' • '),
+                        secao: 'clientes'
+                    });
+                }
+            });
+            
+            const contratosParaPesquisar = Array.isArray(contratos) ? contratos : [];
+            contratosParaPesquisar.forEach(contrato => {
+                if (contrato.clienteId && !clientePermitido(contrato.clienteId)) return;
+                const clienteNome = contrato.cliente || contrato.clienteNome || obterNomeClienteRelatorio(contrato);
+                const haystack = [
+                    contrato.tipo,
+                    contrato.descricao,
+                    contrato.status,
+                    contrato.valor,
+                    clienteNome
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (haystack.includes(termoLower)) {
+                    resultados.push({
+                        tipo: 'Contrato',
+                        titulo: contrato.tipo || contrato.descricao || 'Contrato',
+                        subtitulo: [clienteNome, contrato.status].filter(Boolean).join(' • '),
+                        secao: 'contratos'
+                    });
+                }
+            });
+            
+            const registosParaPesquisar = Array.isArray(registos) ? registos : [];
+            registosParaPesquisar.forEach(registo => {
+                if (registo.clienteId && !clientePermitido(registo.clienteId)) return;
+                const clienteNome = registo.cliente || registo.clienteNome || obterNomeClienteRelatorio(registo);
+                const haystack = [
+                    registo.tipo,
+                    registo.descricao,
+                    registo.status,
+                    registo.valor,
+                    clienteNome
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (haystack.includes(termoLower)) {
+                    resultados.push({
+                        tipo: 'Processo',
+                        titulo: registo.tipo || registo.descricao || 'Processo',
+                        subtitulo: [clienteNome, registo.status].filter(Boolean).join(' • '),
+                        secao: 'registos'
+                    });
+                }
+            });
+            
+            const prazosParaPesquisar = Array.isArray(prazos) ? prazos : [];
+            prazosParaPesquisar.forEach(prazo => {
+                if (prazo.clienteId && !clientePermitido(prazo.clienteId)) return;
+                const clienteNome = prazo.clienteNome || prazo.cliente || obterNomeClienteRelatorio(prazo);
+                const haystack = [
+                    prazo.descricao,
+                    prazo.tipo,
+                    prazo.status,
+                    prazo.dataLimite,
+                    clienteNome
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (haystack.includes(termoLower)) {
+                    const data = extrairDataRelatorio(prazo);
+                    resultados.push({
+                        tipo: 'Prazo',
+                        titulo: prazo.descricao || prazo.tipo || 'Prazo',
+                        subtitulo: [clienteNome, data ? formatarDataRelatorio(data) : null].filter(Boolean).join(' • '),
+                        secao: 'prazos'
+                    });
+                }
+            });
+            
+            return resultados.slice(0, 20);
         }
 
 
@@ -4839,21 +5042,68 @@ Sistema Legal - ANA PAULA MEDINA
                     const clientesAutorizados = convidado.clientesAutorizados;
                     clientesParaMostrar = clientes.filter(c => clientesAutorizados.includes(c.id));
                     honorariosParaMostrar = honorarios.filter(h => clientesAutorizados.includes(h.clienteId));
+                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     herancasParaMostrar = herancas.filter(h => clientesAutorizados.includes(h.clienteId));
                     migracoesParaMostrar = migracoes.filter(m => clientesAutorizados.includes(m.clienteId));
                     registosParaMostrar = registos.filter(r => clientesAutorizados.includes(r.clienteId));
-                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     prazosParaMostrar = prazos.filter(p => clientesAutorizados.includes(p.clienteId));
                 } else {
                     // Se não há permissões, mostrar dados vazios
                     clientesParaMostrar = [];
                     honorariosParaMostrar = [];
+                    contratosParaMostrar = [];
                     herancasParaMostrar = [];
                     migracoesParaMostrar = [];
                     registosParaMostrar = [];
-                    contratosParaMostrar = [];
                     prazosParaMostrar = [];
                 }
+            }
+
+            const semDados = clientesParaMostrar.length === 0 &&
+                honorariosParaMostrar.length === 0 &&
+                contratosParaMostrar.length === 0 &&
+                herancasParaMostrar.length === 0 &&
+                migracoesParaMostrar.length === 0 &&
+                registosParaMostrar.length === 0 &&
+                prazosParaMostrar.length === 0 &&
+                notificacoes.length === 0;
+
+            if (semDados && tipoUsuario !== 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Nenhum dado encontrado</h3>
+                        <p class="text-gray-600 mb-4">
+                            Parece que o sistema ainda não tem dados. Isso é normal após mudar de domínio.
+                            Importe o backup para restaurar tudo automaticamente.
+                        </p>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="importarDadosCompletos()" class="btn btn-success">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                Importar backup completo
+                            </button>
+                            <button onclick="carregarSecao('backup')" class="btn btn-secondary">
+                                Ver opções de backup
+                            </button>
+                            <button onclick="carregarSecao('clientes')" class="btn btn-primary">
+                                Criar primeiro cliente
+                            </button>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-500">
+                            Dica: use o arquivo ` + '`' + `backup_sistema_YYYY-MM-DD.json` + '`' + ` exportado do link antigo.
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (semDados && tipoUsuario === 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Sem dados disponíveis</h3>
+                        <p class="text-gray-600">
+                            O administrador ainda não partilhou dados com o seu acesso. Aguarde a autorização.
+                        </p>
+                    </div>
+                `;
             }
             
             const totalClientes = clientesParaMostrar.length;
@@ -6440,6 +6690,38 @@ Sistema Legal - ANA PAULA MEDINA
                 </div>
             </div>
             
+            <div class="card p-6">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold">Alertas Automáticos (v2)</h3>
+                        <p class="text-sm text-gray-600">Enviar resumo de prazos e honorários por Email ou WhatsApp.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="enviarAlertasEmail()" class="btn btn-primary">
+                            <i data-lucide="mail" class="w-4 h-4"></i>
+                            Enviar por Email
+                        </button>
+                        <button onclick="enviarAlertasWhatsApp()" class="btn btn-success">
+                            <i data-lucide="message-circle" class="w-4 h-4"></i>
+                            Enviar por WhatsApp
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
+                        <input id="alertasEmailDestino" type="email" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: cliente@email.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
+                        <input id="alertasWhatsAppDestino" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 351912345678">
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-500">
+                    Dica: o envio usa o seu cliente de email/WhatsApp Web (sem serviços externos).
+                </div>
+            </div>
+            
             <!-- Filtros Inteligentes -->
             <div class="card p-6">
                 <h3 class="text-lg font-semibold mb-4">Filtros Inteligentes</h3>
@@ -7036,6 +7318,11 @@ Sistema Legal - ANA PAULA MEDINA
             if (secao === 'relatorios') {
                 setTimeout(() => {
                     inicializarRelatoriosAvancados();
+                }, 100);
+            }
+            if (secao === 'notificacoes') {
+                setTimeout(() => {
+                    inicializarAlertasAutomaticos();
                 }, 100);
             }
         }
@@ -10000,6 +10287,97 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 verificarPrazosUrgentes();
                 atualizarBadgeNotificacoes();
             }, 5 * 60 * 1000);
+        }
+
+        function inicializarAlertasAutomaticos() {
+            const emailInput = document.getElementById('alertasEmailDestino');
+            const whatsappInput = document.getElementById('alertasWhatsAppDestino');
+            if (emailInput) {
+                emailInput.value = localStorage.getItem('alertasEmailDestino') || '';
+                emailInput.addEventListener('change', () => {
+                    localStorage.setItem('alertasEmailDestino', emailInput.value.trim());
+                });
+            }
+            if (whatsappInput) {
+                whatsappInput.value = localStorage.getItem('alertasWhatsAppDestino') || '';
+                whatsappInput.addEventListener('change', () => {
+                    whatsappInput.value = whatsappInput.value.replace(/\D/g, '');
+                    localStorage.setItem('alertasWhatsAppDestino', whatsappInput.value.trim());
+                });
+            }
+        }
+
+        function gerarResumoAlertasAutomaticos() {
+            const hoje = new Date();
+            const proximos3Dias = new Date(hoje.getTime() + 3 * 24 * 60 * 60 * 1000);
+            const honorariosVencidos = honorarios.filter(h => {
+                if (!h.vencimento) return false;
+                const dataVenc = new Date(h.vencimento);
+                return !isNaN(dataVenc.getTime()) && dataVenc < hoje && h.status !== 'pago';
+            });
+            const prazosVencidos = prazos.filter(p => {
+                if (!p.dataLimite) return false;
+                const dataLimite = new Date(p.dataLimite);
+                return !isNaN(dataLimite.getTime()) && dataLimite < hoje && p.status === 'ativo';
+            });
+            const prazosHoje = prazos.filter(p => {
+                if (!p.dataLimite) return false;
+                const dataLimite = new Date(p.dataLimite);
+                return !isNaN(dataLimite.getTime()) && dataLimite.toDateString() === hoje.toDateString() && p.status === 'ativo';
+            });
+            const prazos3Dias = prazos.filter(p => {
+                if (!p.dataLimite) return false;
+                const dataLimite = new Date(p.dataLimite);
+                return !isNaN(dataLimite.getTime()) && dataLimite > hoje && dataLimite <= proximos3Dias && p.status === 'ativo';
+            });
+            
+            const linhas = [];
+            linhas.push(`Resumo de alertas (${hoje.toLocaleDateString('pt-PT')})`);
+            linhas.push('');
+            linhas.push(`Honorários vencidos: ${honorariosVencidos.length}`);
+            honorariosVencidos.slice(0, 10).forEach(h => {
+                const data = new Date(h.vencimento);
+                linhas.push(`- ${h.cliente} | €${(parseFloat(h.valor) || 0).toFixed(2)} | venc. ${data.toLocaleDateString('pt-PT')}`);
+            });
+            linhas.push('');
+            linhas.push(`Prazos vencidos: ${prazosVencidos.length}`);
+            prazosVencidos.slice(0, 10).forEach(p => {
+                linhas.push(`- ${p.clienteNome} | ${p.descricao} | venc. ${new Date(p.dataLimite).toLocaleDateString('pt-PT')}`);
+            });
+            linhas.push('');
+            linhas.push(`Prazos hoje: ${prazosHoje.length}`);
+            prazosHoje.slice(0, 10).forEach(p => {
+                linhas.push(`- ${p.clienteNome} | ${p.descricao}`);
+            });
+            linhas.push('');
+            linhas.push(`Prazos em até 3 dias: ${prazos3Dias.length}`);
+            prazos3Dias.slice(0, 10).forEach(p => {
+                linhas.push(`- ${p.clienteNome} | ${p.descricao} | ${new Date(p.dataLimite).toLocaleDateString('pt-PT')}`);
+            });
+            return linhas.join('\n');
+        }
+
+        function enviarAlertasEmail() {
+            const destino = (document.getElementById('alertasEmailDestino')?.value || '').trim();
+            if (!destino) {
+                mostrarNotificacao('Informe o email de destino.', 'warning');
+                return;
+            }
+            const corpo = gerarResumoAlertasAutomaticos();
+            const assunto = `Alertas Automáticos - ${new Date().toLocaleDateString('pt-PT')}`;
+            const link = `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+            window.location.href = link;
+        }
+
+        function enviarAlertasWhatsApp() {
+            const destino = (document.getElementById('alertasWhatsAppDestino')?.value || '').trim();
+            if (!destino) {
+                mostrarNotificacao('Informe o número de WhatsApp (com indicativo).', 'warning');
+                return;
+            }
+            const corpo = gerarResumoAlertasAutomaticos();
+            const link = `https://wa.me/${encodeURIComponent(destino)}?text=${encodeURIComponent(corpo)}`;
+            window.open(link, '_blank');
         }
 
 
