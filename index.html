@@ -1133,6 +1133,28 @@
             }
             return true;
         }
+
+        function obterNomeEntidade(tipo) {
+            const nomes = {
+                cliente: 'cliente',
+                honorario: 'honorário',
+                contrato: 'contrato',
+                heranca: 'herança',
+                migracao: 'migração',
+                registo: 'registo',
+                prazo: 'prazo'
+            };
+            return nomes[tipo] || tipo || 'item';
+        }
+
+        function exigirPermissaoAcao(acao, entidade) {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            if (tipoUsuario === 'admin') {
+                return true;
+            }
+            mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
+            return false;
+        }
         
         // Verificar login após o DOM estar carregado
         document.addEventListener('DOMContentLoaded', function() {
@@ -8563,6 +8585,11 @@ Sistema Legal - ANA PAULA MEDINA
                     return false;
                 }
                 
+                const clienteAntes = clientes[clienteIndex];
+                if (!exigirPermissaoAcao('editar', 'cliente')) {
+                    return false;
+                }
+
                 // Obter valores do formulário
                 const nomeInput = document.getElementById('editarClienteNome');
                 const emailInput = document.getElementById('editarClienteEmail');
@@ -8724,6 +8751,9 @@ Sistema Legal - ANA PAULA MEDINA
         function excluirClienteDireto(id) {
             console.log('🔧 excluirClienteDireto chamado com ID:', id);
             
+            if (!exigirPermissaoAcao('apagar', 'cliente')) {
+                return;
+            }
             if (confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) {
                 // Carregar dados dos clientes
                 const clientesSalvos = localStorage.getItem('clientes');
@@ -8766,6 +8796,9 @@ Sistema Legal - ANA PAULA MEDINA
             console.log('🔧 Contrato encontrado no índice:', contratoIndex);
             
             if (contratoIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'contrato')) {
+                    return false;
+                }
                 const clienteId = parseInt(document.getElementById('editarContratoCliente').value);
                 const clienteSelecionado = clientes.find(c => c.id === clienteId);
                 console.log('🔧 Cliente selecionado:', clienteSelecionado);
@@ -9219,6 +9252,10 @@ Sistema Legal - ANA PAULA MEDINA
 
         function editarItem(tipo, id) {
             console.log('🔧 editarItem chamado:', tipo, id);
+
+            if (!exigirPermissaoAcao('editar', tipo)) {
+                return;
+            }
             
             // Fechar qualquer modal aberto primeiro
             fecharModal();
@@ -9272,6 +9309,10 @@ Sistema Legal - ANA PAULA MEDINA
 
         function excluirItem(tipo, id) {
             console.log('🔧 excluirItem chamado:', tipo, id);
+
+            if (!exigirPermissaoAcao('apagar', tipo)) {
+                return;
+            }
             
             if (confirm('Tem certeza que deseja excluir este item?')) {
                 if (!exigirAdmin('exclusão de dados')) {
@@ -14414,6 +14455,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const prazoIndex = prazos.findIndex(p => p.id === id);
             if (prazoIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'prazo')) {
+                    return false;
+                }
                 prazos[prazoIndex] = {
                     ...prazos[prazoIndex],
                     descricao: document.getElementById('prazoDescricao').value,
@@ -15219,6 +15263,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             });
             
             if (contratoIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'contrato')) {
+                    return false;
+                }
                 const clienteId = document.getElementById('contratoClienteId').value;
                 const cliente = clientes.find(c => c.id === parseInt(clienteId));
                 
@@ -15272,6 +15319,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const honorarioIndex = honorarios.findIndex(h => h.id === id);
             if (honorarioIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'honorario')) {
+                    return false;
+                }
                 honorarios[honorarioIndex] = {
                     ...honorarios[honorarioIndex],
                     cliente: document.getElementById('honorarioCliente').value,
@@ -15309,6 +15359,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const herancaIndex = herancas.findIndex(h => h.id === id);
             if (herancaIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'heranca')) {
+                    return false;
+                }
                 const clienteId = document.getElementById('herancaClienteId').value;
                 const cliente = clientes.find(c => c.id === parseInt(clienteId));
                 
@@ -15367,6 +15420,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const migracaoIndex = migracoes.findIndex(m => m.id === id);
             if (migracaoIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'migracao')) {
+                    return false;
+                }
                 const clienteId = document.getElementById('migracaoClienteId').value;
                 const cliente = clientes.find(c => c.id === parseInt(clienteId));
                 
@@ -15425,6 +15481,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const registoIndex = registos.findIndex(r => r.id === id);
             if (registoIndex !== -1) {
+                if (!exigirPermissaoAcao('editar', 'registo')) {
+                    return false;
+                }
                 const clienteId = document.getElementById('registoClienteId').value;
                 const cliente = clientes.find(c => c.id === parseInt(clienteId));
                 
