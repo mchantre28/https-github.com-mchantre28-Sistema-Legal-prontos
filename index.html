@@ -1313,6 +1313,7 @@
         let documentos = [];
         let calendarioModo = 'mensal';
         let calendarioDataRef = new Date();
+        let calendarioFiltroCliente = '';
         let secaoAtiva = 'dashboard';
         let relatorioAvancadoUltimosResultados = [];
         
@@ -1328,6 +1329,7 @@
         window.documentos = documentos;
         window.calendarioModo = calendarioModo;
         window.calendarioDataRef = calendarioDataRef;
+        window.calendarioFiltroCliente = calendarioFiltroCliente;
         window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
         // === FUNÇÃO DE TESTE ===
@@ -7233,6 +7235,10 @@ Sistema Legal - ANA PAULA MEDINA
             const lista = Array.isArray(prazos) ? prazos : [];
             return lista.filter(prazo => {
                 if (!prazo.dataLimite) return false;
+                if (calendarioFiltroCliente) {
+                    const clienteId = String(prazo.clienteId || '');
+                    if (clienteId !== String(calendarioFiltroCliente)) return false;
+                }
                 const dataPrazo = normalizarDataCalendario(prazo.dataLimite);
                 if (!dataPrazo) return false;
                 return formatarDataLocalCalendario(dataPrazo) === alvo;
@@ -7258,6 +7264,15 @@ Sistema Legal - ANA PAULA MEDINA
                     </div>
                     
                     <div class="card p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                                <select id="calendarioFiltroCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltroCalendarioCliente()">
+                                    <option value="">Todos os clientes</option>
+                                    ${clientes.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
                         <div id="calendarioTitulo" class="text-lg font-semibold mb-4"></div>
                         <div id="calendarioGrid"></div>
                     </div>
@@ -7266,8 +7281,19 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function inicializarCalendarioPrazos() {
+            const select = document.getElementById('calendarioFiltroCliente');
+            if (select) {
+                select.value = calendarioFiltroCliente || '';
+            }
             atualizarCalendarioPrazos();
             lucide.createIcons();
+        }
+
+        function aplicarFiltroCalendarioCliente() {
+            const select = document.getElementById('calendarioFiltroCliente');
+            calendarioFiltroCliente = select ? select.value : '';
+            window.calendarioFiltroCliente = calendarioFiltroCliente;
+            atualizarCalendarioPrazos();
         }
 
         function alterarModoCalendario(modo) {
