@@ -1316,6 +1316,7 @@
         let calendarioFiltroCliente = '';
         let calendarioFiltroStatus = '';
         let calendarioFiltroTipo = '';
+        let calendarioFiltroPrioridade = '';
         let secaoAtiva = 'dashboard';
         let relatorioAvancadoUltimosResultados = [];
         
@@ -1334,6 +1335,7 @@
         window.calendarioFiltroCliente = calendarioFiltroCliente;
         window.calendarioFiltroStatus = calendarioFiltroStatus;
         window.calendarioFiltroTipo = calendarioFiltroTipo;
+        window.calendarioFiltroPrioridade = calendarioFiltroPrioridade;
         window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
         // === FUNÇÃO DE TESTE ===
@@ -7250,6 +7252,10 @@ Sistema Legal - ANA PAULA MEDINA
                     const tipo = String(prazo.tipo || '').toLowerCase();
                     if (tipo !== String(calendarioFiltroTipo)) return false;
                 }
+                if (calendarioFiltroPrioridade) {
+                    const prioridade = String(prazo.prioridade || '').toLowerCase();
+                    if (prioridade !== String(calendarioFiltroPrioridade)) return false;
+                }
                 const dataPrazo = normalizarDataCalendario(prazo.dataLimite);
                 if (!dataPrazo) return false;
                 return formatarDataLocalCalendario(dataPrazo) === alvo;
@@ -7275,7 +7281,7 @@ Sistema Legal - ANA PAULA MEDINA
                     </div>
                     
                     <div class="card p-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
                                 <select id="calendarioFiltroCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
@@ -7306,6 +7312,16 @@ Sistema Legal - ANA PAULA MEDINA
                                     <option value="outro">Outro</option>
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                <select id="calendarioFiltroPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
+                                    <option value="">Todas</option>
+                                    <option value="baixa">Baixa</option>
+                                    <option value="media">Média</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="critica">Crítica</option>
+                                </select>
+                            </div>
                         </div>
                         <div id="calendarioTitulo" class="text-lg font-semibold mb-4"></div>
                         <div id="calendarioGrid"></div>
@@ -7327,6 +7343,10 @@ Sistema Legal - ANA PAULA MEDINA
             if (selectTipo) {
                 selectTipo.value = calendarioFiltroTipo || '';
             }
+            const selectPrioridade = document.getElementById('calendarioFiltroPrioridade');
+            if (selectPrioridade) {
+                selectPrioridade.value = calendarioFiltroPrioridade || '';
+            }
             atualizarCalendarioPrazos();
             lucide.createIcons();
         }
@@ -7335,12 +7355,15 @@ Sistema Legal - ANA PAULA MEDINA
             const select = document.getElementById('calendarioFiltroCliente');
             const selectStatus = document.getElementById('calendarioFiltroStatus');
             const selectTipo = document.getElementById('calendarioFiltroTipo');
+            const selectPrioridade = document.getElementById('calendarioFiltroPrioridade');
             calendarioFiltroCliente = select ? select.value : '';
             calendarioFiltroStatus = selectStatus ? selectStatus.value : '';
             calendarioFiltroTipo = selectTipo ? selectTipo.value : '';
+            calendarioFiltroPrioridade = selectPrioridade ? selectPrioridade.value : '';
             window.calendarioFiltroCliente = calendarioFiltroCliente;
             window.calendarioFiltroStatus = calendarioFiltroStatus;
             window.calendarioFiltroTipo = calendarioFiltroTipo;
+            window.calendarioFiltroPrioridade = calendarioFiltroPrioridade;
             atualizarCalendarioPrazos();
         }
 
