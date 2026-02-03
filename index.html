@@ -755,7 +755,7 @@
             <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
                 <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
                 Documentos
-                </a>
+            </a>
             <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
                 <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
                 Relatórios
@@ -788,7 +788,7 @@
             <div class="px-6 py-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
-                    <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
+                        <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
                         <div id="globalSearchContainer" class="relative w-full max-w-xl">
                             <input id="globalSearchInput" type="text" placeholder="Pesquisa global: clientes, processos, contratos e prazos..." class="form-control w-full pl-10">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -803,7 +803,7 @@
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
                         </button>
-                        <button onclick="importarDados()" class="btn btn-success">
+                        <button onclick="importarDadosCompletos()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
                         </button>
@@ -3132,7 +3132,7 @@ END:VCALENDAR`;
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
                                 <input id="filtroHistoricoTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: cliente, contrato, prazo...">
@@ -3597,32 +3597,32 @@ END:VCALENDAR`;
                 migracoes = [];
                 console.log('🔧 migracoes inicializado como array vazio');
             }
-            
+
             try {
-            const conteudos = {
-                dashboard: gerarDashboard(),
-                clientes: gerarClientes(),
-                honorarios: gerarHonorarios(),
-                contratos: gerarContratos(),
-                prazos: gerarPrazos(),
-                notificacoes: gerarNotificacoes(),
-                herancas: gerarHerancas(),
-                convidados: gerarConvidados(),
-                migracoes: gerarMigracao(),
-                registos: gerarRegistos(),
+                const conteudos = {
+                    dashboard: gerarDashboard(),
+                    clientes: gerarClientes(),
+                    honorarios: gerarHonorarios(),
+                    contratos: gerarContratos(),
+                    prazos: gerarPrazos(),
+                    notificacoes: gerarNotificacoes(),
+                    herancas: gerarHerancas(),
+                    convidados: gerarConvidados(),
+                    migracoes: gerarMigracao(),
+                    registos: gerarRegistos(),
                 documentos: gerarDocumentos(),
                 tarefas: gerarTarefas(),
                 calendario: gerarCalendarioPrazos(),
-                relatorios: gerarRelatorios(),
-                backup: gerarBackup(),
+                    relatorios: gerarRelatorios(),
+                    backup: gerarBackup(),
                 historico: gerarHistoricoDetalhado(),
-            };
-            
-            console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
-            console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
-            console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
-            
-            return conteudos[secao] || '<p>Seção não encontrada</p>';
+                };
+                
+                console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
+                console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
+                console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
+                
+                return conteudos[secao] || '<p>Seção não encontrada</p>';
             } catch (error) {
                 console.error('❌ Erro ao gerar conteúdo da seção:', secao, error);
                 return `
@@ -5385,21 +5385,68 @@ Sistema Legal - ANA PAULA MEDINA
                     const clientesAutorizados = convidado.clientesAutorizados;
                     clientesParaMostrar = clientes.filter(c => clientesAutorizados.includes(c.id));
                     honorariosParaMostrar = honorarios.filter(h => clientesAutorizados.includes(h.clienteId));
+                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     herancasParaMostrar = herancas.filter(h => clientesAutorizados.includes(h.clienteId));
                     migracoesParaMostrar = migracoes.filter(m => clientesAutorizados.includes(m.clienteId));
                     registosParaMostrar = registos.filter(r => clientesAutorizados.includes(r.clienteId));
-                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     prazosParaMostrar = prazos.filter(p => clientesAutorizados.includes(p.clienteId));
                 } else {
                     // Se não há permissões, mostrar dados vazios
                     clientesParaMostrar = [];
                     honorariosParaMostrar = [];
+                    contratosParaMostrar = [];
                     herancasParaMostrar = [];
                     migracoesParaMostrar = [];
                     registosParaMostrar = [];
-                    contratosParaMostrar = [];
                     prazosParaMostrar = [];
                 }
+            }
+
+            const semDados = clientesParaMostrar.length === 0 &&
+                honorariosParaMostrar.length === 0 &&
+                contratosParaMostrar.length === 0 &&
+                herancasParaMostrar.length === 0 &&
+                migracoesParaMostrar.length === 0 &&
+                registosParaMostrar.length === 0 &&
+                prazosParaMostrar.length === 0 &&
+                notificacoes.length === 0;
+
+            if (semDados && tipoUsuario !== 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Nenhum dado encontrado</h3>
+                        <p class="text-gray-600 mb-4">
+                            Parece que o sistema ainda não tem dados. Isso é normal após mudar de domínio.
+                            Importe o backup para restaurar tudo automaticamente.
+                        </p>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="importarDadosCompletos()" class="btn btn-success">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                Importar backup completo
+                            </button>
+                            <button onclick="carregarSecao('backup')" class="btn btn-secondary">
+                                Ver opções de backup
+                            </button>
+                            <button onclick="carregarSecao('clientes')" class="btn btn-primary">
+                                Criar primeiro cliente
+                            </button>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-500">
+                            Dica: use o arquivo ` + '`' + `backup_sistema_YYYY-MM-DD.json` + '`' + ` exportado do link antigo.
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (semDados && tipoUsuario === 'convidado') {
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-2">Sem dados disponíveis</h3>
+                        <p class="text-gray-600">
+                            O administrador ainda não partilhou dados com o seu acesso. Aguarde a autorização.
+                        </p>
+                    </div>
+                `;
             }
             
             const totalClientes = clientesParaMostrar.length;
@@ -7244,6 +7291,48 @@ Sistema Legal - ANA PAULA MEDINA
             salvarDados('tarefas', tarefas);
         }
 
+        function normalizarLinkTarefa(url) {
+            const valor = String(url || '').trim();
+            if (!valor) return '';
+            if (!/^(https?:)?\/\//i.test(valor)) {
+                return `https://${valor}`;
+            }
+            return valor;
+        }
+
+        function baixarAnexoTarefa(tarefaId, anexoId) {
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const tarefa = lista.find(t => t.id === tarefaId);
+            const anexo = tarefa && Array.isArray(tarefa.anexos) ? tarefa.anexos.find(a => a.id === anexoId) : null;
+            if (!anexo || !anexo.conteudo) {
+                mostrarNotificacao('Anexo não encontrado.', 'error');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = anexo.conteudo;
+            link.download = anexo.nome || 'anexo';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function finalizarCriacaoTarefa(tarefa) {
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            lista.unshift(tarefa);
+            salvarTarefasLocal(lista);
+            registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
+            mostrarNotificacao('Tarefa criada com sucesso!', 'success');
+
+            const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaObservacoes', 'tarefaLinks', 'tarefaDataLimite', 'tarefaLembrete', 'tarefaAnexos'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const prioridadeEl = document.getElementById('tarefaPrioridade');
+            if (prioridadeEl) prioridadeEl.value = 'media';
+            aplicarFiltrosTarefas();
+        }
+
         function gerarTarefas() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             const isConvidado = tipoUsuario === 'convidado';
@@ -7306,13 +7395,22 @@ Sistema Legal - ANA PAULA MEDINA
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                                     <textarea id="tarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3" placeholder="Detalhes adicionais"></textarea>
                                 </div>
+                                <div class="md:col-span-2 lg:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                                    <textarea id="tarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2" placeholder="Observações internas"></textarea>
+                                </div>
+                                <div class="md:col-span-2 lg:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
+                                    <input id="tarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: https://..., https://...">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Anexos</label>
+                                    <input id="tarefaAnexos" type="file" multiple class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB por anexo.</p>
+                                </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
                                     <input id="tarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Lembrete</label>
-                                    <input id="tarefaLembrete" type="datetime-local" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
                             </div>
                         </div>
@@ -7320,7 +7418,7 @@ Sistema Legal - ANA PAULA MEDINA
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
                                 <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo..." oninput="aplicarFiltrosTarefas()">
@@ -7477,14 +7575,15 @@ Sistema Legal - ANA PAULA MEDINA
                     }
                 });
             }
-            
             if (texto) {
                 lista = lista.filter(t => {
                     const alvo = [
                         t.titulo,
                         t.descricao,
+                        t.observacoes,
                         t.clienteNome,
-                        t.processoTipo
+                        t.processoTipo,
+                        ...(t.links || [])
                     ].filter(Boolean).join(' ').toLowerCase();
                     return alvo.includes(texto);
                 });
@@ -7549,21 +7648,33 @@ Sistema Legal - ANA PAULA MEDINA
             }
             
             const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado';
-            const formatarDataHora = (valor) => {
-                if (!valor) return '';
-                const data = new Date(valor);
-                if (isNaN(data.getTime())) return '';
-                return data.toLocaleString('pt-PT');
-            };
             container.innerHTML = lista.map(tarefa => `
                 <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
                     <div class="flex justify-between items-start gap-3">
                         <div class="flex-1">
                             <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
+                            ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${tarefa.clienteNome || 'Cliente'} • ${tarefa.processoTipo || 'outro'}</div>
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
-                            ${tarefa.lembreteEm ? `<div class="text-xs text-gray-400">Lembrete: ${formatarDataHora(tarefa.lembreteEm)}</div>` : ''}
+                            ${tarefa.links && tarefa.links.length ? `
+                                <div class="text-xs text-gray-400">
+                                    Links:
+                                    ${tarefa.links.map(link => {
+                                        const href = normalizarLinkTarefa(link);
+                                        return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline mr-2">${link}</a>` : '';
+                                    }).join('')}
+                                </div>
+                            ` : ''}
+                            ${tarefa.anexos && tarefa.anexos.length ? `
+                                <div class="flex flex-wrap gap-2 mt-1">
+                                    ${tarefa.anexos.map(anexo => `
+                                        <button onclick="baixarAnexoTarefa(${tarefa.id}, '${anexo.id}')" class="text-xs text-blue-600 hover:text-blue-800 underline">
+                                            ${anexo.nome}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="status-badge status-${tarefa.prioridade || 'media'}">${tarefa.prioridade || 'media'}</span>
@@ -7596,11 +7707,16 @@ Sistema Legal - ANA PAULA MEDINA
             const prioridade = document.getElementById('tarefaPrioridade')?.value || 'media';
             const titulo = document.getElementById('tarefaTitulo')?.value?.trim() || '';
             const descricao = document.getElementById('tarefaDescricao')?.value?.trim() || '';
+            const observacoes = document.getElementById('tarefaObservacoes')?.value?.trim() || '';
+            const linksRaw = document.getElementById('tarefaLinks')?.value || '';
+            const links = linksRaw.split(',').map(item => item.trim()).filter(Boolean);
             const dataLimite = document.getElementById('tarefaDataLimite')?.value || '';
-            const lembreteValor = document.getElementById('tarefaLembrete')?.value || '';
-            const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
-            if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
-                mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
+            const anexosInput = document.getElementById('tarefaAnexos');
+            const arquivos = anexosInput && anexosInput.files ? Array.from(anexosInput.files) : [];
+            const maxAnexo = 5 * 1024 * 1024;
+            const anexoGrande = arquivos.find(arquivo => arquivo.size > maxAnexo);
+            if (anexoGrande) {
+                mostrarNotificacao('Anexo acima de 5 MB. Tente um ficheiro menor.', 'error');
                 return;
             }
             
@@ -7621,30 +7737,37 @@ Sistema Legal - ANA PAULA MEDINA
                 processoTipo,
                 titulo,
                 descricao,
+                observacoes,
+                links,
                 prioridade,
                 status: 'aberta',
                 dataLimite: dataLimite || null,
-                lembreteEm: lembreteData ? lembreteData.toISOString() : null,
-                lembreteDisparado: false,
+                anexos: [],
                 criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
                 tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
                 dataCriacao: new Date().toISOString()
             };
-            
-            const lista = Array.isArray(tarefas) ? tarefas : [];
-            lista.unshift(tarefa);
-            salvarTarefasLocal(lista);
-            registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
-            mostrarNotificacao('Tarefa criada com sucesso!', 'success');
-            
-            const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaDataLimite', 'tarefaLembrete'];
-            ids.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
+
+            if (arquivos.length === 0) {
+                finalizarCriacaoTarefa(tarefa);
+                return;
+            }
+
+            Promise.all(arquivos.map((arquivo, index) => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({
+                    id: `${Date.now()}_${index}`,
+                    nome: arquivo.name,
+                    tipo: arquivo.type,
+                    tamanho: arquivo.size,
+                    conteudo: reader.result
+                });
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(arquivo);
+            }))).then(resultados => {
+                tarefa.anexos = resultados.filter(Boolean);
+                finalizarCriacaoTarefa(tarefa);
             });
-            const prioridadeEl = document.getElementById('tarefaPrioridade');
-            if (prioridadeEl) prioridadeEl.value = 'media';
-            aplicarFiltrosTarefas();
         }
 
         function alterarStatusTarefa(id) {
@@ -8379,9 +8502,9 @@ Sistema Legal - ANA PAULA MEDINA
                                 Limpar
                             </button>
                         </div>
-                        </div>
-                        
-                        <div class="card p-6">
+                    </div>
+                    
+                    <div class="card p-6">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold">Documentos guardados</h3>
                             <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
@@ -8464,18 +8587,18 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="flex items-center gap-2">
                             <button onclick="baixarDocumento(${doc.id})" class="text-blue-600 hover:text-blue-800" title="Baixar">
                                 <i data-lucide="download" class="w-4 h-4"></i>
-                                </button>
+                            </button>
                             ${isConvidado ? '' : `
                                 <button onclick="excluirDocumento(${doc.id})" class="text-red-600 hover:text-red-800" title="Excluir">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
                             `}
-                            </div>
                         </div>
+                    </div>
                     ${doc.tags && doc.tags.length ? `
                         <div class="flex flex-wrap gap-2">
                             ${doc.tags.map(tag => `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">${tag}</span>`).join('')}
-                    </div>
+                        </div>
                     ` : ''}
                 </div>
             `).join('');
@@ -9874,7 +9997,7 @@ Sistema Legal - ANA PAULA MEDINA
                 if (!exigirPermissaoAcao('editar', 'cliente')) {
                     return false;
                 }
-                
+
                 // Obter valores do formulário
                 const nomeInput = document.getElementById('editarClienteNome');
                 const emailInput = document.getElementById('editarClienteEmail');
@@ -11885,14 +12008,12 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             console.log('🔔 Iniciando sistema de notificações');
             verificarHonorariosVencidos();
             verificarPrazosUrgentes();
-            verificarLembretesTarefas();
             atualizarBadgeNotificacoes();
             
             // Verificar a cada 5 minutos
             setInterval(() => {
                 verificarHonorariosVencidos();
                 verificarPrazosUrgentes();
-                verificarLembretesTarefas();
                 atualizarBadgeNotificacoes();
             }, 5 * 60 * 1000);
         }
@@ -12112,35 +12233,6 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     console.warn('Erro ao processar prazo:', prazo.id, error);
                 }
             });
-        }
-
-        function verificarLembretesTarefas() {
-            const agora = new Date();
-            const lista = Array.isArray(tarefas) ? tarefas : [];
-            let atualizou = false;
-
-            lista.forEach(tarefa => {
-                if (!tarefa.lembreteEm || tarefa.lembreteDisparado) return;
-                if (tarefa.status === 'concluida') return;
-                const dataLembrete = new Date(tarefa.lembreteEm);
-                if (isNaN(dataLembrete.getTime())) return;
-                if (dataLembrete <= agora) {
-                    criarNotificacao({
-                        tipo: 'tarefa',
-                        titulo: 'Lembrete de Tarefa',
-                        mensagem: `Tarefa "${tarefa.titulo}"${tarefa.clienteNome ? ` do cliente ${tarefa.clienteNome}` : ''} está com lembrete para ${dataLembrete.toLocaleString('pt-PT')}`,
-                        prioridade: tarefa.prioridade || 'media',
-                        referenciaId: tarefa.id,
-                        acao: 'ver_tarefa'
-                    });
-                    tarefa.lembreteDisparado = true;
-                    atualizou = true;
-                }
-            });
-
-            if (atualizou) {
-                salvarTarefasLocal(lista);
-            }
         }
 
         function criarNotificacao(dados) {
