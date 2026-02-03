@@ -540,6 +540,33 @@
             color: #991b1b;
         }
 
+        .calendario-item {
+            padding: 2px 6px;
+            border-radius: 6px;
+            border-left: 4px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .calendario-prioridade-baixa {
+            border-left-color: #9ca3af;
+            background: #f3f4f6;
+        }
+
+        .calendario-prioridade-media {
+            border-left-color: #f59e0b;
+            background: #fef3c7;
+        }
+
+        .calendario-prioridade-alta {
+            border-left-color: #f97316;
+            background: #fed7aa;
+        }
+
+        .calendario-prioridade-critica {
+            border-left-color: #ef4444;
+            background: #fee2e2;
+        }
+
         .table-responsive {
             overflow-x: auto;
             border-radius: 8px;
@@ -7437,7 +7464,7 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="text-xs font-semibold mb-1">${dataAtual.getDate()}</div>
                         <div class="space-y-1">
                             ${prazosDia.slice(0, 3).map(prazo => `
-                                <div class="text-[11px] text-gray-700 truncate">
+                                <div class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}">
                                     <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                     ${prazo.descricao || prazo.tipo || 'Prazo'}
                                 </div>
@@ -7466,7 +7493,7 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} • ${dataAtual.toLocaleDateString('pt-PT')}</div>
                         <div class="space-y-2">
                             ${prazosDia.length ? prazosDia.map(prazo => `
-                                <div class="text-xs text-gray-700 border border-gray-200 rounded p-2">
+                                <div class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}">
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                         <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
