@@ -5771,6 +5771,23 @@ Sistema Legal - ANA PAULA MEDINA
                 return;
             }
             try {
+                const tipoArquivo = (doc.tipoArquivo || '').toLowerCase();
+                const isImagem = tipoArquivo.startsWith('image/') || url.startsWith('data:image/');
+                if (isImagem) {
+                    const win = window.open('', '_blank');
+                    if (win) {
+                        win.document.title = doc.nomeArquivo || 'Imagem';
+                        win.document.body.style.margin = '0';
+                        win.document.body.style.display = 'flex';
+                        win.document.body.style.justifyContent = 'center';
+                        win.document.body.style.alignItems = 'center';
+                        win.document.body.style.background = '#111827';
+                        win.document.body.innerHTML = `<img src="${url}" alt="Imagem" style="max-width: 100%; max-height: 100vh;" />`;
+                        return;
+                    }
+                    baixarDocumentoUrl(url, doc.nomeArquivo);
+                    return;
+                }
                 if (url.startsWith('data:')) {
                     const blob = await fetch(url).then(res => res.blob());
                     const blobUrl = URL.createObjectURL(blob);
