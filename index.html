@@ -5470,6 +5470,14 @@ Sistema Legal - ANA PAULA MEDINA
                                                     <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
+                                                    ${tarefa.links && tarefa.links.length ? `
+                                                        <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
+                                                            ${tarefa.links.map(link => {
+                                                                const href = normalizarLinkTarefa(link);
+                                                                return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">${link}</a>` : '';
+                                                            }).join('')}
+                                                        </div>
+                                                    ` : ''}
                                                     ${tarefa.anexos && tarefa.anexos.length ? `
                                                         <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
                                                             ${tarefa.anexos.map(anexo => `
@@ -5492,24 +5500,37 @@ Sistema Legal - ANA PAULA MEDINA
                             <div style="margin-bottom: 30px;">
                                 <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
                                 <div style="max-height: 300px; overflow-y: auto;">
-                                    ${dadosCliente.documentos.map((doc) => `
-                                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #10b981;">
-                                            <div style="display: flex; justify-content: space-between; align-items: start;">
-                                                <div>
-                                                    <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
-                                                    <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
-                                                    <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
-                                                    ${doc.conteudo ? `
-                                                        <div style="margin-top: 6px;">
-                                                            <a href="${doc.conteudo}" download="${doc.nomeArquivo || 'documento'}" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
-                                                                Baixar documento
-                                                            </a>
+                                    ${(() => {
+                                        const grupos = dadosCliente.documentos.reduce((acc, doc) => {
+                                            const tipo = doc.processoTipo || doc.tipo || doc.categoria || 'outro';
+                                            if (!acc[tipo]) acc[tipo] = [];
+                                            acc[tipo].push(doc);
+                                            return acc;
+                                        }, {});
+                                        return Object.keys(grupos).sort().map(tipo => `
+                                            <div style="margin-bottom: 16px;">
+                                                <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; text-transform: capitalize;">${tipo}</div>
+                                                ${grupos[tipo].map(doc => `
+                                                    <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #10b981;">
+                                                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                            <div>
+                                                                <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
+                                                                <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
+                                                                <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
+                                                                ${doc.conteudo ? `
+                                                                    <div style="margin-top: 6px;">
+                                                                        <a href="${doc.conteudo}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
+                                                                            Abrir documento
+                                                                        </a>
+                                                                    </div>
+                                                                ` : ''}
+                                                            </div>
                                                         </div>
-                                                    ` : ''}
-                                                </div>
+                                                    </div>
+                                                `).join('')}
                                             </div>
-                                        </div>
-                                    `).join('')}
+                                        `).join('');
+                                    })()}
                                 </div>
                             </div>
                         ` : ''}
