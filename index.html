@@ -5220,12 +5220,21 @@ Sistema Legal - ANA PAULA MEDINA
             }
             
             // Buscar todos os dados relacionados ao cliente
+            const clienteId = cliente.id;
+            const correspondeCliente = (item) => {
+                if (!item) return false;
+                if (clienteId && String(item.clienteId) === String(clienteId)) return true;
+                return item.clienteNome === cliente.nome || item.cliente === cliente.nome;
+            };
             const dadosCliente = {
-                honorarios: honorarios ? honorarios.filter(h => h.cliente === cliente.nome) : [],
-                contratos: contratos ? contratos.filter(c => c.cliente === cliente.nome) : [],
-                herancas: herancas ? herancas.filter(h => h.cliente === cliente.nome) : [],
-                migracoes: migracoes ? migracoes.filter(m => m.cliente === cliente.nome) : [],
-                registos: registos ? registos.filter(r => r.cliente === cliente.nome) : []
+                honorarios: honorarios ? honorarios.filter(correspondeCliente) : [],
+                contratos: contratos ? contratos.filter(correspondeCliente) : [],
+                herancas: herancas ? herancas.filter(correspondeCliente) : [],
+                migracoes: migracoes ? migracoes.filter(correspondeCliente) : [],
+                registos: registos ? registos.filter(correspondeCliente) : [],
+                prazos: prazos ? prazos.filter(correspondeCliente) : [],
+                tarefas: tarefas ? tarefas.filter(correspondeCliente) : [],
+                documentos: documentos ? documentos.filter(correspondeCliente) : []
             };
             
             // Criar modal com informações completas
@@ -5427,12 +5436,72 @@ Sistema Legal - ANA PAULA MEDINA
                                 </div>
                             </div>
                         ` : ''}
+
+                        <!-- Prazos -->
+                        ${dadosCliente.prazos.length > 0 ? `
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0ea5e9; padding-bottom: 5px;">⏰ Prazos (${dadosCliente.prazos.length})</h4>
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    ${dadosCliente.prazos.map((prazo) => `
+                                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0ea5e9;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div>
+                                                    <strong>${prazo.descricao || prazo.tipo || 'Prazo'}</strong><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">Status: ${prazo.status || 'ativo'}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">Data limite: ${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'N/D'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Tarefas -->
+                        ${dadosCliente.tarefas.length > 0 ? `
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">✅ Tarefas (${dadosCliente.tarefas.length})</h4>
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    ${dadosCliente.tarefas.map((tarefa) => `
+                                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #6366f1;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div>
+                                                    <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Documentos -->
+                        ${dadosCliente.documentos.length > 0 ? `
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    ${dadosCliente.documentos.map((doc) => `
+                                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #10b981;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div>
+                                                    <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                         
-                        ${dadosCliente.honorarios.length === 0 && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 ? `
+                        ${dadosCliente.honorarios.length === 0 && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 ? `
                             <div style="text-align: center; padding: 40px; color: #6b7280;">
                                 <i data-lucide="file-x" style="width: 48px; height: 48px; margin: 0 auto 20px; display: block;"></i>
-                                <h4 style="margin: 0 0 10px 0;">Nenhum documento encontrado</h4>
-                                <p style="margin: 0;">Este cliente ainda não possui documentos associados.</p>
+                                <h4 style="margin: 0 0 10px 0;">Nenhum item encontrado</h4>
+                                <p style="margin: 0;">Este cliente ainda não possui registros associados.</p>
                             </div>
                         ` : ''}
                     </div>
