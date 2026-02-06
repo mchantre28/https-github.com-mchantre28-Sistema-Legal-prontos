@@ -11,6 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
     <style>
         :root {
@@ -862,6 +864,49 @@
         // SISTEMA DE LOGIN
         const USUARIO_PADRAO = 'admin';
         const SENHA_PADRAO = 'APM2024!';
+
+        // === FIREBASE (CONVIDADOS EM NUVEM) ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyBv1KtXvzvHKZRL367ST4GrZFTYVOmFuzE",
+            authDomain: "anapaulamedinasolicitadora.firebaseapp.com",
+            projectId: "anapaulamedinasolicitadora",
+            storageBucket: "anapaulamedinasolicitadora.firebasestorage.app",
+            messagingSenderId: "420983654368",
+            appId: "1:420983654368:web:4918cacde4ea3603b78d85",
+            measurementId: "G-Z3DM5PB0LR"
+        };
+
+        let firestoreDb = null;
+
+        function initFirebase() {
+            try {
+                if (typeof firebase === 'undefined') return;
+                if (!firebase.apps || firebase.apps.length === 0) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                firestoreDb = firebase.firestore();
+            } catch (error) {
+                console.warn('Firebase não inicializado:', error);
+            }
+        }
+
+        initFirebase();
+
+        function salvarConvidadoCloud(convidado) {
+            if (!firestoreDb || !convidado || !convidado.codigo) return Promise.resolve();
+            return firestoreDb.collection('convidados').doc(convidado.codigo).set(convidado, { merge: true });
+        }
+
+        async function obterConvidadoPorCodigoCloud(codigo) {
+            if (!firestoreDb || !codigo) return null;
+            try {
+                const snap = await firestoreDb.collection('convidados').doc(codigo).get();
+                return snap.exists ? snap.data() : null;
+            } catch (error) {
+                console.warn('Erro ao ler convidado na nuvem:', error);
+                return null;
+            }
+        }
         
         function verificarLogin() {
             const usuarioLogado = localStorage.getItem('usuarioLogado');
@@ -1010,20 +1055,36 @@
                 </div>
             `;
             
-            document.getElementById('formLoginConvidado').addEventListener('submit', function(e) {
+            document.getElementById('formLoginConvidado').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const nome = document.getElementById('nomeConvidado').value;
-                const codigo = document.getElementById('codigoAcesso').value;
+                const codigo = (document.getElementById('codigoAcesso').value || '').trim().toUpperCase();
                 
-                // Verificar se o código existe e está ativo
-                const convidados = JSON.parse(localStorage.getItem('convidados') || '[]');
-                const convidado = convidados.find(c => c.codigo === codigo && c.ativo);
+                // Verificar se o código existe e está ativo (nuvem primeiro)
+                let convidado = await obterConvidadoPorCodigoCloud(codigo);
+                if (!convidado) {
+                    const convidados = JSON.parse(localStorage.getItem('convidados') || '[]');
+                    convidado = convidados.find(c => c.codigo === codigo && c.ativo);
+                }
                 
-                if (convidado) {
+                if (convidado && convidado.ativo) {
+                    // Cache local do convidado para uso offline
+                    try {
+                        const lista = JSON.parse(localStorage.getItem('convidados') || '[]');
+                        const index = lista.findIndex(c => c.codigo === codigo);
+                        if (index >= 0) {
+                            lista[index] = { ...lista[index], ...convidado };
+                        } else {
+                            lista.push(convidado);
+                        }
+                        localStorage.setItem('convidados', JSON.stringify(lista));
+                    } catch (error) {
+                        console.warn('Erro ao cachear convidado localmente:', error);
+                    }
                     localStorage.setItem('usuarioLogado', 'true');
                     localStorage.setItem('usuarioNome', nome);
                     localStorage.setItem('tipoUsuario', 'convidado');
-                    localStorage.setItem('convidadoId', convidado.id);
+                    localStorage.setItem('convidadoId', convidado.id || codigo);
                     location.reload();
                 } else {
                     alert('Código de acesso inválido ou inativo!');
@@ -1107,12 +1168,30 @@
             
             convidados.push(novoConvidado);
             localStorage.setItem('convidados', JSON.stringify(convidados));
+            salvarConvidadoCloud(novoConvidado);
             
             return novoConvidado;
         }
         
         function obterConvidados() {
             return JSON.parse(localStorage.getItem('convidados') || '[]');
+        }
+
+        async function sincronizarConvidadosDaNuvem() {
+            if (!firestoreDb) return;
+            try {
+                const snapshot = await firestoreDb.collection('convidados').get();
+                const locais = JSON.parse(localStorage.getItem('convidados') || '[]');
+                const mapa = new Map(locais.map(c => [c.codigo, c]));
+                snapshot.forEach(doc => {
+                    const data = doc.data() || {};
+                    const codigo = data.codigo || doc.id;
+                    mapa.set(codigo, { ...data, codigo });
+                });
+                localStorage.setItem('convidados', JSON.stringify(Array.from(mapa.values())));
+            } catch (error) {
+                console.warn('Erro ao sincronizar convidados da nuvem:', error);
+            }
         }
         
         function ativarDesativarConvidado(id, ativo) {
@@ -1121,6 +1200,7 @@
             if (convidado) {
                 convidado.ativo = ativo;
                 localStorage.setItem('convidados', JSON.stringify(convidados));
+                salvarConvidadoCloud(convidado);
             }
         }
         
@@ -1148,6 +1228,7 @@
                 // Atualizar permissões
                 convidado.clientesAutorizados = clientesAutorizados;
                 localStorage.setItem('convidados', JSON.stringify(convidados));
+                salvarConvidadoCloud(convidado);
                 
                 console.log('🔧 Clientes autorizados depois:', convidado.clientesAutorizados);
                 console.log('🔧 Dados salvos no localStorage');
@@ -1552,6 +1633,10 @@
             // CARREGAR DADOS DO LOCALSTORAGE (NÃO LIMPAR - PRESERVA DADOS DO USUÁRIO)
             carregarDados();
             carregarDadosExemplo();
+
+            if (localStorage.getItem('tipoUsuario') === 'admin') {
+                sincronizarConvidadosDaNuvem();
+            }
             
             // Verificar tipo de usuário para carregar seção apropriada
             const tipoUsuario = localStorage.getItem('tipoUsuario');
