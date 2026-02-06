@@ -11313,7 +11313,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         }
         
         function importarDadosCompletos() {
-            if (!exigirAdmin('importar a base de dados')) {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            if (tipoUsuario !== 'admin' && tipoUsuario !== 'convidado') {
+                mostrarNotificacao('Acesso restrito: não pode importar dados.', 'error');
                 return;
             }
             const input = document.createElement('input');
