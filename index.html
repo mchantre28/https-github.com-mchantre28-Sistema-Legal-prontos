@@ -5778,11 +5778,10 @@ Sistema Legal - ANA PAULA MEDINA
                     if (win) {
                         win.document.title = doc.nomeArquivo || 'Imagem';
                         win.document.body.style.margin = '0';
-                        win.document.body.style.display = 'flex';
-                        win.document.body.style.justifyContent = 'center';
-                        win.document.body.style.alignItems = 'center';
+                        win.document.body.style.display = 'block';
+                        win.document.body.style.overflow = 'auto';
                         win.document.body.style.background = '#111827';
-                        win.document.body.innerHTML = `<img src="${url}" alt="Imagem" style="max-width: 100%; max-height: 100vh;" />`;
+                        win.document.body.innerHTML = `<div style="padding: 16px; text-align: center;"><img src="${url}" alt="Imagem" style="max-width: none; max-height: none; width: auto; height: auto; display: inline-block;" /></div>`;
                         return;
                     }
                     baixarDocumentoUrl(url, doc.nomeArquivo);
