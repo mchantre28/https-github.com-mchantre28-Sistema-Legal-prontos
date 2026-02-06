@@ -5499,8 +5499,20 @@ Sistema Legal - ANA PAULA MEDINA
                         ${dadosCliente.documentos.length > 0 ? `
                             <div style="margin-bottom: 30px;">
                                 <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
-                                <div style="margin-bottom: 10px;">
+                                <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
                                     <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
+                                    <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
+                                        <option value="data_desc">Mais recentes</option>
+                                        <option value="data_asc">Mais antigos</option>
+                                        <option value="nome_asc">Nome A-Z</option>
+                                        <option value="nome_desc">Nome Z-A</option>
+                                        <option value="tipo_asc">Tipo A-Z</option>
+                                        <option value="tipo_desc">Tipo Z-A</option>
+                                    </select>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                    <input id="filtroDocumentosClienteDataInicio" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                    <input id="filtroDocumentosClienteDataFim" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 </div>
                                 <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280; margin-bottom: 8px;"></div>
                                 <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
@@ -5593,12 +5605,28 @@ Sistema Legal - ANA PAULA MEDINA
             }, 200);
         }
 
-        function ordenarDocumentosPorData(documentos) {
-            return [...documentos].sort((a, b) => {
-                const dataA = new Date(a.dataCriacao || a.data || a.dataDocumento || 0);
-                const dataB = new Date(b.dataCriacao || b.data || b.dataDocumento || 0);
-                return (isNaN(dataB) ? 0 : dataB) - (isNaN(dataA) ? 0 : dataA);
-            });
+        function obterDataDocumento(doc) {
+            const data = new Date(doc.dataCriacao || doc.data || doc.dataDocumento || 0);
+            return isNaN(data) ? null : data;
+        }
+
+        function ordenarDocumentos(documentos, modo) {
+            const lista = [...documentos];
+            switch (modo) {
+                case 'data_asc':
+                    return lista.sort((a, b) => (obterDataDocumento(a) || 0) - (obterDataDocumento(b) || 0));
+                case 'nome_asc':
+                    return lista.sort((a, b) => String(a.nomeArquivo || '').localeCompare(String(b.nomeArquivo || '')));
+                case 'nome_desc':
+                    return lista.sort((a, b) => String(b.nomeArquivo || '').localeCompare(String(a.nomeArquivo || '')));
+                case 'tipo_asc':
+                    return lista.sort((a, b) => String(a.processoTipo || a.tipo || a.categoria || '').localeCompare(String(b.processoTipo || b.tipo || b.categoria || '')));
+                case 'tipo_desc':
+                    return lista.sort((a, b) => String(b.processoTipo || b.tipo || b.categoria || '').localeCompare(String(a.processoTipo || a.tipo || a.categoria || '')));
+                case 'data_desc':
+                default:
+                    return lista.sort((a, b) => (obterDataDocumento(b) || 0) - (obterDataDocumento(a) || 0));
+            }
         }
 
         function agruparDocumentosPorTipo(documentos) {
@@ -5614,6 +5642,12 @@ Sistema Legal - ANA PAULA MEDINA
             const container = document.getElementById('listaDocumentosClienteModal');
             const resumo = document.getElementById('resumoDocumentosClienteModal');
             if (!container) return;
+            const ordenacao = document.getElementById('ordenacaoDocumentosClienteModal')?.value || 'data_desc';
+            const dataInicioValor = document.getElementById('filtroDocumentosClienteDataInicio')?.value || '';
+            const dataFimValor = document.getElementById('filtroDocumentosClienteDataFim')?.value || '';
+            const dataInicio = dataInicioValor ? new Date(dataInicioValor) : null;
+            const dataFim = dataFimValor ? new Date(dataFimValor) : null;
+            if (dataFim) dataFim.setHours(23, 59, 59, 999);
             const filtro = (termo || '').toLowerCase();
             const filtrados = documentos.filter(doc => {
                 const alvo = [
@@ -5624,15 +5658,20 @@ Sistema Legal - ANA PAULA MEDINA
                     doc.categoria,
                     ...(doc.tags || [])
                 ].filter(Boolean).join(' ').toLowerCase();
-                return alvo.includes(filtro);
+                if (!alvo.includes(filtro)) return false;
+                const dataDoc = obterDataDocumento(doc);
+                if (dataInicio && dataDoc && dataDoc < dataInicio) return false;
+                if (dataFim && dataDoc && dataDoc > dataFim) return false;
+                return true;
             });
             if (filtrados.length === 0) {
                 container.innerHTML = '<div style="color: #6b7280; font-size: 12px; padding: 8px 0;">Nenhum documento encontrado.</div>';
                 if (resumo) resumo.textContent = '';
                 return;
             }
-            const grupos = agruparDocumentosPorTipo(ordenarDocumentosPorData(filtrados));
+            const grupos = agruparDocumentosPorTipo(ordenarDocumentos(filtrados, ordenacao));
             const tipos = Object.keys(grupos).sort();
+            const documentoMaisRecente = ordenarDocumentos(filtrados, 'data_desc')[0];
             if (resumo) {
                 resumo.textContent = tipos.map(tipo => `${tipo}: ${grupos[tipo].length}`).join(' | ');
             }
@@ -5640,10 +5679,11 @@ Sistema Legal - ANA PAULA MEDINA
                 <div style="margin-bottom: 16px;">
                     <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; text-transform: capitalize;">${tipo} (${grupos[tipo].length})</div>
                     ${grupos[tipo].map(doc => `
-                        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #10b981;">
+                        <div style="background: ${documentoMaisRecente && doc === documentoMaisRecente ? '#ecfeff' : '#f8fafc'}; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid ${documentoMaisRecente && doc === documentoMaisRecente ? '#06b6d4' : '#10b981'};">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                 <div>
-                                    <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
+                                    <strong>${doc.nomeArquivo || 'Documento'}</strong>
+                                    ${documentoMaisRecente && doc === documentoMaisRecente ? `<span style="margin-left: 6px; font-size: 11px; color: #0f766e; font-weight: 600;">Mais recente</span>` : ''}<br>
                                     <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
                                     <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
                                     ${doc.conteudo ? `
