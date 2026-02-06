@@ -5568,6 +5568,21 @@ Sistema Legal - ANA PAULA MEDINA
                             cursor: pointer;
                             font-size: 14px;
                         ">Fechar</button>
+                        <button class="btn btn-secondary" onclick="abrirDocumentosParaCliente(${cliente.id})" style="
+                            padding: 8px 16px;
+                            background-color: #10b981;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            display: flex;
+                            align-items: center;
+                            gap: 5px;
+                        ">
+                            <i data-lucide="file-plus" class="w-4 h-4"></i>
+                            Adicionar Documento
+                        </button>
                         <button class="btn btn-primary" onclick="gerarRelatorioClienteEspecifico('${cliente.nome}')" style="
                             padding: 8px 16px;
                             background-color: #3b82f6;
@@ -5836,6 +5851,23 @@ Sistema Legal - ANA PAULA MEDINA
                     }
                 }, 200);
             }, 100);
+        }
+
+        function abrirDocumentosParaCliente(clienteId) {
+            fecharModalRobusto();
+            carregarSecao('documentos');
+            setTimeout(() => {
+                const select = document.getElementById('docCliente');
+                if (select) {
+                    select.value = String(clienteId || '');
+                    select.dispatchEvent(new Event('change'));
+                    select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                const descricao = document.getElementById('docDescricao');
+                if (descricao) {
+                    descricao.focus();
+                }
+            }, 200);
         }
 
         function gerarDashboard() {
