@@ -785,7 +785,7 @@
             <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
                 <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
                 Documentos
-            </a>
+                </a>
             <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
                 <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
                 Relatórios
@@ -819,7 +819,7 @@
             <div class="px-6 py-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
-                        <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
+                    <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
                         <div id="globalSearchContainer" class="relative w-full max-w-xl">
                             <input id="globalSearchInput" type="text" placeholder="Pesquisa global: clientes, processos, contratos e prazos..." class="form-control w-full pl-10">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -834,7 +834,7 @@
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
                         </button>
-                        <button onclick="importarDadosCompletos()" class="btn btn-success">
+                        <button onclick="importarDados()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
                         </button>
@@ -1315,6 +1315,39 @@
             mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
             return false;
         }
+
+        function obterClientePorIdOuNome(clienteId, clienteNome) {
+            const lista = Array.isArray(clientes) ? clientes : [];
+            if (clienteId !== null && clienteId !== undefined && clienteId !== '') {
+                const encontradoPorId = lista.find(c => String(c.id) === String(clienteId));
+                if (encontradoPorId) return encontradoPorId;
+            }
+            if (clienteNome) {
+                const nomeNormalizado = String(clienteNome).trim().toLowerCase();
+                const encontradoPorNome = lista.find(c => String(c.nome || '').trim() === String(clienteNome).trim());
+                if (encontradoPorNome) return encontradoPorNome;
+                const encontradoCaseInsensitive = lista.find(c => String(c.nome || '').trim().toLowerCase() === nomeNormalizado);
+                if (encontradoCaseInsensitive) return encontradoCaseInsensitive;
+            }
+            return null;
+        }
+
+        function renderClienteLink(clienteId, clienteNome) {
+            const nome = clienteNome || 'Cliente';
+            const idValor = clienteId !== null && clienteId !== undefined ? String(clienteId) : '';
+            const nomeSeguro = String(nome).replace(/"/g, '&quot;');
+            return `<a href="#" class="js-cliente-detalhes-link" data-cliente-id="${idValor}" data-cliente-nome="${nomeSeguro}" onclick="abrirClientePorIdOuNome(this.dataset.clienteId, this.dataset.clienteNome); return false;" style="color: #2563eb; text-decoration: underline; cursor: pointer;">${nome}</a>`;
+        }
+
+        function abrirClientePorIdOuNome(clienteId, clienteNome) {
+            mostrarNotificacao('A abrir cliente...', 'info');
+            const cliente = obterClientePorIdOuNome(clienteId, clienteNome);
+            if (!cliente) {
+                mostrarNotificacao('Cliente não encontrado.', 'error');
+                return;
+            }
+            mostrarInformacoesCompletasCliente(cliente);
+        }
         
         // Verificar login após o DOM estar carregado
         document.addEventListener('DOMContentLoaded', function() {
@@ -1644,6 +1677,7 @@
             if (localStorage.getItem('tipoUsuario') === 'admin') {
                 sincronizarConvidadosDaNuvem();
             }
+            sincronizarTarefasNuvem();
             
             // Verificar tipo de usuário para carregar seção apropriada
             const tipoUsuario = localStorage.getItem('tipoUsuario');
@@ -3157,9 +3191,52 @@ END:VCALENDAR`;
         }
 
         // === AUDITORIA E LOGS ===
+        window.auditoriaCloud = window.auditoriaCloud || [];
+        window.__auditoriaCloudCarregada = window.__auditoriaCloudCarregada || false;
+        window.__auditoriaCloudSyncing = window.__auditoriaCloudSyncing || false;
+
+        function combinarAuditorias(local, cloud) {
+            const map = new Map();
+            [...(local || []), ...(cloud || [])].forEach(item => {
+                const chave = [
+                    item.id || '',
+                    item.tsMs || '',
+                    item.timestamp || '',
+                    item.usuario || '',
+                    item.acao || '',
+                    item.entidade || ''
+                ].join('|');
+                if (!map.has(chave)) {
+                    map.set(chave, item);
+                }
+            });
+            return Array.from(map.values()).sort((a, b) => {
+                const dataA = a.tsMs || Date.parse(a.timestamp) || 0;
+                const dataB = b.tsMs || Date.parse(b.timestamp) || 0;
+                return dataB - dataA;
+            });
+        }
+
+        function obterAuditoriaSemFiltro() {
+            try {
+                const local = JSON.parse(localStorage.getItem('auditoria') || '[]');
+                const cloud = Array.isArray(window.auditoriaCloud) ? window.auditoriaCloud : [];
+                return combinarAuditorias(local, cloud);
+            } catch (error) {
+                console.error('❌ Erro ao carregar auditoria completa:', error);
+                return [];
+            }
+        }
+
         function obterAuditoria() {
             try {
-                return JSON.parse(localStorage.getItem('auditoria') || '[]');
+                let combinado = obterAuditoriaSemFiltro();
+                const tipoUsuario = localStorage.getItem('tipoUsuario') || 'desconhecido';
+                if (tipoUsuario !== 'admin') {
+                    const usuarioLogado = localStorage.getItem('usuarioLogado') || '';
+                    combinado = combinado.filter(item => item.usuario === usuarioLogado);
+                }
+                return combinado;
             } catch (error) {
                 console.error('❌ Erro ao carregar auditoria:', error);
                 return [];
@@ -3170,10 +3247,11 @@ END:VCALENDAR`;
             try {
                 const tipoUsuario = localStorage.getItem('tipoUsuario') || 'desconhecido';
                 const usuarioLogado = localStorage.getItem('usuarioLogado') || 'N/D';
-                const auditoria = obterAuditoria();
-                auditoria.unshift({
+                const auditoria = obterAuditoriaSemFiltro();
+                const item = {
                     id: Date.now(),
                     timestamp: new Date().toISOString(),
+                    tsMs: Date.now(),
                     usuario: usuarioLogado,
                     tipoUsuario,
                     acao,
@@ -3181,11 +3259,66 @@ END:VCALENDAR`;
                     descricao,
                     dadosAntes,
                     dadosDepois
-                });
+                };
+                auditoria.unshift(item);
                 localStorage.setItem('auditoria', JSON.stringify(auditoria.slice(0, 200)));
+                salvarAuditoriaCloud(item);
             } catch (error) {
                 console.error('❌ Erro ao registrar auditoria:', error);
             }
+        }
+
+        function salvarAuditoriaCloud(item) {
+            if (!firestoreDb || !item) return Promise.resolve();
+            return firestoreDb.collection('auditoria').add({
+                ...item,
+                origem: 'cloud',
+                syncedAt: new Date().toISOString()
+            }).catch((error) => {
+                console.warn('Erro ao salvar auditoria na nuvem:', error);
+            });
+        }
+
+        async function sincronizarAuditoriaNuvem() {
+            if (!firestoreDb || window.__auditoriaCloudSyncing) return;
+            window.__auditoriaCloudSyncing = true;
+            try {
+                const snap = await firestoreDb.collection('auditoria').orderBy('tsMs', 'desc').limit(200).get();
+                window.auditoriaCloud = snap.docs.map(doc => doc.data());
+                window.__auditoriaCloudCarregada = true;
+            } catch (error) {
+                console.warn('Erro ao carregar auditoria da nuvem:', error);
+            } finally {
+                window.__auditoriaCloudSyncing = false;
+            }
+        }
+
+        function obterMetaAuditoriaItem(entidade, item) {
+            const id = item && item.id !== undefined ? String(item.id) : '';
+            if (!id) return null;
+            const auditoria = obterAuditoriaSemFiltro();
+            const relevantes = auditoria.filter(a => {
+                if (a.entidade !== entidade) return false;
+                const idDepois = a.dadosDepois && a.dadosDepois.id !== undefined ? String(a.dadosDepois.id) : '';
+                const idAntes = a.dadosAntes && a.dadosAntes.id !== undefined ? String(a.dadosAntes.id) : '';
+                return idDepois === id || idAntes === id;
+            });
+            if (relevantes.length === 0) return null;
+            const ultimo = relevantes[0];
+            const criado = [...relevantes].reverse().find(a => a.acao === 'criar' || a.acao === 'importar') || relevantes[relevantes.length - 1];
+            return {
+                criadoPor: criado?.usuario || 'N/D',
+                criadoEm: criado?.timestamp || '',
+                atualizadoPor: ultimo?.usuario || 'N/D',
+                atualizadoEm: ultimo?.timestamp || ''
+            };
+        }
+
+        function renderMetaAuditoria(entidade, item) {
+            const meta = obterMetaAuditoriaItem(entidade, item);
+            if (!meta) return '';
+            const dataAtualizado = meta.atualizadoEm ? new Date(meta.atualizadoEm).toLocaleString('pt-PT') : '';
+            return `<div class="text-[11px] text-gray-500">Criado por ${meta.criadoPor} • Atualizado por ${meta.atualizadoPor}${dataAtualizado ? ` • ${dataAtualizado}` : ''}</div>`;
         }
 
         function exportarAuditoria() {
@@ -3231,6 +3364,37 @@ END:VCALENDAR`;
             const entidades = [...new Set(auditoria.map(item => item.entidade).filter(Boolean))].sort();
             const acoes = [...new Set(auditoria.map(item => item.acao).filter(Boolean))].sort();
             const tiposUsuario = [...new Set(auditoria.map(item => item.tipoUsuario).filter(Boolean))].sort();
+            const tipoUsuarioAtual = localStorage.getItem('tipoUsuario') || 'desconhecido';
+            const resumoAdmin = tipoUsuarioAtual === 'admin' ? (() => {
+                const todos = obterAuditoriaSemFiltro();
+                const porUsuario = todos.reduce((acc, item) => {
+                    const usuario = item.usuario || 'N/D';
+                    if (!acc[usuario]) {
+                        acc[usuario] = { total: 0, ultima: item.timestamp || '' };
+                    }
+                    acc[usuario].total += 1;
+                    if (item.timestamp && (!acc[usuario].ultima || item.timestamp > acc[usuario].ultima)) {
+                        acc[usuario].ultima = item.timestamp;
+                    }
+                    return acc;
+                }, {});
+                const cards = Object.entries(porUsuario).map(([usuario, info]) => `
+                    <div class="card p-4">
+                        <div class="text-sm text-gray-500">Usuário</div>
+                        <div class="text-lg font-semibold text-gray-900">${usuario}</div>
+                        <div class="text-xs text-gray-600 mt-2">Ações: ${info.total}</div>
+                        <div class="text-xs text-gray-400">Última: ${info.ultima ? new Date(info.ultima).toLocaleString('pt-PT') : 'N/D'}</div>
+                    </div>
+                `).join('');
+                return `
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Resumo por utilizador</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            ${cards || '<div class="text-sm text-gray-500">Sem dados de auditoria.</div>'}
+                        </div>
+                    </div>
+                `;
+            })() : '';
             
             return `
                 <div class="space-y-6">
@@ -3251,9 +3415,10 @@ END:VCALENDAR`;
                         </div>
                     </div>
                     
+                    ${resumoAdmin}
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
                                 <input id="filtroHistoricoTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: cliente, contrato, prazo...">
@@ -3743,32 +3908,32 @@ END:VCALENDAR`;
                 migracoes = [];
                 console.log('🔧 migracoes inicializado como array vazio');
             }
-
+            
             try {
-                const conteudos = {
-                    dashboard: gerarDashboard(),
-                    clientes: gerarClientes(),
-                    honorarios: gerarHonorarios(),
-                    contratos: gerarContratos(),
-                    prazos: gerarPrazos(),
-                    notificacoes: gerarNotificacoes(),
-                    herancas: gerarHerancas(),
-                    convidados: gerarConvidados(),
-                    migracoes: gerarMigracao(),
-                    registos: gerarRegistos(),
+            const conteudos = {
+                dashboard: gerarDashboard(),
+                clientes: gerarClientes(),
+                honorarios: gerarHonorarios(),
+                contratos: gerarContratos(),
+                prazos: gerarPrazos(),
+                notificacoes: gerarNotificacoes(),
+                herancas: gerarHerancas(),
+                convidados: gerarConvidados(),
+                migracoes: gerarMigracao(),
+                registos: gerarRegistos(),
                 documentos: gerarDocumentos(),
                 tarefas: gerarTarefas(),
                 calendario: gerarCalendarioPrazos(),
-                    relatorios: gerarRelatorios(),
-                    backup: gerarBackup(),
+                relatorios: gerarRelatorios(),
+                backup: gerarBackup(),
                 historico: gerarHistoricoDetalhado(),
-                };
-                
-                console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
-                console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
-                console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
-                
-                return conteudos[secao] || '<p>Seção não encontrada</p>';
+            };
+            
+            console.log('🔧 Conteúdos disponíveis:', Object.keys(conteudos));
+            console.log('🔧 Conteúdo para migracoes:', conteudos.migracoes ? 'EXISTE' : 'NÃO EXISTE');
+            console.log('🔧 Conteúdo migracoes:', conteudos.migracoes);
+            
+            return conteudos[secao] || '<p>Seção não encontrada</p>';
             } catch (error) {
                 console.error('❌ Erro ao gerar conteúdo da seção:', secao, error);
                 return `
@@ -5496,54 +5661,52 @@ Sistema Legal - ANA PAULA MEDINA
                         ` : ''}
 
                         <!-- Documentos -->
-                        ${dadosCliente.documentos.length > 0 ? `
-                            <div style="margin-bottom: 30px;">
-                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
-                                <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                                        <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                            <option value="contrato">Contrato</option>
-                                            <option value="heranca">Herança</option>
-                                            <option value="migracao">Migração</option>
-                                            <option value="registo">Registo</option>
-                                            <option value="prazo">Prazo</option>
-                                            <option value="outro">Outro</option>
-                                        </select>
-                                        <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                    </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                                        <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                        <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                    </div>
-                                    <button onclick="adicionarDocumentoModal(${cliente.id}, ${JSON.stringify(cliente.nome)})" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
-                                        Guardar documento
-                                    </button>
-                                </div>
-                                <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
-                                    <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
-                                    <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
-                                        <option value="data_desc">Mais recentes</option>
-                                        <option value="data_asc">Mais antigos</option>
-                                        <option value="nome_asc">Nome A-Z</option>
-                                        <option value="nome_desc">Nome Z-A</option>
-                                        <option value="tipo_asc">Tipo A-Z</option>
-                                        <option value="tipo_desc">Tipo Z-A</option>
+                        <div style="margin-bottom: 30px;">
+                            <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
+                            <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                                <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                    <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                        <option value="contrato">Contrato</option>
+                                        <option value="heranca">Herança</option>
+                                        <option value="migracao">Migração</option>
+                                        <option value="registo">Registo</option>
+                                        <option value="prazo">Prazo</option>
+                                        <option value="outro">Outro</option>
                                     </select>
+                                    <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                                    <input id="filtroDocumentosClienteDataInicio" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                    <input id="filtroDocumentosClienteDataFim" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                    <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                    <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                    <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280;"></div>
-                                    <button type="button" onclick="limparFiltrosDocumentosClienteModal()" style="font-size: 12px; color: #2563eb; background: transparent; border: none; cursor: pointer;">
-                                        Limpar filtros
-                                    </button>
-                                </div>
-                                <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
+                                <button type="button" class="js-doc-modal-add" data-cliente-id="${cliente.id}" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" onclick="adicionarDocumentoModalHandler(this)" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+                                    Guardar documento
+                                </button>
                             </div>
-                        ` : ''}
+                            <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
+                                <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
+                                <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
+                                    <option value="data_desc">Mais recentes</option>
+                                    <option value="data_asc">Mais antigos</option>
+                                    <option value="nome_asc">Nome A-Z</option>
+                                    <option value="nome_desc">Nome Z-A</option>
+                                    <option value="tipo_asc">Tipo A-Z</option>
+                                    <option value="tipo_desc">Tipo Z-A</option>
+                                </select>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                <input id="filtroDocumentosClienteDataInicio" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                <input id="filtroDocumentosClienteDataFim" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280;"></div>
+                                <button type="button" onclick="limparFiltrosDocumentosClienteModal()" style="font-size: 12px; color: #2563eb; background: transparent; border: none; cursor: pointer;">
+                                    Limpar filtros
+                                </button>
+                            </div>
+                            <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
+                        </div>
 
                         <!-- Notificações -->
                         ${dadosCliente.notificacoes.length > 0 ? `
@@ -5604,7 +5767,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <i data-lucide="file-plus" class="w-4 h-4"></i>
                             Adicionar Documento
                         </button>
-                        <button class="btn btn-primary" onclick="gerarRelatorioClienteEspecifico('${cliente.nome}')" style="
+                        <button class="btn btn-primary js-relatorio-cliente" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" style="
                             padding: 8px 16px;
                             background-color: #3b82f6;
                             color: white;
@@ -5625,11 +5788,24 @@ Sistema Legal - ANA PAULA MEDINA
             
             window.__docsClienteModal = dadosCliente.documentos || [];
             document.body.appendChild(modal);
-            console.log('✅ Modal de informações completas criado');
-            if (dadosCliente.documentos && dadosCliente.documentos.length > 0) {
-                carregarFiltrosDocumentosClienteModal();
-                renderDocumentosClienteModal(dadosCliente.documentos, '');
+            const botaoAddDocumento = modal.querySelector('.js-doc-modal-add');
+            if (botaoAddDocumento) {
+                botaoAddDocumento.addEventListener('click', () => {
+                    const id = botaoAddDocumento.getAttribute('data-cliente-id');
+                    const nome = botaoAddDocumento.getAttribute('data-cliente-nome') || '';
+                    adicionarDocumentoModal(id, nome);
+                });
             }
+            const botaoRelatorioCliente = modal.querySelector('.js-relatorio-cliente');
+            if (botaoRelatorioCliente) {
+                botaoRelatorioCliente.addEventListener('click', () => {
+                    const nome = botaoRelatorioCliente.getAttribute('data-cliente-nome') || '';
+                    gerarRelatorioClienteEspecifico(nome);
+                });
+            }
+            console.log('✅ Modal de informações completas criado');
+            carregarFiltrosDocumentosClienteModal();
+            renderDocumentosClienteModal(dadosCliente.documentos || [], '');
             
             // Verificar se o modal foi criado corretamente
             setTimeout(() => {
@@ -5940,6 +6116,46 @@ Sistema Legal - ANA PAULA MEDINA
             reader.readAsDataURL(arquivo);
         }
 
+        function adicionarDocumentoModalHandler(elemento) {
+            if (!elemento) return;
+            const id = elemento.getAttribute('data-cliente-id');
+            const nome = elemento.getAttribute('data-cliente-nome') || '';
+            adicionarDocumentoModal(id, nome);
+        }
+
+        document.addEventListener('click', (event) => {
+            const alvo = event.target;
+            const botao = alvo && alvo.closest ? alvo.closest('.js-doc-modal-add') : null;
+            if (!botao) {
+                return;
+            }
+            const id = botao.getAttribute('data-cliente-id');
+            const nome = botao.getAttribute('data-cliente-nome') || '';
+            adicionarDocumentoModal(id, nome);
+        });
+
+        document.addEventListener('click', (event) => {
+            const alvo = event.target;
+            const botao = alvo && alvo.closest ? alvo.closest('.js-cliente-detalhes-link') : null;
+            if (!botao) return;
+            const id = botao.getAttribute('data-cliente-id');
+            const nome = botao.getAttribute('data-cliente-nome') || '';
+            const cliente = obterClientePorIdOuNome(id, nome);
+            if (!cliente) {
+                mostrarNotificacao('Cliente não encontrado.', 'error');
+                return;
+            }
+            mostrarInformacoesCompletasCliente(cliente);
+        });
+
+        document.addEventListener('click', (event) => {
+            const alvo = event.target;
+            if (alvo && alvo.closest && alvo.closest('button')) return;
+            const linha = alvo && alvo.closest ? alvo.closest('.js-honorario-row') : null;
+            if (!linha) return;
+            abrirClientePorIdOuNome(linha.dataset.clienteId, linha.dataset.clienteNome);
+        });
+
         function gerarDashboard() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let clientesParaMostrar = Array.isArray(clientes) ? clientes : [];
@@ -5960,68 +6176,21 @@ Sistema Legal - ANA PAULA MEDINA
                     const clientesAutorizados = convidado.clientesAutorizados;
                     clientesParaMostrar = clientes.filter(c => clientesAutorizados.includes(c.id));
                     honorariosParaMostrar = honorarios.filter(h => clientesAutorizados.includes(h.clienteId));
-                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     herancasParaMostrar = herancas.filter(h => clientesAutorizados.includes(h.clienteId));
                     migracoesParaMostrar = migracoes.filter(m => clientesAutorizados.includes(m.clienteId));
                     registosParaMostrar = registos.filter(r => clientesAutorizados.includes(r.clienteId));
+                    contratosParaMostrar = contratos.filter(c => clientesAutorizados.includes(c.clienteId));
                     prazosParaMostrar = prazos.filter(p => clientesAutorizados.includes(p.clienteId));
                 } else {
                     // Se não há permissões, mostrar dados vazios
                     clientesParaMostrar = [];
                     honorariosParaMostrar = [];
-                    contratosParaMostrar = [];
                     herancasParaMostrar = [];
                     migracoesParaMostrar = [];
                     registosParaMostrar = [];
+                    contratosParaMostrar = [];
                     prazosParaMostrar = [];
                 }
-            }
-
-            const semDados = clientesParaMostrar.length === 0 &&
-                honorariosParaMostrar.length === 0 &&
-                contratosParaMostrar.length === 0 &&
-                herancasParaMostrar.length === 0 &&
-                migracoesParaMostrar.length === 0 &&
-                registosParaMostrar.length === 0 &&
-                prazosParaMostrar.length === 0 &&
-                notificacoes.length === 0;
-
-            if (semDados && tipoUsuario !== 'convidado') {
-                return `
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-2">Nenhum dado encontrado</h3>
-                        <p class="text-gray-600 mb-4">
-                            Parece que o sistema ainda não tem dados. Isso é normal após mudar de domínio.
-                            Importe o backup para restaurar tudo automaticamente.
-                        </p>
-                        <div class="flex flex-wrap gap-3">
-                            <button onclick="importarDadosCompletos()" class="btn btn-success">
-                                <i data-lucide="upload" class="w-4 h-4"></i>
-                                Importar backup completo
-                            </button>
-                            <button onclick="carregarSecao('backup')" class="btn btn-secondary">
-                                Ver opções de backup
-                            </button>
-                            <button onclick="carregarSecao('clientes')" class="btn btn-primary">
-                                Criar primeiro cliente
-                            </button>
-                        </div>
-                        <div class="mt-4 text-sm text-gray-500">
-                            Dica: use o arquivo ` + '`' + `backup_sistema_YYYY-MM-DD.json` + '`' + ` exportado do link antigo.
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (semDados && tipoUsuario === 'convidado') {
-                return `
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold mb-2">Sem dados disponíveis</h3>
-                        <p class="text-gray-600">
-                            O administrador ainda não partilhou dados com o seu acesso. Aguarde a autorização.
-                        </p>
-                    </div>
-                `;
             }
             
             const totalClientes = clientesParaMostrar.length;
@@ -6396,7 +6565,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 <div class="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                                     <p class="text-xs text-blue-600 mb-1">Próximo prazo</p>
                                     <p class="text-sm font-medium text-blue-800">${proximoPrazo.descricao}</p>
-                                    <p class="text-xs text-blue-600">${proximoPrazo.clienteNome} - ${proximoPrazo.dataLimiteDate.toLocaleDateString('pt-PT')} (${diasParaProximoPrazo} dias)</p>
+                                    <p class="text-xs text-blue-600">${renderClienteLink(proximoPrazo.clienteId, proximoPrazo.clienteNome)} - ${proximoPrazo.dataLimiteDate.toLocaleDateString('pt-PT')} (${diasParaProximoPrazo} dias)</p>
                                 </div>
                             ` : ''}
                             <div class="space-y-3">
@@ -6409,7 +6578,7 @@ Sistema Legal - ANA PAULA MEDINA
                                     <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
                                         <div>
                                             <p class="text-sm font-medium text-yellow-800">${prazo.descricao}</p>
-                                            <p class="text-xs text-yellow-600">${prazo.clienteNome} - ${Math.ceil((new Date(prazo.dataLimite) - new Date()) / (1000 * 60 * 60 * 24))} dias</p>
+                                            <p class="text-xs text-yellow-600">${renderClienteLink(prazo.clienteId, prazo.clienteNome)} - ${Math.ceil((new Date(prazo.dataLimite) - new Date()) / (1000 * 60 * 60 * 24))} dias</p>
                                         </div>
                                         <span class="text-yellow-600 font-bold">${prazo.tipo}</span>
                                     </div>
@@ -7195,8 +7364,11 @@ Sistema Legal - ANA PAULA MEDINA
                                     </thead>
                                     <tbody id="listaHonorarios">
                                         ${honorarios.map(honorario => `
-                                            <tr>
-                                                <td>${honorario.cliente}</td>
+                                            <tr class="js-honorario-row" data-cliente-id="${honorario.clienteId || ''}" data-cliente-nome="${String(honorario.cliente || honorario.clienteNome || '').replace(/"/g, '&quot;')}" style="cursor: pointer;">
+                                                <td>
+                                                    ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
+                                                    ${renderMetaAuditoria('honorario', honorario)}
+                                                </td>
                                                 <td>${honorario.servico}</td>
                                                 <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
                                                 <td><span class="status-badge status-${honorario.status}">${honorario.status}</span></td>
@@ -7351,7 +7523,10 @@ Sistema Legal - ANA PAULA MEDINA
                                     <tbody id="listaContratos">
                                         ${contratos.map(contrato => `
                                             <tr>
-                                                <td>${contrato.clienteNome}</td>
+                                                <td>
+                                                    ${renderClienteLink(contrato.clienteId, contrato.clienteNome)}
+                                                    ${renderMetaAuditoria('contrato', contrato)}
+                                                </td>
                                                 <td>${contrato.tipo}</td>
                                                 <td>${contrato.descricao}</td>
                                                 <td>
@@ -7567,7 +7742,10 @@ Sistema Legal - ANA PAULA MEDINA
                                     <tbody id="listaPrazos">
                                         ${prazos.map(prazo => `
                                             <tr>
-                                                <td>${prazo.clienteNome}</td>
+                                                <td>
+                                                    ${renderClienteLink(prazo.clienteId, prazo.clienteNome)}
+                                                    ${renderMetaAuditoria('prazo', prazo)}
+                                                </td>
                                                 <td>${prazo.tipo}</td>
                                                 <td>${prazo.descricao}</td>
                                                 <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
@@ -7866,6 +8044,45 @@ Sistema Legal - ANA PAULA MEDINA
             salvarDados('tarefas', tarefas);
         }
 
+        function salvarTarefaCloud(tarefa) {
+            if (!firestoreDb || !tarefa || tarefa.id === undefined || tarefa.id === null) {
+                return Promise.resolve();
+            }
+            return firestoreDb.collection('tarefas').doc(String(tarefa.id)).set(tarefa, { merge: true })
+                .catch((error) => {
+                    console.warn('Erro ao salvar tarefa na nuvem:', error);
+                });
+        }
+
+        function excluirTarefaCloud(id) {
+            if (!firestoreDb || id === undefined || id === null) return Promise.resolve();
+            return firestoreDb.collection('tarefas').doc(String(id)).delete()
+                .catch((error) => {
+                    console.warn('Erro ao excluir tarefa na nuvem:', error);
+                });
+        }
+
+        async function sincronizarTarefasNuvem() {
+            if (!firestoreDb) return;
+            try {
+                const local = Array.isArray(tarefas) ? tarefas : [];
+                if (local.length) {
+                    await Promise.all(local.map(t => salvarTarefaCloud(t)));
+                }
+                const snap = await firestoreDb.collection('tarefas').get();
+                const cloud = snap.docs.map(doc => doc.data());
+                const map = new Map();
+                [...local, ...cloud].forEach(t => {
+                    if (!t || t.id === undefined || t.id === null) return;
+                    map.set(String(t.id), t);
+                });
+                const merged = Array.from(map.values()).sort((a, b) => (b.dataCriacao || '').localeCompare(a.dataCriacao || ''));
+                salvarTarefasLocal(merged);
+            } catch (error) {
+                console.warn('Erro ao sincronizar tarefas:', error);
+            }
+        }
+
         function normalizarLinkTarefa(url) {
             const valor = String(url || '').trim();
             if (!valor) return '';
@@ -7895,6 +8112,7 @@ Sistema Legal - ANA PAULA MEDINA
             const lista = Array.isArray(tarefas) ? tarefas : [];
             lista.unshift(tarefa);
             salvarTarefasLocal(lista);
+            salvarTarefaCloud(tarefa);
             registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
             mostrarNotificacao('Tarefa criada com sucesso!', 'success');
 
@@ -7987,13 +8205,17 @@ Sistema Legal - ANA PAULA MEDINA
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
                                     <input id="tarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Lembrete</label>
+                                    <input id="tarefaLembrete" type="datetime-local" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                </div>
                             </div>
                         </div>
                     `}
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
                                 <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo..." oninput="aplicarFiltrosTarefas()">
@@ -8150,6 +8372,7 @@ Sistema Legal - ANA PAULA MEDINA
                     }
                 });
             }
+            
             if (texto) {
                 lista = lista.filter(t => {
                     const alvo = [
@@ -8223,6 +8446,12 @@ Sistema Legal - ANA PAULA MEDINA
             }
             
             const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado';
+            const formatarDataHora = (valor) => {
+                if (!valor) return '';
+                const data = new Date(valor);
+                if (isNaN(data.getTime())) return '';
+                return data.toLocaleString('pt-PT');
+            };
             container.innerHTML = lista.map(tarefa => `
                 <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
                     <div class="flex justify-between items-start gap-3">
@@ -8230,8 +8459,10 @@ Sistema Legal - ANA PAULA MEDINA
                             <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
-                            <div class="text-xs text-gray-500">${tarefa.clienteNome || 'Cliente'} • ${tarefa.processoTipo || 'outro'}</div>
+                            <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
+                            ${renderMetaAuditoria('tarefa', tarefa)}
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
+                            ${tarefa.lembreteEm ? `<div class="text-xs text-gray-400">Lembrete: ${formatarDataHora(tarefa.lembreteEm)}</div>` : ''}
                             ${tarefa.links && tarefa.links.length ? `
                                 <div class="text-xs text-gray-400">
                                     Links:
@@ -8286,6 +8517,12 @@ Sistema Legal - ANA PAULA MEDINA
             const linksRaw = document.getElementById('tarefaLinks')?.value || '';
             const links = linksRaw.split(',').map(item => item.trim()).filter(Boolean);
             const dataLimite = document.getElementById('tarefaDataLimite')?.value || '';
+            const lembreteValor = document.getElementById('tarefaLembrete')?.value || '';
+            const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
+            if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
+                mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
+                return;
+            }
             const anexosInput = document.getElementById('tarefaAnexos');
             const arquivos = anexosInput && anexosInput.files ? Array.from(anexosInput.files) : [];
             const maxAnexo = 5 * 1024 * 1024;
@@ -8317,6 +8554,8 @@ Sistema Legal - ANA PAULA MEDINA
                 prioridade,
                 status: 'aberta',
                 dataLimite: dataLimite || null,
+                lembreteEm: lembreteData ? lembreteData.toISOString() : null,
+                lembreteDisparado: false,
                 anexos: [],
                 criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
                 tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
@@ -8355,6 +8594,7 @@ Sistema Legal - ANA PAULA MEDINA
             const antes = { ...lista[index] };
             lista[index].status = lista[index].status === 'concluida' ? 'aberta' : 'concluida';
             salvarTarefasLocal(lista);
+            salvarTarefaCloud(lista[index]);
             registrarAuditoria('editar', 'tarefa', `Status da tarefa: ${lista[index].titulo}`, antes, lista[index]);
             aplicarFiltrosTarefas();
         }
@@ -8372,6 +8612,7 @@ Sistema Legal - ANA PAULA MEDINA
             if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
             const novas = lista.filter(t => t.id !== id);
             salvarTarefasLocal(novas);
+            excluirTarefaCloud(id);
             registrarAuditoria('excluir', 'tarefa', `Tarefa excluída: ${tarefa.titulo}`, tarefa, null);
             aplicarFiltrosTarefas();
             mostrarNotificacao('Tarefa excluída com sucesso!', 'success');
@@ -8640,7 +8881,7 @@ Sistema Legal - ANA PAULA MEDINA
                                         <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                         <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
                                     </div>
-                                    <div class="text-[11px] text-gray-500">${prazo.clienteNome || prazo.cliente || ''}</div>
+                                    <div class="text-[11px] text-gray-500">${renderClienteLink(prazo.clienteId, prazo.clienteNome || prazo.cliente || '')}</div>
                                 </div>
                             `).join('') : '<div class="text-xs text-gray-400">Sem prazos</div>'}
                         </div>
@@ -9077,9 +9318,9 @@ Sistema Legal - ANA PAULA MEDINA
                                 Limpar
                             </button>
                         </div>
-                    </div>
-                    
-                    <div class="card p-6">
+                        </div>
+                        
+                        <div class="card p-6">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold">Documentos guardados</h3>
                             <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
@@ -9156,24 +9397,25 @@ Sistema Legal - ANA PAULA MEDINA
                         <div>
                             <div class="text-sm font-semibold text-gray-800">${doc.nomeArquivo}</div>
                             <div class="text-xs text-gray-500">${doc.descricao || 'Sem descrição'}</div>
-                            <div class="text-xs text-gray-500">${doc.clienteNome || 'Cliente'} • ${doc.processoTipo || 'outro'} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
+                            <div class="text-xs text-gray-500">${renderClienteLink(doc.clienteId, doc.clienteNome || 'Cliente')} • ${doc.processoTipo || 'outro'} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
+                            ${renderMetaAuditoria('documento', doc)}
                             <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
                         </div>
                         <div class="flex items-center gap-2">
                             <button onclick="baixarDocumento(${doc.id})" class="text-blue-600 hover:text-blue-800" title="Baixar">
                                 <i data-lucide="download" class="w-4 h-4"></i>
-                            </button>
+                                </button>
                             ${isConvidado ? '' : `
                                 <button onclick="excluirDocumento(${doc.id})" class="text-red-600 hover:text-red-800" title="Excluir">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
                             `}
+                            </div>
                         </div>
-                    </div>
                     ${doc.tags && doc.tags.length ? `
                         <div class="flex flex-wrap gap-2">
                             ${doc.tags.map(tag => `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">${tag}</span>`).join('')}
-                        </div>
+                    </div>
                     ` : ''}
                 </div>
             `).join('');
@@ -9451,7 +9693,10 @@ Sistema Legal - ANA PAULA MEDINA
             const linhas = resultados.slice(0, limite).map(item => `
                 <tr class="border-b border-gray-200">
                     <td class="py-2 pr-4 font-medium text-gray-700">${item.tipo}</td>
-                    <td class="py-2 pr-4">${item.cliente}</td>
+                    <td class="py-2 pr-4">
+                        ${renderClienteLink(item.clienteId, item.cliente || item.clienteNome)}
+                        ${renderMetaAuditoria(item.tipo, item)}
+                    </td>
                     <td class="py-2 pr-4">${item.descricao}</td>
                     <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
                     <td class="py-2 pr-4">${item.status}</td>
@@ -9533,7 +9778,10 @@ Sistema Legal - ANA PAULA MEDINA
             const linhas = relatorioAvancadoUltimosResultados.slice(0, 500).map(item => `
                 <tr>
                     <td>${item.tipo}</td>
-                    <td>${item.cliente}</td>
+                    <td>
+                        ${renderClienteLink(item.clienteId, item.cliente || item.clienteNome)}
+                        ${renderMetaAuditoria(item.tipo, item)}
+                    </td>
                     <td>${item.descricao}</td>
                     <td>${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
                     <td>${item.status}</td>
@@ -9606,8 +9854,21 @@ Sistema Legal - ANA PAULA MEDINA
                     aplicarFiltrosDocumentos();
                 }, 100);
             }
+            if (secao === 'tarefas') {
+                setTimeout(async () => {
+                    await sincronizarTarefasNuvem();
+                    aplicarFiltrosTarefas();
+                }, 100);
+            }
             if (secao === 'historico') {
-                setTimeout(() => {
+                setTimeout(async () => {
+                    if (!window.__auditoriaCloudCarregada) {
+                        await sincronizarAuditoriaNuvem();
+                        const conteudoElement = document.getElementById('conteudoDinamico');
+                        if (conteudoElement) {
+                            conteudoElement.innerHTML = gerarConteudoSecao('historico');
+                        }
+                    }
                     aplicarFiltrosHistorico();
                 }, 100);
             }
@@ -10572,7 +10833,7 @@ Sistema Legal - ANA PAULA MEDINA
                 if (!exigirPermissaoAcao('editar', 'cliente')) {
                     return false;
                 }
-
+                
                 // Obter valores do formulário
                 const nomeInput = document.getElementById('editarClienteNome');
                 const emailInput = document.getElementById('editarClienteEmail');
@@ -11096,8 +11357,10 @@ Sistema Legal - ANA PAULA MEDINA
             if (!tbody) return;
             
             tbody.innerHTML = honorariosFiltrados.map(honorario => `
-                <tr>
-                    <td>${honorario.cliente}</td>
+                <tr class="js-honorario-row" data-cliente-id="${honorario.clienteId || ''}" data-cliente-nome="${String(honorario.cliente || honorario.clienteNome || '').replace(/"/g, '&quot;')}" style="cursor: pointer;">
+                    <td>
+                        ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
+                    </td>
                     <td>${honorario.servico}</td>
                     <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
                     <td><span class="status-badge status-${honorario.status}">${honorario.status}</span></td>
@@ -11144,7 +11407,7 @@ Sistema Legal - ANA PAULA MEDINA
             
             tbody.innerHTML = contratosFiltrados.map(contrato => `
                 <tr>
-                    <td>${contrato.clienteNome}</td>
+                    <td>${renderClienteLink(contrato.clienteId, contrato.clienteNome)}</td>
                     <td>${contrato.tipo}</td>
                     <td>${contrato.descricao || '-'}</td>
                     <td>
@@ -12589,12 +12852,14 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             console.log('🔔 Iniciando sistema de notificações');
             verificarHonorariosVencidos();
             verificarPrazosUrgentes();
+            verificarLembretesTarefas();
             atualizarBadgeNotificacoes();
             
             // Verificar a cada 5 minutos
             setInterval(() => {
                 verificarHonorariosVencidos();
                 verificarPrazosUrgentes();
+                verificarLembretesTarefas();
                 atualizarBadgeNotificacoes();
             }, 5 * 60 * 1000);
         }
@@ -12814,6 +13079,35 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     console.warn('Erro ao processar prazo:', prazo.id, error);
                 }
             });
+        }
+
+        function verificarLembretesTarefas() {
+            const agora = new Date();
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            let atualizou = false;
+
+            lista.forEach(tarefa => {
+                if (!tarefa.lembreteEm || tarefa.lembreteDisparado) return;
+                if (tarefa.status === 'concluida') return;
+                const dataLembrete = new Date(tarefa.lembreteEm);
+                if (isNaN(dataLembrete.getTime())) return;
+                if (dataLembrete <= agora) {
+                    criarNotificacao({
+                        tipo: 'tarefa',
+                        titulo: 'Lembrete de Tarefa',
+                        mensagem: `Tarefa "${tarefa.titulo}"${tarefa.clienteNome ? ` do cliente ${tarefa.clienteNome}` : ''} está com lembrete para ${dataLembrete.toLocaleString('pt-PT')}`,
+                        prioridade: tarefa.prioridade || 'media',
+                        referenciaId: tarefa.id,
+                        acao: 'ver_tarefa'
+                    });
+                    tarefa.lembreteDisparado = true;
+                    atualizou = true;
+                }
+            });
+
+            if (atualizou) {
+                salvarTarefasLocal(lista);
+            }
         }
 
         function criarNotificacao(dados) {
@@ -13607,7 +13901,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             tbody.innerHTML = prazosFiltrados.map(prazo => `
                 <tr>
-                    <td>${prazo.clienteNome}</td>
+                    <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
                     <td>${prazo.tipo}</td>
                     <td>${prazo.descricao}</td>
                     <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
@@ -14211,7 +14505,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                 <tbody id="listaMigracoes" class="bg-white divide-y divide-gray-200">
                                     ${migracoes.map(migracao => `
                                         <tr>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${migracao.clienteNome || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${renderClienteLink(migracao.clienteId, migracao.clienteNome || 'N/A')}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -14614,7 +14908,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             tbody.innerHTML = prazosFiltrados.map(prazo => `
                 <tr>
-                    <td>${prazo.clienteNome}</td>
+                    <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
                     <td>${prazo.tipo}</td>
                     <td>${prazo.descricao}</td>
                     <td>${new Date(prazo.dataLimite).toLocaleDateString('pt-PT')}</td>
@@ -14649,7 +14943,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const html = herancasFiltradas.map(heranca => `
                 <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${heranca.clienteNome || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${renderClienteLink(heranca.clienteId, heranca.clienteNome || 'N/A')}
+                        ${renderMetaAuditoria('heranca', heranca)}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.tipo || 'N/A'}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">${heranca.descricao || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -14692,7 +14989,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             tbody.innerHTML = migracoesFiltradas.map(migracao => `
                 <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${migracao.clienteNome}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${renderClienteLink(migracao.clienteId, migracao.clienteNome)}
+                        ${renderMetaAuditoria('migracao', migracao)}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -14732,7 +15032,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             const html = registosFiltrados.map(registo => `
                 <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${registo.clienteNome || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${renderClienteLink(registo.clienteId, registo.clienteNome || 'N/A')}
+                        ${renderMetaAuditoria('registo', registo)}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.tipo || 'N/A'}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">${registo.descricao || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -18147,7 +18450,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             if (tbody) {
                 tbody.innerHTML = migracoesFiltradas.map(migracao => `
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${migracao.clienteNome || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${renderClienteLink(migracao.clienteId, migracao.clienteNome || 'N/A')}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
