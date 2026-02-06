@@ -5234,7 +5234,8 @@ Sistema Legal - ANA PAULA MEDINA
                 registos: registos ? registos.filter(correspondeCliente) : [],
                 prazos: prazos ? prazos.filter(correspondeCliente) : [],
                 tarefas: tarefas ? tarefas.filter(correspondeCliente) : [],
-                documentos: documentos ? documentos.filter(correspondeCliente) : []
+                documentos: documentos ? documentos.filter(correspondeCliente) : [],
+                notificacoes: notificacoes ? notificacoes.filter(n => n.clienteId === clienteId || n.clienteNome === cliente.nome || n.cliente === cliente.nome) : []
             };
             
             // Criar modal com informações completas
@@ -5469,6 +5470,15 @@ Sistema Legal - ANA PAULA MEDINA
                                                     <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
+                                                    ${tarefa.anexos && tarefa.anexos.length ? `
+                                                        <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
+                                                            ${tarefa.anexos.map(anexo => `
+                                                                <button onclick="baixarAnexoTarefa(${tarefa.id}, '${anexo.id}')" style="font-size: 12px; color: #2563eb; text-decoration: underline; background: transparent; border: none; padding: 0; cursor: pointer;">
+                                                                    ${anexo.nome}
+                                                                </button>
+                                                            `).join('')}
+                                                        </div>
+                                                    ` : ''}
                                                 </div>
                                             </div>
                                         </div>
@@ -5489,6 +5499,33 @@ Sistema Legal - ANA PAULA MEDINA
                                                     <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
+                                                    ${doc.conteudo ? `
+                                                        <div style="margin-top: 6px;">
+                                                            <a href="${doc.conteudo}" download="${doc.nomeArquivo || 'documento'}" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
+                                                                Baixar documento
+                                                            </a>
+                                                        </div>
+                                                    ` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Notificações -->
+                        ${dadosCliente.notificacoes.length > 0 ? `
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">🔔 Notificações (${dadosCliente.notificacoes.length})</h4>
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    ${dadosCliente.notificacoes.map((noti) => `
+                                        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div>
+                                                    <strong>${noti.titulo || 'Notificação'}</strong><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -5497,7 +5534,7 @@ Sistema Legal - ANA PAULA MEDINA
                             </div>
                         ` : ''}
                         
-                        ${dadosCliente.honorarios.length === 0 && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 ? `
+                        ${dadosCliente.honorarios.length === 0 && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 && dadosCliente.notificacoes.length === 0 ? `
                             <div style="text-align: center; padding: 40px; color: #6b7280;">
                                 <i data-lucide="file-x" style="width: 48px; height: 48px; margin: 0 auto 20px; display: block;"></i>
                                 <h4 style="margin: 0 0 10px 0;">Nenhum item encontrado</h4>
