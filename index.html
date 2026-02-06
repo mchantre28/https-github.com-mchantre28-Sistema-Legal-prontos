@@ -5499,6 +5499,27 @@ Sistema Legal - ANA PAULA MEDINA
                         ${dadosCliente.documentos.length > 0 ? `
                             <div style="margin-bottom: 30px;">
                                 <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
+                                <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                        <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                            <option value="contrato">Contrato</option>
+                                            <option value="heranca">Herança</option>
+                                            <option value="migracao">Migração</option>
+                                            <option value="registo">Registo</option>
+                                            <option value="prazo">Prazo</option>
+                                            <option value="outro">Outro</option>
+                                        </select>
+                                        <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                        <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                        <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                                    </div>
+                                    <button onclick="adicionarDocumentoModal(${cliente.id}, ${JSON.stringify(cliente.nome)})" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+                                        Guardar documento
+                                    </button>
+                                </div>
                                 <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
                                     <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
                                     <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
@@ -5868,6 +5889,55 @@ Sistema Legal - ANA PAULA MEDINA
                     descricao.focus();
                 }
             }, 200);
+        }
+
+        function adicionarDocumentoModal(clienteId, clienteNome) {
+            if (!exigirPermissaoAcao('criar', 'documento')) {
+                return;
+            }
+            const processoTipo = document.getElementById(`docModalProcessoTipo-${clienteId}`)?.value || 'outro';
+            const descricao = document.getElementById(`docModalDescricao-${clienteId}`)?.value?.trim() || '';
+            const tagsRaw = document.getElementById(`docModalTags-${clienteId}`)?.value || '';
+            const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+            const arquivoInput = document.getElementById(`docModalArquivo-${clienteId}`);
+
+            if (!arquivoInput || !arquivoInput.files || arquivoInput.files.length === 0) {
+                mostrarNotificacao('Selecione um ficheiro.', 'warning');
+                return;
+            }
+            const arquivo = arquivoInput.files[0];
+            if (arquivo.size > 5 * 1024 * 1024) {
+                mostrarNotificacao('Ficheiro acima de 5 MB. Tente um ficheiro menor.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                const documento = {
+                    id: Date.now(),
+                    clienteId,
+                    clienteNome: clienteNome || '',
+                    processoTipo,
+                    descricao,
+                    tags,
+                    nomeArquivo: arquivo.name,
+                    tipoArquivo: arquivo.type,
+                    tamanho: arquivo.size,
+                    conteudo: reader.result,
+                    criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                    tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
+                    dataCriacao: new Date().toISOString()
+                };
+                const lista = Array.isArray(documentos) ? documentos : [];
+                lista.unshift(documento);
+                salvarDocumentosLocal(lista);
+                registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
+                mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+
+                window.__docsClienteModal = lista.filter(doc => String(doc.clienteId || '') === String(clienteId));
+                renderDocumentosClienteModal(window.__docsClienteModal || [], document.getElementById('filtroDocumentosClienteModal')?.value || '');
+            };
+            reader.readAsDataURL(arquivo);
         }
 
         function gerarDashboard() {
