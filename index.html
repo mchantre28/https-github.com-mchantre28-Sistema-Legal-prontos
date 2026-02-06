@@ -5514,7 +5514,12 @@ Sistema Legal - ANA PAULA MEDINA
                                     <input id="filtroDocumentosClienteDataInicio" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                     <input id="filtroDocumentosClienteDataFim" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 </div>
-                                <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280; margin-bottom: 8px;"></div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280;"></div>
+                                    <button type="button" onclick="limparFiltrosDocumentosClienteModal()" style="font-size: 12px; color: #2563eb; background: transparent; border: none; cursor: pointer;">
+                                        Limpar filtros
+                                    </button>
+                                </div>
                                 <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
                             </div>
                         ` : ''}
@@ -5586,6 +5591,7 @@ Sistema Legal - ANA PAULA MEDINA
             document.body.appendChild(modal);
             console.log('✅ Modal de informações completas criado');
             if (dadosCliente.documentos && dadosCliente.documentos.length > 0) {
+                carregarFiltrosDocumentosClienteModal();
                 renderDocumentosClienteModal(dadosCliente.documentos, '');
             }
             
@@ -5673,7 +5679,8 @@ Sistema Legal - ANA PAULA MEDINA
             const tipos = Object.keys(grupos).sort();
             const documentoMaisRecente = ordenarDocumentos(filtrados, 'data_desc')[0];
             if (resumo) {
-                resumo.textContent = tipos.map(tipo => `${tipo}: ${grupos[tipo].length}`).join(' | ');
+                const total = filtrados.length;
+                resumo.textContent = `Total: ${total} | ` + tipos.map(tipo => `${tipo}: ${grupos[tipo].length}`).join(' | ');
             }
             container.innerHTML = tipos.map(tipo => `
                 <div style="margin-bottom: 16px;">
@@ -5703,7 +5710,43 @@ Sistema Legal - ANA PAULA MEDINA
 
         function filtrarDocumentosClienteModal() {
             const termo = document.getElementById('filtroDocumentosClienteModal')?.value || '';
+            salvarFiltrosDocumentosClienteModal();
             renderDocumentosClienteModal(window.__docsClienteModal || [], termo);
+        }
+
+        function salvarFiltrosDocumentosClienteModal() {
+            const estado = {
+                termo: document.getElementById('filtroDocumentosClienteModal')?.value || '',
+                ordenacao: document.getElementById('ordenacaoDocumentosClienteModal')?.value || 'data_desc',
+                dataInicio: document.getElementById('filtroDocumentosClienteDataInicio')?.value || '',
+                dataFim: document.getElementById('filtroDocumentosClienteDataFim')?.value || ''
+            };
+            localStorage.setItem('filtrosDocumentosClienteModal', JSON.stringify(estado));
+        }
+
+        function carregarFiltrosDocumentosClienteModal() {
+            const estado = JSON.parse(localStorage.getItem('filtrosDocumentosClienteModal') || '{}');
+            const termoEl = document.getElementById('filtroDocumentosClienteModal');
+            const ordenacaoEl = document.getElementById('ordenacaoDocumentosClienteModal');
+            const dataInicioEl = document.getElementById('filtroDocumentosClienteDataInicio');
+            const dataFimEl = document.getElementById('filtroDocumentosClienteDataFim');
+            if (termoEl && typeof estado.termo === 'string') termoEl.value = estado.termo;
+            if (ordenacaoEl && estado.ordenacao) ordenacaoEl.value = estado.ordenacao;
+            if (dataInicioEl && typeof estado.dataInicio === 'string') dataInicioEl.value = estado.dataInicio;
+            if (dataFimEl && typeof estado.dataFim === 'string') dataFimEl.value = estado.dataFim;
+        }
+
+        function limparFiltrosDocumentosClienteModal() {
+            const termoEl = document.getElementById('filtroDocumentosClienteModal');
+            const ordenacaoEl = document.getElementById('ordenacaoDocumentosClienteModal');
+            const dataInicioEl = document.getElementById('filtroDocumentosClienteDataInicio');
+            const dataFimEl = document.getElementById('filtroDocumentosClienteDataFim');
+            if (termoEl) termoEl.value = '';
+            if (ordenacaoEl) ordenacaoEl.value = 'data_desc';
+            if (dataInicioEl) dataInicioEl.value = '';
+            if (dataFimEl) dataFimEl.value = '';
+            salvarFiltrosDocumentosClienteModal();
+            renderDocumentosClienteModal(window.__docsClienteModal || [], '');
         }
 
         function gerarRelatorioClienteEspecifico(nomeCliente) {
