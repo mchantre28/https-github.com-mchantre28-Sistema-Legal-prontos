@@ -5498,40 +5498,12 @@ Sistema Legal - ANA PAULA MEDINA
                         <!-- Documentos -->
                         ${dadosCliente.documentos.length > 0 ? `
                             <div style="margin-bottom: 30px;">
-                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
-                                <div style="max-height: 300px; overflow-y: auto;">
-                                    ${(() => {
-                                        const grupos = dadosCliente.documentos.reduce((acc, doc) => {
-                                            const tipo = doc.processoTipo || doc.tipo || doc.categoria || 'outro';
-                                            if (!acc[tipo]) acc[tipo] = [];
-                                            acc[tipo].push(doc);
-                                            return acc;
-                                        }, {});
-                                        return Object.keys(grupos).sort().map(tipo => `
-                                            <div style="margin-bottom: 16px;">
-                                                <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; text-transform: capitalize;">${tipo}</div>
-                                                ${grupos[tipo].map(doc => `
-                                                    <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #10b981;">
-                                                        <div style="display: flex; justify-content: space-between; align-items: start;">
-                                                            <div>
-                                                                <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
-                                                                <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
-                                                                <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
-                                                                ${doc.conteudo ? `
-                                                                    <div style="margin-top: 6px;">
-                                                                        <a href="${doc.conteudo}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
-                                                                            Abrir documento
-                                                                        </a>
-                                                                    </div>
-                                                                ` : ''}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-                                        `).join('');
-                                    })()}
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
+                                <div style="margin-bottom: 10px;">
+                                    <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
                                 </div>
+                                <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280; margin-bottom: 8px;"></div>
+                                <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
                             </div>
                         ` : ''}
 
@@ -5598,8 +5570,12 @@ Sistema Legal - ANA PAULA MEDINA
                 </div>
             `;
             
+            window.__docsClienteModal = dadosCliente.documentos || [];
             document.body.appendChild(modal);
             console.log('✅ Modal de informações completas criado');
+            if (dadosCliente.documentos && dadosCliente.documentos.length > 0) {
+                renderDocumentosClienteModal(dadosCliente.documentos, '');
+            }
             
             // Verificar se o modal foi criado corretamente
             setTimeout(() => {
@@ -5615,6 +5591,79 @@ Sistema Legal - ANA PAULA MEDINA
                     console.log('⚠️ Modal de informações não encontrado no DOM (pode ter sido fechado)');
                 }
             }, 200);
+        }
+
+        function ordenarDocumentosPorData(documentos) {
+            return [...documentos].sort((a, b) => {
+                const dataA = new Date(a.dataCriacao || a.data || a.dataDocumento || 0);
+                const dataB = new Date(b.dataCriacao || b.data || b.dataDocumento || 0);
+                return (isNaN(dataB) ? 0 : dataB) - (isNaN(dataA) ? 0 : dataA);
+            });
+        }
+
+        function agruparDocumentosPorTipo(documentos) {
+            return documentos.reduce((acc, doc) => {
+                const tipo = doc.processoTipo || doc.tipo || doc.categoria || 'outro';
+                if (!acc[tipo]) acc[tipo] = [];
+                acc[tipo].push(doc);
+                return acc;
+            }, {});
+        }
+
+        function renderDocumentosClienteModal(documentos, termo) {
+            const container = document.getElementById('listaDocumentosClienteModal');
+            const resumo = document.getElementById('resumoDocumentosClienteModal');
+            if (!container) return;
+            const filtro = (termo || '').toLowerCase();
+            const filtrados = documentos.filter(doc => {
+                const alvo = [
+                    doc.nomeArquivo,
+                    doc.descricao,
+                    doc.processoTipo,
+                    doc.tipo,
+                    doc.categoria,
+                    ...(doc.tags || [])
+                ].filter(Boolean).join(' ').toLowerCase();
+                return alvo.includes(filtro);
+            });
+            if (filtrados.length === 0) {
+                container.innerHTML = '<div style="color: #6b7280; font-size: 12px; padding: 8px 0;">Nenhum documento encontrado.</div>';
+                if (resumo) resumo.textContent = '';
+                return;
+            }
+            const grupos = agruparDocumentosPorTipo(ordenarDocumentosPorData(filtrados));
+            const tipos = Object.keys(grupos).sort();
+            if (resumo) {
+                resumo.textContent = tipos.map(tipo => `${tipo}: ${grupos[tipo].length}`).join(' | ');
+            }
+            container.innerHTML = tipos.map(tipo => `
+                <div style="margin-bottom: 16px;">
+                    <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; text-transform: capitalize;">${tipo} (${grupos[tipo].length})</div>
+                    ${grupos[tipo].map(doc => `
+                        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #10b981;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <strong>${doc.nomeArquivo || 'Documento'}</strong><br>
+                                    <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
+                                    <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
+                                    ${doc.conteudo ? `
+                                        <div style="margin-top: 6px;">
+                                            <a href="${doc.conteudo}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
+                                                Abrir documento
+                                            </a>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        function filtrarDocumentosClienteModal() {
+            const termo = document.getElementById('filtroDocumentosClienteModal')?.value || '';
+            renderDocumentosClienteModal(window.__docsClienteModal || [], termo);
         }
 
         function gerarRelatorioClienteEspecifico(nomeCliente) {
