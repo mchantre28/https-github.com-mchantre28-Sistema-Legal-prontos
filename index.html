@@ -1398,17 +1398,8 @@
         }
         
         function ocultarSecoesConvidado() {
-            // Ocultar todas as seções exceto clientes
+            // Ocultar apenas seções administrativas
             const secoesParaOcultar = [
-                'nav-dashboard',
-                'nav-honorarios',
-                'nav-contratos', 
-                'nav-herancas',
-                'nav-migracao',
-                'nav-registos',
-                'nav-prazos',
-                'nav-calendario',
-                'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
                 'nav-historico',
@@ -1422,11 +1413,27 @@
                 }
             });
             
-            // Manter apenas a seção de clientes visível
-            const navClientes = document.getElementById('nav-clientes');
-            if (navClientes) {
-                navClientes.style.display = 'block';
-            }
+            // Garantir que as seções permitidas ficam visíveis
+            const secoesPermitidas = [
+                'nav-dashboard',
+                'nav-clientes',
+                'nav-honorarios',
+                'nav-contratos',
+                'nav-herancas',
+                'nav-migracao',
+                'nav-registos',
+                'nav-prazos',
+                'nav-tarefas',
+                'nav-calendario',
+                'nav-notificacoes',
+                'nav-documentos'
+            ];
+            secoesPermitidas.forEach(id => {
+                const elemento = document.getElementById(id);
+                if (elemento) {
+                    elemento.style.display = 'block';
+                }
+            });
         }
         
         function mostrarTodasSecoes() {
@@ -3504,9 +3511,22 @@ END:VCALENDAR`;
             // Verificar se é convidado e redirecionar para clientes se necessário
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             if (tipoUsuario === 'convidado') {
-                const secoesPermitidas = ['clientes', 'notificacoes', 'documentos', 'tarefas'];
+                const secoesPermitidas = [
+                    'dashboard',
+                    'clientes',
+                    'honorarios',
+                    'contratos',
+                    'herancas',
+                    'migracoes',
+                    'registos',
+                    'prazos',
+                    'tarefas',
+                    'calendario',
+                    'notificacoes',
+                    'documentos'
+                ];
                 if (!secoesPermitidas.includes(secao)) {
-                    secao = 'clientes'; // Redirecionar para clientes
+                    secao = 'dashboard'; // Redirecionar para visão geral
                 }
             }
             
