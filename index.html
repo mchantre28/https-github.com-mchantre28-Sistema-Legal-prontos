@@ -5678,6 +5678,9 @@ Sistema Legal - ANA PAULA MEDINA
             const grupos = agruparDocumentosPorTipo(ordenarDocumentos(filtrados, ordenacao));
             const tipos = Object.keys(grupos).sort();
             const documentoMaisRecente = ordenarDocumentos(filtrados, 'data_desc')[0];
+            const indiceDocumento = new Map();
+            filtrados.forEach((doc, idx) => indiceDocumento.set(doc, idx));
+            window.__docsClienteModalFiltrados = filtrados;
             if (resumo) {
                 const total = filtrados.length;
                 resumo.textContent = `Total: ${total} | ` + tipos.map(tipo => `${tipo}: ${grupos[tipo].length}`).join(' | ');
@@ -5685,7 +5688,9 @@ Sistema Legal - ANA PAULA MEDINA
             container.innerHTML = tipos.map(tipo => `
                 <div style="margin-bottom: 16px;">
                     <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; text-transform: capitalize;">${tipo} (${grupos[tipo].length})</div>
-                    ${grupos[tipo].map(doc => `
+                    ${grupos[tipo].map(doc => {
+                        const docIdx = indiceDocumento.get(doc);
+                        return `
                         <div style="background: ${documentoMaisRecente && doc === documentoMaisRecente ? '#ecfeff' : '#f8fafc'}; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid ${documentoMaisRecente && doc === documentoMaisRecente ? '#06b6d4' : '#10b981'};">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                 <div>
@@ -5695,15 +5700,16 @@ Sistema Legal - ANA PAULA MEDINA
                                     <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
                                     ${doc.conteudo ? `
                                         <div style="margin-top: 6px;">
-                                            <a href="${doc.conteudo}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">
+                                            <button onclick="abrirDocumentoClienteModal(${docIdx})" style="font-size: 12px; color: #2563eb; text-decoration: underline; background: transparent; border: none; padding: 0; cursor: pointer;">
                                                 Abrir documento
-                                            </a>
+                                            </button>
                                         </div>
                                     ` : ''}
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </div>
             `).join('');
         }
@@ -5747,6 +5753,52 @@ Sistema Legal - ANA PAULA MEDINA
             if (dataFimEl) dataFimEl.value = '';
             salvarFiltrosDocumentosClienteModal();
             renderDocumentosClienteModal(window.__docsClienteModal || [], '');
+        }
+
+        function baixarDocumentoUrl(url, nome) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = nome || 'documento';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function abrirDocumentoEmNovaAba(doc) {
+            const url = doc && doc.conteudo ? doc.conteudo : '';
+            if (!url) {
+                mostrarNotificacao('Documento sem conteúdo.', 'warning');
+                return;
+            }
+            try {
+                if (url.startsWith('data:')) {
+                    const blob = await fetch(url).then(res => res.blob());
+                    const blobUrl = URL.createObjectURL(blob);
+                    const win = window.open(blobUrl, '_blank');
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                    if (!win) {
+                        baixarDocumentoUrl(blobUrl, doc.nomeArquivo);
+                    }
+                    return;
+                }
+                const win = window.open(url, '_blank');
+                if (!win) {
+                    baixarDocumentoUrl(url, doc.nomeArquivo);
+                }
+            } catch (error) {
+                console.warn('Falha ao abrir documento:', error);
+                baixarDocumentoUrl(url, doc.nomeArquivo);
+            }
+        }
+
+        function abrirDocumentoClienteModal(idx) {
+            const lista = window.__docsClienteModalFiltrados || [];
+            const doc = lista[idx];
+            if (!doc) {
+                mostrarNotificacao('Documento não encontrado.', 'error');
+                return;
+            }
+            abrirDocumentoEmNovaAba(doc);
         }
 
         function gerarRelatorioClienteEspecifico(nomeCliente) {
