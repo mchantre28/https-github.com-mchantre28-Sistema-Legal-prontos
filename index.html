@@ -8585,12 +8585,10 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function alterarStatusTarefa(id) {
-            if (!exigirPermissaoAcao('editar', 'tarefa')) {
-                return;
-            }
             const lista = Array.isArray(tarefas) ? tarefas : [];
             const index = lista.findIndex(t => t.id === id);
             if (index === -1) return;
+            if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
             const antes = { ...lista[index] };
             lista[index].status = lista[index].status === 'concluida' ? 'aberta' : 'concluida';
             salvarTarefasLocal(lista);
@@ -10697,7 +10695,9 @@ Sistema Legal - ANA PAULA MEDINA
                 valor: valorHonorario,
                 status: document.getElementById('honorarioStatus').value,
                 vencimento: vencimentoHonorario,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             honorarios.push(honorario);
@@ -10746,7 +10746,9 @@ Sistema Legal - ANA PAULA MEDINA
                 status: document.getElementById('contratoStatus').value,
                 dataInicio: dataInicio,
                 observacoes: document.getElementById('contratoObservacoes').value,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             contratos.push(contrato);
@@ -10771,7 +10773,9 @@ Sistema Legal - ANA PAULA MEDINA
                 tipo: 'contrato',
                 prioridade: 'media',
                 referenciaId: contrato.id,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             prazos.push(prazoContrato);
