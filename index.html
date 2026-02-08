@@ -1153,7 +1153,7 @@
         }
         
         // SISTEMA DE GESTÃO DE CONVIDADOS
-        function criarConvidado(nome, clientesAutorizados) {
+        async function criarConvidado(nome, clientesAutorizados) {
             const convidados = JSON.parse(localStorage.getItem('convidados') || '[]');
             const codigo = gerarCodigoAcesso(); // Usar função de código seguro
             
@@ -1168,7 +1168,8 @@
             
             convidados.push(novoConvidado);
             localStorage.setItem('convidados', JSON.stringify(convidados));
-            salvarConvidadoCloud(novoConvidado);
+            await salvarConvidadoCloud(novoConvidado);
+            await sincronizarConvidadosDaNuvem();
             
             return novoConvidado;
         }
@@ -14304,13 +14305,13 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             // Carregar lista de clientes
             carregarClientesParaConvidado();
             
-            document.getElementById('formNovoConvidado').addEventListener('submit', function(e) {
+            document.getElementById('formNovoConvidado').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const nome = document.getElementById('nomeConvidado').value;
                 const clientesSelecionados = Array.from(document.querySelectorAll('#listaClientesConvidado input[type="checkbox"]:checked'))
                     .map(cb => parseInt(cb.value));
                 
-                const novoConvidado = criarConvidado(nome, clientesSelecionados);
+                const novoConvidado = await criarConvidado(nome, clientesSelecionados);
                 mostrarNotificacao(`Convidado criado! Código: ${novoConvidado.codigo}`, 'success');
                 fecharModal();
                 carregarSecao('convidados');
