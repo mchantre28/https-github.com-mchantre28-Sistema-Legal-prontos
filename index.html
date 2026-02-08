@@ -1312,6 +1312,21 @@
             if (tipoUsuario === 'admin') {
                 return true;
             }
+            if (tipoUsuario === 'convidado') {
+                return true;
+            }
+            mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
+            return false;
+        }
+
+        function exigirPermissaoAcaoItem(acao, entidade, item) {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            if (tipoUsuario === 'admin') {
+                return true;
+            }
+            if (tipoUsuario === 'convidado' && acao === 'editar') {
+                return true;
+            }
             mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
             return false;
         }
@@ -2986,6 +3001,12 @@ END:VCALENDAR`;
                 if (tarefasSalvas) {
                     tarefas = JSON.parse(tarefasSalvas);
                     window.tarefas = tarefas;
+                } else {
+                    const tarefasBackup = localStorage.getItem('tarefasBackup');
+                    if (tarefasBackup) {
+                        tarefas = JSON.parse(tarefasBackup);
+                        window.tarefas = tarefas;
+                    }
                 }
 
                 console.log('✅ Dados carregados com sucesso');
@@ -3358,6 +3379,37 @@ END:VCALENDAR`;
             return `<pre class="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto">${escaparHtml(json)}</pre>`;
         }
 
+        function obterDocumentoAuditoria(item) {
+            if (!item || item.entidade !== 'documento') return null;
+            const doc = item.dadosDepois || item.dadosAntes;
+            if (!doc || !doc.conteudo) return null;
+            return doc;
+        }
+
+        function abrirDocumentoAuditoria(auditoriaId) {
+            const auditoria = obterAuditoriaSemFiltro();
+            const item = auditoria.find(a => String(a.id) === String(auditoriaId));
+            const doc = obterDocumentoAuditoria(item);
+            if (!doc) {
+                mostrarNotificacao('Documento não encontrado no histórico.', 'warning');
+                return;
+            }
+            abrirDocumentoEmNovaAba(doc);
+        }
+
+        function renderAcaoDocumentoHistorico(item) {
+            const tipoUsuarioAtual = localStorage.getItem('tipoUsuario') || '';
+            if (tipoUsuarioAtual !== 'admin') return '';
+            const doc = obterDocumentoAuditoria(item);
+            if (!doc) return '';
+            const nome = doc.nomeArquivo ? escaparHtml(doc.nomeArquivo) : 'Documento';
+            return `
+                <button type="button" class="btn btn-secondary" onclick="abrirDocumentoAuditoria(${item.id})">
+                    Abrir documento (${nome})
+                </button>
+            `;
+        }
+
         function gerarHistoricoDetalhado() {
             const auditoria = obterAuditoria();
             const usuarios = [...new Set(auditoria.map(item => item.usuario).filter(Boolean))].sort();
@@ -3554,31 +3606,35 @@ END:VCALENDAR`;
                 return;
             }
             
-            container.innerHTML = itens.slice(0, 200).map(item => `
-                <div class="card p-4">
-                    <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <div class="text-sm font-semibold text-gray-800">${(item.acao || '').toUpperCase()} ${item.entidade || ''}</div>
-                            <div class="text-xs text-gray-600">${item.descricao || ''}</div>
-                            <div class="text-xs text-gray-500">${item.timestamp ? new Date(item.timestamp).toLocaleString('pt-PT') : ''}</div>
+            container.innerHTML = itens.slice(0, 200).map(item => {
+                const acaoDocumento = renderAcaoDocumentoHistorico(item);
+                return `
+                    <div class="card p-4">
+                        <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800">${(item.acao || '').toUpperCase()} ${item.entidade || ''}</div>
+                                <div class="text-xs text-gray-600">${item.descricao || ''}</div>
+                                <div class="text-xs text-gray-500">${item.timestamp ? new Date(item.timestamp).toLocaleString('pt-PT') : ''}</div>
+                            </div>
+                            <div class="text-xs text-gray-500">${item.usuario || 'N/D'} (${item.tipoUsuario || 'N/D'})</div>
                         </div>
-                        <div class="text-xs text-gray-500">${item.usuario || 'N/D'} (${item.tipoUsuario || 'N/D'})</div>
+                        ${acaoDocumento ? `<div class="mt-2">${acaoDocumento}</div>` : ''}
+                        <details class="mt-3">
+                            <summary class="text-sm text-blue-600 cursor-pointer">Ver detalhes</summary>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-600 mb-1">Antes</div>
+                                    ${formatarAuditoriaJson(item.dadosAntes)}
+                                </div>
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-600 mb-1">Depois</div>
+                                    ${formatarAuditoriaJson(item.dadosDepois)}
+                                </div>
+                            </div>
+                        </details>
                     </div>
-                    <details class="mt-3">
-                        <summary class="text-sm text-blue-600 cursor-pointer">Ver detalhes</summary>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                            <div>
-                                <div class="text-xs font-semibold text-gray-600 mb-1">Antes</div>
-                                ${formatarAuditoriaJson(item.dadosAntes)}
-                            </div>
-                            <div>
-                                <div class="text-xs font-semibold text-gray-600 mb-1">Depois</div>
-                                ${formatarAuditoriaJson(item.dadosDepois)}
-                            </div>
-                        </div>
-                    </details>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function registrarErro(contexto, erro, detalhe = null) {
@@ -7830,7 +7886,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
                             Suas notificações automáticas e mensagens do administrador
                         </div>
-                    `}
+                    ` : ''}
                 </div>
                 <div class="flex space-x-3">
                     <button onclick="marcarTodasComoLidas()" class="btn btn-secondary">
@@ -8042,6 +8098,17 @@ Sistema Legal - ANA PAULA MEDINA
             tarefas = novos;
             window.tarefas = tarefas;
             salvarDados('tarefas', tarefas);
+            try {
+                localStorage.setItem('tarefasBackup', JSON.stringify(tarefas));
+            } catch (error) {
+                console.warn('Erro ao salvar backup de tarefas:', error);
+            }
+        }
+
+        function obterFiltroSoComPrazo() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            const salvo = localStorage.getItem('tarefasFiltroSoComPrazo') === 'true';
+            return tipoUsuario === 'admin' ? false : salvo;
         }
 
         function salvarTarefaCloud(tarefa) {
@@ -8211,7 +8278,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 </div>
                             </div>
                         </div>
-                    `}
+                    ` : ''}
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
@@ -8267,9 +8334,9 @@ Sistema Legal - ANA PAULA MEDINA
                             </div>
                         </div>
                         <div class="flex flex-wrap items-center gap-2 mt-4">
-                            <button id="btnSoComPrazo" onclick="alternarFiltroSoComPrazo()" class="btn ${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'btn-primary' : 'btn-secondary'}" data-ativo="${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'true' : 'false'}">
+                            <button id="btnSoComPrazo" onclick="alternarFiltroSoComPrazo()" class="btn ${obterFiltroSoComPrazo() ? 'btn-primary' : 'btn-secondary'}" data-ativo="${obterFiltroSoComPrazo() ? 'true' : 'false'}">
                                 <i data-lucide="clock" class="w-4 h-4"></i>
-                                ${localStorage.getItem('tarefasFiltroSoComPrazo') === 'true' ? 'Só com prazo: ON' : 'Só com prazo'}
+                                ${obterFiltroSoComPrazo() ? 'Só com prazo: ON' : 'Só com prazo'}
                             </button>
                             <button onclick="aplicarFiltrosTarefas()" class="btn btn-primary">
                                 <i data-lucide="filter" class="w-4 h-4"></i>
@@ -8313,12 +8380,15 @@ Sistema Legal - ANA PAULA MEDINA
         function alternarFiltroSoComPrazo() {
             const btn = document.getElementById('btnSoComPrazo');
             if (!btn) return;
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
             const ativo = btn.dataset.ativo === 'true';
             btn.dataset.ativo = ativo ? 'false' : 'true';
             btn.classList.toggle('btn-primary', !ativo);
             btn.classList.toggle('btn-secondary', ativo);
             btn.innerHTML = `<i data-lucide="clock" class="w-4 h-4"></i> ${ativo ? 'Só com prazo' : 'Só com prazo: ON'}`;
-            localStorage.setItem('tarefasFiltroSoComPrazo', ativo ? 'false' : 'true');
+            if (tipoUsuario !== 'admin') {
+                localStorage.setItem('tarefasFiltroSoComPrazo', ativo ? 'false' : 'true');
+            }
             aplicarFiltrosTarefas();
         }
 
@@ -8845,10 +8915,10 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="text-xs font-semibold mb-1">${dataAtual.getDate()}</div>
                         <div class="space-y-1">
                             ${prazosDia.slice(0, 3).map(prazo => `
-                                <div class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}">
+                                <button type="button" onclick="editarItem('prazo', ${prazo.id})" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                                     <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                     ${prazo.descricao || prazo.tipo || 'Prazo'}
-                                </div>
+                                </button>
                             `).join('')}
                             ${extra > 0 ? `<div class="text-[11px] text-gray-400">+${extra} mais</div>` : ''}
                         </div>
@@ -8874,13 +8944,13 @@ Sistema Legal - ANA PAULA MEDINA
                         <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} • ${dataAtual.toLocaleDateString('pt-PT')}</div>
                         <div class="space-y-2">
                             ${prazosDia.length ? prazosDia.map(prazo => `
-                                <div class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}">
+                                <button type="button" onclick="editarItem('prazo', ${prazo.id})" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                         <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
                                     </div>
                                     <div class="text-[11px] text-gray-500">${renderClienteLink(prazo.clienteId, prazo.clienteNome || prazo.cliente || '')}</div>
-                                </div>
+                                </button>
                             `).join('') : '<div class="text-xs text-gray-400">Sem prazos</div>'}
                         </div>
                     </div>
@@ -9169,6 +9239,7 @@ Sistema Legal - ANA PAULA MEDINA
         function gerarDocumentos() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             const isConvidado = tipoUsuario === 'convidado';
+            const podeCriarDocumento = tipoUsuario === 'admin' || tipoUsuario === 'convidado';
             let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
             let documentosParaMostrar = Array.isArray(documentos) ? documentos : [];
             
@@ -9185,15 +9256,15 @@ Sistema Legal - ANA PAULA MEDINA
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
                         <h2 class="text-2xl font-bold">Documentos</h2>
-                        ${isConvidado ? '' : `
+                        ${podeCriarDocumento ? `
                             <button onclick="uploadDocumento()" class="btn btn-primary">
                                 <i data-lucide="upload" class="w-4 h-4"></i>
                                 Adicionar Documento
                             </button>
-                        `}
+                        ` : ''}
                     </div>
                     
-                    ${isConvidado ? '' : `
+                    ${podeCriarDocumento ? `
                         <div class="card p-6">
                             <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -9232,7 +9303,7 @@ Sistema Legal - ANA PAULA MEDINA
                         </div>
                     `}
 
-                    ${isConvidado ? '' : `
+                    ${podeCriarDocumento ? `
                         <div class="card p-6">
                             <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -10677,6 +10748,7 @@ Sistema Legal - ANA PAULA MEDINA
 
         function salvarHonorario(event) {
             event.preventDefault();
+            if (!exigirPermissaoAcao('criar', 'honorario')) return;
             
             const valorHonorario = parseFloat(document.getElementById('honorarioValor').value);
             const clienteHonorario = document.getElementById('honorarioCliente').value.trim();
@@ -10716,6 +10788,7 @@ Sistema Legal - ANA PAULA MEDINA
 
         function salvarContrato(event) {
             event.preventDefault();
+            if (!exigirPermissaoAcao('criar', 'contrato')) return;
             
             const clienteId = parseInt(document.getElementById('contratoCliente').value);
             const clienteSelecionado = clientes.find(c => c.id === clienteId);
@@ -15637,6 +15710,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         function salvarHeranca(event) {
             event.preventDefault();
+            if (!exigirPermissaoAcao('criar', 'heranca')) return;
             const formData = new FormData(event.target);
             const clienteId = parseInt(formData.get('clienteId'));
             const cliente = clientes.find(c => c.id === clienteId);
@@ -15705,6 +15779,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         function salvarMigracao(event) {
             try {
             event.preventDefault();
+            if (!exigirPermissaoAcao('criar', 'migracao')) return;
                 console.log('🔧 salvarMigracao iniciado');
                 console.log('🔧 FormData:', event.target);
                 
@@ -15788,6 +15863,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         function salvarRegisto(event) {
             event.preventDefault();
+            if (!exigirPermissaoAcao('criar', 'registo')) return;
             const formData = new FormData(event.target);
             const clienteId = parseInt(formData.get('clienteId'));
             const cliente = clientes.find(c => c.id === clienteId);
