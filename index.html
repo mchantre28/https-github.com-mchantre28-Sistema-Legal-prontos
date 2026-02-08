@@ -8585,6 +8585,7 @@ Sistema Legal - ANA PAULA MEDINA
                 </div>
             `).join('');
             lucide.createIcons();
+            removerBotoesAnexos();
         }
 
         function criarTarefa() {
@@ -12726,6 +12727,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             `;
             document.getElementById('modalContainer').innerHTML = modal;
             lucide.createIcons();
+            removerBotoesAnexos();
         }
         
         function adicionarAnexoRegisto(event, registoId) {
@@ -16100,8 +16102,17 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         // === SISTEMA DE ANEXOS DE DOCUMENTOS ===
 
         function removerBotoesAnexos() {
-            const botoes = document.querySelectorAll('button[onclick*="abrirAnexos"]');
-            botoes.forEach(btn => btn.remove());
+            const seletores = [
+                'button[onclick*="abrirAnexos"]',
+                'button[title="Documentos"]',
+                'button[title*="Anexo"]',
+                'button[title*="Documento"]'
+            ];
+            document.querySelectorAll(seletores.join(',')).forEach(btn => btn.remove());
+            document.querySelectorAll('i[data-lucide="paperclip"]').forEach(icon => {
+                const btn = icon.closest('button');
+                if (btn) btn.remove();
+            });
         }
         
         function abrirAnexosCliente(clienteId) {
