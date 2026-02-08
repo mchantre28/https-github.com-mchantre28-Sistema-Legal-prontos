@@ -60,6 +60,15 @@
             background-color: #1f2937;
         }
 
+        /* Ocultar anexos para convidado */
+        body.perfil-convidado button[onclick*="abrirAnexos"],
+        body.perfil-convidado button[title="Documentos"],
+        body.perfil-convidado button[title*="Anexo"],
+        body.perfil-convidado button[title*="Documento"],
+        body.perfil-convidado i[data-lucide="paperclip"] {
+            display: none !important;
+        }
+
         [data-theme="dark"] .table-responsive th,
         [data-theme="dark"] .table-responsive td {
             border-color: #374151;
@@ -1442,6 +1451,7 @@
         function configurarInterfaceUsuario() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             const navConvidados = document.getElementById('nav-convidados');
+            document.body.classList.toggle('perfil-convidado', tipoUsuario === 'convidado');
             
             if (tipoUsuario === 'admin' && navConvidados) {
                 navConvidados.style.display = 'block';
