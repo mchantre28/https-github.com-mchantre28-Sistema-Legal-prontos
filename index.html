@@ -3779,6 +3779,7 @@ END:VCALENDAR`;
             if (conteudoElement) {
                 conteudoElement.innerHTML = conteudo;
                 console.log('✅ Conteúdo inserido no DOM');
+                removerBotoesAnexos();
                 
                 // Atualizar badge de notificações se for a seção de notificações
                 if (secao === 'notificacoes') {
@@ -16097,8 +16098,15 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         }
 
         // === SISTEMA DE ANEXOS DE DOCUMENTOS ===
+
+        function removerBotoesAnexos() {
+            const botoes = document.querySelectorAll('button[onclick*="abrirAnexos"]');
+            botoes.forEach(btn => btn.remove());
+        }
         
         function abrirAnexosCliente(clienteId) {
+            mostrarNotificacao('Anexos foram removidos do sistema.', 'info');
+            return;
             const cliente = clientes.find(c => c.id === clienteId);
             if (!cliente) return;
             
@@ -19010,6 +19018,8 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         // === FUNÇÃO PRINCIPAL PARA ABRIR MODAL DE ANEXOS ===
         function abrirModalAnexos(tipo, id, nome) {
+            mostrarNotificacao('Anexos foram removidos do sistema.', 'info');
+            return;
             console.log('🔧 abrirModalAnexos chamado:', tipo, id, nome);
             
             // Fechar qualquer modal aberto primeiro
