@@ -1199,9 +1199,11 @@
             }
         }
         
-        function ativarDesativarConvidadoCore(id, ativo) {
+        function ativarDesativarConvidadoCore(idOuCodigo, ativo) {
             const convidados = obterConvidados();
-            const convidado = convidados.find(c => c.id === id);
+            const convidado = convidados.find(c =>
+                String(c.id) === String(idOuCodigo) || String(c.codigo) === String(idOuCodigo)
+            );
             if (convidado) {
                 convidado.ativo = ativo;
                 localStorage.setItem('convidados', JSON.stringify(convidados));
@@ -14246,7 +14248,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                                     <button onclick="abrirModalEditarPermissoes(${convidado.id})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar Permissões">
                                                         <i data-lucide="settings" class="w-4 h-4"></i>
                                                     </button>
-                                                    <button onclick="ativarDesativarConvidado(${convidado.id}, ${!convidado.ativo})" class="text-${convidado.ativo ? 'red' : 'green'}-600 hover:text-${convidado.ativo ? 'red' : 'green'}-900 mr-2" title="${convidado.ativo ? 'Desativar' : 'Ativar'}">
+                                                    <button onclick="ativarDesativarConvidado('${convidado.codigo}', ${!convidado.ativo})" class="text-${convidado.ativo ? 'red' : 'green'}-600 hover:text-${convidado.ativo ? 'red' : 'green'}-900 mr-2" title="${convidado.ativo ? 'Desativar' : 'Ativar'}">
                                                         <i data-lucide="${convidado.ativo ? 'user-x' : 'user-check'}" class="w-4 h-4"></i>
                                                     </button>
                                                     <button onclick="copiarCodigoConvidado('${convidado.codigo}')" class="text-gray-600 hover:text-gray-900" title="Copiar Código">
