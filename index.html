@@ -12775,10 +12775,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         
         function removerAnexoRegisto(registoId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const registo = registos.find(r => r.id === registoId);
+                const listaRegistos = carregarListaLocal('registos', registos);
+                const registo = listaRegistos.find(r => r.id === registoId);
                 if (registo && registo.anexos) {
                     registo.anexos = registo.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('registos', registos);
+                    salvarDados('registos', listaRegistos);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosRegisto(registoId);
                 }
@@ -12934,10 +12935,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         
         function removerAnexoPrazo(prazoId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const prazo = prazos.find(p => p.id === prazoId);
+                const listaPrazos = carregarListaLocal('prazos', prazos);
+                const prazo = listaPrazos.find(p => p.id === prazoId);
                 if (prazo && prazo.anexos) {
                     prazo.anexos = prazo.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('prazos', prazos);
+                    salvarDados('prazos', listaPrazos);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosPrazo(prazoId);
                 }
@@ -16646,12 +16648,21 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             }
         }
         
+        function carregarListaLocal(chave, listaAtual) {
+            if (Array.isArray(listaAtual) && listaAtual.length) {
+                return listaAtual;
+            }
+            const salvo = localStorage.getItem(chave);
+            return salvo ? JSON.parse(salvo) : (Array.isArray(listaAtual) ? listaAtual : []);
+        }
+
         function removerAnexo(clienteId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const cliente = clientes.find(c => c.id === clienteId);
+                const listaClientes = carregarListaLocal('clientes', clientes);
+                const cliente = listaClientes.find(c => c.id === clienteId);
                 if (cliente && cliente.anexos) {
                     cliente.anexos = cliente.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('clientes', clientes);
+                    salvarDados('clientes', listaClientes);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosCliente(clienteId); // Recarregar modal
                 }
@@ -16810,10 +16821,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         
         function removerAnexoContrato(contratoId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const contrato = contratos.find(c => c.id === contratoId);
+                const listaContratos = carregarListaLocal('contratos', contratos);
+                const contrato = listaContratos.find(c => c.id === contratoId);
                 if (contrato && contrato.anexos) {
                     contrato.anexos = contrato.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('contratos', contratos);
+                    salvarDados('contratos', listaContratos);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosContrato(contratoId);
                 }
@@ -19354,10 +19366,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         function removerAnexoHeranca(herancaId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const heranca = herancas.find(h => h.id === herancaId);
+                const listaHerancas = carregarListaLocal('herancas', herancas);
+                const heranca = listaHerancas.find(h => h.id === herancaId);
                 if (heranca && heranca.anexos) {
                     heranca.anexos = heranca.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('herancas', herancas);
+                    salvarDados('herancas', listaHerancas);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosHeranca(herancaId);
                 }
@@ -19366,10 +19379,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         function removerAnexoMigracao(migracaoId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const migracao = migracoes.find(m => m.id === migracaoId);
+                const listaMigracoes = carregarListaLocal('migracoes', migracoes);
+                const migracao = listaMigracoes.find(m => m.id === migracaoId);
                 if (migracao && migracao.anexos) {
                     migracao.anexos = migracao.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('migracoes', migracoes);
+                    salvarDados('migracoes', listaMigracoes);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosMigracao(migracaoId);
                 }
@@ -19378,10 +19392,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
 
         function removerAnexoRegisto(registoId, anexoId) {
             if (confirm('Tem certeza que deseja remover este documento?')) {
-                const registo = registos.find(r => r.id === registoId);
+                const listaRegistos = carregarListaLocal('registos', registos);
+                const registo = listaRegistos.find(r => r.id === registoId);
                 if (registo && registo.anexos) {
                     registo.anexos = registo.anexos.filter(a => a.id !== anexoId);
-                    salvarDados('registos', registos);
+                    salvarDados('registos', listaRegistos);
                     mostrarNotificacao('Documento removido com sucesso!', 'success');
                     abrirAnexosRegisto(registoId);
                 }
