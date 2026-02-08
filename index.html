@@ -1168,8 +1168,12 @@
             
             convidados.push(novoConvidado);
             localStorage.setItem('convidados', JSON.stringify(convidados));
-            await salvarConvidadoCloud(novoConvidado);
-            await sincronizarConvidadosDaNuvem();
+            try {
+                await salvarConvidadoCloud(novoConvidado);
+                await sincronizarConvidadosDaNuvem();
+            } catch (error) {
+                console.warn('Erro ao sincronizar convidado:', error);
+            }
             
             return novoConvidado;
         }
@@ -14307,7 +14311,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             document.getElementById('formNovoConvidado').addEventListener('submit', async function(e) {
                 e.preventDefault();
-                const nome = document.getElementById('nomeConvidado').value;
+                const nome = document.getElementById('nomeConvidado').value.trim();
+                if (!nome) {
+                    mostrarNotificacao('Informe o nome do convidado.', 'warning');
+                    return;
+                }
                 const clientesSelecionados = Array.from(document.querySelectorAll('#listaClientesConvidado input[type="checkbox"]:checked'))
                     .map(cb => parseInt(cb.value));
                 
