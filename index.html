@@ -1195,7 +1195,7 @@
             }
         }
         
-        function ativarDesativarConvidado(id, ativo) {
+        function ativarDesativarConvidadoCore(id, ativo) {
             const convidados = obterConvidados();
             const convidado = convidados.find(c => c.id === id);
             if (convidado) {
@@ -14416,7 +14416,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         }
         
         function ativarDesativarConvidado(id, ativo) {
-            ativarDesativarConvidado(id, ativo);
+            ativarDesativarConvidadoCore(id, ativo);
             mostrarNotificacao(`Convidado ${ativo ? 'ativado' : 'desativado'} com sucesso!`, 'success');
             carregarSecao('convidados');
         }
