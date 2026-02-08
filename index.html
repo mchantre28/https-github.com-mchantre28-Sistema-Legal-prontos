@@ -60,17 +60,12 @@
             background-color: #1f2937;
         }
 
-        /* Ocultar anexos para convidado e admin */
-        body.perfil-convidado button[onclick*="abrirAnexos"],
-        body.perfil-convidado button[title="Documentos"],
-        body.perfil-convidado button[title*="Anexo"],
-        body.perfil-convidado button[title*="Documento"],
-        body.perfil-convidado i[data-lucide="paperclip"],
-        body.perfil-admin button[onclick*="abrirAnexos"],
-        body.perfil-admin button[title="Documentos"],
-        body.perfil-admin button[title*="Anexo"],
-        body.perfil-admin button[title*="Documento"],
-        body.perfil-admin i[data-lucide="paperclip"] {
+        /* Ocultar anexos para todos os perfis */
+        button[onclick*="abrirAnexos"],
+        button[title="Documentos"],
+        button[title*="Anexo"],
+        button[title*="Documento"],
+        i[data-lucide="paperclip"] {
             display: none !important;
         }
 
