@@ -1437,7 +1437,7 @@
                 navConvidados.style.display = 'none';
             }
             
-            // OCULTAR SEÇÕES PARA CONVIDADOS
+            // Ocultar seções administrativas para convidados
             if (tipoUsuario === 'convidado') {
                 ocultarSecoesConvidado();
             } else {
@@ -7886,7 +7886,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
                             Suas notificações automáticas e mensagens do administrador
                         </div>
-                    ` : ''}
+                    `}
                 </div>
                 <div class="flex space-x-3">
                     <button onclick="marcarTodasComoLidas()" class="btn btn-secondary">
@@ -8278,7 +8278,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 </div>
                             </div>
                         </div>
-                    ` : ''}
+                    `}
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
@@ -9301,7 +9301,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 </div>
                             </div>
                         </div>
-                    `}
+                    ` : ''}
 
                     ${podeCriarDocumento ? `
                         <div class="card p-6">
@@ -9344,7 +9344,7 @@ Sistema Legal - ANA PAULA MEDINA
                             </div>
                             <p class="text-xs text-gray-500 mt-3">Os modelos são gerados em formato .txt e podem ser editados depois.</p>
                         </div>
-                    `}
+                    ` : ''}
                     
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros</h3>
@@ -10724,7 +10724,9 @@ Sistema Legal - ANA PAULA MEDINA
                 endereco: document.getElementById('clienteEndereco').value,
                 status: document.getElementById('clienteStatus').value,
                 dataCriacao: new Date().toISOString(),
-                criadoPorConvidado: tipoUsuario === 'convidado' ? parseInt(convidadoId) : null
+                criadoPorConvidado: tipoUsuario === 'convidado' ? parseInt(convidadoId) : null,
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             console.log('🔧 Novo cliente criado:', cliente);
@@ -11575,21 +11577,19 @@ Sistema Legal - ANA PAULA MEDINA
 
         function editarItem(tipo, id) {
             console.log('🔧 editarItem chamado:', tipo, id);
-
-            if (!exigirPermissaoAcao('editar', tipo)) {
-                return;
-            }
             
             // Fechar qualquer modal aberto primeiro
             fecharModal();
             
             if (tipo === 'cliente') {
                 const cliente = clientes.find(c => c.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'cliente', cliente)) return;
                 if (cliente) {
                     abrirModalEdicaoCliente(cliente);
                 }
             } else if (tipo === 'contrato') {
                 const contrato = contratos.find(c => c.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'contrato', contrato)) return;
                 console.log('Contrato encontrado:', contrato);
                 if (contrato) {
                     // Aguardar um pouco para garantir que o modal anterior foi fechado
@@ -11602,26 +11602,31 @@ Sistema Legal - ANA PAULA MEDINA
                 }
             } else if (tipo === 'honorario') {
                 const honorario = honorarios.find(h => h.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'honorario', honorario)) return;
                 if (honorario) {
                     abrirModalEdicaoHonorario(honorario);
                 }
             } else if (tipo === 'heranca') {
                 const heranca = herancas.find(h => h.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'heranca', heranca)) return;
                 if (heranca) {
                     abrirModalEdicaoHeranca(heranca);
                 }
             } else if (tipo === 'migracao') {
                 const migracao = migracoes.find(m => m.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'migracao', migracao)) return;
                 if (migracao) {
                     abrirModalEdicaoMigracao(migracao);
                 }
             } else if (tipo === 'registo') {
                 const registo = registos.find(r => r.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'registo', registo)) return;
                 if (registo) {
                     abrirModalEdicaoRegisto(registo);
                 }
             } else if (tipo === 'prazo') {
                 const prazo = prazos.find(p => p.id === id);
+                if (!exigirPermissaoAcaoItem('editar', 'prazo', prazo)) return;
                 if (prazo) {
                     abrirModalEdicaoPrazo(prazo);
                 }
@@ -15733,7 +15738,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 status: formData.get('status'),
                 dataInicio: formData.get('dataInicio'),
                 observacoes: formData.get('observacoes'),
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
 
             herancas.unshift(novaHeranca);
@@ -15757,7 +15764,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 tipo: 'heranca',
                 prioridade: 'media',
                 referenciaId: novaHeranca.id,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             prazos.push(prazoHeranca);
@@ -15812,7 +15821,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     parceria: formData.get('parceria'),
                     parceriaNome: formData.get('parceriaNome'),
                 observacoes: formData.get('observacoes'),
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
 
                 console.log('🔧 Nova migração criada:', novaMigracao);
@@ -15838,7 +15849,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 tipo: 'migracao',
                 prioridade: 'media',
                 referenciaId: novaMigracao.id,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             prazos.push(prazoMigracao);
@@ -15886,7 +15899,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 status: formData.get('status'),
                 dataInicio: formData.get('dataInicio'),
                 observacoes: formData.get('observacoes'),
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
 
             registos.unshift(novoRegisto);
@@ -15910,7 +15925,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 tipo: 'registo',
                 prioridade: 'media',
                 referenciaId: novoRegisto.id,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
             prazos.push(prazoRegisto);
