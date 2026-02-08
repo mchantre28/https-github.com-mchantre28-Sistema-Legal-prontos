@@ -1337,6 +1337,9 @@
             if (tipoUsuario === 'convidado') {
                 return true;
             }
+            if (localStorage.getItem('convidadoId')) {
+                return true;
+            }
             mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
             return false;
         }
