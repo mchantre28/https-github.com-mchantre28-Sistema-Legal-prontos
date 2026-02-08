@@ -65,7 +65,8 @@
         button[title="Documentos"],
         button[title*="Anexo"],
         button[title*="Documento"],
-        i[data-lucide="paperclip"] {
+        i[data-lucide="paperclip"],
+        svg.lucide-paperclip {
             display: none !important;
         }
 
@@ -16121,6 +16122,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             ];
             document.querySelectorAll(seletores.join(',')).forEach(btn => btn.remove());
             document.querySelectorAll('i[data-lucide="paperclip"]').forEach(icon => {
+                const btn = icon.closest('button');
+                if (btn) btn.remove();
+            });
+            document.querySelectorAll('svg.lucide-paperclip').forEach(icon => {
                 const btn = icon.closest('button');
                 if (btn) btn.remove();
             });
