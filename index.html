@@ -1167,13 +1167,18 @@
             };
             
             convidados.push(novoConvidado);
-            localStorage.setItem('convidados', JSON.stringify(convidados));
             try {
-                await salvarConvidadoCloud(novoConvidado);
-                await sincronizarConvidadosDaNuvem();
+                localStorage.setItem('convidados', JSON.stringify(convidados));
             } catch (error) {
-                console.warn('Erro ao sincronizar convidado:', error);
+                console.warn('Erro ao salvar convidado localmente:', error);
             }
+            Promise.resolve()
+                .then(() => salvarConvidadoCloud(novoConvidado))
+                .then(() => sincronizarConvidadosDaNuvem())
+                .catch((error) => {
+                    console.warn('Erro ao sincronizar convidado:', error);
+                    mostrarNotificacao('Convidado criado localmente. Nuvem indisponível.', 'warning');
+                });
             
             return novoConvidado;
         }
