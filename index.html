@@ -8590,7 +8590,12 @@ Sistema Legal - ANA PAULA MEDINA
             
             if (isConvidado) {
                 clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
-                tarefasParaMostrar = tarefasParaMostrar.filter(t => verificarPermissaoCliente(t.clienteId));
+                const convidadoAtualId = parseInt(localStorage.getItem('convidadoId'));
+                tarefasParaMostrar = tarefasParaMostrar.filter(t =>
+                    verificarPermissaoCliente(t.clienteId) &&
+                    t.responsavelTipo === 'convidado' &&
+                    parseInt(t.responsavelId) === convidadoAtualId
+                );
             }
             
             return `
@@ -8792,7 +8797,12 @@ Sistema Legal - ANA PAULA MEDINA
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let lista = Array.isArray(tarefas) ? tarefas : [];
             if (tipoUsuario === 'convidado') {
-                lista = lista.filter(t => verificarPermissaoCliente(t.clienteId));
+                const convidadoAtualId = parseInt(localStorage.getItem('convidadoId'));
+                lista = lista.filter(t =>
+                    verificarPermissaoCliente(t.clienteId) &&
+                    t.responsavelTipo === 'convidado' &&
+                    parseInt(t.responsavelId) === convidadoAtualId
+                );
             }
             
             const texto = (document.getElementById('filtroTarefasTexto')?.value || '').toLowerCase();
