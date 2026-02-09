@@ -523,6 +523,11 @@
             color: #065f46;
         }
 
+        .status-parcial {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
         .status-vencido {
             background: #fee2e2;
             color: #991b1b;
@@ -2807,7 +2812,7 @@
             
             // Adicionar vencimentos de honorários
             honorarios.forEach(honorario => {
-                if (honorario.status === 'pendente' && honorario.vencimento) {
+                if (isHonorarioEmAberto(honorario) && honorario.vencimento) {
                     eventos.push({
                         titulo: `💰 Vencimento: ${honorario.descricao}`,
                         data: honorario.vencimento,
@@ -4519,7 +4524,7 @@ Vencidos: ${honorariosParaMostrar.filter(h => {
                 if (!h.vencimento) return false;
                 const dataVencimento = new Date(h.vencimento);
                 const hoje = new Date();
-                return dataVencimento < hoje && h.status === 'pendente';
+                return dataVencimento < hoje && isHonorarioEmAberto(h);
             }).length}
 
 === PRAZOS PRÓXIMOS (7 dias) ===
@@ -4853,7 +4858,7 @@ Sistema Legal - ANA PAULA MEDINA
                     dadosCliente.honorarios.forEach((honorario, index) => {
                         relatorio += `${index + 1}. ${honorario.descricao}\n`;
                         relatorio += `   Valor: €${honorario.valor}\n`;
-                        relatorio += `   Status: ${honorario.status}\n`;
+                        relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                         relatorio += `   Data: ${honorario.data}\n\n`;
                         totalHonorarios += parseFloat(honorario.valor) || 0;
                     });
@@ -5294,7 +5299,7 @@ Sistema Legal - ANA PAULA MEDINA
                     dadosFinanceiros.honorarios.forEach((honorario, index) => {
                         relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
                         relatorio += `   Valor: €${honorario.valor}\n`;
-                        relatorio += `   Status: ${honorario.status}\n`;
+                        relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                         relatorio += `   Data: ${honorario.data}\n`;
                         if (honorario.vencimento) {
                             relatorio += `   Vencimento: ${honorario.vencimento}\n`;
@@ -5358,7 +5363,7 @@ Sistema Legal - ANA PAULA MEDINA
                 relatorio += 'ANÁLISE POR STATUS:\n';
                 relatorio += '==================\n';
                 
-                const honorariosPendentes = dadosFinanceiros.honorarios.filter(h => h.status === 'pendente');
+                const honorariosPendentes = dadosFinanceiros.honorarios.filter(h => isHonorarioEmAberto(h));
                 const honorariosPagos = dadosFinanceiros.honorarios.filter(h => h.status === 'pago');
                 const honorariosVencidos = dadosFinanceiros.honorarios.filter(h => h.status === 'vencido');
                 
@@ -5738,7 +5743,7 @@ Sistema Legal - ANA PAULA MEDINA
                     dadosGeral.honorarios.forEach((honorario, index) => {
                         relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
                         relatorio += `   Valor: €${honorario.valor}\n`;
-                        relatorio += `   Status: ${honorario.status}\n`;
+                        relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                         relatorio += `   Data: ${honorario.data}\n`;
                         if (honorario.vencimento) {
                             relatorio += `   Vencimento: ${honorario.vencimento}\n`;
@@ -6018,7 +6023,7 @@ Sistema Legal - ANA PAULA MEDINA
                                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                                 <div>
                                                     <strong>${honorario.descricao || honorario.servico}</strong><br>
-                                                    <span style="color: #6b7280; font-size: 14px;">Valor: €${honorario.valor} | Status: ${honorario.status}</span><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">Valor: €${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">Data: ${honorario.data}</span>
                                                 </div>
                                             </div>
@@ -6702,12 +6707,12 @@ Sistema Legal - ANA PAULA MEDINA
             const totalHonorarios = honorariosParaMostrar.length;
             const valorTotal = honorariosParaMostrar.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
             const honorariosPagos = honorariosParaMostrar.filter(h => h.status === 'pago').length;
-            const honorariosPendentes = honorariosParaMostrar.filter(h => h.status === 'pendente').length;
+            const honorariosPendentes = honorariosParaMostrar.filter(h => isHonorarioEmAberto(h)).length;
             const hoje = new Date();
             const honorariosVencidos = honorariosParaMostrar.filter(h => {
                 if (!h.vencimento) return false;
                 const dataVencimento = new Date(h.vencimento);
-                return dataVencimento < hoje && h.status === 'pendente';
+                return dataVencimento < hoje && isHonorarioEmAberto(h);
             }).length;
             const clientesComHonorarios = new Set(
                 honorariosParaMostrar
@@ -7045,7 +7050,7 @@ Sistema Legal - ANA PAULA MEDINA
                                     if (!h.vencimento) return false;
                                     const dataVencimento = new Date(h.vencimento);
                                     const hoje = new Date();
-                                    return dataVencimento < hoje && h.status === 'pendente';
+                                    return dataVencimento < hoje && isHonorarioEmAberto(h);
                                 }).slice(0, 3).map(honorario => `
                                     <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
                                         <div>
@@ -7059,7 +7064,7 @@ Sistema Legal - ANA PAULA MEDINA
                                     if (!h.vencimento) return false;
                                     const dataVencimento = new Date(h.vencimento);
                                     const hoje = new Date();
-                                    return dataVencimento < hoje && h.status === 'pendente';
+                                    return dataVencimento < hoje && isHonorarioEmAberto(h);
                                 }).length === 0 ? `
                                     <div class="text-center py-4">
                                         <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
@@ -7256,7 +7261,7 @@ Sistema Legal - ANA PAULA MEDINA
                                             <p class="font-medium">${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}</p>
                                             <p class="text-sm text-gray-600">€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
                                         </div>
-                                        <span class="status-badge status-${honorario.status}">${honorario.status}</span>
+                                        <span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span>
                                     </div>
                                 `).join('')}
                                 ${honorariosParaMostrar.length === 0 ? `
@@ -7741,9 +7746,21 @@ Sistema Legal - ANA PAULA MEDINA
             `;
         }
 
+        function formatarStatusHonorario(status) {
+            if (status === 'parcial') return 'Parcial';
+            if (status === 'pago') return 'Pago';
+            if (status === 'pendente') return 'Pendente';
+            if (status === 'vencido') return 'Vencido';
+            return status || 'pendente';
+        }
+
+        function isHonorarioEmAberto(h) {
+            return h.status === 'pendente' || h.status === 'parcial';
+        }
+
         function gerarHonorarios() {
             const honorariosPagos = honorarios.filter(h => h.status === 'pago').length;
-            const honorariosPendentes = honorarios.filter(h => h.status === 'pendente').length;
+            const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
             const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
             const valorTotal = honorarios.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
 
@@ -7820,6 +7837,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 <select id="filtroStatusHonorario" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
                                     <option value="">Todos os status</option>
                                     <option value="pendente">Pendente</option>
+                                    <option value="parcial">Pagamento Parcial</option>
                                     <option value="pago">Pago</option>
                                     <option value="vencido">Vencido</option>
                                 </select>
@@ -7881,7 +7899,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                 </td>
                                                 <td>${honorario.servico}</td>
                                                 <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
-                                                <td><span class="status-badge status-${honorario.status}">${honorario.status}</span></td>
+                                                <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
                                                 <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
                                                 <td>
                                                     <button onclick="editarItem('honorario', ${honorario.id})" class="text-blue-600 hover:text-blue-800">
@@ -10677,7 +10695,7 @@ Sistema Legal - ANA PAULA MEDINA
             if (!ctx) return;
 
             const honorariosPagos = honorarios.filter(h => h.status === 'pago').length;
-            const honorariosPendentes = honorarios.filter(h => h.status === 'pendente').length;
+                const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
             const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
 
             new Chart(ctx, {
@@ -11129,6 +11147,7 @@ Sistema Legal - ANA PAULA MEDINA
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                     <select id="honorarioStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente">Pendente</option>
+                                        <option value="parcial">Pagamento Parcial</option>
                                         <option value="pago">Pago</option>
                                         <option value="vencido">Vencido</option>
                                     </select>
@@ -12161,7 +12180,7 @@ Sistema Legal - ANA PAULA MEDINA
                     </td>
                     <td>${honorario.servico}</td>
                     <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
-                    <td><span class="status-badge status-${honorario.status}">${honorario.status}</span></td>
+                    <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
                     <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
                     <td>
                         <button class="btn-editar-honorario text-blue-600 hover:text-blue-800 mr-2" data-id="${honorario.id}" title="Editar">
@@ -12504,7 +12523,7 @@ DETALHES DOS HONORÁRIOS:
 ${honorarios.map((honorario, index) => `
 ${index + 1}. ${honorario.cliente} - ${honorario.servico}
    Valor: €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}
-   Status: ${honorario.status}
+   Status: ${formatarStatusHonorario(honorario.status)}
    Vencimento: ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}
 `).join('')}
             `;
@@ -12535,7 +12554,7 @@ ${index + 1}. ${cliente.nome} (${cliente.status})
 
 HONORÁRIOS:
 ${honorarios.map((honorario, index) => `
-${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} (${honorario.status})
+${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} (${formatarStatusHonorario(honorario.status)})
 `).join('')}
             `;
             
@@ -13812,7 +13831,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                         console.warn('Data de vencimento inválida no honorário:', h.vencimento);
                         return false;
                     }
-                    return dataVencimento < hoje && h.status === 'pendente';
+                return dataVencimento < hoje && isHonorarioEmAberto(h);
                 } catch (error) {
                     console.warn('Erro ao processar honorário:', h.id, error);
                     return false;
@@ -17978,6 +17997,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                             <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                             <select id="honorarioStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                                 <option value="pendente" ${honorario.status === 'pendente' ? 'selected' : ''}>Pendente</option>
+                                                <option value="parcial" ${honorario.status === 'parcial' ? 'selected' : ''}>Pagamento Parcial</option>
                                                 <option value="pago" ${honorario.status === 'pago' ? 'selected' : ''}>Pago</option>
                                                 <option value="vencido" ${honorario.status === 'vencido' ? 'selected' : ''}>Vencido</option>
                                             </select>
