@@ -8998,6 +8998,7 @@ Sistema Legal - ANA PAULA MEDINA
                             ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: ${escaparHtml(tarefa.responsavelNome)}</div>` : ''}
                             ${renderMetaAuditoria('tarefa', tarefa)}
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
+                            ${tarefa.concluidaPorNome ? `<div class="text-xs text-gray-400">Concluída por: ${escaparHtml(tarefa.concluidaPorNome)}${tarefa.concluidaEm ? ` em ${new Date(tarefa.concluidaEm).toLocaleString('pt-PT')}` : ''}</div>` : ''}
                             ${tarefa.lembreteEm ? `<div class="text-xs text-gray-400">Lembrete: ${formatarDataHora(tarefa.lembreteEm)}</div>` : ''}
                             ${tarefa.links && tarefa.links.length ? `
                                 <div class="text-xs text-gray-400">
@@ -9353,6 +9354,15 @@ Sistema Legal - ANA PAULA MEDINA
             if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
             const antes = { ...lista[index] };
             lista[index].status = lista[index].status === 'concluida' ? 'aberta' : 'concluida';
+            if (lista[index].status === 'concluida') {
+                lista[index].concluidaEm = new Date().toISOString();
+                lista[index].concluidaPorTipo = localStorage.getItem('tipoUsuario') || 'admin';
+                lista[index].concluidaPorNome = localStorage.getItem('usuarioNome') || 'Admin';
+            } else {
+                lista[index].concluidaEm = null;
+                lista[index].concluidaPorTipo = null;
+                lista[index].concluidaPorNome = null;
+            }
             salvarTarefasLocal(lista);
             salvarTarefaCloud(lista[index]);
             registrarAuditoria('editar', 'tarefa', `Status da tarefa: ${lista[index].titulo}`, antes, lista[index]);
