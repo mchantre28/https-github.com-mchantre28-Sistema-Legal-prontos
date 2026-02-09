@@ -816,11 +816,6 @@
                     <i data-lucide="calendar-days" class="w-5 h-5 mr-3"></i>
                     Calendário
                 </a>
-                <a href="#" onclick="carregarSecao('notificacoes')" class="sidebar-item" id="nav-notificacoes">
-                    <i data-lucide="bell" class="w-5 h-5 mr-3"></i>
-                    Notificações
-                    <span id="badgeNotificacoes" class="hidden bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-2">0</span>
-                </a>
             <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
                 <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
                 Minutas
@@ -1186,6 +1181,12 @@
                 } catch (error) {
                     console.warn('Erro ao guardar última entidade sincronizada:', error);
                 }
+                try {
+                    localStorage.setItem('cloudSyncUltimaEntidade', entidade);
+                    localStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
+                } catch (error) {
+                    console.warn('Erro ao guardar última entidade sincronizada:', error);
+                }
             } catch (error) {
                 console.warn(`Erro ao sincronizar ${entidade}:`, error);
                 window.__cloudSyncError = error;
@@ -1511,20 +1512,7 @@
         }
 
         async function sincronizarConvidadosDaNuvem() {
-            if (!firestoreDb) return;
-            try {
-                const snapshot = await firestoreDb.collection('convidados').get();
-                const locais = JSON.parse(localStorage.getItem('convidados') || '[]');
-                const mapa = new Map(locais.map(c => [c.codigo, c]));
-                snapshot.forEach(doc => {
-                    const data = doc.data() || {};
-                    const codigo = data.codigo || doc.id;
-                    mapa.set(codigo, { ...data, codigo });
-                });
-                salvarDados('convidados', Array.from(mapa.values()));
-            } catch (error) {
-                console.warn('Erro ao sincronizar convidados da nuvem:', error);
-            }
+            await sincronizarEntidadeNuvem('convidados');
         }
         
         function ativarDesativarConvidadoCore(idOuCodigo, ativo) {
@@ -1858,7 +1846,6 @@
                 'nav-prazos',
                 'nav-tarefas',
                 'nav-calendario',
-                'nav-notificacoes',
                 'nav-documentos'
             ];
             secoesPermitidas.forEach(id => {
@@ -1882,7 +1869,6 @@
                 'nav-prazos',
                 'nav-tarefas',
                 'nav-calendario',
-                'nav-notificacoes',
                 'nav-documentos',
                 'nav-relatorios',
                 'nav-backup',
@@ -2076,6 +2062,7 @@
             window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
             window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
             limparConvidadosInativos();
+
             sincronizarTodasEntidadesNuvem();
             
             // Verificar tipo de usuário para carregar seção apropriada
@@ -2654,7 +2641,7 @@
         }
 
         function navegarSecaoAnterior() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual > 0) {
                 carregarSecao(secoes[indiceAtual - 1]);
@@ -2662,7 +2649,7 @@
         }
 
         function navegarProximaSecao() {
-            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'notificacoes', 'documentos', 'relatorios', 'backup', 'historico'];
+            const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'relatorios', 'backup', 'historico'];
             const indiceAtual = secoes.indexOf(secaoAtiva);
             if (indiceAtual < secoes.length - 1) {
                 carregarSecao(secoes[indiceAtual + 1]);
@@ -4182,6 +4169,10 @@ END:VCALENDAR`;
         function carregarSecao(secao) {
             console.log('🔧 carregarSecao chamado para:', secao);
             
+            if (secao === 'notificacoes') {
+                secao = 'clientes';
+            }
+            
             // Verificar se é convidado e redirecionar para clientes se necessário
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             if (tipoUsuario === 'convidado') {
@@ -4196,7 +4187,6 @@ END:VCALENDAR`;
                     'prazos',
                     'tarefas',
                     'calendario',
-                    'notificacoes',
                     'documentos'
                 ];
                 if (!secoesPermitidas.includes(secao)) {
@@ -4222,10 +4212,6 @@ END:VCALENDAR`;
                 console.log('✅ Conteúdo inserido no DOM');
                 removerBotoesAnexos();
                 
-                // Atualizar badge de notificações se for a seção de notificações
-                if (secao === 'notificacoes') {
-                    atualizarBadgeNotificacoes();
-                }
             } else {
                 console.error('❌ Elemento conteudoDinamico não encontrado');
             }
@@ -4372,7 +4358,6 @@ END:VCALENDAR`;
                 honorarios: 'Gestão de Honorários',
                 contratos: 'Gestão de Contratos',
                 prazos: 'Gestão de Prazos',
-                notificacoes: 'Central de Notificações',
                 herancas: 'Gestão de Heranças',
                 migracoes: 'Gestão de Migração',
                 registos: 'Gestão de Registos',
@@ -4426,7 +4411,6 @@ END:VCALENDAR`;
                 honorarios: gerarHonorarios(),
                 contratos: gerarContratos(),
                 prazos: gerarPrazos(),
-                notificacoes: gerarNotificacoes(),
                 herancas: gerarHerancas(),
                 convidados: gerarConvidados(),
                 migracoes: gerarMigracao(),
@@ -4519,7 +4503,7 @@ VALOR TOTAL GERAL: €${(Math.round(valorTotalGeral * 100) / 100).toFixed(2)}
 
 === STATUS DOS HONORÁRIOS ===
 Pagos: ${honorariosParaMostrar.filter(h => h.status === 'pago').length}
-Pendentes: ${honorariosParaMostrar.filter(h => h.status === 'pendente').length}
+Pendentes: ${honorariosParaMostrar.filter(h => isHonorarioEmAberto(h)).length}
 Vencidos: ${honorariosParaMostrar.filter(h => {
                 if (!h.vencimento) return false;
                 const dataVencimento = new Date(h.vencimento);
@@ -8581,7 +8565,10 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function salvarTarefasLocal(novos) {
-            tarefas = novos;
+            tarefas = (novos || []).map(tarefa => ({
+                ...tarefa,
+                anexos: []
+            }));
             window.tarefas = tarefas;
             salvarDados('tarefas', tarefas);
             try {
@@ -9165,21 +9152,9 @@ Sistema Legal - ANA PAULA MEDINA
                 return;
             }
 
-            Promise.all(arquivos.map((arquivo, index) => new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = () => resolve({
-                    id: `${Date.now()}_${index}`,
-                    nome: arquivo.name,
-                    tipo: arquivo.type,
-                    tamanho: arquivo.size,
-                    conteudo: reader.result
-                });
-                reader.onerror = () => resolve(null);
-                reader.readAsDataURL(arquivo);
-            }))).then(resultados => {
-                tarefa.anexos = resultados.filter(Boolean);
-                finalizarCriacaoTarefa(tarefa);
-            });
+            mostrarNotificacao('Anexos em tarefas foram desativados para evitar perda de dados.', 'warning');
+            tarefa.anexos = [];
+            finalizarCriacaoTarefa(tarefa);
         }
 
         function formatarDataHoraLocal(valor) {
@@ -10709,7 +10684,7 @@ Sistema Legal - ANA PAULA MEDINA
             if (!ctx) return;
 
             const honorariosPagos = honorarios.filter(h => h.status === 'pago').length;
-                const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
+            const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
             const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
 
             new Chart(ctx, {
@@ -12533,7 +12508,7 @@ RESUMO FINANCEIRO:
 
 HONORÁRIOS POR STATUS:
 - Pagos: ${honorarios.filter(h => h.status === 'pago').length}
-- Pendentes: ${honorarios.filter(h => h.status === 'pendente').length}
+- Pendentes: ${honorarios.filter(h => isHonorarioEmAberto(h)).length}
 - Vencidos: ${honorarios.filter(h => h.status === 'vencido').length}
 
 DETALHES DOS HONORÁRIOS:
@@ -12562,7 +12537,7 @@ ESTATÍSTICAS GERAIS:
 RESUMO FINANCEIRO:
 - Valor Total: €${Number(honorarios.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0)).toFixed(2)}
 - Honorários Pagos: ${honorarios.filter(h => h.status === 'pago').length}
-- Honorários Pendentes: ${honorarios.filter(h => h.status === 'pendente').length}
+- Honorários Pendentes: ${honorarios.filter(h => isHonorarioEmAberto(h)).length}
 
 CLIENTES:
 ${clientes.map((cliente, index) => `
@@ -13182,11 +13157,6 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             <a href="#" onclick="carregarSecao('prazos')" class="sidebar-item" id="nav-prazos">
                                 <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>
                                 Gestão de Prazos
-                            </a>
-                            <a href="#" onclick="carregarSecao('notificacoes')" class="sidebar-item" id="nav-notificacoes">
-                                <i data-lucide="bell" class="w-5 h-5 mr-3"></i>
-                                Notificações
-                                <span id="badgeNotificacoes" class="badge hidden">0</span>
                             </a>
                             <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
                                 <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
@@ -14201,15 +14171,22 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             fecharModalRobusto();
             mostrarNotificacao('Notificação personalizada criada com sucesso!', 'success');
             
-            // Recarregar seção de notificações após um pequeno delay
+            // Atualizar UI após criação
             setTimeout(() => {
-                carregarSecao('notificacoes');
+                atualizarAposNotificacoes();
             }, 300);
         }
         
         // Garantir que as funções sejam globalmente acessíveis
         window.salvarNotificacaoPersonalizada = salvarNotificacaoPersonalizada;
         window.criarNotificacaoPersonalizada = criarNotificacaoPersonalizada;
+
+        function atualizarAposNotificacoes() {
+            atualizarBadgeNotificacoes();
+            if (secaoAtiva === 'notificacoes') {
+                carregarSecao('clientes');
+            }
+        }
 
         function atualizarBadgeNotificacoes() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
@@ -14246,32 +14223,28 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             if (notificacao) {
                 notificacao.lida = true;
                 salvarDados('notificacoes', notificacoes);
-                carregarSecao('notificacoes');
-                atualizarBadgeNotificacoes();
+                atualizarAposNotificacoes();
             }
         }
 
         function marcarTodasComoLidas() {
             notificacoes.forEach(n => n.lida = true);
             salvarDados('notificacoes', notificacoes);
-            carregarSecao('notificacoes');
-            atualizarBadgeNotificacoes();
+            atualizarAposNotificacoes();
             mostrarNotificacao('Todas as notificações foram marcadas como lidas', 'success');
         }
 
         function excluirNotificacao(notificacaoId) {
             notificacoes = notificacoes.filter(n => n.id !== notificacaoId);
             salvarDados('notificacoes', notificacoes);
-            carregarSecao('notificacoes');
-            atualizarBadgeNotificacoes();
+            atualizarAposNotificacoes();
         }
 
         function limparNotificacoes() {
             if (confirm('Tem certeza que deseja limpar todas as notificações?')) {
                 notificacoes = [];
                 salvarDados('notificacoes', notificacoes);
-                carregarSecao('notificacoes');
-                atualizarBadgeNotificacoes();
+                atualizarAposNotificacoes();
                 mostrarNotificacao('Todas as notificações foram removidas', 'success');
             }
         }
@@ -14435,7 +14408,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             fecharModalRobusto();
             
             setTimeout(() => {
-                carregarSecao('notificacoes');
+                atualizarAposNotificacoes();
             }, 300);
         }
         
@@ -14515,8 +14488,8 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 contador.textContent = `${notificacoesFiltradas.length} notificações encontradas`;
             }
             
-            // Recarregar seção com filtros aplicados
-            carregarSecao('notificacoes');
+            // Notificações agora ficam nos detalhes do cliente
+            atualizarAposNotificacoes();
         }
         
         function limparFiltrosNotificacoes() {
@@ -14525,7 +14498,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             document.getElementById('filtroStatus').value = '';
             document.getElementById('filtroPeriodo').value = '';
             
-            carregarSecao('notificacoes');
+            atualizarAposNotificacoes();
         }
 
         // === SISTEMA DE COMUNICAÇÃO BIDIRECIONAL ===
@@ -14617,7 +14590,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 
                 mostrarNotificacao('Resposta enviada com sucesso!', 'success');
                 fecharModal();
-                carregarSecao('notificacoes');
+                atualizarAposNotificacoes();
             }
         }
 
@@ -14761,7 +14734,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 
                 mostrarNotificacao('Resposta enviada com sucesso!', 'success');
                 fecharModal();
-                carregarSecao('notificacoes');
+                atualizarAposNotificacoes();
             }
         }
 
