@@ -8597,7 +8597,6 @@ Sistema Legal - ANA PAULA MEDINA
                     String(c.id) === String(convidadoAtualRaw) || String(c.codigo) === String(convidadoAtualRaw)
                 );
                 tarefasParaMostrar = tarefasParaMostrar.filter(t =>
-                    verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
                     (
                         (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
@@ -8815,7 +8814,6 @@ Sistema Legal - ANA PAULA MEDINA
                     String(c.id) === String(convidadoAtualRaw) || String(c.codigo) === String(convidadoAtualRaw)
                 );
                 lista = lista.filter(t =>
-                    verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
                     (
                         (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
