@@ -3560,10 +3560,47 @@ END:VCALENDAR`;
                     }
                 }
                 
+                const reduzirPayloadLocal = (key, lista) => {
+                    if (key === 'tarefas') {
+                        return (lista || []).map(tarefa => ({
+                            ...tarefa,
+                            anexos: []
+                        }));
+                    }
+                    return lista;
+                };
+
+                const limparBackupsLocal = () => {
+                    try {
+                        Object.keys(localStorage)
+                            .filter(chave => chave.startsWith('backup_'))
+                            .forEach(chave => localStorage.removeItem(chave));
+                    } catch (error) {
+                        console.warn('Erro ao limpar backups antigos:', error);
+                    }
+                };
+
                 // Salvar no localStorage
-                const dadosString = JSON.stringify(dadosParaSalvar);
-                localStorage.setItem(chave, dadosString);
-                console.log('✅ Dados salvos no localStorage:', chave, dadosString.length, 'caracteres');
+                let armazenamentoOk = true;
+                let dadosLocal = reduzirPayloadLocal(chave, dadosParaSalvar);
+                try {
+                    const dadosString = JSON.stringify(dadosLocal);
+                    localStorage.setItem(chave, dadosString);
+                    console.log('✅ Dados salvos no localStorage:', chave, dadosString.length, 'caracteres');
+                } catch (storageError) {
+                    console.warn('⚠️ Espaço insuficiente no localStorage:', storageError);
+                    window.__storageQuotaExceeded = true;
+                    limparBackupsLocal();
+                    try {
+                        const dadosStringMin = JSON.stringify(dadosLocal);
+                        localStorage.setItem(chave, dadosStringMin);
+                        console.log('✅ Dados salvos no localStorage após limpar backups:', chave, dadosStringMin.length, 'caracteres');
+                    } catch (storageErrorRetry) {
+                        armazenamentoOk = false;
+                        console.warn('⚠️ Ainda sem espaço no localStorage:', storageErrorRetry);
+                        mostrarNotificacao('Sem espaço local. Dados mantidos e sincronizados na nuvem.', 'warning');
+                    }
+                }
                 
                 // Atualizar variáveis globais
                 if (chave === 'clientes') {
@@ -3603,11 +3640,13 @@ END:VCALENDAR`;
                 console.log(`✅ Dados ${chave} salvos com sucesso - ${dadosParaSalvar.length} itens`);
                 
                 // Verificar se foi salvo corretamente
-                const dadosSalvos = localStorage.getItem(chave);
-                if (dadosSalvos) {
-                    console.log('✅ Verificação: Dados confirmados no localStorage');
-                } else {
-                    console.error('❌ Verificação: Dados não encontrados no localStorage');
+                if (armazenamentoOk) {
+                    const dadosSalvos = localStorage.getItem(chave);
+                    if (dadosSalvos) {
+                        console.log('✅ Verificação: Dados confirmados no localStorage');
+                    } else {
+                        console.error('❌ Verificação: Dados não encontrados no localStorage');
+                    }
                 }
 
                 if (!skipCloudSync && isSyncavel) {
