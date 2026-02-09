@@ -9073,10 +9073,9 @@ Sistema Legal - ANA PAULA MEDINA
 
             const clientesParaSelect = Array.isArray(clientes) ? clientes : [];
             const linksValor = Array.isArray(tarefa.links) ? tarefa.links.join(', ') : '';
-            const modal = document.createElement('div');
-            modal.className = 'modal';
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width: 720px;">
+            const modal = `
+                <div class="modal show" onclick="fecharModalRobusto()">
+                    <div class="modal-content" style="max-width: 720px;" onclick="event.stopPropagation()">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Editar Tarefa</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
@@ -9149,11 +9148,16 @@ Sistema Legal - ANA PAULA MEDINA
                             <button type="submit" class="btn btn-primary">Salvar</button>
                         </div>
                     </form>
+                    </div>
                 </div>
             `;
-            document.getElementById('modalContainer').innerHTML = '';
-            document.getElementById('modalContainer').appendChild(modal);
-            document.getElementById('modalContainer').classList.add('show');
+            const modalContainer = document.getElementById('modalContainer');
+            if (!modalContainer) {
+                console.error('modalContainer não encontrado!');
+                return;
+            }
+            modalContainer.innerHTML = modal;
+            modalContainer.classList.add('show');
             lucide.createIcons();
         }
 
