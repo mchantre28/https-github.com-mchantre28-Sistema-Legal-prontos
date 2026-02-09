@@ -1529,9 +1529,54 @@
             );
             if (convidado) {
                 convidado.ativo = ativo;
+                if (!ativo) {
+                    convidado.desativadoEm = new Date().toISOString();
+                } else {
+                    convidado.desativadoEm = null;
+                }
                 salvarDados('convidados', convidados);
                 salvarConvidadoCloud(convidado);
             }
+        }
+
+        function excluirConvidado(idOuCodigo) {
+            if (!confirm('Tem certeza que deseja eliminar este convidado?')) return;
+            const convidados = obterConvidados();
+            const convidado = convidados.find(c =>
+                String(c.id) === String(idOuCodigo) || String(c.codigo) === String(idOuCodigo)
+            );
+            if (!convidado) {
+                mostrarNotificacao('Convidado não encontrado.', 'error');
+                return;
+            }
+            const novos = convidados.filter(c =>
+                String(c.id) !== String(idOuCodigo) && String(c.codigo) !== String(idOuCodigo)
+            );
+            salvarDados('convidados', novos);
+            const docId = convidado.codigo || convidado.id;
+            excluirEntidadeCloud('convidados', docId);
+            mostrarNotificacao('Convidado eliminado.', 'success');
+            carregarSecao('convidados');
+        }
+
+        function limparConvidadosInativos() {
+            const convidados = obterConvidados();
+            const agora = Date.now();
+            const limite = 7 * 24 * 60 * 60 * 1000;
+            const paraRemover = convidados.filter(c => {
+                if (c.ativo) return false;
+                const data = c.desativadoEm || c.dataCriacao;
+                const ts = data ? new Date(data).getTime() : 0;
+                return ts && (agora - ts) > limite;
+            });
+            if (!paraRemover.length) return convidados;
+            const restantes = convidados.filter(c => !paraRemover.includes(c));
+            salvarDados('convidados', restantes);
+            paraRemover.forEach(c => {
+                const docId = c.codigo || c.id;
+                excluirEntidadeCloud('convidados', docId);
+            });
+            return restantes;
         }
         
         // FUNÇÃO RECRIADA PARA CORRIGIR PROBLEMA
@@ -2025,6 +2070,7 @@
             atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
             window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
+            limparConvidadosInativos();
             sincronizarTodasEntidadesNuvem();
             
             // Verificar tipo de usuário para carregar seção apropriada
@@ -14566,7 +14612,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         }
 
         function gerarConvidados() {
-            const convidados = obterConvidados();
+            const convidados = limparConvidadosInativos();
             const convidadosAtivos = convidados.filter(c => c.ativo).length;
             const convidadosInativos = convidados.filter(c => !c.ativo).length;
             const totalConvidados = convidados.length;
@@ -14658,6 +14704,9 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                                     </button>
                                                     <button onclick="copiarCodigoConvidado('${convidado.codigo}')" class="text-gray-600 hover:text-gray-900" title="Copiar Código">
                                                         <i data-lucide="copy" class="w-4 h-4"></i>
+                                                    </button>
+                                                    <button onclick="excluirConvidado('${convidado.codigo || convidado.id}')" class="text-red-600 hover:text-red-900 ml-2" title="Eliminar">
+                                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                                                     </button>
                                                 </td>
                                             </tr>
