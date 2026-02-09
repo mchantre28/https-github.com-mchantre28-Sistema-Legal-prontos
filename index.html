@@ -1106,6 +1106,12 @@
                     (lista || []).forEach(item => promises.push(salvarEntidadeCloud(entidade, item)));
                     (removidos || []).forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
                     await Promise.all(promises);
+                    try {
+                        localStorage.setItem('cloudSyncUltimaEntidade', entidade);
+                        localStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
+                    } catch (error) {
+                        console.warn('Erro ao guardar última entidade sincronizada:', error);
+                    }
                 } catch (error) {
                     console.warn(`Erro no sync de ${entidade}:`, error);
                     window.__cloudSyncError = error;
@@ -1151,6 +1157,12 @@
                 const cloud = snap.docs.map(doc => doc.data());
                 const merged = mesclarListasPorId(entidade, local, cloud);
                 salvarDados(entidade, merged, { skipCloudSync: true });
+                try {
+                    localStorage.setItem('cloudSyncUltimaEntidade', entidade);
+                    localStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
+                } catch (error) {
+                    console.warn('Erro ao guardar última entidade sincronizada:', error);
+                }
             } catch (error) {
                 console.warn(`Erro ao sincronizar ${entidade}:`, error);
                 window.__cloudSyncError = error;
@@ -1167,6 +1179,18 @@
             for (const entidade of CLOUD_ENTIDADES) {
                 await sincronizarEntidadeNuvem(entidade);
             }
+        }
+
+        function forcarSincronizacaoNuvem() {
+            if (!isCloudReady()) {
+                atualizarIndicadorSync('offline', 'Offline');
+                mostrarNotificacao('Nuvem indisponível. Verifique a ligação.', 'warning');
+                return;
+            }
+            window.__cloudSyncError = null;
+            atualizarIndicadorSync('syncing', 'A sincronizar...');
+            mostrarNotificacao('Sincronização iniciada.', 'info');
+            sincronizarTodasEntidadesNuvem();
         }
 
         function salvarConvidadoCloud(convidado) {
@@ -12165,7 +12189,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
         // === SISTEMA DE BACKUP AUTOMÁTICO ===
         
         const BACKUP_CONFIG = {
-            intervaloMs: 5 * 60 * 1000,
+            intervaloMs: 15 * 60 * 1000,
             downloadIntervalMs: 24 * 60 * 60 * 1000
         };
         let backupInterval;
@@ -12489,6 +12513,12 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             const ultimoSyncTexto = ultimoSyncSucesso ? new Date(ultimoSyncSucesso).toLocaleString('pt-PT') : 'Nunca';
             const ultimoErroTexto = ultimoSyncErro ? new Date(ultimoSyncErro).toLocaleString('pt-PT') : 'Sem erros';
             const statusSync = (window.__cloudSyncError ? 'Erro' : (isCloudReady() ? 'Online' : 'Offline'));
+            const ultimaEntidade = localStorage.getItem('cloudSyncUltimaEntidade');
+            const ultimaEntidadeEm = localStorage.getItem('cloudSyncUltimaEntidadeEm');
+            const ultimaEntidadeTexto = ultimaEntidade ? ultimaEntidade : 'Nenhuma';
+            const ultimaEntidadeEmTexto = ultimaEntidadeEm ? new Date(ultimaEntidadeEm).toLocaleString('pt-PT') : 'Nunca';
+            const freqMin = Math.round(BACKUP_CONFIG.intervaloMs / 60000);
+            const freqTexto = `A cada ${freqMin} minutos`;
             const auditoria = obterAuditoria().slice(0, 10);
             
             return `
@@ -12508,6 +12538,20 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                 <span class="text-gray-600">Último erro:</span>
                                 <span class="font-medium">${ultimoErroTexto}</span>
                             </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Última entidade:</span>
+                                <span class="font-medium">${ultimaEntidadeTexto}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Atualizado em:</span>
+                                <span class="font-medium">${ultimaEntidadeEmTexto}</span>
+                            </div>
+                            <div class="pt-2">
+                                <button onclick="forcarSincronizacaoNuvem()" class="btn btn-primary">
+                                    <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
+                                    Forçar sincronização agora
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card p-6">
@@ -12523,7 +12567,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Frequência:</span>
-                                <span class="font-medium">A cada 5 minutos</span>
+                                <span class="font-medium">${freqTexto}</span>
                             </div>
                         </div>
                     </div>
