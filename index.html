@@ -731,6 +731,19 @@
         .text-gray-500 { color: #6b7280; }
         .text-gray-600 { color: #4b5563; }
         .text-gray-800 { color: #1f2937; }
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .sync-status .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 9999px;
+            background: #6b7280;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -839,6 +852,10 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
+                        <div id="syncStatusBadge" class="sync-status" data-status="offline">
+                            <span class="sync-dot"></span>
+                            <span class="sync-text">Offline</span>
+                        </div>
                         <!-- Botão PWA removido -->
                         <button onclick="exportarDadosCompletos()" class="btn btn-primary">
                             <i data-lucide="download" class="w-4 h-4"></i>
@@ -902,9 +919,258 @@
 
         initFirebase();
 
+        const CLOUD_ENTIDADES = [
+            'clientes',
+            'honorarios',
+            'contratos',
+            'prazos',
+            'notificacoes',
+            'herancas',
+            'migracoes',
+            'registos',
+            'documentos',
+            'tarefas',
+            'convidados'
+        ];
+        const CLOUD_DEBOUNCE_MS = 800;
+        window.__cloudSyncTimers = window.__cloudSyncTimers || {};
+        window.__cloudSyncPending = window.__cloudSyncPending || 0;
+        window.__cloudSyncError = window.__cloudSyncError || null;
+
+        function isCloudReady() {
+            return !!firestoreDb;
+        }
+
+        function atualizarIndicadorSync(status, mensagem) {
+            const badge = document.getElementById('syncStatusBadge');
+            if (!badge) return;
+            const dot = badge.querySelector('.sync-dot');
+            const text = badge.querySelector('.sync-text');
+            const labels = {
+                ok: mensagem || 'Sincronizado',
+                syncing: mensagem || 'A sincronizar...',
+                offline: mensagem || 'Offline',
+                error: mensagem || 'Erro de sincronização'
+            };
+            const colors = {
+                ok: '#10b981',
+                syncing: '#f59e0b',
+                offline: '#6b7280',
+                error: '#ef4444'
+            };
+            if (text) text.textContent = labels[status] || labels.ok;
+            if (dot) dot.style.background = colors[status] || colors.ok;
+            badge.setAttribute('data-status', status);
+        }
+
+        function iniciarSync() {
+            window.__cloudSyncPending = (window.__cloudSyncPending || 0) + 1;
+            atualizarIndicadorSync('syncing');
+        }
+
+        function finalizarSync(erro) {
+            window.__cloudSyncPending = Math.max(0, (window.__cloudSyncPending || 0) - 1);
+            if (erro) {
+                window.__cloudSyncError = erro;
+            }
+            if (window.__cloudSyncPending === 0) {
+                if (window.__cloudSyncError) {
+                    atualizarIndicadorSync('error', 'Erro de sincronização');
+                    try {
+                        localStorage.setItem('cloudSyncUltimoErro', new Date().toISOString());
+                    } catch (error) {
+                        console.warn('Erro ao guardar último erro de sync:', error);
+                    }
+                } else {
+                    atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+                    if (isCloudReady()) {
+                        try {
+                            localStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString());
+                        } catch (error) {
+                            console.warn('Erro ao guardar último sync:', error);
+                        }
+                    }
+                }
+            }
+        }
+
+        function obterIdEntidade(entidade, item) {
+            if (!item) return null;
+            if (entidade === 'convidados') {
+                return item.codigo || item.id || null;
+            }
+            return item.id ?? null;
+        }
+
+        function normalizarParaComparacao(item) {
+            const clone = { ...(item || {}) };
+            delete clone.updatedAt;
+            delete clone.createdAt;
+            delete clone.lastModifiedBy;
+            return JSON.stringify(clone);
+        }
+
+        function prepararListaParaSync(entidade, lista) {
+            if (!Array.isArray(lista)) return lista;
+            const agoraIso = new Date().toISOString();
+            let anteriores = [];
+            try {
+                const raw = localStorage.getItem(entidade);
+                if (raw) anteriores = JSON.parse(raw);
+            } catch (error) {
+                console.warn('Erro ao ler cache local para sync:', entidade, error);
+            }
+            const prevMap = new Map();
+            (anteriores || []).forEach(item => {
+                const id = obterIdEntidade(entidade, item);
+                if (id !== null && id !== undefined) {
+                    prevMap.set(String(id), item);
+                }
+            });
+            const tipoUsuario = localStorage.getItem('tipoUsuario') || 'N/D';
+            const usuarioNome = localStorage.getItem('usuarioNome') || 'Sistema';
+            return lista.map(item => {
+                const id = obterIdEntidade(entidade, item);
+                const prev = id !== null && id !== undefined ? prevMap.get(String(id)) : null;
+                const mudou = normalizarParaComparacao(item) !== normalizarParaComparacao(prev);
+                const novo = { ...item };
+                if (!novo.createdAt && !novo.dataCriacao) {
+                    novo.createdAt = prev?.createdAt || prev?.dataCriacao || agoraIso;
+                }
+                if (!novo.updatedAt) {
+                    novo.updatedAt = prev?.updatedAt || novo.dataCriacao || novo.createdAt || agoraIso;
+                }
+                if (mudou) {
+                    novo.updatedAt = agoraIso;
+                    novo.lastModifiedBy = {
+                        tipo: tipoUsuario,
+                        nome: usuarioNome,
+                        em: agoraIso
+                    };
+                } else if (prev?.lastModifiedBy && !novo.lastModifiedBy) {
+                    novo.lastModifiedBy = prev.lastModifiedBy;
+                }
+                return novo;
+            });
+        }
+
+        function obterListaGlobal(entidade) {
+            if (entidade === 'clientes') return clientes;
+            if (entidade === 'honorarios') return honorarios;
+            if (entidade === 'contratos') return contratos;
+            if (entidade === 'prazos') return prazos;
+            if (entidade === 'notificacoes') return notificacoes;
+            if (entidade === 'herancas') return herancas;
+            if (entidade === 'migracoes') return migracoes;
+            if (entidade === 'registos') return registos;
+            if (entidade === 'documentos') return documentos;
+            if (entidade === 'tarefas') return tarefas;
+            if (entidade === 'convidados') return obterConvidados();
+            return [];
+        }
+
+        function salvarEntidadeCloud(entidade, item) {
+            if (!isCloudReady()) return Promise.resolve();
+            const id = obterIdEntidade(entidade, item);
+            if (id === null || id === undefined) return Promise.resolve();
+            return firestoreDb.collection(entidade).doc(String(id)).set(item, { merge: true })
+                .catch((error) => {
+                    console.warn(`Erro ao salvar ${entidade} na nuvem:`, error);
+                    window.__cloudSyncError = error;
+                });
+        }
+
+        function excluirEntidadeCloud(entidade, id) {
+            if (!isCloudReady()) return Promise.resolve();
+            if (id === null || id === undefined) return Promise.resolve();
+            return firestoreDb.collection(entidade).doc(String(id)).delete()
+                .catch((error) => {
+                    console.warn(`Erro ao excluir ${entidade} na nuvem:`, error);
+                    window.__cloudSyncError = error;
+                });
+        }
+
+        function agendarSyncEntidade(entidade, lista, removidos = []) {
+            if (!CLOUD_ENTIDADES.includes(entidade)) return;
+            if (window.__cloudSyncTimers[entidade]) {
+                clearTimeout(window.__cloudSyncTimers[entidade]);
+            }
+            window.__cloudSyncTimers[entidade] = setTimeout(async () => {
+                if (!isCloudReady()) {
+                    atualizarIndicadorSync('offline');
+                    return;
+                }
+                iniciarSync();
+                try {
+                    const promises = [];
+                    (lista || []).forEach(item => promises.push(salvarEntidadeCloud(entidade, item)));
+                    (removidos || []).forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
+                    await Promise.all(promises);
+                } catch (error) {
+                    console.warn(`Erro no sync de ${entidade}:`, error);
+                    window.__cloudSyncError = error;
+                } finally {
+                    finalizarSync(window.__cloudSyncError);
+                }
+            }, CLOUD_DEBOUNCE_MS);
+        }
+
+        function obterTimestampItem(item) {
+            const valor = item?.updatedAt || item?.dataCriacao || item?.createdAt || item?.data;
+            const ts = valor ? new Date(valor).getTime() : 0;
+            return Number.isNaN(ts) ? 0 : ts;
+        }
+
+        function mesclarListasPorId(entidade, local, cloud) {
+            const map = new Map();
+            [...(local || []), ...(cloud || [])].forEach(item => {
+                const id = obterIdEntidade(entidade, item);
+                if (id === null || id === undefined) return;
+                const chave = String(id);
+                const existente = map.get(chave);
+                if (!existente) {
+                    map.set(chave, item);
+                    return;
+                }
+                const tsExistente = obterTimestampItem(existente);
+                const tsNovo = obterTimestampItem(item);
+                if (tsNovo >= tsExistente) {
+                    map.set(chave, { ...existente, ...item });
+                }
+            });
+            return Array.from(map.values());
+        }
+
+        async function sincronizarEntidadeNuvem(entidade) {
+            if (!isCloudReady()) return;
+            if (!CLOUD_ENTIDADES.includes(entidade)) return;
+            iniciarSync();
+            try {
+                const local = Array.isArray(obterListaGlobal(entidade)) ? obterListaGlobal(entidade) : [];
+                const snap = await firestoreDb.collection(entidade).get();
+                const cloud = snap.docs.map(doc => doc.data());
+                const merged = mesclarListasPorId(entidade, local, cloud);
+                salvarDados(entidade, merged, { skipCloudSync: true });
+            } catch (error) {
+                console.warn(`Erro ao sincronizar ${entidade}:`, error);
+                window.__cloudSyncError = error;
+            } finally {
+                finalizarSync(window.__cloudSyncError);
+            }
+        }
+
+        async function sincronizarTodasEntidadesNuvem() {
+            if (!isCloudReady()) {
+                atualizarIndicadorSync('offline');
+                return;
+            }
+            for (const entidade of CLOUD_ENTIDADES) {
+                await sincronizarEntidadeNuvem(entidade);
+            }
+        }
+
         function salvarConvidadoCloud(convidado) {
-            if (!firestoreDb || !convidado || !convidado.codigo) return Promise.resolve();
-            return firestoreDb.collection('convidados').doc(convidado.codigo).set(convidado, { merge: true });
+            return salvarEntidadeCloud('convidados', convidado);
         }
 
         async function obterConvidadoPorCodigoCloud(codigo) {
@@ -1087,7 +1353,7 @@
                         } else {
                             lista.push(convidado);
                         }
-                        localStorage.setItem('convidados', JSON.stringify(lista));
+                        salvarDados('convidados', lista);
                     } catch (error) {
                         console.warn('Erro ao cachear convidado localmente:', error);
                     }
@@ -1178,7 +1444,7 @@
             
             convidados.push(novoConvidado);
             try {
-                localStorage.setItem('convidados', JSON.stringify(convidados));
+                salvarDados('convidados', convidados);
             } catch (error) {
                 console.warn('Erro ao salvar convidado localmente:', error);
             }
@@ -1208,7 +1474,7 @@
                     const codigo = data.codigo || doc.id;
                     mapa.set(codigo, { ...data, codigo });
                 });
-                localStorage.setItem('convidados', JSON.stringify(Array.from(mapa.values())));
+                salvarDados('convidados', Array.from(mapa.values()));
             } catch (error) {
                 console.warn('Erro ao sincronizar convidados da nuvem:', error);
             }
@@ -1221,7 +1487,7 @@
             );
             if (convidado) {
                 convidado.ativo = ativo;
-                localStorage.setItem('convidados', JSON.stringify(convidados));
+                salvarDados('convidados', convidados);
                 salvarConvidadoCloud(convidado);
             }
         }
@@ -1249,7 +1515,7 @@
                 
                 // Atualizar permissões
                 convidado.clientesAutorizados = clientesAutorizados;
-                localStorage.setItem('convidados', JSON.stringify(convidados));
+                salvarDados('convidados', convidados);
                 salvarConvidadoCloud(convidado);
                 
                 console.log('🔧 Clientes autorizados depois:', convidado.clientesAutorizados);
@@ -1670,8 +1936,7 @@
                 console.log('🔧 Honorários após exclusão:', honorariosAtualizados.length);
                 
                 // Salvar dados atualizados
-                localStorage.setItem('honorarios', JSON.stringify(honorariosAtualizados));
-                window.honorarios = honorariosAtualizados;
+                salvarDados('honorarios', honorariosAtualizados);
                 
                 console.log('✅ Honorários salvos no localStorage');
                 
@@ -1715,11 +1980,10 @@
             // CARREGAR DADOS DO LOCALSTORAGE (NÃO LIMPAR - PRESERVA DADOS DO USUÁRIO)
             carregarDados();
             carregarDadosExemplo();
-
-            if (localStorage.getItem('tipoUsuario') === 'admin') {
-                sincronizarConvidadosDaNuvem();
-            }
-            sincronizarTarefasNuvem();
+            atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
+            window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
+            sincronizarTodasEntidadesNuvem();
             
             // Verificar tipo de usuário para carregar seção apropriada
             const tipoUsuario = localStorage.getItem('tipoUsuario');
@@ -2386,7 +2650,7 @@
                 console.error('❌ Função salvarHonorarios não encontrada!');
                 // Fallback: salvar diretamente
                 try {
-                    localStorage.setItem('honorarios', JSON.stringify(honorarios));
+                    salvarDados('honorarios', honorarios);
                     console.log('✅ Honorários salvos via fallback');
                 } catch (error) {
                     console.error('❌ Erro no fallback:', error);
@@ -2653,7 +2917,7 @@ END:VCALENDAR`;
         function salvarHonorarios() {
             console.log('🔧 Função salvarHonorarios chamada - v2.0');
             try {
-                localStorage.setItem('honorarios', JSON.stringify(honorarios));
+                salvarDados('honorarios', honorarios);
                 console.log('✅ Honorários salvos com sucesso - v2.0');
             } catch (error) {
                 console.error('❌ Erro ao salvar honorários:', error);
@@ -3180,7 +3444,7 @@ END:VCALENDAR`;
 
         }
 
-        function salvarDados(chave, dados) {
+        function salvarDados(chave, dados, opcoes = {}) {
             console.log('🔧 salvarDados chamado:', chave, dados);
             try {
                 // Verificar se os dados são válidos
@@ -3189,40 +3453,66 @@ END:VCALENDAR`;
                     mostrarNotificacao('Erro: Dados inválidos', 'error');
                     return;
                 }
+                const { skipCloudSync } = opcoes || {};
+                const isSyncavel = CLOUD_ENTIDADES.includes(chave);
+                const dadosParaSalvar = isSyncavel && !skipCloudSync ? prepararListaParaSync(chave, dados) : dados;
+                let removidos = [];
+                if (isSyncavel && !skipCloudSync) {
+                    try {
+                        const rawAnterior = localStorage.getItem(chave);
+                        const anterior = rawAnterior ? JSON.parse(rawAnterior) : [];
+                        const idsNovos = new Set((dadosParaSalvar || []).map(item => String(obterIdEntidade(chave, item))).filter(Boolean));
+                        removidos = (anterior || [])
+                            .map(item => obterIdEntidade(chave, item))
+                            .filter(id => id !== null && id !== undefined)
+                            .map(id => String(id))
+                            .filter(id => !idsNovos.has(id));
+                    } catch (error) {
+                        console.warn('Erro ao calcular removidos:', chave, error);
+                    }
+                }
                 
                 // Salvar no localStorage
-                const dadosString = JSON.stringify(dados);
+                const dadosString = JSON.stringify(dadosParaSalvar);
                 localStorage.setItem(chave, dadosString);
                 console.log('✅ Dados salvos no localStorage:', chave, dadosString.length, 'caracteres');
                 
                 // Atualizar variáveis globais
                 if (chave === 'clientes') {
-                    clientes = dados;
+                    clientes = dadosParaSalvar;
                     window.clientes = clientes;
                 } else if (chave === 'honorarios') {
-                    honorarios = dados;
+                    honorarios = dadosParaSalvar;
                     window.honorarios = honorarios;
                 } else if (chave === 'contratos') {
-                    contratos = dados;
+                    contratos = dadosParaSalvar;
                     window.contratos = contratos;
                 } else if (chave === 'prazos') {
-                    prazos = dados;
+                    prazos = dadosParaSalvar;
                     window.prazos = prazos;
                 } else if (chave === 'notificacoes') {
-                    notificacoes = dados;
+                    notificacoes = dadosParaSalvar;
                     window.notificacoes = notificacoes;
                 } else if (chave === 'herancas') {
-                    herancas = dados;
+                    herancas = dadosParaSalvar;
                     window.herancas = herancas;
                 } else if (chave === 'migracoes') {
-                    migracoes = dados;
+                    migracoes = dadosParaSalvar;
                     window.migracoes = migracoes;
                 } else if (chave === 'registos') {
-                    registos = dados;
+                    registos = dadosParaSalvar;
                     window.registos = registos;
+                } else if (chave === 'documentos') {
+                    documentos = dadosParaSalvar;
+                    window.documentos = documentos;
+                } else if (chave === 'tarefas') {
+                    tarefas = dadosParaSalvar;
+                    window.tarefas = tarefas;
+                } else if (chave === 'convidados') {
+                    window.convidados = dadosParaSalvar;
                 }
                 
-                console.log(`✅ Dados ${chave} salvos com sucesso - ${dados.length} itens`);
+                console.log(`✅ Dados ${chave} salvos com sucesso - ${dadosParaSalvar.length} itens`);
                 
                 // Verificar se foi salvo corretamente
                 const dadosSalvos = localStorage.getItem(chave);
@@ -3230,6 +3520,10 @@ END:VCALENDAR`;
                     console.log('✅ Verificação: Dados confirmados no localStorage');
                 } else {
                     console.error('❌ Verificação: Dados não encontrados no localStorage');
+                }
+
+                if (!skipCloudSync && isSyncavel) {
+                    agendarSyncEntidade(chave, dadosParaSalvar, removidos);
                 }
                 
             } catch (error) {
@@ -6434,30 +6728,35 @@ Sistema Legal - ANA PAULA MEDINA
             const movimentosRecentes = [
                 ...honorariosParaMostrar.map(h => ({
                     tipo: 'Honorário',
+                    clienteId: h.clienteId || null,
                     cliente: h.cliente || h.clienteNome || 'Cliente',
                     valor: h.valor,
                     data: h.dataCriacao || h.data
                 })),
                 ...herancasParaMostrar.map(h => ({
                     tipo: 'Herança',
+                    clienteId: h.clienteId || null,
                     cliente: h.cliente || h.clienteNome || h.requerente || 'Cliente',
                     valor: h.valor,
                     data: h.dataCriacao || h.data
                 })),
                 ...migracoesParaMostrar.map(m => ({
                     tipo: 'Migração',
+                    clienteId: m.clienteId || null,
                     cliente: m.cliente || m.clienteNome || m.requerente || 'Cliente',
                     valor: m.valor,
                     data: m.dataCriacao || m.data
                 })),
                 ...registosParaMostrar.map(r => ({
                     tipo: 'Registo',
+                    clienteId: r.clienteId || null,
                     cliente: r.cliente || r.clienteNome || r.requerente || 'Cliente',
                     valor: r.valor,
                     data: r.dataCriacao || r.data
                 })),
                 ...contratosParaMostrar.map(c => ({
                     tipo: 'Contrato',
+                    clienteId: c.clienteId || null,
                     cliente: c.cliente || c.clienteNome || c.requerente || 'Cliente',
                     valor: c.valor,
                     data: c.dataCriacao || c.data
@@ -6782,7 +7081,7 @@ Sistema Legal - ANA PAULA MEDINA
                                         <div class="flex items-center">
                                             <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full mr-3">${index + 1}</span>
                                             <div>
-                                                <p class="font-medium text-gray-800">${cliente.nome}</p>
+                                                <p class="font-medium text-gray-800">${renderClienteLink(cliente.id, cliente.nome)}</p>
                                                 <p class="text-xs text-gray-600">${cliente.email}</p>
                                             </div>
                                         </div>
@@ -6806,7 +7105,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 ${clientesParaMostrar.slice(-3).map(cliente => `
                                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
-                                            <p class="font-medium">${cliente.nome}</p>
+                                            <p class="font-medium">${renderClienteLink(cliente.id, cliente.nome)}</p>
                                             <p class="text-sm text-gray-600">${cliente.email}</p>
                                         </div>
                                         <span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span>
@@ -6827,7 +7126,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 ${honorariosParaMostrar.slice(-3).map(honorario => `
                                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
-                                            <p class="font-medium">${honorario.cliente}</p>
+                                            <p class="font-medium">${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}</p>
                                             <p class="text-sm text-gray-600">€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
                                         </div>
                                         <span class="status-badge status-${honorario.status}">${honorario.status}</span>
@@ -6848,7 +7147,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 ${movimentosRecentes.map(movimento => `
                                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
-                                            <p class="font-medium">${movimento.tipo} - ${movimento.cliente}</p>
+                                            <p class="font-medium">${movimento.tipo} - ${renderClienteLink(movimento.clienteId, movimento.cliente)}</p>
                                             <p class="text-xs text-gray-600">${new Date(movimento.data).toLocaleDateString('pt-PT')}</p>
                                         </div>
                                         <span class="text-blue-600 font-bold">€${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
@@ -8140,42 +8439,15 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function salvarTarefaCloud(tarefa) {
-            if (!firestoreDb || !tarefa || tarefa.id === undefined || tarefa.id === null) {
-                return Promise.resolve();
-            }
-            return firestoreDb.collection('tarefas').doc(String(tarefa.id)).set(tarefa, { merge: true })
-                .catch((error) => {
-                    console.warn('Erro ao salvar tarefa na nuvem:', error);
-                });
+            return salvarEntidadeCloud('tarefas', tarefa);
         }
 
         function excluirTarefaCloud(id) {
-            if (!firestoreDb || id === undefined || id === null) return Promise.resolve();
-            return firestoreDb.collection('tarefas').doc(String(id)).delete()
-                .catch((error) => {
-                    console.warn('Erro ao excluir tarefa na nuvem:', error);
-                });
+            return excluirEntidadeCloud('tarefas', id);
         }
 
         async function sincronizarTarefasNuvem() {
-            if (!firestoreDb) return;
-            try {
-                const local = Array.isArray(tarefas) ? tarefas : [];
-                if (local.length) {
-                    await Promise.all(local.map(t => salvarTarefaCloud(t)));
-                }
-                const snap = await firestoreDb.collection('tarefas').get();
-                const cloud = snap.docs.map(doc => doc.data());
-                const map = new Map();
-                [...local, ...cloud].forEach(t => {
-                    if (!t || t.id === undefined || t.id === null) return;
-                    map.set(String(t.id), t);
-                });
-                const merged = Array.from(map.values()).sort((a, b) => (b.dataCriacao || '').localeCompare(a.dataCriacao || ''));
-                salvarTarefasLocal(merged);
-            } catch (error) {
-                console.warn('Erro ao sincronizar tarefas:', error);
-            }
+            await sincronizarEntidadeNuvem('tarefas');
         }
 
         function normalizarLinkTarefa(url) {
@@ -8223,7 +8495,7 @@ Sistema Legal - ANA PAULA MEDINA
 
         function gerarTarefas() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
-            const isConvidado = tipoUsuario === 'convidado';
+            const isConvidado = tipoUsuario === 'convidado' || !!localStorage.getItem('convidadoId');
             let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
             let tarefasParaMostrar = Array.isArray(tarefas) ? tarefas : [];
             
@@ -8543,7 +8815,7 @@ Sistema Legal - ANA PAULA MEDINA
                 return;
             }
             
-            const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado';
+            const isConvidado = localStorage.getItem('tipoUsuario') === 'convidado' || !!localStorage.getItem('convidadoId');
             const formatarDataHora = (valor) => {
                 if (!valor) return '';
                 const data = new Date(valor);
@@ -8585,7 +8857,14 @@ Sistema Legal - ANA PAULA MEDINA
                             <span class="status-badge status-${tarefa.status}">${tarefa.status === 'concluida' ? 'Concluída' : 'Aberta'}</span>
                         </div>
                     </div>
-                    ${isConvidado ? '' : `
+                    ${isConvidado ? `
+                        <div class="flex items-center gap-2">
+                            <button onclick="concluirTarefaConvidado(${tarefa.id})" class="btn btn-secondary" ${tarefa.status === 'concluida' ? 'disabled' : ''}>
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                                ${tarefa.status === 'concluida' ? 'Concluída' : 'Concluir'}
+                            </button>
+                        </div>
+                    ` : `
                         <div class="flex items-center gap-2">
                             <button onclick="alterarStatusTarefa(${tarefa.id})" class="btn btn-secondary">
                                 <i data-lucide="${tarefa.status === 'concluida' ? 'rotate-ccw' : 'check'}" class="w-4 h-4"></i>
@@ -8693,6 +8972,27 @@ Sistema Legal - ANA PAULA MEDINA
             salvarTarefasLocal(lista);
             salvarTarefaCloud(lista[index]);
             registrarAuditoria('editar', 'tarefa', `Status da tarefa: ${lista[index].titulo}`, antes, lista[index]);
+            aplicarFiltrosTarefas();
+        }
+
+        function concluirTarefaConvidado(id) {
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const index = lista.findIndex(t => t.id === id);
+            if (index === -1) return;
+            if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
+            if (lista[index].status === 'concluida') {
+                mostrarNotificacao('Tarefa já está concluída.', 'info');
+                return;
+            }
+            const antes = { ...lista[index] };
+            lista[index].status = 'concluida';
+            lista[index].concluidaEm = new Date().toISOString();
+            lista[index].concluidaPorTipo = localStorage.getItem('tipoUsuario') || 'convidado';
+            lista[index].concluidaPorNome = localStorage.getItem('usuarioNome') || 'Convidado';
+            salvarTarefasLocal(lista);
+            salvarTarefaCloud(lista[index]);
+            registrarAuditoria('editar', 'tarefa', `Tarefa concluída pelo convidado: ${lista[index].titulo}`, antes, lista[index]);
+            mostrarNotificacao('Tarefa marcada como concluída.', 'success');
             aplicarFiltrosTarefas();
         }
 
@@ -9279,10 +9579,11 @@ Sistema Legal - ANA PAULA MEDINA
             if (tipoUsuario === 'convidado') {
                 const convidadoId = localStorage.getItem('convidadoId');
                 const convidados = obterConvidados();
-                const convidado = convidados.find(c => c.id === parseInt(convidadoId));
+                const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
                 const clientesAutorizados = convidado && convidado.ativo ? convidado.clientesAutorizados : [];
-                clientesParaSelect = clientesParaSelect.filter(c => clientesAutorizados.includes(c.id));
-                documentosParaMostrar = documentosParaMostrar.filter(d => clientesAutorizados.includes(d.clienteId));
+                const clientesAutorizadosNorm = (clientesAutorizados || []).map(id => String(id));
+                clientesParaSelect = clientesParaSelect.filter(c => clientesAutorizadosNorm.includes(String(c.id)));
+                documentosParaMostrar = documentosParaMostrar.filter(d => clientesAutorizadosNorm.includes(String(d.clienteId)));
             }
             
             return `
@@ -9449,9 +9750,10 @@ Sistema Legal - ANA PAULA MEDINA
             if (tipoUsuario === 'convidado') {
                 const convidadoId = localStorage.getItem('convidadoId');
                 const convidados = obterConvidados();
-                const convidado = convidados.find(c => c.id === parseInt(convidadoId));
+                const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
                 const clientesAutorizados = convidado && convidado.ativo ? convidado.clientesAutorizados : [];
-                lista = lista.filter(doc => clientesAutorizados.includes(doc.clienteId));
+                const clientesAutorizadosNorm = (clientesAutorizados || []).map(id => String(id));
+                lista = lista.filter(doc => clientesAutorizadosNorm.includes(String(doc.clienteId)));
             }
             
             const texto = (document.getElementById('filtroDocTexto')?.value || '').toLowerCase();
@@ -11036,18 +11338,9 @@ Sistema Legal - ANA PAULA MEDINA
                 
                 // Salvar dados no localStorage diretamente
                 try {
-                    const dadosString = JSON.stringify(clientes);
-                    localStorage.setItem('clientes', dadosString);
-                    window.clientes = clientes;
-                    console.log('✅ Dados salvos no localStorage:', dadosString.length, 'caracteres');
+                    salvarDados('clientes', clientes);
+                    console.log('✅ Dados salvos no localStorage');
                     registrarAuditoria('atualizar', 'cliente', `Cliente atualizado: ${clienteAtualizado.nome}`, clienteAntes, clienteAtualizado);
-                    
-                    // Verificar se foi salvo corretamente
-                    const verificar = localStorage.getItem('clientes');
-                    if (!verificar) {
-                        throw new Error('Dados não foram salvos no localStorage');
-                    }
-                    console.log('✅ Dados confirmados no localStorage');
                 } catch (saveError) {
                     console.error('❌ Erro ao salvar no localStorage:', saveError);
                     mostrarNotificacao('Erro ao salvar dados: ' + saveError.message, 'error');
@@ -11126,8 +11419,7 @@ Sistema Legal - ANA PAULA MEDINA
                 console.log('🔧 Clientes após exclusão:', clientesAtualizados.length);
                 
                 // Salvar dados atualizados
-                localStorage.setItem('clientes', JSON.stringify(clientesAtualizados));
-                window.clientes = clientesAtualizados;
+                salvarDados('clientes', clientesAtualizados);
                 
                 console.log('✅ Clientes salvos no localStorage');
                 
@@ -12192,10 +12484,32 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             const ultimoBackupTexto = ultimoBackup ? new Date(ultimoBackup).toLocaleString('pt-PT') : 'Nunca';
             const ultimoDownloadTexto = ultimoBackupDownload ? new Date(ultimoBackupDownload).toLocaleString('pt-PT') : 'Nunca';
             const ultimoPersistenciaTexto = persistenciaUltimoSalvamento ? new Date(persistenciaUltimoSalvamento).toLocaleString('pt-PT') : 'Nunca';
+            const ultimoSyncSucesso = localStorage.getItem('cloudSyncUltimoSucesso');
+            const ultimoSyncErro = localStorage.getItem('cloudSyncUltimoErro');
+            const ultimoSyncTexto = ultimoSyncSucesso ? new Date(ultimoSyncSucesso).toLocaleString('pt-PT') : 'Nunca';
+            const ultimoErroTexto = ultimoSyncErro ? new Date(ultimoSyncErro).toLocaleString('pt-PT') : 'Sem erros';
+            const statusSync = (window.__cloudSyncError ? 'Erro' : (isCloudReady() ? 'Online' : 'Offline'));
             const auditoria = obterAuditoria().slice(0, 10);
             
             return `
                 <div class="space-y-6">
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Status da Sincronização</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Estado:</span>
+                                <span class="font-medium">${statusSync}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Última sincronização:</span>
+                                <span class="font-medium">${ultimoSyncTexto}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Último erro:</span>
+                                <span class="font-medium">${ultimoErroTexto}</span>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Status do Sistema de Backup</h3>
                         <div class="space-y-3">
@@ -18154,7 +18468,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 };
                 
                 // Salvar no localStorage
-                localStorage.setItem('herancas', JSON.stringify(herancas));
+                salvarDados('herancas', herancas);
                 mostrarNotificacao('Herança atualizada com sucesso!', 'success');
                 
                 // Fechar modal
@@ -18210,7 +18524,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 };
                 
                 // Salvar no localStorage
-                localStorage.setItem('migracoes', JSON.stringify(migracoes));
+                salvarDados('migracoes', migracoes);
                 mostrarNotificacao('Migração atualizada com sucesso!', 'success');
                 
                 // Fechar modal
@@ -18268,7 +18582,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 };
                 
                 // Salvar no localStorage
-                localStorage.setItem('registos', JSON.stringify(registos));
+                salvarDados('registos', registos);
                 mostrarNotificacao('Registo atualizado com sucesso!', 'success');
                 
                 // Fechar modal
@@ -18990,7 +19304,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 console.log('🔧 Migração atualizada:', migracoes[migracaoIndex]);
                 
                 // Salvar no localStorage
-                localStorage.setItem('migracoes', JSON.stringify(migracoes));
+                salvarDados('migracoes', migracoes);
                 window.migracoes = migracoes;
                 
                 mostrarNotificacao('Migração atualizada com sucesso!', 'success');
@@ -19476,7 +19790,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 let contratos = [];
                 if (contratosSalvos) contratos = JSON.parse(contratosSalvos);
                 contratos = contratos.filter(c => c.id !== id);
-                localStorage.setItem('contratos', JSON.stringify(contratos));
+                salvarDados('contratos', contratos);
                 window.contratos = contratos;
                 mostrarNotificacao('Contrato excluído com sucesso!', 'success');
                 carregarSecao('contratos');
@@ -19504,7 +19818,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 let herancas = [];
                 if (herancasSalvas) herancas = JSON.parse(herancasSalvas);
                 herancas = herancas.filter(h => h.id !== id);
-                localStorage.setItem('herancas', JSON.stringify(herancas));
+                salvarDados('herancas', herancas);
                 window.herancas = herancas;
                 mostrarNotificacao('Herança excluída com sucesso!', 'success');
                 carregarSecao('herancas');
@@ -19654,7 +19968,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 migracoes = migracoes.filter(m => m.id != id);
                 
                 // Salvar no localStorage
-                localStorage.setItem('migracoes', JSON.stringify(migracoes));
+                salvarDados('migracoes', migracoes);
                 
                 // Atualizar array global
                 window.migracoes = migracoes;
@@ -19808,7 +20122,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             }
             
             // Salvar prazos
-            localStorage.setItem('prazos', JSON.stringify(prazosExistentes));
+            salvarDados('prazos', prazosExistentes);
             window.prazos = prazosExistentes;
         }
         
@@ -19989,7 +20303,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     dataAtualizacao: new Date().toISOString()
                 };
                 
-                localStorage.setItem('honorarios', JSON.stringify(honorarios));
+                salvarDados('honorarios', honorarios);
                 window.honorarios = honorarios;
                 
                 mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
@@ -20037,7 +20351,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 };
                 
                 // Salvar no localStorage
-                localStorage.setItem('honorarios', JSON.stringify(honorarios));
+                salvarDados('honorarios', honorarios);
                 window.honorarios = honorarios;
                 
                 mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
@@ -20107,7 +20421,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                         dataInicio: '2025-10-23'
                     }
                 ];
-                localStorage.setItem('registos', JSON.stringify(registos));
+                salvarDados('registos', registos);
                 window.registos = registos;
             }
             
@@ -20152,7 +20466,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 const registosAtualizados = registos.filter(r => r.id !== parseInt(id));
                 
                 // Salvar dados atualizados
-                localStorage.setItem('registos', JSON.stringify(registosAtualizados));
+                salvarDados('registos', registosAtualizados);
                 window.registos = registosAtualizados;
                 
                 mostrarNotificacao('Registo excluído com sucesso!', 'success');
@@ -20219,7 +20533,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 console.log('🔧 Heranças após exclusão:', herancasAtualizadas.length);
                 
                 // Salvar dados atualizados
-                localStorage.setItem('herancas', JSON.stringify(herancasAtualizadas));
+                salvarDados('herancas', herancasAtualizadas);
                 window.herancas = herancasAtualizadas;
                 
                 console.log('✅ Heranças salvas no localStorage');
