@@ -8592,12 +8592,19 @@ Sistema Legal - ANA PAULA MEDINA
                 clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
                 const convidadoAtualRaw = localStorage.getItem('convidadoId');
                 const convidadoAtualId = parseInt(convidadoAtualRaw);
+                const convidadosAtuais = obterConvidados();
+                const convidadoAtual = convidadosAtuais.find(c =>
+                    String(c.id) === String(convidadoAtualRaw) || String(c.codigo) === String(convidadoAtualRaw)
+                );
                 tarefasParaMostrar = tarefasParaMostrar.filter(t =>
                     verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
                     (
                         (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
-                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw))
+                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw)) ||
+                        (convidadoAtual && String(t.responsavelId) === String(convidadoAtual.id)) ||
+                        (convidadoAtual && String(t.responsavelCodigo) === String(convidadoAtual.codigo)) ||
+                        (convidadoAtual && t.responsavelNome && t.responsavelNome === convidadoAtual.nome)
                     )
                 );
             }
@@ -8803,12 +8810,19 @@ Sistema Legal - ANA PAULA MEDINA
             if (tipoUsuario === 'convidado') {
                 const convidadoAtualRaw = localStorage.getItem('convidadoId');
                 const convidadoAtualId = parseInt(convidadoAtualRaw);
+                const convidadosAtuais = obterConvidados();
+                const convidadoAtual = convidadosAtuais.find(c =>
+                    String(c.id) === String(convidadoAtualRaw) || String(c.codigo) === String(convidadoAtualRaw)
+                );
                 lista = lista.filter(t =>
                     verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
                     (
                         (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
-                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw))
+                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw)) ||
+                        (convidadoAtual && String(t.responsavelId) === String(convidadoAtual.id)) ||
+                        (convidadoAtual && String(t.responsavelCodigo) === String(convidadoAtual.codigo)) ||
+                        (convidadoAtual && t.responsavelNome && t.responsavelNome === convidadoAtual.nome)
                     )
                 );
             }
