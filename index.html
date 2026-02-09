@@ -8590,11 +8590,15 @@ Sistema Legal - ANA PAULA MEDINA
             
             if (isConvidado) {
                 clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
-                const convidadoAtualId = parseInt(localStorage.getItem('convidadoId'));
+                const convidadoAtualRaw = localStorage.getItem('convidadoId');
+                const convidadoAtualId = parseInt(convidadoAtualRaw);
                 tarefasParaMostrar = tarefasParaMostrar.filter(t =>
                     verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
-                    parseInt(t.responsavelId) === convidadoAtualId
+                    (
+                        (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
+                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw))
+                    )
                 );
             }
             
@@ -8797,11 +8801,15 @@ Sistema Legal - ANA PAULA MEDINA
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let lista = Array.isArray(tarefas) ? tarefas : [];
             if (tipoUsuario === 'convidado') {
-                const convidadoAtualId = parseInt(localStorage.getItem('convidadoId'));
+                const convidadoAtualRaw = localStorage.getItem('convidadoId');
+                const convidadoAtualId = parseInt(convidadoAtualRaw);
                 lista = lista.filter(t =>
                     verificarPermissaoCliente(t.clienteId) &&
                     t.responsavelTipo === 'convidado' &&
-                    parseInt(t.responsavelId) === convidadoAtualId
+                    (
+                        (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
+                        (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw))
+                    )
                 );
             }
             
@@ -9034,11 +9042,13 @@ Sistema Legal - ANA PAULA MEDINA
             const cliente = clientes.find(c => c.id === clienteId);
             let responsavelTipo = 'admin';
             let responsavelId = null;
+            let responsavelCodigo = null;
             let responsavelNome = 'Admin';
             if (responsavelRaw.startsWith('convidado:')) {
                 responsavelTipo = 'convidado';
                 responsavelId = parseInt(responsavelRaw.split(':')[1]);
                 const convidado = obterConvidados().find(c => c.id === responsavelId);
+                responsavelCodigo = convidado ? (convidado.codigo || null) : null;
                 responsavelNome = convidado ? convidado.nome : 'Convidado';
             }
 
@@ -9054,6 +9064,7 @@ Sistema Legal - ANA PAULA MEDINA
                 prioridade,
                 responsavelTipo,
                 responsavelId,
+                responsavelCodigo,
                 responsavelNome,
                 status: 'aberta',
                 dataLimite: dataLimite || null,
@@ -9244,11 +9255,13 @@ Sistema Legal - ANA PAULA MEDINA
             const cliente = clientes.find(c => c.id === clienteId);
             let responsavelTipo = 'admin';
             let responsavelId = null;
+            let responsavelCodigo = null;
             let responsavelNome = 'Admin';
             if (responsavelRaw.startsWith('convidado:')) {
                 responsavelTipo = 'convidado';
                 responsavelId = parseInt(responsavelRaw.split(':')[1]);
                 const convidado = obterConvidados().find(c => c.id === responsavelId);
+                responsavelCodigo = convidado ? (convidado.codigo || null) : null;
                 responsavelNome = convidado ? convidado.nome : 'Convidado';
             }
             const antes = { ...lista[index] };
@@ -9265,6 +9278,7 @@ Sistema Legal - ANA PAULA MEDINA
                 links,
                 responsavelTipo,
                 responsavelId,
+                responsavelCodigo,
                 responsavelNome,
                 dataLimite,
                 lembreteEm: lembreteData ? lembreteData.toISOString() : null,
