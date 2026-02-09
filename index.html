@@ -5978,6 +5978,9 @@ Sistema Legal - ANA PAULA MEDINA
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #06b6d4;">
                                     <strong>Status:</strong> ${cliente.status}
                                 </div>
+                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                                    <strong>Criado por:</strong> ${obterRotuloCriadorCliente(cliente)}
+                                </div>
                             </div>
                             ${cliente.endereco ? `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #6366f1; margin-top: 15px;">
@@ -7605,6 +7608,14 @@ Sistema Legal - ANA PAULA MEDINA
             };
         }
 
+        function obterRotuloCriadorCliente(cliente) {
+            if (!cliente) return 'Admin';
+            if (cliente.criadoPorTipo === 'convidado' || cliente.tipoUsuario === 'convidado' || cliente.criadoPorConvidado) {
+                return 'Convidado';
+            }
+            return 'Admin';
+        }
+
         function gerarClientes() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let clientesParaMostrar = clientes;
@@ -7709,6 +7720,7 @@ Sistema Legal - ANA PAULA MEDINA
                                             <th>Telefone</th>
                                             <th>NIF</th>
                                             <th>Status</th>
+                                            <th>Criado por</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
@@ -7727,6 +7739,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                 <td>${cliente.telefone}</td>
                                                 <td>${cliente.nif || '-'}</td>
                                                 <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
+                                                <td>${cliente.tipoUsuario === 'convidado' ? 'Convidado' : 'Admin'}</td>
                                                 <td>
                                                     <button onclick="editarItem('cliente', ${cliente.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                         <i data-lucide="edit" class="w-4 h-4"></i>
@@ -8264,6 +8277,7 @@ Sistema Legal - ANA PAULA MEDINA
                                             <th>Data Limite</th>
                                             <th>Prioridade</th>
                                             <th>Status</th>
+                                            <th>Criado por</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
@@ -11474,6 +11488,8 @@ Sistema Legal - ANA PAULA MEDINA
                 dataCriacao: new Date().toISOString(),
                 criadoPorConvidado: tipoUsuario === 'convidado' ? parseInt(convidadoId) : null,
                 criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
+                criadoPorTipo: tipoUsuario || 'N/D',
+                criadoPorNome: localStorage.getItem('usuarioNome') || (tipoUsuario === 'convidado' ? 'Convidado' : 'Admin'),
                 tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D'
             };
             
@@ -12150,6 +12166,7 @@ Sistema Legal - ANA PAULA MEDINA
                     <td>${cliente.telefone}</td>
                     <td>${cliente.nif || '-'}</td>
                     <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
+                    <td>${obterRotuloCriadorCliente(cliente)}</td>
                     <td>
                         <button onclick="editarClienteDireto(${cliente.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                             <i data-lucide="edit" class="w-4 h-4"></i>
