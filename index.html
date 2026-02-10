@@ -870,7 +870,10 @@
                             <span class="sync-dot"></span>
                             <span class="sync-text">Offline</span>
                         </div>
-                        <!-- Botão PWA removido -->
+                        <button onclick="carregarSecao('notificacoes')" class="btn btn-secondary" title="Conversas, criar notificação, enviar para convidado, alertas automáticos">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            Central de Notificações
+                        </button>
                         <button onclick="exportarDadosCompletos()" class="btn btn-primary">
                             <i data-lucide="download" class="w-4 h-4"></i>
                             Exportar Base de Dados
@@ -878,6 +881,10 @@
                         <button onclick="importarDados()" class="btn btn-success">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             Importar
+                        </button>
+                        <button id="btnAlterarSenhaHeader" onclick="abrirModalAlterarSenha()" class="btn btn-secondary hidden" title="Alterar senha do administrador">
+                            <i data-lucide="key" class="w-4 h-4"></i>
+                            Alterar senha
                         </button>
                         <button onclick="logout()" class="btn btn-danger">
                             <i data-lucide="log-out" class="w-4 h-4"></i>
@@ -905,6 +912,96 @@
         // SISTEMA DE LOGIN
         const USUARIO_PADRAO = 'admin';
         const SENHA_PADRAO = 'APM2024!';
+        const CHAVE_SENHA_HASH = 'adminSenhaHash';
+        const LISTA_PAGINA_TAMANHO = 25;
+
+        /** Devolve hash SHA-256 da senha em hexadecimal (para guardar/comparar). */
+        async function hashSenha(senha) {
+            if (!senha || typeof crypto === 'undefined' || !crypto.subtle) {
+                return '';
+            }
+            const buf = new TextEncoder().encode(senha);
+            const hash = await crypto.subtle.digest('SHA-256', buf);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        /** Verifica se a senha do admin está correta. Se ainda não existir hash guardado, aceita a senha padrão e guarda o hash. */
+        async function verificarSenhaAdmin(senha) {
+            const stored = localStorage.getItem(CHAVE_SENHA_HASH);
+            const h = await hashSenha(senha);
+            if (!stored) {
+                if (senha === SENHA_PADRAO) {
+                    try { localStorage.setItem(CHAVE_SENHA_HASH, await hashSenha(SENHA_PADRAO)); } catch (e) { console.warn(e); }
+                    return true;
+                }
+                return false;
+            }
+            return h === stored;
+        }
+
+        /** Abre modal para o admin alterar a senha (só visível para admin). */
+        function abrirModalAlterarSenha() {
+            if (localStorage.getItem('tipoUsuario') !== 'admin') return;
+            const html = `
+                <div id="modalAlterarSenha" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onclick="if (event.target === this) fecharModalAlterarSenha()">
+                    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick="event.stopPropagation()">
+                        <h3 class="text-lg font-semibold mb-4">Alterar senha (Admin)</h3>
+                        <form id="formAlterarSenha" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Senha atual</label>
+                                <input type="password" id="alterarSenhaAtual" class="w-full px-3 py-2 border border-gray-300 rounded-md" required placeholder="Senha atual">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nova senha</label>
+                                <input type="password" id="alterarSenhaNova" class="w-full px-3 py-2 border border-gray-300 rounded-md" required placeholder="Nova senha" minlength="6">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nova senha</label>
+                                <input type="password" id="alterarSenhaConfirmar" class="w-full px-3 py-2 border border-gray-300 rounded-md" required placeholder="Repetir nova senha">
+                            </div>
+                            <div class="flex gap-3 pt-2">
+                                <button type="button" onclick="fecharModalAlterarSenha()" class="flex-1 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-100">Cancelar</button>
+                                <button type="submit" class="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700">Guardar nova senha</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            document.body.appendChild(wrap.firstElementChild);
+            document.getElementById('formAlterarSenha').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const atual = document.getElementById('alterarSenhaAtual').value;
+                const nova = document.getElementById('alterarSenhaNova').value;
+                const conf = document.getElementById('alterarSenhaConfirmar').value;
+                if (nova !== conf) {
+                    alert('A nova senha e a confirmação não coincidem.');
+                    return;
+                }
+                if (nova.length < 6) {
+                    alert('A nova senha deve ter pelo menos 6 caracteres.');
+                    return;
+                }
+                const ok = await verificarSenhaAdmin(atual);
+                if (!ok) {
+                    alert('Senha atual incorreta.');
+                    return;
+                }
+                try {
+                    localStorage.setItem(CHAVE_SENHA_HASH, await hashSenha(nova));
+                    if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Senha alterada com sucesso.', 'success');
+                    else alert('Senha alterada com sucesso.');
+                } catch (err) {
+                    alert('Erro ao guardar: ' + (err.message || err));
+                }
+                fecharModalAlterarSenha();
+            });
+        }
+        function fecharModalAlterarSenha() {
+            const el = document.getElementById('modalAlterarSenha');
+            if (el) el.remove();
+        }
 
         // === FIREBASE (CONVIDADOS EM NUVEM) ===
         const firebaseConfig = {
@@ -1322,12 +1419,16 @@
                 </div>
             `;
             
-            document.getElementById('formLoginAdmin').addEventListener('submit', function(e) {
+            document.getElementById('formLoginAdmin').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const usuario = document.getElementById('usuario').value;
                 const senha = document.getElementById('senha').value;
-                
-                if (usuario === USUARIO_PADRAO && senha === SENHA_PADRAO) {
+                if (usuario !== USUARIO_PADRAO) {
+                    alert('Usuário ou senha incorretos!');
+                    return;
+                }
+                const ok = await verificarSenhaAdmin(senha);
+                if (ok) {
                     localStorage.setItem('usuarioLogado', 'true');
                     localStorage.setItem('usuarioNome', usuario);
                     localStorage.setItem('tipoUsuario', 'admin');
@@ -1441,6 +1542,11 @@
             }
             if (confirm('⚠️ ATENÇÃO: Esta ação irá APAGAR TODOS os dados do sistema!\n\nIsso inclui:\n- Todos os clientes\n- Todos os honorários\n- Todos os contratos\n- Todas as heranças\n- Todas as migrações\n- Todos os registos\n- Todos os convidados\n\nTem certeza que deseja continuar?')) {
                 if (confirm('🚨 CONFIRMAÇÃO FINAL:\n\nEsta ação é IRREVERSÍVEL!\n\nTodos os dados serão permanentemente apagados.\n\nDeseja realmente continuar?')) {
+                    const digitado = prompt('Para confirmar, escreva exatamente: APAGAR (em maiúsculas)');
+                    if (digitado !== 'APAGAR') {
+                        mostrarNotificacao('Limpeza cancelada. Não escreveu APAGAR corretamente.', 'warning');
+                        return;
+                    }
                     // Limpar todos os dados do localStorage
                     localStorage.removeItem('clientes');
                     localStorage.removeItem('honorarios');
@@ -1510,6 +1616,16 @@
         function obterConvidados() {
             return JSON.parse(localStorage.getItem('convidados') || '[]');
         }
+
+        /** Devolve o rótulo "Para: Admin", "Para: Todos" ou "Para: [Nome do convidado]" */
+        function obterRotuloDestinatarioNotificacao(destinatarioId) {
+            if (!destinatarioId || destinatarioId === 'todos') return 'Para: Todos';
+            if (destinatarioId === 'admin') return 'Para: Admin';
+            const convidados = obterConvidados();
+            const convidado = convidados.find(c => c.ativo && (String(c.id) === String(destinatarioId) || String(c.codigo) === String(destinatarioId)));
+            return convidado ? 'Para: ' + (convidado.nome || 'Convidado') : 'Para: Convidado (id ' + destinatarioId + ')';
+        }
+        window.obterRotuloDestinatarioNotificacao = obterRotuloDestinatarioNotificacao;
 
         async function sincronizarConvidadosDaNuvem() {
             await sincronizarEntidadeNuvem('convidados');
@@ -1801,6 +1917,7 @@
         function configurarInterfaceUsuario() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             const navConvidados = document.getElementById('nav-convidados');
+            const btnAlterarSenha = document.getElementById('btnAlterarSenhaHeader');
             document.body.classList.toggle('perfil-convidado', tipoUsuario === 'convidado');
             document.body.classList.toggle('perfil-admin', tipoUsuario === 'admin');
             
@@ -1808,6 +1925,9 @@
                 navConvidados.style.display = 'block';
             } else if (navConvidados) {
                 navConvidados.style.display = 'none';
+            }
+            if (btnAlterarSenha) {
+                btnAlterarSenha.classList.toggle('hidden', tipoUsuario !== 'admin');
             }
             
             // Ocultar seções administrativas para convidados
@@ -2058,7 +2178,14 @@
             // CARREGAR DADOS DO LOCALSTORAGE (NÃO LIMPAR - PRESERVA DADOS DO USUÁRIO)
             carregarDados();
             carregarDadosExemplo();
-            atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            // Indicador de sync: mostrar último estado conhecido (erro se último evento foi erro)
+            const ultimoErro = localStorage.getItem('cloudSyncUltimoErro');
+            const ultimoOk = localStorage.getItem('cloudSyncUltimoSucesso');
+            if (ultimoErro && (!ultimoOk || new Date(ultimoErro).getTime() > new Date(ultimoOk).getTime())) {
+                atualizarIndicadorSync('error', 'Erro de sincronização');
+            } else {
+                atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            }
             window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
             window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
             limparConvidadosInativos();
@@ -2079,6 +2206,9 @@
             iniciarSistemaNotificacoes();
             iniciarSistemaBackup();
             configurarMonitorizacaoErros();
+            setTimeout(verificarLembreteBackup, 3000);
+            setTimeout(verificarNotificacaoBrowserPrazos, 5000);
+            inicializarAcessibilidadeModais();
             
             // Inicializar funcionalidades mobile
             // inicializarPWA(); // REMOVIDO - PWA desativado
@@ -2114,8 +2244,11 @@
                     return;
                 }
                 
-                const itens = resultados.map(item => `
-                    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0" data-secao="${item.secao}">
+                const itens = resultados.map(item => {
+                    const attrs = [`data-secao="${item.secao}"`];
+                    if (item.clienteId != null) attrs.push(`data-cliente-id="${String(item.clienteId).replace(/"/g, '&quot;')}"`);
+                    if (item.clienteNome) attrs.push(`data-cliente-nome="${String(item.clienteNome).replace(/"/g, '&quot;')}"`);
+                    return `<button class="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0" ${attrs.join(' ')}>
                         <div class="flex items-center justify-between">
                             <div>
                                 <div class="text-sm font-semibold text-gray-800">${item.titulo}</div>
@@ -2123,8 +2256,8 @@
                             </div>
                             <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">${item.tipo}</span>
                         </div>
-                    </button>
-                `).join('');
+                    </button>`;
+                }).join('');
                 
                 results.innerHTML = `
                     <div class="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
@@ -2156,10 +2289,13 @@
                 const botao = event.target.closest('[data-secao]');
                 if (!botao) return;
                 const secao = botao.getAttribute('data-secao');
-                if (secao) {
-                    carregarSecao(secao);
-                }
+                const clienteId = botao.getAttribute('data-cliente-id');
+                const clienteNome = botao.getAttribute('data-cliente-nome') || '';
                 fecharResultados();
+                if (secao) carregarSecao(secao);
+                if (clienteId != null && secao === 'clientes' && typeof abrirClientePorIdOuNome === 'function') {
+                    setTimeout(() => abrirClientePorIdOuNome(clienteId, clienteNome), 200);
+                }
             });
             
             document.addEventListener('click', (event) => {
@@ -2200,7 +2336,30 @@
                         tipo: 'Cliente',
                         titulo: cliente.nome,
                         subtitulo: [cliente.email, cliente.telefone].filter(Boolean).join(' • '),
-                        secao: 'clientes'
+                        secao: 'clientes',
+                        clienteId: cliente.id,
+                        clienteNome: cliente.nome
+                    });
+                }
+            });
+            
+            const honorariosParaPesquisar = Array.isArray(honorarios) ? honorarios : [];
+            honorariosParaPesquisar.forEach(honorario => {
+                if (honorario.clienteId && !clientePermitido(honorario.clienteId)) return;
+                const clienteNome = honorario.clienteNome || honorario.cliente || obterNomeClienteRelatorio(honorario);
+                const haystack = [
+                    honorario.descricao,
+                    honorario.valor,
+                    honorario.estado,
+                    honorario.tipo,
+                    clienteNome
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (haystack.includes(termoLower)) {
+                    resultados.push({
+                        tipo: 'Honorário',
+                        titulo: honorario.descricao || 'Honorário',
+                        subtitulo: [clienteNome, honorario.valor, honorario.estado].filter(Boolean).join(' • '),
+                        secao: 'honorarios'
                     });
                 }
             });
@@ -4169,10 +4328,6 @@ END:VCALENDAR`;
         function carregarSecao(secao) {
             console.log('🔧 carregarSecao chamado para:', secao);
             
-            if (secao === 'notificacoes') {
-                secao = 'clientes';
-            }
-            
             // Verificar se é convidado e redirecionar para clientes se necessário
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             if (tipoUsuario === 'convidado') {
@@ -4197,6 +4352,12 @@ END:VCALENDAR`;
             // Fechar qualquer modal aberto antes de carregar nova seção
             fecharModal();
             
+            // Reset limites de paginação ao entrar na secção
+            if (secao === 'clientes') window.__clientesLimit = LISTA_PAGINA_TAMANHO;
+            if (secao === 'honorarios') window.__honorariosLimit = LISTA_PAGINA_TAMANHO;
+            if (secao === 'contratos') window.__contratosLimit = LISTA_PAGINA_TAMANHO;
+            // Ordenação: manter estado (não resetar) para não confundir o utilizador
+            
             // Recarregar dados do localStorage antes de gerar conteúdo
             carregarDados();
             
@@ -4219,6 +4380,9 @@ END:VCALENDAR`;
             inicializarSecao(secao);
             
             // Inicializar filtros para seções específicas
+            if (secao === 'clientes') {
+                setTimeout(() => { restaurarFiltrosClientes(); aplicarFiltrosClientes(); }, 100);
+            }
             if (secao === 'migracoes') {
                 setTimeout(() => {
                     aplicarFiltrosMigracoes();
@@ -4226,15 +4390,11 @@ END:VCALENDAR`;
             }
             
             if (secao === 'contratos') {
-                setTimeout(() => {
-                    aplicarFiltrosContratos();
-                }, 100);
+                setTimeout(() => { restaurarFiltrosContratos(); aplicarFiltrosContratos(); }, 100);
             }
             
             if (secao === 'honorarios') {
-                setTimeout(() => {
-                    aplicarFiltrosHonorarios();
-                }, 100);
+                setTimeout(() => { restaurarFiltrosHonorarios(); aplicarFiltrosHonorarios(); }, 100);
             }
             
             if (secao === 'prazos') {
@@ -4418,6 +4578,7 @@ END:VCALENDAR`;
                 documentos: gerarDocumentos(),
                 tarefas: gerarTarefas(),
                 calendario: gerarCalendarioPrazos(),
+                notificacoes: gerarNotificacoes(),
                 relatorios: gerarRelatorios(),
                 backup: gerarBackup(),
                 historico: gerarHistoricoDetalhado(),
@@ -5973,32 +6134,57 @@ Sistema Legal - ANA PAULA MEDINA
                             ` : ''}
                         </div>
                         
-                        <!-- Resumo Estatístico -->
+                        <!-- Resumo Estatístico (6 itens: Honorários, Notificações, Contratos, Heranças, Migrações, Registos) -->
                         <div style="margin-bottom: 30px;">
                             <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📊 Resumo Estatístico</h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                                <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 20px; border-radius: 8px; text-align: center;">
-                                    <div style="font-size: 24px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
-                                    <div style="font-size: 14px;">Honorários</div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                                <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 22px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
+                                    <div style="font-size: 13px;">Honorários</div>
                                 </div>
-                                <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 20px; border-radius: 8px; text-align: center;">
-                                    <div style="font-size: 24px; font-weight: bold;">${dadosCliente.contratos.length}</div>
-                                    <div style="font-size: 14px;">Contratos</div>
+                                <div id="card-notificacoes-cliente" style="background: linear-gradient(135deg, #ea580c, #c2410c); color: white; padding: 16px; border-radius: 8px; text-align: center; border: 2px solid #9a3412;">
+                                    <div style="font-size: 22px; font-weight: bold;">${(dadosCliente.notificacoes && dadosCliente.notificacoes.length) || 0}</div>
+                                    <div style="font-size: 13px;">🔔 Notificações</div>
                                 </div>
-                                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 20px; border-radius: 8px; text-align: center;">
-                                    <div style="font-size: 24px; font-weight: bold;">${dadosCliente.herancas.length}</div>
-                                    <div style="font-size: 14px;">Heranças</div>
+                                <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 22px; font-weight: bold;">${dadosCliente.contratos.length}</div>
+                                    <div style="font-size: 13px;">Contratos</div>
                                 </div>
-                                <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 20px; border-radius: 8px; text-align: center;">
-                                    <div style="font-size: 24px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
-                                    <div style="font-size: 14px;">Migrações</div>
+                                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 22px; font-weight: bold;">${dadosCliente.herancas.length}</div>
+                                    <div style="font-size: 13px;">Heranças</div>
                                 </div>
-                                <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 20px; border-radius: 8px; text-align: center;">
-                                    <div style="font-size: 24px; font-weight: bold;">${dadosCliente.registos.length}</div>
-                                    <div style="font-size: 14px;">Registos</div>
+                                <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 22px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
+                                    <div style="font-size: 13px;">Migrações</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 22px; font-weight: bold;">${dadosCliente.registos.length}</div>
+                                    <div style="font-size: 13px;">Registos</div>
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Notificações do cliente (no processo) -->
+                        ${dadosCliente.notificacoes && dadosCliente.notificacoes.length > 0 ? `
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">🔔 Notificações (${dadosCliente.notificacoes.length})</h4>
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    ${dadosCliente.notificacoes.map((noti) => `
+                                        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div>
+                                                    <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
+                                                    <strong>${noti.titulo || 'Notificação'}</strong><br>
+                                                    <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                         
                         <!-- Honorários -->
                         ${dadosCliente.honorarios.length > 0 ? `
@@ -6131,6 +6317,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                 <div>
                                                     <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
+                                                    ${tarefa.responsavelNome ? `<span style="color: #374151; font-size: 12px; font-weight: 700;">Responsável: ${(tarefa.responsavelNome || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span><br>` : ''}
                                                     <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
                                                     ${tarefa.links && tarefa.links.length ? `
                                                         <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
@@ -6214,6 +6401,7 @@ Sistema Legal - ANA PAULA MEDINA
                                         <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
                                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                                 <div>
+                                                    <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
                                                     <strong>${noti.titulo || 'Notificação'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
@@ -6884,8 +7072,21 @@ Sistema Legal - ANA PAULA MEDINA
                 .sort((a, b) => new Date(b.data) - new Date(a.data))
                 .slice(0, 5);
 
+            const mostrarGuiaPrimeiroUso = totalClientes === 0 && tipoUsuario === 'admin' && !localStorage.getItem('guiaPrimeiroUsoConcluido');
             return `
                 <div class="space-y-6">
+                    ${mostrarGuiaPrimeiroUso ? `
+                    <div id="guiaPrimeiroUso" class="card p-6 border-2 border-blue-200 bg-blue-50">
+                        <h3 class="text-lg font-semibold text-blue-900 mb-2">Bem-vindo ao Sistema Legal</h3>
+                        <p class="text-sm text-blue-800 mb-4">Para começar, sugerimos:</p>
+                        <ol class="list-decimal list-inside text-sm text-blue-800 space-y-2 mb-4">
+                            <li>Crie o seu primeiro cliente: <strong>Clientes</strong> → <strong>Novo Cliente</strong></li>
+                            <li>Crie um honorário: <strong>Honorários</strong> → <strong>Novo Honorário</strong></li>
+                            <li>Consulte o Dashboard e os Relatórios quando tiver dados</li>
+                        </ol>
+                        <button type="button" onclick="document.getElementById(\'guiaPrimeiroUso\')?.remove(); localStorage.setItem(\'guiaPrimeiroUsoConcluido\', \'true\');" class="btn btn-primary text-sm">Entendido</button>
+                    </div>
+                    ` : ''}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="card p-6">
                             <div class="flex items-center">
@@ -7603,6 +7804,7 @@ Sistema Legal - ANA PAULA MEDINA
         function gerarClientes() {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let clientesParaMostrar = clientes;
+            const limit = Math.max(LISTA_PAGINA_TAMANHO, window.__clientesLimit || LISTA_PAGINA_TAMANHO);
             
             // Filtrar clientes para convidados
             if (tipoUsuario === 'convidado') {
@@ -7699,17 +7901,20 @@ Sistema Legal - ANA PAULA MEDINA
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Nome <span class="text-xs text-blue-500">(clique para ver)</span></th>
-                                            <th>Email</th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarClientes('nome')" title="Ordenar por nome">Nome <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarClientes('email')" title="Ordenar por email">Email <span class="text-xs text-blue-500">↕</span></th>
                                             <th>Telefone</th>
                                             <th>NIF</th>
-                                            <th>Status</th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarClientes('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
                                             <th>Criado por</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="listaClientes">
-                                        ${clientesParaMostrar.map(cliente => `
+                                        ${(function() {
+                                            const total = clientesParaMostrar.length;
+                                            const mostrar = clientesParaMostrar.slice(0, limit);
+                                            const rows = mostrar.map(cliente => `
                                             <tr>
                                                 <td>
                                                     <button onclick="mostrarInformacoesCompletasCliente(${JSON.stringify(cliente).replace(/"/g, '&quot;')})" 
@@ -7723,17 +7928,20 @@ Sistema Legal - ANA PAULA MEDINA
                                                 <td>${cliente.telefone}</td>
                                                 <td>${cliente.nif || '-'}</td>
                                                 <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
-                                                <td>${cliente.tipoUsuario === 'convidado' ? 'Convidado' : 'Admin'}</td>
+                                                <td>${typeof obterRotuloCriadorCliente === 'function' ? obterRotuloCriadorCliente(cliente) : (cliente.tipoUsuario === 'convidado' ? 'Convidado' : 'Admin')}</td>
                                                 <td>
-                                                    <button onclick="editarItem('cliente', ${cliente.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                                    <button onclick="editarClienteDireto(${cliente.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                         <i data-lucide="edit" class="w-4 h-4"></i>
                                                     </button>
-                                                    <button onclick="abrirAnexosCliente(${cliente.id})" class="text-green-600 hover:text-green-800" title="Documentos">
-                                                        <i data-lucide="paperclip" class="w-4 h-4"></i>
+                                                    <button onclick="excluirItem('cliente', ${cliente.id})" class="text-red-600 hover:text-red-800" title="Excluir">
+                                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                                                     </button>
                                                 </td>
                                             </tr>
-                                        `).join('')}
+                                        `).join('');
+                                            const verMais = total > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__clientesLimit = (window.__clientesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosClientes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+                                            return rows + verMais;
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -7823,8 +8031,8 @@ Sistema Legal - ANA PAULA MEDINA
                     <div class="card p-6">
                         <div class="search-container mb-4">
                             <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                            <input type="text" id="buscaHonorarios" placeholder="Buscar honorários..." 
-                                   class="search-input" onkeyup="filtrarHonorarios()">
+                            <input type="text" id="buscaHonorarios" placeholder="Buscar por nome do cliente, serviço ou valor..." 
+                                   class="search-input" onkeyup="filtrarHonorarios()" title="Pode escrever o nome do cliente, o serviço ou o valor">
                         </div>
                         
                         <!-- Filtros Avançados -->
@@ -7879,16 +8087,20 @@ Sistema Legal - ANA PAULA MEDINA
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Cliente</th>
-                                            <th>Serviço</th>
-                                            <th>Valor</th>
-                                            <th>Status</th>
-                                            <th>Vencimento</th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('servico')" title="Ordenar por serviço">Serviço <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('vencimento')" title="Ordenar por vencimento">Vencimento <span class="text-xs text-blue-500">↕</span></th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="listaHonorarios">
-                                        ${honorarios.map(honorario => `
+                                        ${(function() {
+                                            const limitH = Math.max(LISTA_PAGINA_TAMANHO, window.__honorariosLimit || LISTA_PAGINA_TAMANHO);
+                                            const totalH = honorarios.length;
+                                            const mostrarH = honorarios.slice(0, limitH);
+                                            const rowsH = mostrarH.map(honorario => `
                                             <tr class="js-honorario-row" data-cliente-id="${honorario.clienteId || ''}" data-cliente-nome="${String(honorario.cliente || honorario.clienteNome || '').replace(/"/g, '&quot;')}" style="cursor: pointer;">
                                                 <td>
                                                     ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
@@ -7907,7 +8119,10 @@ Sistema Legal - ANA PAULA MEDINA
                                                     </button>
                                                 </td>
                                             </tr>
-                                        `).join('')}
+                                        `).join('');
+                                            const verMaisH = totalH > limitH ? `<tr><td colspan="6" class="text-center py-3 border-t"><button type="button" onclick="window.__honorariosLimit = (window.__honorariosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHonorarios();" class="btn btn-secondary text-sm">Ver mais (${totalH - limitH} restantes)</button></td></tr>` : '';
+                                            return rowsH + verMaisH;
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -8036,17 +8251,21 @@ Sistema Legal - ANA PAULA MEDINA
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th class="font-bold">Cliente</th>
-                                            <th class="font-bold">Tipo</th>
+                                            <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('clienteNome')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">↕</span></th>
                                             <th class="font-bold">Descrição</th>
-                                            <th class="font-bold">Valor</th>
-                                            <th class="font-bold">Status</th>
-                                            <th class="font-bold">Data Início</th>
+                                            <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
+                                            <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('dataInicio')" title="Ordenar por data">Data Início <span class="text-xs text-blue-500">↕</span></th>
                                             <th class="font-bold">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="listaContratos">
-                                        ${contratos.map(contrato => `
+                                        ${(function() {
+                                            const limitC = Math.max(LISTA_PAGINA_TAMANHO, window.__contratosLimit || LISTA_PAGINA_TAMANHO);
+                                            const totalC = contratos.length;
+                                            const mostrarC = contratos.slice(0, limitC);
+                                            const rowsC = mostrarC.map(contrato => `
                                             <tr>
                                                 <td>
                                                     ${renderClienteLink(contrato.clienteId, contrato.clienteNome)}
@@ -8077,7 +8296,10 @@ Sistema Legal - ANA PAULA MEDINA
                                                     </button>
                                                 </td>
                                             </tr>
-                                        `).join('')}
+                                        `).join('');
+                                            const verMaisC = totalC > limitC ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__contratosLimit = (window.__contratosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosContratos();" class="btn btn-secondary text-sm">Ver mais (${totalC - limitC} restantes)</button></td></tr>` : '';
+                                            return rowsC + verMaisC;
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -8335,21 +8557,13 @@ Sistema Legal - ANA PAULA MEDINA
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     ${tipoUsuario === 'admin' ? `
-                        <button onclick="criarNotificacaoTeste()" class="btn btn-info">
+                        ${(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `<button onclick="criarNotificacaoTeste()" class="btn btn-info">
                             <i data-lucide="test-tube" class="w-4 h-4"></i>
                             Teste Aleatório
-                        </button>
+                        </button>` : ''}
                         <button onclick="criarNotificacaoPersonalizada()" class="btn btn-warning">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                             Criar Personalizada
-                        </button>
-                        <button onclick="enviarMensagemConvidado()" class="btn btn-primary">
-                            <i data-lucide="send" class="w-4 h-4"></i>
-                            Enviar para Convidado
-                        </button>
-                        <button onclick="verConversas()" class="btn btn-info">
-                            <i data-lucide="message-circle" class="w-4 h-4"></i>
-                            Ver Conversas
                         </button>
                     ` : `
                         <div class="text-sm text-gray-600">
@@ -8517,6 +8731,7 @@ Sistema Legal - ANA PAULA MEDINA
                                             ${notificacao.prioridade === 'alta' ? '<span class="status-badge status-alta">Urgente</span>' : ''}
                                             ${notificacao.origem === 'admin' ? '<span class="status-badge status-info">Admin</span>' : ''}
                                             ${notificacao.origem === 'convidado' ? '<span class="status-badge status-success">Convidado</span>' : ''}
+                                            <span class="text-xs font-bold text-orange-600">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(notificacao.destinatarioId) : (notificacao.destinatarioId === 'admin' ? 'Para: Admin' : notificacao.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span>
                                         </div>
                                         <h4 class="font-semibold text-gray-800">${notificacao.titulo}</h4>
                                         <p class="text-gray-600 text-sm mt-1">${notificacao.mensagem}</p>
@@ -9014,7 +9229,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
-                            ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: ${escaparHtml(tarefa.responsavelNome)}</div>` : ''}
+                            ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: <span class="font-bold text-gray-700">${escaparHtml(tarefa.responsavelNome)}</span></div>` : ''}
                             ${renderMetaAuditoria('tarefa', tarefa)}
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
                             ${tarefa.concluidaPorNome ? `<div class="text-xs text-gray-400">Concluída por: ${escaparHtml(tarefa.concluidaPorNome)}${tarefa.concluidaEm ? ` em ${new Date(tarefa.concluidaEm).toLocaleString('pt-PT')}` : ''}</div>` : ''}
@@ -10902,6 +11117,34 @@ Sistema Legal - ANA PAULA MEDINA
             console.log('✅ Modal de edição de contrato criado e adicionado ao body!');
         }
 
+        /** Escape fecha modais; foco no primeiro campo quando um modal abre (acessibilidade). */
+        function inicializarAcessibilidadeModais() {
+            document.addEventListener('keydown', function(e) {
+                if (e.key !== 'Escape') return;
+                const mc = document.getElementById('modalContainer');
+                if (mc && mc.children.length > 0) {
+                    if (typeof fecharModalRobusto === 'function') fecharModalRobusto();
+                    e.preventDefault();
+                    return;
+                }
+                if (document.getElementById('modalAlterarSenha')) {
+                    if (typeof fecharModalAlterarSenha === 'function') fecharModalAlterarSenha();
+                    e.preventDefault();
+                }
+            });
+            const mc = document.getElementById('modalContainer');
+            if (mc && typeof MutationObserver !== 'undefined') {
+                const obs = new MutationObserver(() => {
+                    if (mc.children.length === 0) return;
+                    setTimeout(() => {
+                        const first = mc.querySelector('input:not([type="hidden"]), select, textarea, button[tabindex="0"], button:not([disabled])');
+                        if (first) try { first.focus(); } catch (err) {}
+                    }, 150);
+                });
+                obs.observe(mc, { childList: true, subtree: false });
+            }
+        }
+        
         function fecharModal() {
             console.log('🔧 fecharModal chamado');
             
@@ -11913,13 +12156,23 @@ Sistema Legal - ANA PAULA MEDINA
             aplicarFiltrosClientes();
         }
 
+        function ordenarClientes(col) {
+            let o = window.__clientesOrdenar;
+            if (!o) try { o = JSON.parse(localStorage.getItem('ordenarClientes') || '{}'); } catch(e) {}
+            o = o && o.col ? o : { col: 'nome', dir: 1 };
+            if (o.col === col) o.dir = o.dir === 1 ? -1 : 1;
+            else { o.col = col; o.dir = 1; }
+            window.__clientesOrdenar = o;
+            try { localStorage.setItem('ordenarClientes', JSON.stringify(o)); } catch (e) {}
+            aplicarFiltrosClientes();
+        }
         function aplicarFiltrosClientes() {
             const busca = document.getElementById('buscaClientes')?.value.toLowerCase() || '';
             const buscaNif = document.getElementById('buscaNifClientes')?.value.toLowerCase() || '';
             const status = document.getElementById('filtroStatusCliente')?.value || '';
             const dataFiltro = document.getElementById('filtroDataCliente')?.value || '';
             
-            const clientesFiltrados = clientes.filter(cliente => {
+            let clientesFiltrados = clientes.filter(cliente => {
                 // Filtro por busca de texto (nome, email, telefone)
                 const matchBusca = !busca || 
                     cliente.nome.toLowerCase().includes(busca) || 
@@ -11960,9 +12213,32 @@ Sistema Legal - ANA PAULA MEDINA
                 
                 return matchBusca && matchNif && matchStatus && matchData;
             });
-            
+            let ord = window.__clientesOrdenar;
+            if (!ord || !ord.col) try { ord = JSON.parse(localStorage.getItem('ordenarClientes') || '{}'); } catch(e) {}
+            ord = ord && ord.col ? ord : { col: 'nome', dir: 1 };
+            const k = ord.col; const d = ord.dir;
+            clientesFiltrados = clientesFiltrados.slice().sort((a, b) => {
+                let va = a[k] ?? ''; let vb = b[k] ?? '';
+                if (k === 'dataCriacao') { va = new Date(va).getTime(); vb = new Date(vb).getTime(); return d * (va - vb); }
+                va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+                return d * (va < vb ? -1 : va > vb ? 1 : 0);
+            });
             atualizarListaClientes(clientesFiltrados);
             document.getElementById('contadorClientes').textContent = clientesFiltrados.length;
+            try { localStorage.setItem('filtrosClientes', JSON.stringify({ busca, buscaNif, status, dataFiltro })); } catch (e) {}
+        }
+
+        function restaurarFiltrosClientes() {
+            try {
+                const s = localStorage.getItem('filtrosClientes');
+                if (!s) return;
+                const o = JSON.parse(s);
+                const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+                set('buscaClientes', o.busca);
+                set('buscaNifClientes', o.buscaNif);
+                set('filtroStatusCliente', o.status);
+                set('filtroDataCliente', o.dataFiltro);
+            } catch (e) {}
         }
 
         function limparFiltrosClientes() {
@@ -11973,6 +12249,16 @@ Sistema Legal - ANA PAULA MEDINA
             aplicarFiltrosClientes();
         }
 
+        function ordenarHonorarios(col) {
+            let o = window.__honorariosOrdenar;
+            if (!o) try { o = JSON.parse(localStorage.getItem('ordenarHonorarios') || '{}'); } catch(e) {}
+            o = o && o.col ? o : { col: 'vencimento', dir: 1 };
+            if (o.col === col) o.dir = o.dir === 1 ? -1 : 1;
+            else { o.col = col; o.dir = 1; }
+            window.__honorariosOrdenar = o;
+            try { localStorage.setItem('ordenarHonorarios', JSON.stringify(o)); } catch (e) {}
+            aplicarFiltrosHonorarios();
+        }
         function filtrarHonorarios() {
             aplicarFiltrosHonorarios();
         }
@@ -11988,11 +12274,15 @@ Sistema Legal - ANA PAULA MEDINA
             console.log('🔧 Filtros aplicados:', { busca, status, valorMin, valorMax, vencimento });
             console.log('🔧 Total de honorários:', honorarios.length);
             
-            const honorariosFiltrados = honorarios.filter(honorario => {
-                // Filtro por busca de texto
+            let honorariosFiltrados = honorarios.filter(honorario => {
+                // Filtro por busca de texto (nome do cliente, serviço, valor)
+                const nomeCliente = (honorario.cliente || honorario.clienteNome || (typeof obterNomeClienteRelatorio === 'function' ? obterNomeClienteRelatorio(honorario) : '') || '').toString().toLowerCase();
+                const servico = (honorario.servico || '').toString().toLowerCase();
+                const valorStr = (honorario.valor != null ? String(honorario.valor) : '').toLowerCase();
                 const matchBusca = !busca || 
-                    honorario.cliente.toLowerCase().includes(busca) || 
-                    honorario.servico.toLowerCase().includes(busca);
+                    nomeCliente.includes(busca) || 
+                    servico.includes(busca) ||
+                    valorStr.includes(busca);
                 
                 // Filtro por status
                 const matchStatus = !status || honorario.status === status;
@@ -12029,7 +12319,18 @@ Sistema Legal - ANA PAULA MEDINA
                 
                 return matchBusca && matchStatus && matchValor && matchVencimento;
             });
-            
+            let ordH = window.__honorariosOrdenar;
+            if (!ordH || !ordH.col) try { ordH = JSON.parse(localStorage.getItem('ordenarHonorarios') || '{}'); } catch(e) {}
+            ordH = ordH && ordH.col ? ordH : { col: 'vencimento', dir: 1 };
+            const kH = ordH.col; const dH = ordH.dir;
+            honorariosFiltrados = honorariosFiltrados.slice().sort((a, b) => {
+                if (kH === 'valor') return dH * ((parseFloat(a.valor) || 0) - (parseFloat(b.valor) || 0));
+                if (kH === 'vencimento') return dH * (new Date(a.vencimento || 0).getTime() - new Date(b.vencimento || 0).getTime());
+                if (kH === 'status') return dH * (String(a.status || '').localeCompare(String(b.status || '')));
+                if (kH === 'cliente') return dH * (String(a.cliente || a.clienteNome || '').toLowerCase().localeCompare(String(b.cliente || b.clienteNome || '').toLowerCase()));
+                if (kH === 'servico') return dH * (String(a.servico || '').toLowerCase().localeCompare(String(b.servico || '').toLowerCase()));
+                return 0;
+            });
             console.log('🔧 Honorários filtrados:', honorariosFiltrados.length);
             atualizarListaHonorarios(honorariosFiltrados);
             
@@ -12045,6 +12346,21 @@ Sistema Legal - ANA PAULA MEDINA
                     console.log('🔧 Ícones Lucide reinicializados para Honorários');
                 }
             }, 100);
+            try { localStorage.setItem('filtrosHonorarios', JSON.stringify({ busca, status, valorMin: valorMin || '', valorMax: valorMax === Infinity ? '' : valorMax, vencimento })); } catch (e) {}
+        }
+
+        function restaurarFiltrosHonorarios() {
+            try {
+                const s = localStorage.getItem('filtrosHonorarios');
+                if (!s) return;
+                const o = JSON.parse(s);
+                const set = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+                set('buscaHonorarios', o.busca);
+                set('filtroStatusHonorario', o.status);
+                set('filtroValorMinHonorario', o.valorMin);
+                set('filtroValorMaxHonorario', o.valorMax);
+                set('filtroVencimentoHonorario', o.vencimento);
+            } catch (e) {}
         }
 
         function limparFiltrosHonorarios() {
@@ -12056,6 +12372,16 @@ Sistema Legal - ANA PAULA MEDINA
             aplicarFiltrosHonorarios();
         }
 
+        function ordenarContratos(col) {
+            let o = window.__contratosOrdenar;
+            if (!o) try { o = JSON.parse(localStorage.getItem('ordenarContratos') || '{}'); } catch(e) {}
+            o = o && o.col ? o : { col: 'clienteNome', dir: 1 };
+            if (o.col === col) o.dir = o.dir === 1 ? -1 : 1;
+            else { o.col = col; o.dir = 1; }
+            window.__contratosOrdenar = o;
+            try { localStorage.setItem('ordenarContratos', JSON.stringify(o)); } catch (e) {}
+            aplicarFiltrosContratos();
+        }
         function filtrarContratos() {
             aplicarFiltrosContratos();
         }
@@ -12072,7 +12398,7 @@ Sistema Legal - ANA PAULA MEDINA
             console.log('🔧 Filtros aplicados:', { busca, status, clienteId, valorMin, valorMax });
             console.log('🔧 Total de contratos:', contratos.length);
             
-            const contratosFiltrados = contratos.filter(contrato => {
+            let contratosFiltrados = contratos.filter(contrato => {
                 // Filtro por busca de texto
                 const matchBusca = !busca || 
                     contrato.clienteNome.toLowerCase().includes(busca) || 
@@ -12095,7 +12421,17 @@ Sistema Legal - ANA PAULA MEDINA
                 
                 return matchBusca && matchStatus && matchCliente && matchValor && matchNif;
             });
-            
+            let ordC = window.__contratosOrdenar;
+            if (!ordC || !ordC.col) try { ordC = JSON.parse(localStorage.getItem('ordenarContratos') || '{}'); } catch(e) {}
+            ordC = ordC && ordC.col ? ordC : { col: 'clienteNome', dir: 1 };
+            const kC = ordC.col; const dC = ordC.dir;
+            contratosFiltrados = contratosFiltrados.slice().sort((a, b) => {
+                if (kC === 'valor') return dC * ((parseFloat(a.valor) || 0) - (parseFloat(b.valor) || 0));
+                if (kC === 'dataInicio') return dC * (new Date(a.dataInicio || 0).getTime() - new Date(b.dataInicio || 0).getTime());
+                if (kC === 'status') return dC * (String(a.status || '').localeCompare(String(b.status || '')));
+                if (kC === 'clienteNome' || kC === 'tipo') return dC * (String(a[kC] || '').toLowerCase().localeCompare(String(b[kC] || '').toLowerCase()));
+                return 0;
+            });
             console.log('🔧 Contratos filtrados:', contratosFiltrados.length);
             atualizarListaContratos(contratosFiltrados);
             
@@ -12111,6 +12447,22 @@ Sistema Legal - ANA PAULA MEDINA
                     console.log('🔧 Ícones Lucide reinicializados para Contratos');
                 }
             }, 100);
+            try { localStorage.setItem('filtrosContratos', JSON.stringify({ busca, status, clienteId, valorMin: valorMin || '', valorMax: valorMax === Infinity ? '' : valorMax, nif })); } catch (e) {}
+        }
+
+        function restaurarFiltrosContratos() {
+            try {
+                const s = localStorage.getItem('filtrosContratos');
+                if (!s) return;
+                const o = JSON.parse(s);
+                const set = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+                set('buscaContratos', o.busca);
+                set('filtroStatusContrato', o.status);
+                set('filtroClienteContrato', o.clienteId);
+                set('filtroValorMinContrato', o.valorMin);
+                set('filtroValorMaxContrato', o.valorMax);
+                set('filtroNifContrato', o.nif);
+            } catch (e) {}
         }
 
         function limparFiltrosContratos() {
@@ -12126,8 +12478,9 @@ Sistema Legal - ANA PAULA MEDINA
         function atualizarListaClientes(clientesFiltrados) {
             const tbody = document.getElementById('listaClientes');
             if (!tbody) return;
-            
-            tbody.innerHTML = clientesFiltrados.map(cliente => `
+            const limit = Math.max(LISTA_PAGINA_TAMANHO, window.__clientesLimit || LISTA_PAGINA_TAMANHO);
+            const mostrar = clientesFiltrados.slice(0, limit);
+            const rows = mostrar.map(cliente => `
                 <tr>
                     <td>
                         <button onclick="mostrarInformacoesCompletasCliente(${JSON.stringify(cliente).replace(/"/g, '&quot;')})" 
@@ -12152,6 +12505,8 @@ Sistema Legal - ANA PAULA MEDINA
                     </td>
                 </tr>
             `).join('');
+            const verMais = clientesFiltrados.length > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__clientesLimit = (window.__clientesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosClientes();" class="btn btn-secondary text-sm">Ver mais (${clientesFiltrados.length - limit} restantes)</button></td></tr>` : '';
+            tbody.innerHTML = rows + verMais;
             
             // Reinicializar ícones Lucide
             setTimeout(() => {
@@ -12164,8 +12519,9 @@ Sistema Legal - ANA PAULA MEDINA
         function atualizarListaHonorarios(honorariosFiltrados) {
             const tbody = document.getElementById('listaHonorarios');
             if (!tbody) return;
-            
-            tbody.innerHTML = honorariosFiltrados.map(honorario => `
+            const limitH = Math.max(LISTA_PAGINA_TAMANHO, window.__honorariosLimit || LISTA_PAGINA_TAMANHO);
+            const mostrarH = honorariosFiltrados.slice(0, limitH);
+            const rowsH = mostrarH.map(honorario => `
                 <tr class="js-honorario-row" data-cliente-id="${honorario.clienteId || ''}" data-cliente-nome="${String(honorario.cliente || honorario.clienteNome || '').replace(/"/g, '&quot;')}" style="cursor: pointer;">
                     <td>
                         ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
@@ -12184,6 +12540,8 @@ Sistema Legal - ANA PAULA MEDINA
                     </td>
                 </tr>
             `).join('');
+            const verMaisH = honorariosFiltrados.length > limitH ? `<tr><td colspan="6" class="text-center py-3 border-t"><button type="button" onclick="window.__honorariosLimit = (window.__honorariosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHonorarios();" class="btn btn-secondary text-sm">Ver mais (${honorariosFiltrados.length - limitH} restantes)</button></td></tr>` : '';
+            tbody.innerHTML = rowsH + verMaisH;
             
             // Adicionar event listeners
             tbody.querySelectorAll('.btn-editar-honorario').forEach(btn => {
@@ -12213,8 +12571,9 @@ Sistema Legal - ANA PAULA MEDINA
         function atualizarListaContratos(contratosFiltrados) {
             const tbody = document.getElementById('listaContratos');
             if (!tbody) return;
-            
-            tbody.innerHTML = contratosFiltrados.map(contrato => `
+            const limitC = Math.max(LISTA_PAGINA_TAMANHO, window.__contratosLimit || LISTA_PAGINA_TAMANHO);
+            const mostrarC = contratosFiltrados.slice(0, limitC);
+            const rowsC = mostrarC.map(contrato => `
                 <tr>
                     <td>${renderClienteLink(contrato.clienteId, contrato.clienteNome)}</td>
                     <td>${contrato.tipo}</td>
@@ -12247,6 +12606,8 @@ Sistema Legal - ANA PAULA MEDINA
                     </td>
                 </tr>
             `).join('');
+            const verMaisC = contratosFiltrados.length > limitC ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__contratosLimit = (window.__contratosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosContratos();" class="btn btn-secondary text-sm">Ver mais (${contratosFiltrados.length - limitC} restantes)</button></td></tr>` : '';
+            tbody.innerHTML = rowsC + verMaisC;
             
             // Reinicializar ícones Lucide após atualizar a lista
             setTimeout(() => {
@@ -12808,12 +13169,70 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 
                 mostrarNotificacao('Backup exportado com sucesso!', 'success');
                 registrarAuditoria('exportar', 'backup', 'Exportação completa da base de dados');
+                try { localStorage.setItem('backupExportUltimo', new Date().toISOString()); } catch (e) {}
                 
             } catch (error) {
                 console.error('❌ Erro ao exportar dados:', error);
                 mostrarNotificacao('Erro ao exportar backup', 'error');
                 registrarErro('exportarDadosCompletos', error);
             }
+        }
+        
+        /** Lembrete periódico (1x por semana) para exportar backup. */
+        function verificarLembreteBackup() {
+            const CHAVE_EXPORT = 'backupExportUltimo';
+            const CHAVE_LEMBRETE = 'backupLembreteUltimaVez';
+            const INTERVALO_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+            try {
+                const agora = Date.now();
+                const ultimoExport = localStorage.getItem(CHAVE_EXPORT);
+                const ultimoLembrete = localStorage.getItem(CHAVE_LEMBRETE);
+                const haExportRecent = ultimoExport && (agora - new Date(ultimoExport).getTime() < INTERVALO_MS);
+                const haLembreteRecent = ultimoLembrete && (agora - new Date(ultimoLembrete).getTime() < INTERVALO_MS);
+                if (haExportRecent || haLembreteRecent) return;
+                localStorage.setItem(CHAVE_LEMBRETE, new Date().toISOString());
+                if (typeof mostrarNotificacao === 'function') {
+                    mostrarNotificacao('Recomendamos exportar um backup dos seus dados. Use o botão Exportar no menu.', 'info');
+                }
+            } catch (e) { console.warn('Lembrete backup:', e); }
+        }
+        
+        /** Notificação nativa do browser para prazos e tarefas do dia (mostra no máximo 1x por dia). */
+        function verificarNotificacaoBrowserPrazos() {
+            if (typeof Notification === 'undefined') return;
+            if (Notification.permission === 'denied') return;
+            const CHAVE_ULTIMA = 'notificacaoBrowserUltimaVez';
+            const hojeStr = new Date().toDateString();
+            try {
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                const mesmoDia = (d) => {
+                    const x = new Date(d);
+                    x.setHours(0, 0, 0, 0);
+                    return x.getTime() === hoje.getTime();
+                };
+                const prazosHoje = (window.prazos || []).filter(p => p.dataLimite && mesmoDia(p.dataLimite));
+                const tarefasHoje = (window.tarefas || []).filter(t => t.dataLimite && !t.concluidaEm && mesmoDia(t.dataLimite));
+                const total = prazosHoje.length + tarefasHoje.length;
+                if (total === 0) return;
+                if (localStorage.getItem(CHAVE_ULTIMA) === hojeStr) return;
+                const mostrar = () => {
+                    try {
+                        localStorage.setItem(CHAVE_ULTIMA, hojeStr);
+                        const msg = prazosHoje.length && tarefasHoje.length
+                            ? `Tem ${prazosHoje.length} prazo(s) e ${tarefasHoje.length} tarefa(s) hoje.`
+                            : prazosHoje.length
+                                ? `Tem ${prazosHoje.length} prazo(s) hoje.`
+                                : `Tem ${tarefasHoje.length} tarefa(s) com prazo hoje.`;
+                        new Notification('Sistema Legal', { body: msg });
+                    } catch (e) { console.warn('Notificação browser:', e); }
+                };
+                if (Notification.permission === 'granted') {
+                    mostrar();
+                } else {
+                    Notification.requestPermission().then(p => { if (p === 'granted') mostrar(); });
+                }
+            } catch (e) { console.warn('Verificar notificação browser:', e); }
         }
         
         function importarDadosCompletos() {
@@ -13048,6 +13467,18 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                 Limpar Auditoria
                             </button>
                         </div>
+                    </div>
+                    
+                    <div class="card p-6 border-blue-200 bg-blue-50">
+                        <h3 class="text-lg font-semibold mb-4 text-blue-800">🔑 Alterar senha (Admin)</h3>
+                        <p class="text-sm text-blue-700 mb-4">
+                            Altere a senha de acesso do administrador. Recomendado após o primeiro acesso.
+                        </p>
+                        <button onclick="abrirModalAlterarSenha()" 
+                                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center">
+                            <i data-lucide="key" class="w-4 h-4 mr-2"></i>
+                            Alterar senha
+                        </button>
                     </div>
                     
                     <div class="card p-6 border-red-200 bg-red-50">
@@ -13990,7 +14421,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 destinatarioId: dados.destinatarioId || 'todos',
                 origem: dados.origem || 'sistema',
                 lida: false,
-                dataCriacao: new Date().toISOString()
+                dataCriacao: new Date().toISOString(),
+                clienteId: dados.clienteId,
+                clienteNome: dados.clienteNome,
+                cliente: dados.cliente
             };
 
             notificacoes.unshift(notificacao);
@@ -14056,6 +14490,23 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             mostrarNotificacao('Notificação de teste criada!', 'success');
         }
+        
+        /** Criar notificação de teste associada a um cliente (para ver na ficha do cliente) */
+        function criarNotificacaoTesteParaCliente(clienteId, clienteNome) {
+            criarNotificacao({
+                tipo: 'prazo',
+                titulo: 'Notificação de teste - ' + (clienteNome || 'Cliente'),
+                mensagem: 'Esta é uma notificação de teste criada para verificar se aparece na ficha do cliente.',
+                prioridade: 'media',
+                referenciaId: clienteId || Date.now(),
+                acao: 'ver_detalhes',
+                clienteId: clienteId,
+                clienteNome: clienteNome || '',
+                cliente: clienteNome || ''
+            });
+            mostrarNotificacao('Notificação de teste criada! Feche e reabra a ficha do cliente para ver.', 'success');
+        }
+        window.criarNotificacaoTesteParaCliente = criarNotificacaoTesteParaCliente;
         
         function criarNotificacaoPersonalizada() {
             console.log('🔧 criarNotificacaoPersonalizada chamado');
@@ -14940,6 +15391,14 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             <button onclick="abrirModalNovoConvidado()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
                                 <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>
                                 Novo Convidado
+                            </button>
+                            <button onclick="enviarMensagemConvidado()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center" title="Enviar notificação ou mensagem para um convidado">
+                                <i data-lucide="send" class="w-4 h-4 mr-2"></i>
+                                Enviar para Convidado
+                            </button>
+                            <button onclick="verConversas()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center" title="Ver conversas com convidados">
+                                <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i>
+                                Ver Conversas
                             </button>
                         </div>
                     </div>
