@@ -1,0 +1,166 @@
+﻿<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Legal - Gestão Jurídica</title>
+    <meta name="theme-color" content="#111827">
+    
+    <!-- Meta Tags Básicas -->
+    <meta name="description" content="Sistema completo de gestão jurídica para Solicitadores">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+
+</head>
+<body class="bg-gray-100">
+    <!-- Sistema de Notificações -->
+    <div id="notificationContainer"></div>
+
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleSidebar()">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="p-6">
+            <h2 class="text-white text-xl font-bold mb-6">Sistema Legal</h2>
+            <nav class="space-y-2">
+                <a href="#" onclick="carregarSecao('dashboard')" class="sidebar-item active" id="nav-dashboard">
+                    <i data-lucide="home" class="w-5 h-5 mr-3"></i>
+                    Visão Geral
+                </a>
+                <a href="#" onclick="carregarSecao('clientes')" class="sidebar-item" id="nav-clientes">
+                    <i data-lucide="users" class="w-5 h-5 mr-3"></i>
+                    Clientes
+                </a>
+                <a href="#" onclick="carregarSecao('honorarios')" class="sidebar-item" id="nav-honorarios">
+                    <i data-lucide="dollar-sign" class="w-5 h-5 mr-3"></i>
+                    Honorários
+                </a>
+                <a href="#" onclick="carregarSecao('contratos')" class="sidebar-item" id="nav-contratos">
+                    <i data-lucide="file-text" class="w-5 h-5 mr-3"></i>
+                    Contratos
+                </a>
+                <a href="#" onclick="carregarSecao('herancas')" class="sidebar-item" id="nav-herancas">
+                    <i data-lucide="home" class="w-5 h-5 mr-3"></i>
+                    Heranças
+                </a>
+                <a href="#" onclick="carregarSecao('migracoes')" class="sidebar-item" id="nav-migracao">
+                    <i data-lucide="users-2" class="w-5 h-5 mr-3"></i>
+                    Migração
+                </a>
+                <a href="#" onclick="carregarSecao('registos')" class="sidebar-item" id="nav-registos">
+                    <i data-lucide="book-open" class="w-5 h-5 mr-3"></i>
+                    Registos
+                </a>
+                <a href="#" onclick="carregarSecao('prazos')" class="sidebar-item" id="nav-prazos">
+                    <i data-lucide="clock" class="w-5 h-5 mr-3"></i>
+                    Prazos
+                </a>
+                <a href="#" onclick="carregarSecao('tarefas')" class="sidebar-item" id="nav-tarefas">
+                    <i data-lucide="check-square" class="w-5 h-5 mr-3"></i>
+                    Tarefas
+                </a>
+                <a href="#" onclick="carregarSecao('calendario')" class="sidebar-item" id="nav-calendario">
+                    <i data-lucide="calendar-days" class="w-5 h-5 mr-3"></i>
+                    Calendário
+                </a>
+            <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
+                <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
+                Minutas
+                </a>
+            <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
+                Relatórios
+            </a>
+            <a href="#" onclick="carregarSecao('backup')" class="sidebar-item" id="nav-backup">
+                <i data-lucide="database" class="w-5 h-5 mr-3"></i>
+                Backup
+            </a>
+            <a href="#" onclick="carregarSecao('historico')" class="sidebar-item" id="nav-historico">
+                <i data-lucide="history" class="w-5 h-5 mr-3"></i>
+                Histórico
+            </a>
+            <a href="#" onclick="carregarSecao('convidados')" class="sidebar-item" id="nav-convidados" style="display: none;">
+                <i data-lucide="user-plus" class="w-5 h-5 mr-3"></i>
+                Gestão de Convidados
+            </a>
+            </nav>
+        </div>
+    </div>
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Menu Mobile -->
+    <button id="menuHamburguer" class="fixed top-4 left-4 z-50 lg:hidden bg-black text-white p-2 rounded">
+        <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+
+    <!-- Conteúdo Principal -->
+    <div class="main-content min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div id="offlineBanner" class="offline-banner">
+                Está offline. As alterações ficam guardadas localmente e serão sincronizadas quando voltar a ter internet.
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+                    <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
+                        <div id="globalSearchContainer" class="relative w-full max-w-xl">
+                            <input id="globalSearchInput" type="text" placeholder="Pesquisa global: clientes, processos, contratos e prazos..." class="form-control w-full pl-10">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </span>
+                            <div id="globalSearchResults" class="hidden absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div id="syncStatusBadge" class="sync-status" data-status="offline">
+                            <span class="sync-dot"></span>
+                            <span class="sync-text">Offline</span>
+                        </div>
+                        <button onclick="carregarSecao('notificacoes')" class="btn btn-secondary" title="Conversas, criar notificação, enviar para convidado, alertas automáticos">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            Central de Notificações
+                        </button>
+                        <button onclick="exportarDadosCompletos()" class="btn btn-primary">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            Exportar Base de Dados
+                        </button>
+                        <button onclick="importarDados()" class="btn btn-success">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Importar
+                        </button>
+                        <button id="btnAlterarSenhaHeader" onclick="abrirModalAlterarSenha()" class="btn btn-secondary hidden" title="Alterar senha do administrador">
+                            <i data-lucide="key" class="w-4 h-4"></i>
+                            Alterar senha
+                        </button>
+                        <button onclick="logout()" class="btn btn-danger">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                            Sair
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Dinâmico -->
+        <main class="p-6">
+            <div id="conteudoDinamico">
+                <!-- Dashboard será carregado aqui -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modais -->
+    <div id="modalContainer"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
