@@ -3926,9 +3926,19 @@ END:VCALENDAR`;
             if (secao === 'tarefas') {
                 const tipoUsr = localStorage.getItem('tipoUsuario');
                 if (tipoUsr === 'convidado' && firestoreDb) {
-                    // Convidado: atualizar tarefas da nuvem ao abrir secção
+                    // Convidado: AGUARDAR sync antes de mostrar tarefas (admin criou nova tarefa = ver aqui)
+                    conteudoElement.innerHTML = '<div class="p-8 text-center text-gray-500"><p>A sincronizar tarefas da nuvem...</p></div>';
                     sincronizarTarefasNuvem().then(() => {
                         carregarDados();
+                        const conteudoTarefas = gerarConteudoSecao('tarefas');
+                        if (conteudoElement) conteudoElement.innerHTML = conteudoTarefas;
+                        aplicarFiltrosTarefas();
+                        lucide.createIcons();
+                    }).catch(err => {
+                        console.warn('Erro ao sincronizar tarefas:', err);
+                        carregarDados();
+                        const conteudoTarefas = gerarConteudoSecao('tarefas');
+                        if (conteudoElement) conteudoElement.innerHTML = conteudoTarefas;
                         aplicarFiltrosTarefas();
                         lucide.createIcons();
                     });
@@ -8709,7 +8719,10 @@ Sistema Legal - ANA PAULA MEDINA
                 <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
                     <div class="flex justify-between items-start gap-3">
                         <div class="flex-1">
-                            <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-semibold text-gray-800">${tarefa.titulo}</span>
+                                ${isConvidado ? '' : `<button type="button" onclick="editarTarefa(${tarefa.id})" class="text-blue-600 hover:text-blue-800 text-xs font-medium underline" title="Editar tarefa"><i data-lucide="pencil" class="w-3 h-3 inline"></i> Editar</button>`}
+                            </div>
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
@@ -8741,6 +8754,10 @@ Sistema Legal - ANA PAULA MEDINA
                     </div>
                     ${isConvidado ? '' : `
                         <div class="flex items-center gap-2">
+                            <button onclick="editarTarefa(${tarefa.id})" class="btn btn-primary" title="Editar tarefa">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                                Editar
+                            </button>
                             <button onclick="alterarStatusTarefa(${tarefa.id})" class="btn btn-secondary">
                                 <i data-lucide="${tarefa.status === 'concluida' ? 'rotate-ccw' : 'check'}" class="w-4 h-4"></i>
                                 ${tarefa.status === 'concluida' ? 'Reabrir' : 'Concluir'}
@@ -8858,6 +8875,131 @@ Sistema Legal - ANA PAULA MEDINA
             registrarAuditoria('excluir', 'tarefa', `Tarefa excluída: ${tarefa.titulo}`, tarefa, null);
             aplicarFiltrosTarefas();
             mostrarNotificacao('Tarefa excluída com sucesso!', 'success');
+        }
+
+        function editarTarefa(id) {
+            if (!exigirPermissaoAcao('editar', 'tarefa')) return;
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const tarefa = lista.find(t => t.id === id);
+            if (!tarefa) {
+                mostrarNotificacao('Tarefa não encontrada.', 'error');
+                return;
+            }
+            const clientesParaSelect = Array.isArray(clientes) ? clientes : [];
+            const dataLimiteFormatada = tarefa.dataLimite ? tarefa.dataLimite.split('T')[0] : '';
+            const linksTexto = Array.isArray(tarefa.links) ? tarefa.links.join(', ') : '';
+            const optCliente = (c) => '<option value="' + c.id + '"' + (c.id == tarefa.clienteId ? ' selected' : '') + '>' + (c.nome || '').replace(/</g, '&lt;') + '</option>';
+            const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            const sel = (a, b) => (tarefa[a] === b || (!tarefa[a] && b === 'outro') || (!tarefa[a] && b === 'media')) ? ' selected' : '';
+
+            const modal =
+                '<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">' +
+                '<div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">' +
+                '<div class="p-6"><div class="flex justify-between items-center mb-6">' +
+                '<h3 class="text-xl font-bold text-gray-900">Editar Tarefa</h3>' +
+                '<button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button></div>' +
+                '<form id="formEditarTarefa" onsubmit="salvarEdicaoTarefa(event, ' + tarefa.id + ')" class="space-y-4">' +
+                '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">' +
+                '<div><label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>' +
+                '<select id="editTarefaCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">' +
+                '<option value="">Selecione</option>' + clientesParaSelect.map(optCliente).join('') + '</select></div>' +
+                '<div><label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>' +
+                '<select id="editTarefaProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2"><option value="contrato"' + sel('processoTipo','contrato') + '>Contrato</option>' +
+                '<option value="heranca"' + sel('processoTipo','heranca') + '>Herança</option><option value="migracao"' + sel('processoTipo','migracao') + '>Migração</option>' +
+                '<option value="registo"' + sel('processoTipo','registo') + '>Registo</option><option value="prazo"' + sel('processoTipo','prazo') + '>Prazo</option>' +
+                '<option value="outro"' + sel('processoTipo','outro') + '>Outro</option></select></div>' +
+                '<div><label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>' +
+                '<select id="editTarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2">' +
+                '<option value="baixa"' + sel('prioridade','baixa') + '>Baixa</option><option value="media"' + (sel('prioridade','media') || (!tarefa.prioridade ? ' selected' : '')) + '>Média</option>' +
+                '<option value="alta"' + sel('prioridade','alta') + '>Alta</option><option value="critica"' + sel('prioridade','critica') + '>Crítica</option></select></div>' +
+                '<div><label class="block text-sm font-medium text-gray-700 mb-2">Status</label>' +
+                '<select id="editTarefaStatus" class="w-full border border-gray-300 rounded px-3 py-2">' +
+                '<option value="aberta"' + sel('status','aberta') + '>Aberta</option><option value="concluida"' + sel('status','concluida') + '>Concluída</option></select></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>' +
+                '<input id="editTarefaDataLimite" type="date" value="' + esc(dataLimiteFormatada) + '" class="w-full border border-gray-300 rounded px-3 py-2"></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>' +
+                '<input id="editTarefaTitulo" type="text" required value="' + esc(tarefa.titulo) + '" class="w-full border border-gray-300 rounded px-3 py-2"></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>' +
+                '<textarea id="editTarefaDescricao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2">' + esc(tarefa.descricao) + '</textarea></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>' +
+                '<textarea id="editTarefaObservacoes" rows="2" class="w-full border border-gray-300 rounded px-3 py-2">' + esc(tarefa.observacoes) + '</textarea></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>' +
+                '<input id="editTarefaLinks" type="text" value="' + esc(linksTexto) + '" class="w-full border border-gray-300 rounded px-3 py-2"></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Novos anexos (opcional)</label>' +
+                '<input id="editTarefaAnexos" type="file" multiple class="w-full border border-gray-300 rounded px-3 py-2">' +
+                '<p class="text-xs text-gray-500 mt-1">Os anexos existentes são mantidos.</p></div></div>' +
+                '<div class="flex justify-end gap-2 mt-6"><button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>' +
+                '<button type="submit" class="btn btn-primary">Guardar alterações</button></div></form></div></div></div>';
+
+            const modalContainer = document.getElementById('modalContainer');
+            if (modalContainer) {
+                modalContainer.innerHTML = modal;
+                modalContainer.classList.add('show');
+                lucide.createIcons();
+            }
+        }
+
+        function salvarEdicaoTarefa(event, tarefaId) {
+            event.preventDefault();
+            if (!exigirPermissaoAcao('editar', 'tarefa')) return;
+            const lista = Array.isArray(tarefas) ? tarefas : [];
+            const index = lista.findIndex(t => t.id === tarefaId);
+            if (index === -1) {
+                mostrarNotificacao('Tarefa não encontrada.', 'error');
+                return;
+            }
+            const tarefa = lista[index];
+            const clienteId = parseInt(document.getElementById('editTarefaCliente')?.value || '');
+            const titulo = document.getElementById('editTarefaTitulo')?.value?.trim() || '';
+            if (!clienteId || !titulo) {
+                mostrarNotificacao('Cliente e título são obrigatórios.', 'warning');
+                return;
+            }
+            const cliente = clientes.find(c => c.id === clienteId);
+            const linksRaw = document.getElementById('editTarefaLinks')?.value || '';
+            const links = linksRaw.split(',').map(item => item.trim()).filter(Boolean);
+            const anexosInput = document.getElementById('editTarefaAnexos');
+            const arquivos = anexosInput && anexosInput.files ? Array.from(anexosInput.files) : [];
+            const maxAnexo = 5 * 1024 * 1024;
+            const anexoGrande = arquivos.find(arquivo => arquivo.size > maxAnexo);
+            if (anexoGrande) {
+                mostrarNotificacao('Anexo acima de 5 MB. Tente um ficheiro menor.', 'error');
+                return;
+            }
+            const antes = { ...tarefa };
+            tarefa.clienteId = clienteId;
+            tarefa.clienteNome = cliente ? cliente.nome : '';
+            tarefa.processoTipo = document.getElementById('editTarefaProcessoTipo')?.value || 'outro';
+            tarefa.prioridade = document.getElementById('editTarefaPrioridade')?.value || 'media';
+            tarefa.status = document.getElementById('editTarefaStatus')?.value || 'aberta';
+            tarefa.titulo = titulo;
+            tarefa.descricao = document.getElementById('editTarefaDescricao')?.value?.trim() || '';
+            tarefa.observacoes = document.getElementById('editTarefaObservacoes')?.value?.trim() || '';
+            tarefa.links = links;
+            tarefa.dataLimite = document.getElementById('editTarefaDataLimite')?.value || null;
+
+            const aplicarAnexos = (novosAnexos) => {
+                const anexosExistentes = Array.isArray(tarefa.anexos) ? tarefa.anexos : [];
+                tarefa.anexos = [...anexosExistentes, ...novosAnexos];
+                salvarTarefasLocal(lista);
+                salvarTarefaCloud(tarefa);
+                registrarAuditoria('editar', 'tarefa', 'Tarefa editada: ' + tarefa.titulo, antes, tarefa);
+                fecharModalRobusto();
+                aplicarFiltrosTarefas();
+                mostrarNotificacao('Tarefa actualizada com sucesso!', 'success');
+                lucide.createIcons();
+            };
+
+            if (arquivos.length === 0) {
+                aplicarAnexos([]);
+                return;
+            }
+            Promise.all(arquivos.map((arquivo, i) => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({ id: String(Date.now()) + '_' + i, nome: arquivo.name, tipo: arquivo.type, tamanho: arquivo.size, conteudo: reader.result });
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(arquivo);
+            }))).then(resultados => aplicarAnexos(resultados.filter(Boolean)));
         }
 
         function formatarDataLocalCalendario(data) {
