@@ -8727,8 +8727,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
-                            <div class="text-[11px] text-gray-500">Criado por ${String(tarefa.criadoPor || '') === 'true' ? 'Admin' : (tarefa.criadoPor || 'N/D')} (${String(tarefa.criadoPorTipo || tarefa.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})${tarefa.atualizadoPor ? ` • Atualizado por ${String(tarefa.atualizadoPor) === 'true' ? 'Admin' : tarefa.atualizadoPor} (${String(tarefa.atualizadoPorTipo || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})` : ''}</div>
-                            ${renderMetaAuditoria('tarefa', tarefa)}
+                            <div class="text-xs mt-1 px-2 py-0.5 rounded bg-gray-100 inline-block text-gray-600"><strong>Criado por:</strong> ${String(tarefa.criadoPor || '') === 'true' ? 'Admin' : (tarefa.criadoPor || 'N/D')} <span class="font-medium">(${String(tarefa.criadoPorTipo || tarefa.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})</span>${tarefa.atualizadoPor ? ` • <strong>Atualizado por:</strong> ${String(tarefa.atualizadoPor) === 'true' ? 'Admin' : tarefa.atualizadoPor} (${String(tarefa.atualizadoPorTipo || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})` : ''}</div>
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
                             ${tarefa.links && tarefa.links.length ? `
                                 <div class="text-xs text-gray-400">
