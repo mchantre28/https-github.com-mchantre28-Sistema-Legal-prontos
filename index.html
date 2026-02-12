@@ -3501,6 +3501,19 @@ END:VCALENDAR`;
             return `<div class="text-[11px] text-gray-500">Criado por ${meta.criadoPor} • Atualizado por ${meta.atualizadoPor}${dataAtualizado ? ` • ${dataAtualizado}` : ''}</div>`;
         }
 
+        function formatCriadoPorBadge(item) {
+            if (!item) return '';
+            const nome = String(item.criadoPor || '') === 'true' ? 'Admin' : (item.criadoPor || 'N/D');
+            const tipo = String(item.criadoPorTipo || item.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin';
+            let html = '<div class="text-xs mt-1 px-2 py-0.5 rounded bg-gray-100 inline-block text-gray-600"><strong>Criado por:</strong> ' + nome + ' <span class="font-medium">(' + tipo + ')</span>';
+            if (item.atualizadoPor) {
+                const updNome = String(item.atualizadoPor) === 'true' ? 'Admin' : item.atualizadoPor;
+                const updTipo = String(item.atualizadoPorTipo || 'admin') === 'convidado' ? 'Convidado' : 'Admin';
+                html += ' &bull; <strong>Atualizado por:</strong> ' + updNome + ' (' + updTipo + ')';
+            }
+            return html + '</div>';
+        }
+
         function exportarAuditoria() {
             const auditoria = obterAuditoria();
             const blob = new Blob([JSON.stringify(auditoria, null, 2)], { type: 'application/json' });
@@ -7513,6 +7526,7 @@ Sistema Legal - ANA PAULA MEDINA
             const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
             const valorTotal = honorarios.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
 
+            const isAdmin = localStorage.getItem('tipoUsuario') !== 'convidado';
             return `
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
@@ -7521,7 +7535,11 @@ Sistema Legal - ANA PAULA MEDINA
                             Novo Honorário
                         </button>
                     </div>
-                    
+                    ${isAdmin ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os honorários:</strong> O convidado só vê honorários dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="card p-6">
                             <div class="flex items-center">
@@ -7677,6 +7695,7 @@ Sistema Legal - ANA PAULA MEDINA
                 return sum + valor;
             }, 0);
 
+            const isAdminContrato = localStorage.getItem('tipoUsuario') !== 'convidado';
             return `
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
@@ -7685,7 +7704,11 @@ Sistema Legal - ANA PAULA MEDINA
                             Novo Contrato
                         </button>
                     </div>
-                    
+                    ${isAdminContrato ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os contratos:</strong> O convidado só vê contratos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="card p-6">
                             <div class="flex items-center">
@@ -7854,6 +7877,7 @@ Sistema Legal - ANA PAULA MEDINA
                 }
             }).length;
 
+            const isAdminPrazo = localStorage.getItem('tipoUsuario') !== 'convidado';
             return `
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
@@ -7862,7 +7886,11 @@ Sistema Legal - ANA PAULA MEDINA
                             Prazos criados automaticamente pelas áreas de execução
                         </div>
                     </div>
-                    
+                    ${isAdminPrazo ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os prazos:</strong> O convidado só vê prazos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="card p-6">
                             <div class="flex items-center">
@@ -9607,7 +9635,11 @@ Sistema Legal - ANA PAULA MEDINA
                             </button>
                         `}
                     </div>
-                    
+                    ${!tipoUsuario || tipoUsuario !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os documentos:</strong> O convidado só vê documentos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     ${isConvidado ? '' : `
                         <div class="card p-6">
                             <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
@@ -14341,7 +14373,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             </button>
                         </div>
                     </div>
-
+                    ${localStorage.getItem('tipoUsuario') !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as heranças:</strong> O convidado só vê heranças dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <!-- Estatísticas -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div class="card p-6">
@@ -14789,7 +14825,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             </button>
                         </div>
                     </div>
-
+                    ${localStorage.getItem('tipoUsuario') !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as migrações:</strong> O convidado só vê migrações dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <!-- Estatísticas -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div class="card p-6">
@@ -14963,7 +15003,11 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             </button>
                         </div>
                     </div>
-
+                    ${localStorage.getItem('tipoUsuario') !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os registos:</strong> O convidado só vê registos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <!-- Estatísticas -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div class="card p-6">
