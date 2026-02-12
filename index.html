@@ -1857,6 +1857,7 @@
                 await sincronizarConvidadosDaNuvem();
             }
             await sincronizarTarefasNuvem();
+            iniciarListenerTarefasNuvem();
             
             // Verificar tipo de usuário para carregar seção apropriada
             const tipoUsuario = localStorage.getItem('tipoUsuario');
@@ -8346,16 +8347,35 @@ Sistema Legal - ANA PAULA MEDINA
                 }
                 const snap = await firestoreDb.collection('tarefas').get();
                 const cloud = snap.docs.map(doc => doc.data());
-                const map = new Map();
-                [...local, ...cloud].forEach(t => {
-                    if (!t || t.id === undefined || t.id === null) return;
-                    map.set(String(t.id), t);
-                });
-                const merged = Array.from(map.values()).sort((a, b) => (b.dataCriacao || '').localeCompare(a.dataCriacao || ''));
-                salvarTarefasLocal(merged);
+                fundirTarefasCloudELocal(local, cloud);
             } catch (error) {
                 console.warn('Erro ao sincronizar tarefas:', error);
             }
+        }
+
+        function fundirTarefasCloudELocal(local, cloud) {
+            const map = new Map();
+            [...(local || []), ...(cloud || [])].forEach(t => {
+                if (!t || t.id === undefined || t.id === null) return;
+                map.set(String(t.id), t);
+            });
+            const merged = Array.from(map.values()).sort((a, b) => (b.dataCriacao || '').localeCompare(a.dataCriacao || ''));
+            salvarTarefasLocal(merged);
+        }
+
+        function iniciarListenerTarefasNuvem() {
+            if (!firestoreDb) return;
+            firestoreDb.collection('tarefas').onSnapshot(function(snap) {
+                const cloud = snap.docs.map(doc => doc.data());
+                const local = Array.isArray(tarefas) ? tarefas : [];
+                fundirTarefasCloudELocal(local, cloud);
+                if (typeof secaoAtiva !== 'undefined' && secaoAtiva === 'tarefas') {
+                    aplicarFiltrosTarefas();
+                    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+                }
+            }, function(err) {
+                console.warn('Listener tarefas:', err);
+            });
         }
 
         function normalizarLinkTarefa(url) {
@@ -8484,6 +8504,11 @@ Sistema Legal - ANA PAULA MEDINA
                         </div>
                     `}
                     
+                    ${isConvidado ? '' : `
+                    <div class="card p-6 mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as tarefas:</strong> Crie a tarefa para um cliente. O convidado só vê tarefas dos clientes que tem autorizados (Backup → Convidados → Editar permissões). As tarefas aparecem em tempo real.</p>
+                    </div>
+                    `}
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
