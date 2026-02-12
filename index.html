@@ -5854,6 +5854,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                 <div>
                                                     <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
                                                     <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
+                                                    <span style="color: #6b7280; font-size: 12px;">Criado por ${String(tarefa.criadoPor || '') === 'true' ? 'Admin' : (tarefa.criadoPor || 'N/D')} (${String(tarefa.criadoPorTipo || tarefa.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})</span><br>
                                                     <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
                                                     ${tarefa.links && tarefa.links.length ? `
                                                         <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
@@ -8726,6 +8727,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
+                            <div class="text-[11px] text-gray-500">Criado por ${String(tarefa.criadoPor || '') === 'true' ? 'Admin' : (tarefa.criadoPor || 'N/D')} (${String(tarefa.criadoPorTipo || tarefa.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})${tarefa.atualizadoPor ? ` • Atualizado por ${String(tarefa.atualizadoPor) === 'true' ? 'Admin' : tarefa.atualizadoPor} (${String(tarefa.atualizadoPorTipo || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})` : ''}</div>
                             ${renderMetaAuditoria('tarefa', tarefa)}
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
                             ${tarefa.links && tarefa.links.length ? `
@@ -8818,8 +8820,8 @@ Sistema Legal - ANA PAULA MEDINA
                 status: 'aberta',
                 dataLimite: dataLimite || null,
                 anexos: [],
-                criadoPor: localStorage.getItem('usuarioLogado') || 'N/D',
-                tipoUsuario: localStorage.getItem('tipoUsuario') || 'N/D',
+                criadoPor: localStorage.getItem('usuarioNome') || localStorage.getItem('usuarioLogado') || 'N/D',
+                criadoPorTipo: localStorage.getItem('tipoUsuario') || 'admin',
                 dataCriacao: new Date().toISOString()
             };
 
@@ -8977,6 +8979,8 @@ Sistema Legal - ANA PAULA MEDINA
             tarefa.observacoes = document.getElementById('editTarefaObservacoes')?.value?.trim() || '';
             tarefa.links = links;
             tarefa.dataLimite = document.getElementById('editTarefaDataLimite')?.value || null;
+            tarefa.atualizadoPor = localStorage.getItem('usuarioNome') || localStorage.getItem('usuarioLogado') || 'N/D';
+            tarefa.atualizadoPorTipo = localStorage.getItem('tipoUsuario') || 'admin';
 
             const aplicarAnexos = (novosAnexos) => {
                 const anexosExistentes = Array.isArray(tarefa.anexos) ? tarefa.anexos : [];
