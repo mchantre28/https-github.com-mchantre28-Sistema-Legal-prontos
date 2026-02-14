@@ -779,9 +779,9 @@
                     <i data-lucide="calendar-days" class="w-5 h-5 mr-3"></i>
                     Calendário
                 </a>
-            <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos">
-                <i data-lucide="folder" class="w-5 h-5 mr-3"></i>
-                Documentos
+            <a href="#" onclick="carregarSecao('documentos')" class="sidebar-item" id="nav-documentos" title="Minutas">
+                <i data-lucide="file-text" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                <span>Minutas</span>
             </a>
             <a href="#" onclick="limparDadosLocaisERecarregar(); return false;" class="sidebar-item bg-amber-600 hover:bg-amber-700 text-white" id="nav-limpar-convidado" style="display: none;">
                 <i data-lucide="refresh-cw" class="w-5 h-5 mr-3"></i>
@@ -869,6 +869,10 @@
         // SISTEMA DE LOGIN
         const USUARIO_PADRAO = 'admin';
         const SENHA_PADRAO = 'APM2024!';
+
+        function obterSenhaAdmin() {
+            return localStorage.getItem('adminSenha') || SENHA_PADRAO;
+        }
 
         // === FIREBASE (CONVIDADOS EM NUVEM) ===
         const firebaseConfig = {
@@ -1072,7 +1076,7 @@
                 const usuario = document.getElementById('usuario').value;
                 const senha = document.getElementById('senha').value;
                 
-                if (usuario === USUARIO_PADRAO && senha === SENHA_PADRAO) {
+                if (usuario === USUARIO_PADRAO && senha === obterSenhaAdmin()) {
                     localStorage.setItem('usuarioLogado', 'true');
                     localStorage.setItem('usuarioNome', usuario);
                     localStorage.setItem('tipoUsuario', 'admin');
@@ -1175,6 +1179,63 @@
             localStorage.removeItem('convidadoId');
             location.reload();
         }
+
+        function abrirModalAlterarSenha() {
+            const modal = document.getElementById('modalContainer');
+            if (!modal) return;
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]" onclick="if(event.target===this)this.parentElement.innerHTML=''">
+                    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick="event.stopPropagation()">
+                        <h3 class="text-lg font-semibold mb-4">Alterar senha do administrador</h3>
+                        <form id="formAlterarSenha" onsubmit="salvarNovaSenha(event); return false;">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Senha actual</label>
+                                    <input type="password" id="senhaAtualAlterar" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite a senha actual" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nova senha</label>
+                                    <input type="password" id="senhaNovaAlterar" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite a nova senha" required minlength="6">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nova senha</label>
+                                    <input type="password" id="senhaNovaConfirmar" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Repita a nova senha" required minlength="6">
+                                </div>
+                            </div>
+                            <div class="flex gap-2 mt-6">
+                                <button type="button" onclick="document.getElementById('modalContainer').innerHTML=''" class="flex-1 btn btn-secondary">Cancelar</button>
+                                <button type="submit" class="flex-1 btn btn-primary">Guardar nova senha</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function salvarNovaSenha(event) {
+            event.preventDefault();
+            const senhaAtual = document.getElementById('senhaAtualAlterar').value;
+            const senhaNova = document.getElementById('senhaNovaAlterar').value;
+            const senhaConfirmar = document.getElementById('senhaNovaConfirmar').value;
+
+            if (senhaAtual !== obterSenhaAdmin()) {
+                mostrarNotificacao('Senha actual incorreta.', 'error');
+                return;
+            }
+            if (senhaNova.length < 6) {
+                mostrarNotificacao('A nova senha deve ter pelo menos 6 caracteres.', 'error');
+                return;
+            }
+            if (senhaNova !== senhaConfirmar) {
+                mostrarNotificacao('A nova senha e a confirmação não coincidem.', 'error');
+                return;
+            }
+
+            localStorage.setItem('adminSenha', senhaNova);
+            document.getElementById('modalContainer').innerHTML = '';
+            mostrarNotificacao('Senha alterada com sucesso. Use a nova senha no próximo login.', 'success');
+            registrarAuditoria('alterar', 'senha', 'Administrador alterou a senha de acesso');
+        }
         
         // FUNÇÃO PARA GERAR CÓDIGOS DE ACESSO SEGUROS
         function gerarCodigoAcesso() {
@@ -1214,6 +1275,7 @@
                     localStorage.removeItem('usuarioNome');
                     localStorage.removeItem('tipoUsuario');
                     localStorage.removeItem('convidadoId');
+                    localStorage.removeItem('adminSenha');
                     
                     // Limpar variáveis globais
                     clientes = [];
@@ -1405,6 +1467,18 @@
             carregarSecao('convidados');
         }
         
+        function convidadoPodeVerTarefa(tarefa) {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
+            if (tipoUsuario === 'admin') return true;
+            if (tipoUsuario !== 'convidado') return false;
+            const convidadoId = localStorage.getItem('convidadoId');
+            const convidados = obterConvidados();
+            const convidadoAtual = convidados.find(c => String(c.id) === String(convidadoId) || c.codigo === convidadoId);
+            if (tarefa.paraConvidadoId && convidadoAtual && String(tarefa.paraConvidadoId) === String(convidadoAtual.id)) return true;
+            if (Array.isArray(tarefa.paraConvidadoIds) && convidadoAtual && tarefa.paraConvidadoIds.some(cid => String(cid) === String(convidadoAtual.id))) return true;
+            return verificarPermissaoCliente(tarefa.clienteId);
+        }
+
         // VERIFICAÇÃO DE PERMISSÕES
         function verificarPermissaoCliente(clienteId) {
             const tipoUsuario = localStorage.getItem('tipoUsuario');
@@ -1577,6 +1651,12 @@
                 mainContent.style.marginLeft = '300px';
                 mainContent.style.setProperty('margin-left', '300px', 'important');
                 console.log('🔧 Margem do conteúdo principal ajustada para 300px');
+            }
+            // Garantir que o menu mostra "Minutas" e não "Documentos"
+            const navDocs = document.getElementById('nav-documentos');
+            if (navDocs) {
+                const span = navDocs.querySelector('span');
+                if (span) span.textContent = 'Minutas';
             }
         }
         
@@ -3312,6 +3392,20 @@ END:VCALENDAR`;
 
         }
 
+        function criarTarefasSemAnexosGrandes(tarefas) {
+            return tarefas.map(t => {
+                if (!t.anexos || !t.anexos.length) return t;
+                const anexosSlim = t.anexos.map(a => ({
+                    id: a.id,
+                    nome: a.nome,
+                    tipo: a.tipo,
+                    tamanho: a.tamanho,
+                    _semConteudo: true
+                }));
+                return { ...t, anexos: anexosSlim };
+            });
+        }
+
         function salvarDados(chave, dados) {
             console.log('🔧 salvarDados chamado:', chave, dados);
             try {
@@ -3323,8 +3417,26 @@ END:VCALENDAR`;
                 }
                 
                 // Salvar no localStorage
-                const dadosString = JSON.stringify(dados);
-                localStorage.setItem(chave, dadosString);
+                let dadosString = JSON.stringify(dados);
+                try {
+                    localStorage.setItem(chave, dadosString);
+                } catch (quotaErr) {
+                    if (quotaErr.name === 'QuotaExceededError' || quotaErr.message && quotaErr.message.includes('quota')) {
+                        if (chave === 'tarefas' && dados.some(t => t.anexos && t.anexos.some(a => a.conteudo))) {
+                            const dadosSlim = criarTarefasSemAnexosGrandes(dados);
+                            dadosString = JSON.stringify(dadosSlim);
+                            localStorage.setItem(chave, dadosString);
+                            tarefas = dadosSlim;
+                            window.tarefas = tarefas;
+                            mostrarNotificacao('Armazenamento cheio. Guardadas tarefas sem conteúdo dos anexos (os anexos continuam na nuvem). Considere exportar backup e limpar dados antigos em Backup.', 'warning');
+                            console.warn('Tarefas guardadas sem anexos (quota excedida)');
+                            return;
+                        }
+                        mostrarNotificacao('Armazenamento cheio. Exporte um backup (Backup → Exportar), limpe backups antigos ou remova anexos de tarefas/minutas.', 'error');
+                        throw quotaErr;
+                    }
+                    throw quotaErr;
+                }
                 console.log('✅ Dados salvos no localStorage:', chave, dadosString.length, 'caracteres');
                 
                 // Atualizar variáveis globais
@@ -4076,7 +4188,7 @@ END:VCALENDAR`;
                 herancas: 'Gestão de Heranças',
                 migracoes: 'Gestão de Migração',
                 registos: 'Gestão de Registos',
-                documentos: 'Gestão de Documentos',
+                documentos: 'Gestão de Minutas',
                 tarefas: 'Sistema de Tarefas',
                 calendario: 'Calendário de Prazos',
                 relatorios: 'Gestão de Relatórios',
@@ -5220,7 +5332,7 @@ Sistema Legal - ANA PAULA MEDINA
                                 <option value="herancas">Apenas Heranças</option>
                                 <option value="migracoes">Apenas Migrações</option>
                                 <option value="registos">Apenas Registos</option>
-                                <option value="documentos">Apenas Documentos</option>
+                                <option value="documentos">Apenas Minutas</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 15px;">
@@ -5895,11 +6007,11 @@ Sistema Legal - ANA PAULA MEDINA
                             </div>
                         ` : ''}
 
-                        <!-- Documentos -->
+                        <!-- Minutas -->
                         <div style="margin-bottom: 30px;">
-                            <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
+                            <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Minutas (${dadosCliente.documentos.length})</h4>
                             <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                                <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
+                                <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar minuta rápida</div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
                                     <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                         <option value="contrato">Contrato</option>
@@ -5916,11 +6028,11 @@ Sistema Legal - ANA PAULA MEDINA
                                     <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 </div>
                                 <button type="button" class="js-doc-modal-add" data-cliente-id="${cliente.id}" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" onclick="adicionarDocumentoModalHandler(this)" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
-                                    Guardar documento
+                                    Guardar minuta
                                 </button>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
-                                <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
+                                <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar minutas..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
                                 <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
                                     <option value="data_desc">Mais recentes</option>
                                     <option value="data_asc">Mais antigos</option>
@@ -5980,7 +6092,7 @@ Sistema Legal - ANA PAULA MEDINA
                             gap: 5px;
                         ">
                             <i data-lucide="file-plus" class="w-4 h-4"></i>
-                            Adicionar Documento
+                            Adicionar Minuta
                         </button>
                         <button class="btn btn-primary js-relatorio-cliente" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" style="
                             padding: 8px 16px;
@@ -6098,7 +6210,7 @@ Sistema Legal - ANA PAULA MEDINA
                 return true;
             });
             if (filtrados.length === 0) {
-                container.innerHTML = '<div style="color: #6b7280; font-size: 12px; padding: 8px 0;">Nenhum documento encontrado.</div>';
+                container.innerHTML = '<div style="color: #6b7280; font-size: 12px; padding: 8px 0;">Nenhuma minuta encontrada.</div>';
                 if (resumo) resumo.textContent = '';
                 return;
             }
@@ -6121,14 +6233,14 @@ Sistema Legal - ANA PAULA MEDINA
                         <div style="background: ${documentoMaisRecente && doc === documentoMaisRecente ? '#ecfeff' : '#f8fafc'}; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid ${documentoMaisRecente && doc === documentoMaisRecente ? '#06b6d4' : '#10b981'};">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                 <div>
-                                    <strong>${doc.nomeArquivo || 'Documento'}</strong>
+                                    <strong>${doc.nomeArquivo || 'Minuta'}</strong>
                                     ${documentoMaisRecente && doc === documentoMaisRecente ? `<span style="margin-left: 6px; font-size: 11px; color: #0f766e; font-weight: 600;">Mais recente</span>` : ''}<br>
                                     <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
                                     <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
                                     ${doc.conteudo ? `
                                         <div style="margin-top: 6px;">
                                             <button onclick="abrirDocumentoClienteModal(${docIdx})" style="font-size: 12px; color: #2563eb; text-decoration: underline; background: transparent; border: none; padding: 0; cursor: pointer;">
-                                                Abrir documento
+                                                Abrir minuta
                                             </button>
                                         </div>
                                     ` : ''}
@@ -6185,7 +6297,7 @@ Sistema Legal - ANA PAULA MEDINA
         function baixarDocumentoUrl(url, nome) {
             const link = document.createElement('a');
             link.href = url;
-            link.download = nome || 'documento';
+            link.download = nome || 'minuta';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -6194,7 +6306,7 @@ Sistema Legal - ANA PAULA MEDINA
         async function abrirDocumentoEmNovaAba(doc) {
             const url = doc && doc.conteudo ? doc.conteudo : '';
             if (!url) {
-                mostrarNotificacao('Documento sem conteúdo.', 'warning');
+                mostrarNotificacao('Minuta sem conteúdo.', 'warning');
                 return;
             }
             try {
@@ -6238,7 +6350,7 @@ Sistema Legal - ANA PAULA MEDINA
             const lista = window.__docsClienteModalFiltrados || [];
             const doc = lista[idx];
             if (!doc) {
-                mostrarNotificacao('Documento não encontrado.', 'error');
+                mostrarNotificacao('Minuta não encontrada.', 'error');
                 return;
             }
             abrirDocumentoEmNovaAba(doc);
@@ -6323,7 +6435,7 @@ Sistema Legal - ANA PAULA MEDINA
                 lista.unshift(documento);
                 salvarDocumentosLocal(lista);
                 registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
-                mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
 
                 window.__docsClienteModal = lista.filter(doc => String(doc.clienteId || '') === String(clienteId));
                 renderDocumentosClienteModal(window.__docsClienteModal || [], document.getElementById('filtroDocumentosClienteModal')?.value || '');
@@ -6662,6 +6774,11 @@ Sistema Legal - ANA PAULA MEDINA
                             <i data-lucide="refresh-cw" class="w-5 h-5"></i>
                             Limpar dados e actualizar
                         </button>
+                    </div>
+                    ` : ''}
+                    ${tipoUsuario !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os dados no dashboard:</strong> O convidado só vê dados dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
                     </div>
                     ` : ''}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -7420,6 +7537,11 @@ Sistema Legal - ANA PAULA MEDINA
                         </button>
                     </div>
                     ` : ''}
+                    ${tipoUsuario !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os clientes:</strong> O convidado só vê clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="flex justify-between items-center">
                         ${botaoNovoCliente}
                     </div>
@@ -7505,7 +7627,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                     <button onclick="editarItem('cliente', ${cliente.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                         <i data-lucide="edit" class="w-4 h-4"></i>
                                                     </button>
-                                                    <button onclick="abrirAnexosCliente(${cliente.id})" class="text-green-600 hover:text-green-800" title="Documentos">
+                                                    <button onclick="abrirAnexosCliente(${cliente.id})" class="text-green-600 hover:text-green-800" title="Minutas">
                                                         <i data-lucide="paperclip" class="w-4 h-4"></i>
                                                     </button>
                                                 </td>
@@ -7843,7 +7965,7 @@ Sistema Legal - ANA PAULA MEDINA
                                                     <button onclick="editarContratoDireto(${contrato.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                         <i data-lucide="edit" class="w-4 h-4"></i>
                                                     </button>
-                                                    <button onclick="abrirAnexosContrato(${contrato.id})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                                                    <button onclick="abrirAnexosContrato(${contrato.id})" class="text-green-600 hover:text-green-800 mr-2" title="Minutas">
                                                         <i data-lucide="paperclip" class="w-4 h-4"></i>
                                                     </button>
                                                     <button onclick="excluirContratoDireto(${contrato.id})" class="text-red-600 hover:text-red-800" title="Excluir">
@@ -8419,8 +8541,12 @@ Sistema Legal - ANA PAULA MEDINA
             const lista = Array.isArray(tarefas) ? tarefas : [];
             const tarefa = lista.find(t => t.id === tarefaId);
             const anexo = tarefa && Array.isArray(tarefa.anexos) ? tarefa.anexos.find(a => a.id === anexoId) : null;
-            if (!anexo || !anexo.conteudo) {
+            if (!anexo) {
                 mostrarNotificacao('Anexo não encontrado.', 'error');
+                return;
+            }
+            if (!anexo.conteudo) {
+                mostrarNotificacao('Conteúdo do anexo foi removido para libertar espaço. Os anexos estão na nuvem.', 'info');
                 return;
             }
             const link = document.createElement('a');
@@ -8439,7 +8565,7 @@ Sistema Legal - ANA PAULA MEDINA
             registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
             mostrarNotificacao('Tarefa criada com sucesso!', 'success');
 
-            const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaObservacoes', 'tarefaLinks', 'tarefaDataLimite', 'tarefaLembrete', 'tarefaAnexos'];
+            const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaObservacoes', 'tarefaLinks', 'tarefaDataLimite', 'tarefaLembrete', 'tarefaParaConvidado', 'tarefaAnexos'];
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
@@ -8454,10 +8580,11 @@ Sistema Legal - ANA PAULA MEDINA
             const isConvidado = tipoUsuario === 'convidado';
             let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
             let tarefasParaMostrar = Array.isArray(tarefas) ? tarefas : [];
+            const convidadosAtivos = obterConvidados().filter(c => c.ativo);
             
             if (isConvidado) {
                 clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
-                tarefasParaMostrar = tarefasParaMostrar.filter(t => verificarPermissaoCliente(t.clienteId));
+                tarefasParaMostrar = tarefasParaMostrar.filter(t => convidadoPodeVerTarefa(t));
             }
             
             return `
@@ -8528,13 +8655,21 @@ Sistema Legal - ANA PAULA MEDINA
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
                                     <input id="tarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
+                                <div class="md:col-span-2 lg:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Para o convidado ver esta tarefa</label>
+                                    <select id="tarefaParaConvidado" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="">Nenhum (visível se tiver o cliente autorizado)</option>
+                                        ${convidadosAtivos.map(c => `<option value="${c.id}">${c.nome || c.codigo || 'Convidado'}</option>`).join('')}
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">Selecione o convidado para que a tarefa fique visível no seu painel, mesmo sem o cliente autorizado.</p>
+                                </div>
                             </div>
                         </div>
                     `}
                     
                     ${isConvidado ? '' : `
                     <div class="card p-6 mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as tarefas:</strong> Crie a tarefa para um cliente. O convidado só vê tarefas dos clientes que tem autorizados (Backup → Convidados → Editar permissões). As tarefas aparecem em tempo real.</p>
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as tarefas:</strong> Crie a tarefa para um cliente. O convidado vê tarefas dos clientes que tem autorizados (Backup → Convidados → Editar permissões). Ou seleccione <strong>«Para o convidado ver esta tarefa»</strong> para atribuir directamente a um convidado — assim ele terá acesso à tarefa no seu painel, mesmo sem o cliente autorizado. As tarefas aparecem em tempo real.</p>
                     </div>
                     `}
                     <div class="card p-6">
@@ -8650,7 +8785,7 @@ Sistema Legal - ANA PAULA MEDINA
             const tipoUsuario = localStorage.getItem('tipoUsuario');
             let lista = Array.isArray(tarefas) ? tarefas : [];
             if (tipoUsuario === 'convidado') {
-                lista = lista.filter(t => verificarPermissaoCliente(t.clienteId));
+                lista = lista.filter(t => convidadoPodeVerTarefa(t));
             }
             
             const texto = (document.getElementById('filtroTarefasTexto')?.value || '').toLowerCase();
@@ -8780,6 +8915,7 @@ Sistema Legal - ANA PAULA MEDINA
                             <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                             ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
                             <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
+                            ${tarefa.paraConvidadoId ? (() => { const c = obterConvidados().find(x => String(x.id) === String(tarefa.paraConvidadoId)); return '<div class="text-xs mt-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 inline-block"><strong>Atribuída a:</strong> ' + (c ? (c.nome || c.codigo || 'Convidado') : 'Convidado') + '</div>'; })() : ''}
                             <div class="text-xs mt-1 px-2 py-0.5 rounded bg-gray-100 inline-block text-gray-600"><strong>Criado por:</strong> ${String(tarefa.criadoPor || '') === 'true' ? 'Admin' : (tarefa.criadoPor || 'N/D')} <span class="font-medium">(${String(tarefa.criadoPorTipo || tarefa.tipoUsuario || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})</span>${tarefa.atualizadoPor ? ` • <strong>Atualizado por:</strong> ${String(tarefa.atualizadoPor) === 'true' ? 'Admin' : tarefa.atualizadoPor} (${String(tarefa.atualizadoPorTipo || 'admin') === 'convidado' ? 'Convidado' : 'Admin'})` : ''}</div>
                             ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
                             ${tarefa.links && tarefa.links.length ? `
@@ -8859,6 +8995,8 @@ Sistema Legal - ANA PAULA MEDINA
             }
             
             const cliente = clientes.find(c => c.id === clienteId);
+            const paraConvidadoVal = document.getElementById('tarefaParaConvidado')?.value || '';
+            const paraConvidadoId = paraConvidadoVal ? parseInt(paraConvidadoVal, 10) : null;
             const tarefa = {
                 id: Date.now(),
                 clienteId,
@@ -8872,6 +9010,7 @@ Sistema Legal - ANA PAULA MEDINA
                 status: 'aberta',
                 dataLimite: dataLimite || null,
                 anexos: [],
+                paraConvidadoId: paraConvidadoId || null,
                 criadoPor: localStorage.getItem('usuarioNome') || localStorage.getItem('usuarioLogado') || 'N/D',
                 criadoPorTipo: localStorage.getItem('tipoUsuario') || 'admin',
                 dataCriacao: new Date().toISOString()
@@ -8940,9 +9079,11 @@ Sistema Legal - ANA PAULA MEDINA
                 return;
             }
             const clientesParaSelect = Array.isArray(clientes) ? clientes : [];
+            const convidadosAtivosEdit = obterConvidados().filter(c => c.ativo);
             const dataLimiteFormatada = tarefa.dataLimite ? tarefa.dataLimite.split('T')[0] : '';
             const linksTexto = Array.isArray(tarefa.links) ? tarefa.links.join(', ') : '';
             const optCliente = (c) => '<option value="' + c.id + '"' + (c.id == tarefa.clienteId ? ' selected' : '') + '>' + (c.nome || '').replace(/</g, '&lt;') + '</option>';
+            const optConvidado = (c) => '<option value="' + c.id + '"' + (tarefa.paraConvidadoId && String(tarefa.paraConvidadoId) === String(c.id) ? ' selected' : '') + '>' + (c.nome || c.codigo || 'Convidado').replace(/</g, '&lt;') + '</option>';
             const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
             const sel = (a, b) => (tarefa[a] === b || (!tarefa[a] && b === 'outro') || (!tarefa[a] && b === 'media')) ? ' selected' : '';
 
@@ -8979,6 +9120,10 @@ Sistema Legal - ANA PAULA MEDINA
                 '<textarea id="editTarefaObservacoes" rows="2" class="w-full border border-gray-300 rounded px-3 py-2">' + esc(tarefa.observacoes) + '</textarea></div>' +
                 '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>' +
                 '<input id="editTarefaLinks" type="text" value="' + esc(linksTexto) + '" class="w-full border border-gray-300 rounded px-3 py-2"></div>' +
+                '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Para o convidado ver esta tarefa</label>' +
+                '<select id="editTarefaParaConvidado" class="w-full border border-gray-300 rounded px-3 py-2"><option value="">Nenhum</option>' +
+                convidadosAtivosEdit.map(optConvidado).join('') + '</select>' +
+                '<p class="text-xs text-gray-500 mt-1">Selecione o convidado para que a tarefa fique visível no seu painel.</p></div>' +
                 '<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-2">Novos anexos (opcional)</label>' +
                 '<input id="editTarefaAnexos" type="file" multiple class="w-full border border-gray-300 rounded px-3 py-2">' +
                 '<p class="text-xs text-gray-500 mt-1">Os anexos existentes são mantidos.</p></div></div>' +
@@ -9031,6 +9176,8 @@ Sistema Legal - ANA PAULA MEDINA
             tarefa.observacoes = document.getElementById('editTarefaObservacoes')?.value?.trim() || '';
             tarefa.links = links;
             tarefa.dataLimite = document.getElementById('editTarefaDataLimite')?.value || null;
+            const paraConvidadoVal = document.getElementById('editTarefaParaConvidado')?.value || '';
+            tarefa.paraConvidadoId = paraConvidadoVal ? parseInt(paraConvidadoVal, 10) : null;
             tarefa.atualizadoPor = localStorage.getItem('usuarioNome') || localStorage.getItem('usuarioLogado') || 'N/D';
             tarefa.atualizadoPorTipo = localStorage.getItem('tipoUsuario') || 'admin';
 
@@ -9099,8 +9246,14 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function gerarCalendarioPrazos() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
             return `
                 <div class="space-y-6">
+                    ${tipoUsuario !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver o calendário:</strong> O convidado só vê prazos e eventos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <h2 class="text-2xl font-bold">Calendário de Prazos</h2>
                         <div class="flex flex-wrap gap-2">
@@ -9334,8 +9487,14 @@ Sistema Legal - ANA PAULA MEDINA
         }
 
         function gerarRelatorios() {
+            const tipoUsuario = localStorage.getItem('tipoUsuario');
             return `
                 <div class="space-y-6">
+                    ${tipoUsuario !== 'convidado' ? `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os relatórios:</strong> O convidado só vê dados dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                    </div>
+                    ` : ''}
                     <div class="flex justify-between items-center">
                         <h2 class="text-2xl font-bold">Relatórios</h2>
                     </div>
@@ -9627,22 +9786,22 @@ Sistema Legal - ANA PAULA MEDINA
             return `
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-2xl font-bold">Documentos</h2>
+                        <h2 class="text-2xl font-bold">Minutas</h2>
                         ${isConvidado ? '' : `
                             <button onclick="uploadDocumento()" class="btn btn-primary">
                                 <i data-lucide="upload" class="w-4 h-4"></i>
-                                Adicionar Documento
+                                Adicionar Minuta
                             </button>
                         `}
                     </div>
                     ${!tipoUsuario || tipoUsuario !== 'convidado' ? `
                     <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-sm text-blue-800"><strong>Para o convidado ver os documentos:</strong> O convidado só vê documentos dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
+                        <p class="text-sm text-blue-800"><strong>Para o convidado ver as minutas:</strong> O convidado só vê minutas dos clientes que tem autorizados (Backup → Convidados → Editar permissões).</p>
                     </div>
                     ` : ''}
                     ${isConvidado ? '' : `
                         <div class="card p-6">
-                            <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
+                            <h3 class="text-lg font-semibold mb-4">Nova Minuta</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
@@ -9681,7 +9840,7 @@ Sistema Legal - ANA PAULA MEDINA
 
                     ${isConvidado ? '' : `
                         <div class="card p-6">
-                            <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
+                            <h3 class="text-lg font-semibold mb-4">Modelos de minutas</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
@@ -9767,8 +9926,8 @@ Sistema Legal - ANA PAULA MEDINA
                     
                     <div class="card p-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-semibold">Documentos guardados</h3>
-                            <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
+                            <h3 class="text-lg font-semibold">Minutas guardadas</h3>
+                            <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> minutas</div>
                         </div>
                         <div id="listaDocumentos" class="space-y-3"></div>
                     </div>
@@ -9831,7 +9990,7 @@ Sistema Legal - ANA PAULA MEDINA
             if (!container) return;
             
             if (lista.length === 0) {
-                container.innerHTML = '<div class="text-sm text-gray-500">Nenhum documento encontrado.</div>';
+                container.innerHTML = '<div class="text-sm text-gray-500">Nenhuma minuta encontrada.</div>';
                 return;
             }
             
@@ -9914,7 +10073,7 @@ Sistema Legal - ANA PAULA MEDINA
                 lista.unshift(documento);
                 salvarDocumentosLocal(lista);
                 registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
-                mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                 arquivoInput.value = '';
                 const descInput = document.getElementById('docDescricao');
                 const tagsInput = document.getElementById('docTags');
@@ -9928,7 +10087,7 @@ Sistema Legal - ANA PAULA MEDINA
         function baixarDocumento(id) {
             const doc = documentos.find(d => d.id === id);
             if (!doc) {
-                mostrarNotificacao('Documento não encontrado.', 'error');
+                mostrarNotificacao('Minuta não encontrada.', 'error');
                 return;
             }
             const link = document.createElement('a');
@@ -9945,7 +10104,7 @@ Sistema Legal - ANA PAULA MEDINA
             }
             const doc = documentos.find(d => d.id === id);
             if (!doc) {
-                mostrarNotificacao('Documento não encontrado.', 'error');
+                mostrarNotificacao('Minuta não encontrada.', 'error');
                 return;
             }
             if (!confirm('Tem certeza que deseja excluir este documento?')) return;
@@ -11882,7 +12041,7 @@ Sistema Legal - ANA PAULA MEDINA
                         <button onclick="editarContratoDireto(${contrato.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="abrirAnexosContrato(${contrato.id})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                        <button onclick="abrirAnexosContrato(${contrato.id})" class="text-green-600 hover:text-green-800 mr-2" title="Minutas">
                             <i data-lucide="paperclip" class="w-4 h-4"></i>
                         </button>
                         <button onclick="excluirContratoDireto(${contrato.id})" class="text-red-600 hover:text-red-800" title="Excluir">
@@ -12269,7 +12428,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 localStorage.setItem(backupKey, JSON.stringify(backup));
                 
                 // Manter apenas os últimos 10 backups
-                limparBackupsAntigos();
+                limparBackupsAntigos(10);
                 
                 ultimoBackup = backup.timestamp;
                 verificarDownloadAutomatico(backup);
@@ -12386,25 +12545,24 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             }
         }
         
-        function limparBackupsAntigos() {
+        function limparBackupsAntigos(manter = 10) {
             const chaves = Object.keys(localStorage);
             const backups = chaves.filter(chave => chave.startsWith('backup_'));
+            const manterN = Math.max(2, parseInt(manter, 10) || 10);
             
-            if (backups.length > 10) {
-                // Ordenar por timestamp (mais antigos primeiro)
+            if (backups.length > manterN) {
                 const backupsOrdenados = backups.sort((a, b) => {
-                    const timestampA = parseInt(a.split('_')[1]);
-                    const timestampB = parseInt(b.split('_')[1]);
+                    const timestampA = parseInt(a.split('_')[1]) || 0;
+                    const timestampB = parseInt(b.split('_')[1]) || 0;
                     return timestampA - timestampB;
                 });
-                
-                // Remover os mais antigos
-                const paraRemover = backupsOrdenados.slice(0, backups.length - 10);
-                paraRemover.forEach(chave => {
-                    localStorage.removeItem(chave);
-                });
-                
+                const paraRemover = backupsOrdenados.slice(0, backups.length - manterN);
+                paraRemover.forEach(chave => localStorage.removeItem(chave));
                 console.log(`🗑️ Removidos ${paraRemover.length} backups antigos`);
+                mostrarNotificacao(`${paraRemover.length} backup(s) antigo(s) removidos. Espaço libertado.`, 'success');
+                carregarSecao('backup');
+            } else if (manter <= 5) {
+                mostrarNotificacao('Já há poucos backups. Exporte um backup antes de limpar mais.', 'info');
             }
         }
         
@@ -12544,9 +12702,10 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                 <span class="text-gray-600">Último backup automático:</span>
                                 <span class="font-medium">${ultimoBackupTexto}</span>
                             </div>
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-600">Total de backups:</span>
                                 <span class="font-medium">${backups.length}</span>
+                                ${backups.length > 3 ? `<button onclick="limparBackupsAntigos(3)" class="text-sm text-amber-600 hover:text-amber-800 underline">Liberar espaço</button>` : ''}
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Frequência:</span>
@@ -12627,6 +12786,20 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             </button>
                         </div>
                     </div>
+
+                    ${localStorage.getItem('tipoUsuario') === 'admin' ? `
+                    <div class="card p-6 border-blue-200 bg-blue-50">
+                        <h3 class="text-lg font-semibold mb-4 text-blue-800">🔐 Alterar senha do administrador</h3>
+                        <p class="text-sm text-blue-700 mb-4">
+                            Altere a senha de acesso ao perfil administrador. Será necessário usar a nova senha no próximo login.
+                        </p>
+                        <button onclick="abrirModalAlterarSenha()" 
+                                class="w-full btn btn-primary">
+                            <i data-lucide="key" class="w-4 h-4 mr-2"></i>
+                            Alterar senha
+                        </button>
+                    </div>
+                    ` : ''}
 
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold mb-4">Histórico de Alterações (Últimas 10)</h3>
@@ -12982,7 +13155,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!registo.anexos) registo.anexos = [];
                     registo.anexos.push(anexo);
                     salvarDados('registos', registos);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosRegisto(registoId);
                 }
             });
@@ -13042,7 +13215,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                     </div>
                                     <div class="flex justify-end space-x-3 mt-4">
                                         <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                        <button type="submit" class="btn btn-primary">Adicionar Documento</button>
+                                        <button type="submit" class="btn btn-primary">Adicionar Minuta</button>
                                     </div>
                                 </form>
                             </div>
@@ -13132,7 +13305,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!registo.anexos) registo.anexos = [];
                     registo.anexos.push(anexo);
                     salvarDados('registos', registos);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosRegisto(registoId);
                 }
             });
@@ -13204,7 +13377,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                     </div>
                                     <div class="flex justify-end space-x-3 mt-4">
                                         <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                        <button type="submit" class="btn btn-primary">Adicionar Documento</button>
+                                        <button type="submit" class="btn btn-primary">Adicionar Minuta</button>
                                     </div>
                                 </form>
                             </div>
@@ -13292,7 +13465,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                 if (!prazo.anexos) prazo.anexos = [];
                 prazo.anexos.push(anexo);
                 salvarDados('prazos', prazos);
-                mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                 abrirAnexosPrazo(prazoId);
             }
         }
@@ -14968,7 +15141,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                                 <button onclick="console.log('🔧 Botão editar clicado para ID:', ${migracao.id}); editarMigracaoDireto(${migracao.id})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
                                                     <i data-lucide="edit" class="w-4 h-4"></i>
                                                 </button>
-                                                <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
+                                                <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-2" title="Minutas">
                                                     <i data-lucide="paperclip" class="w-4 h-4"></i>
                                                 </button>
                                                 <button onclick="console.log('🔧 Botão excluir clicado para ID:', ${migracao.id}); excluirMigracaoDireto(${migracao.id})" class="text-red-600 hover:text-red-900" title="Excluir">
@@ -15413,7 +15586,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                         <button onclick="editarHerancaDireto(${heranca.id})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="abrirAnexosHeranca(${heranca.id})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
+                        <button onclick="abrirAnexosHeranca(${heranca.id})" class="text-green-600 hover:text-green-900 mr-2" title="Minutas">
                             <i data-lucide="paperclip" class="w-4 h-4"></i>
                         </button>
                         <button onclick="excluirHerancaDireto(${heranca.id})" class="text-red-600 hover:text-red-900" title="Excluir">
@@ -15459,7 +15632,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                         <button onclick="editarMigracaoSimples(${migracao.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-3" title="Documentos">
+                        <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-3" title="Minutas">
                             <i data-lucide="paperclip" class="w-4 h-4"></i>
                         </button>
                         <button onclick="excluirMigracao(${migracao.id})" class="text-red-600 hover:text-red-900" title="Excluir">
@@ -15502,7 +15675,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                         <button onclick="editarRegistoDireto(${registo.id})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="abrirAnexosRegisto(${registo.id})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
+                        <button onclick="abrirAnexosRegisto(${registo.id})" class="text-green-600 hover:text-green-900 mr-2" title="Minutas">
                             <i data-lucide="paperclip" class="w-4 h-4"></i>
                         </button>
                         <button onclick="excluirRegistoDireto(${registo.id})" class="text-red-600 hover:text-red-900" title="Excluir">
@@ -16498,7 +16671,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                     </div>
                                     <div class="flex justify-end space-x-3 mt-4">
                                         <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                        <button type="submit" class="btn btn-primary">Adicionar Documento</button>
+                                        <button type="submit" class="btn btn-primary">Adicionar Minuta</button>
                                     </div>
                                 </form>
                             </div>
@@ -16590,7 +16763,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!cliente.anexos) cliente.anexos = [];
                     cliente.anexos.push(anexo);
                     salvarDados('clientes', clientes);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosCliente(clienteId); // Recarregar modal
                 }
             });
@@ -16718,7 +16891,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             }
             
             if (!anexo) {
-                mostrarNotificacao('Documento não encontrado!', 'error');
+                mostrarNotificacao('Minuta não encontrada!', 'error');
                 return;
             }
             
@@ -16876,7 +17049,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
             
             if (!anexo) {
                 console.error('❌ Anexo não encontrado com ID:', anexoId);
-                mostrarNotificacao('Documento não encontrado!', 'error');
+                mostrarNotificacao('Minuta não encontrada!', 'error');
                 return;
             }
             
@@ -17058,7 +17231,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                     </div>
                                     <div class="flex justify-end space-x-3 mt-4">
                                         <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                        <button type="submit" class="btn btn-primary">Adicionar Documento</button>
+                                        <button type="submit" class="btn btn-primary">Adicionar Minuta</button>
                                     </div>
                                 </form>
                             </div>
@@ -17149,7 +17322,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!contrato.anexos) contrato.anexos = [];
                     contrato.anexos.push(anexo);
                     salvarDados('contratos', contratos);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosContrato(contratoId);
                 }
             });
@@ -18929,7 +19102,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                             <button onclick="console.log('🔧 Botão editar clicado para ID:', ${migracao.id}); editarMigracaoDireto(${migracao.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-3" title="Documentos">
+                            <button onclick="abrirAnexosMigracao(${migracao.id})" class="text-green-600 hover:text-green-900 mr-3" title="Minutas">
                                 <i data-lucide="paperclip" class="w-4 h-4"></i>
                             </button>
                             <button onclick="console.log('🔧 Botão excluir clicado para ID:', ${migracao.id}); excluirMigracaoDireto(${migracao.id})" class="text-red-600 hover:text-red-900" title="Excluir">
@@ -19302,7 +19475,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                                     </div>
                                     <div class="flex justify-end space-x-3 mt-4">
                                         <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                        <button type="submit" class="btn btn-primary">Adicionar Documento</button>
+                                        <button type="submit" class="btn btn-primary">Adicionar Minuta</button>
                                     </div>
                                 </form>
                             </div>
@@ -19398,7 +19571,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!contrato.anexos) contrato.anexos = [];
                     contrato.anexos.push(anexo);
                     salvarDados('contratos', contratos);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosContrato(contratoId);
                 }
             });
@@ -19451,7 +19624,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     console.log('🔧 Herança atualizada:', heranca);
                     salvarDados('herancas', herancas);
                     console.log('✅ Dados salvos no localStorage');
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosHeranca(herancaId);
                 } else {
                     console.error('❌ Herança não encontrada com ID:', herancaId);
@@ -19500,7 +19673,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!migracao.anexos) migracao.anexos = [];
                     migracao.anexos.push(anexo);
                     salvarDados('migracoes', migracoes);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosMigracao(migracaoId);
                 }
             });
@@ -19546,7 +19719,7 @@ ${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valo
                     if (!registo.anexos) registo.anexos = [];
                     registo.anexos.push(anexo);
                     salvarDados('registos', registos);
-                    mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+                    mostrarNotificacao('Minuta adicionada com sucesso!', 'success');
                     abrirAnexosRegisto(registoId);
                 }
             });
