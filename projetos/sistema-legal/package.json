@@ -1,0 +1,19 @@
+{
+  "name": "sistema-legal",
+  "version": "1.0.0",
+  "description": "Sistema Legal - Gestão Jurídica",
+  "type": "module",
+  "scripts": {
+    "reset-firestore": "node resetFirestore.js",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:install": "npx playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "firebase": "^11.0.0"
+  }
+}
