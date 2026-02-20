@@ -276,6 +276,20 @@ const CLOUD_ENTIDADES = [
     'tarefas',
     'convidados'
 ];
+/** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
+const ENTIDADES_PORTUGAL = [
+    { id: '', nome: '— Nenhuma / Outra —' },
+    { id: 'financas_at', nome: 'Finanças (AT)' },
+    { id: 'conservatorias_irn', nome: 'Conservatórias (IRN)' },
+    { id: 'imt', nome: 'IMT' },
+    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
+    { id: 'seguranca_social', nome: 'Segurança Social' },
+    { id: 'bancos', nome: 'Bancos' },
+    { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
+    { id: 'registo_predial', nome: 'Registo Predial (Online)' },
+    { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
+    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
+];
 const CLOUD_DEBOUNCE_MS = 100; // Firestore = fonte principal; sync rápido para enviar dados à nuvem
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
 
@@ -7322,7 +7336,10 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
                             </select>
-                            <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                            <select id="docModalEntidade-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;" title="Entidade">
+                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                            </select>
+                            <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="grid-column: span 2; width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
                             <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
@@ -7730,6 +7747,7 @@ function adicionarDocumentoModal(clienteId, clienteNome) {
         return;
     }
     const processoTipo = document.getElementById(`docModalProcessoTipo-${clienteId}`)?.value || 'outro';
+    const entidade = document.getElementById(`docModalEntidade-${clienteId}`)?.value || '';
     const descricao = document.getElementById(`docModalDescricao-${clienteId}`)?.value?.trim() || '';
     const tagsRaw = document.getElementById(`docModalTags-${clienteId}`)?.value || '';
     const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
@@ -7752,6 +7770,7 @@ function adicionarDocumentoModal(clienteId, clienteNome) {
             clienteId,
             clienteNome: clienteNome || '',
             processoTipo,
+            entidade,
             descricao,
             tags,
             nomeArquivo: arquivo.name,
@@ -9994,6 +10013,8 @@ async function finalizarCriacaoTarefa(tarefa) {
     mostrarNotificacao('Tarefa criada com sucesso!', 'success');
 
     const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaObservacoes', 'tarefaLinks', 'tarefaDataLimite', 'tarefaLembrete', 'tarefaAnexos'];
+    const elEntidade = document.getElementById('tarefaEntidade');
+    if (elEntidade) elEntidade.value = '';
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -10062,6 +10083,12 @@ function gerarTarefas() {
                                 <option value="registo">Registo</option>
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                            <select id="tarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal (Finanças, IRN, IMT, etc.)">
+                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                             </select>
                         </div>
                     <div>
@@ -10157,6 +10184,13 @@ function gerarTarefas() {
                         </select>
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                        <select id="filtroTarefasEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
+                            <option value="">Todas</option>
+                            ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL.filter(e => e.id) : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Ordenar por</label>
                         <select id="filtroTarefasOrdenacao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                             <option value="prazo">Prazo (data limite)</option>
@@ -10196,7 +10230,7 @@ function gerarTarefas() {
 }
 
 function limparFiltrosTarefas() {
-    ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade', 'filtroTarefasPrazo'].forEach(id => {
+    ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade', 'filtroTarefasPrazo', 'filtroTarefasEntidade'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -10255,12 +10289,14 @@ function aplicarFiltrosTarefas() {
     const status = document.getElementById('filtroTarefasStatus')?.value || '';
     const prioridade = document.getElementById('filtroTarefasPrioridade')?.value || '';
     const prazo = document.getElementById('filtroTarefasPrazo')?.value || '';
+    const entidade = document.getElementById('filtroTarefasEntidade')?.value || '';
     const ordenacao = document.getElementById('filtroTarefasOrdenacao')?.value || 'prazo';
     const soComPrazo = document.getElementById('btnSoComPrazo')?.dataset?.ativo === 'true';
     
     if (clienteId) lista = lista.filter(t => String(t.clienteId) === clienteId);
     if (status) lista = lista.filter(t => t.status === status);
     if (prioridade) lista = lista.filter(t => t.prioridade === prioridade);
+    if (entidade) lista = lista.filter(t => (t.entidade || '') === entidade);
     if (soComPrazo) lista = lista.filter(t => !!t.dataLimite);
     if (prazo) {
         const agora = new Date();
@@ -10384,7 +10420,7 @@ function renderizarListaTarefas(lista, total, limit) {
                     <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
                     <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
                     ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
-                    <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}</div>
+                    <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}${tarefa.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === tarefa.entidade)?.nome || tarefa.entidade) : ''}</div>
                     ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: <span class="font-bold text-gray-700">${escaparHtml(tarefa.responsavelNome)}</span></div>` : ''}
                     ${renderMetaAuditoria('tarefa', tarefa)}
                     ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
@@ -10468,6 +10504,7 @@ function criarTarefa() {
     }
     const clienteId = parseIdSafe(document.getElementById('tarefaCliente')?.value || '');
     const processoTipo = document.getElementById('tarefaProcessoTipo')?.value || 'outro';
+    const entidade = document.getElementById('tarefaEntidade')?.value || '';
     const prioridade = document.getElementById('tarefaPrioridade')?.value || 'media';
     const responsavelRaw = document.getElementById('tarefaResponsavel')?.value || 'admin';
     const titulo = document.getElementById('tarefaTitulo')?.value?.trim() || '';
@@ -10518,6 +10555,7 @@ function criarTarefa() {
         clienteId,
         clienteNome: cliente ? cliente.nome : '',
         processoTipo,
+        entidade,
         titulo,
         descricao,
         observacoes,
@@ -10609,6 +10647,12 @@ function abrirModalEditarTarefa(id) {
                         </select>
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                        <select id="editarTarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}" ${(tarefa.entidade || '') === e.id ? 'selected' : ''}>${e.nome}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
                         <select id="editarTarefaResponsavel" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="admin" ${responsavelAtual === 'admin' ? 'selected' : ''}>Admin</option>
@@ -10677,6 +10721,7 @@ async function atualizarTarefa(event, id) {
 
     const clienteId = parseIdSafe(document.getElementById('editarTarefaCliente')?.value || '');
     const processoTipo = document.getElementById('editarTarefaProcesso')?.value || 'outro';
+    const entidade = document.getElementById('editarTarefaEntidade')?.value || '';
     const prioridade = document.getElementById('editarTarefaPrioridade')?.value || 'media';
     const responsavelRaw = document.getElementById('editarTarefaResponsavel')?.value || 'admin';
     const status = document.getElementById('editarTarefaStatus')?.value || 'aberta';
@@ -10719,6 +10764,7 @@ async function atualizarTarefa(event, id) {
         clienteId,
         clienteNome: cliente ? cliente.nome : (lista[index].clienteNome || ''),
         processoTipo,
+        entidade,
         prioridade,
         status,
         titulo,
@@ -11500,6 +11546,12 @@ function gerarDocumentos() {
                             </select>
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                            <select id="docEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
+                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                             <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
                         </div>
@@ -11589,6 +11641,13 @@ function gerarDocumentos() {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Tag</label>
                         <input id="filtroDocTag" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: assinatura">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                        <select id="filtroDocEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <option value="">Todas</option>
+                            ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL.filter(e => e.id) : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
                 <div class="flex items-center gap-2 mt-4">
                     <button onclick="aplicarFiltrosDocumentos()" class="btn btn-primary">
@@ -11614,7 +11673,7 @@ function gerarDocumentos() {
 }
 
 function limparFiltrosDocumentos() {
-    const ids = ['filtroDocTexto', 'filtroDocCliente', 'filtroDocProcesso', 'filtroDocTag'];
+    const ids = ['filtroDocTexto', 'filtroDocCliente', 'filtroDocProcesso', 'filtroDocTag', 'filtroDocEntidade'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -11638,10 +11697,12 @@ function aplicarFiltrosDocumentos() {
     const texto = (document.getElementById('filtroDocTexto')?.value || '').toLowerCase();
     const clienteId = document.getElementById('filtroDocCliente')?.value || '';
     const processo = document.getElementById('filtroDocProcesso')?.value || '';
+    const entidade = document.getElementById('filtroDocEntidade')?.value || '';
     const tag = (document.getElementById('filtroDocTag')?.value || '').toLowerCase();
     
     if (clienteId) lista = lista.filter(doc => String(doc.clienteId) === clienteId);
     if (processo) lista = lista.filter(doc => doc.processoTipo === processo);
+    if (entidade) lista = lista.filter(doc => (doc.entidade || '') === entidade);
     if (texto) {
         lista = lista.filter(doc => {
             const alvo = [
@@ -11680,7 +11741,7 @@ function renderizarListaDocumentos(lista) {
                 <div>
                     <div class="text-sm font-semibold text-gray-800">${doc.nomeArquivo}</div>
                     <div class="text-xs text-gray-500">${doc.descricao || 'Sem descrição'}</div>
-                    <div class="text-xs text-gray-500">${renderClienteLink(doc.clienteId, doc.clienteNome || 'Cliente')} • ${doc.processoTipo || 'outro'} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
+                    <div class="text-xs text-gray-500">${renderClienteLink(doc.clienteId, doc.clienteNome || 'Cliente')} • ${doc.processoTipo || 'outro'}${doc.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === doc.entidade)?.nome || doc.entidade) : ''} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
                     ${renderMetaAuditoria('documento', doc)}
                     <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
                 </div>
@@ -11715,6 +11776,7 @@ function uploadDocumento() {
     const arquivoInput = document.getElementById('docArquivo');
     const clienteId = parseIdSafe(document.getElementById('docCliente')?.value || '');
     const processoTipo = document.getElementById('docProcessoTipo')?.value || 'outro';
+    const entidade = document.getElementById('docEntidade')?.value || '';
     const descricao = document.getElementById('docDescricao')?.value?.trim() || '';
     const tagsRaw = document.getElementById('docTags')?.value || '';
     const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
@@ -11741,6 +11803,7 @@ function uploadDocumento() {
             clienteId,
             clienteNome: cliente ? cliente.nome : '',
             processoTipo,
+            entidade,
             descricao,
             tags,
             nomeArquivo: arquivo.name,
@@ -17117,6 +17180,7 @@ function gerarHerancas() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -17570,6 +17634,7 @@ function gerarMigracao() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -17590,6 +17655,7 @@ function gerarMigracao() {
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
                                     </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
@@ -17750,6 +17816,7 @@ function gerarRegistos() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -18061,7 +18128,7 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
         return;
     }
     
-    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__herancasLimit = (window.__herancasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHerancas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__herancasLimit = (window.__herancasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHerancas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = herancasFiltradas.map(heranca => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -18080,6 +18147,7 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${heranca.prioridade || 'media'}">${heranca.prioridade || 'media'}</span>
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === heranca.entidade)?.nome || heranca.entidade) : '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarHerancaDireto(${JSON.stringify(heranca.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
@@ -18114,7 +18182,7 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
     const tbody = document.getElementById('listaMigracoes');
     if (!tbody) return;
     
-    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__migracoesLimit = (window.__migracoesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosMigracoes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__migracoesLimit = (window.__migracoesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosMigracoes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     tbody.innerHTML = migracoesFiltradas.map(migracao => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -18133,6 +18201,7 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarMigracaoSimples(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
@@ -18158,7 +18227,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
         return;
     }
     
-    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__registosLimit = (window.__registosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosRegistos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__registosLimit = (window.__registosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosRegistos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = registosFiltrados.map(registo => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -18177,6 +18246,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${registo.prioridade || 'media'}">${registo.prioridade || 'media'}</span>
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === registo.entidade)?.nome || registo.entidade) : '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarRegistoDireto(${JSON.stringify(registo.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
@@ -18301,6 +18371,12 @@ function abrirModalHeranca() {
                                         <option value="media" selected>Média</option>
                                         <option value="alta">Alta</option>
                                         <option value="critica">Crítica</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
+                                        ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                                     </select>
                                 </div>
                             </div>
@@ -18645,6 +18721,12 @@ function abrirModalMigracao() {
                                         <option value="critica">Crítica</option>
                                     </select>
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
+                                        ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -18768,6 +18850,12 @@ function abrirModalRegisto() {
                                         <option value="critica">Crítica</option>
                                     </select>
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
+                                        ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -18826,6 +18914,7 @@ async function salvarHeranca(event) {
         valorComIva: valorComIva,
         status: formData.get('status'),
         prioridade: formData.get('prioridade') || 'media',
+        entidade: formData.get('entidade') || '',
         dataInicio: formData.get('dataInicio'),
         observacoes: formData.get('observacoes'),
         dataCriacao: new Date().toISOString(),
@@ -18909,6 +18998,7 @@ async function salvarMigracao(event) {
         valorComIva: valorComIva,
         status: formData.get('status'),
         prioridade: formData.get('prioridade') || 'media',
+        entidade: formData.get('entidade') || '',
         dataInicio: formData.get('dataInicio'),
             parceria: formData.get('parceria'),
             parceriaNome: formData.get('parceriaNome'),
@@ -18993,6 +19083,7 @@ async function salvarRegisto(event) {
         valorComIva: valorComIva,
         status: formData.get('status'),
         prioridade: formData.get('prioridade') || 'media',
+        entidade: formData.get('entidade') || '',
         dataInicio: formData.get('dataInicio'),
         observacoes: formData.get('observacoes'),
         dataCriacao: new Date().toISOString(),
@@ -19080,6 +19171,7 @@ function duplicarHeranca(id) {
             form.elements['percentagem'] && (form.elements['percentagem'].value = heranca.percentagem ?? '');
             form.status.value = 'pendente';
             form.elements['prioridade'] && (form.elements['prioridade'].value = heranca.prioridade || 'media');
+            form.elements['entidade'] && (form.elements['entidade'].value = heranca.entidade || '');
             form.dataInicio.value = heranca.dataInicio || '';
             form.observacoes.value = heranca.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -19112,6 +19204,7 @@ function duplicarMigracao(id) {
             form.elements['percentagem'] && (form.elements['percentagem'].value = migracao.percentagem ?? '');
             form.status.value = 'pendente';
             form.elements['prioridade'] && (form.elements['prioridade'].value = migracao.prioridade || 'media');
+            form.elements['entidade'] && (form.elements['entidade'].value = migracao.entidade || '');
             form.dataInicio.value = migracao.dataInicio || '';
             form.observacoes.value = migracao.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -19144,6 +19237,7 @@ function duplicarRegisto(id) {
             form.elements['percentagem'] && (form.elements['percentagem'].value = registo.percentagem ?? '');
             form.status.value = 'pendente';
             form.elements['prioridade'] && (form.elements['prioridade'].value = registo.prioridade || 'media');
+            form.elements['entidade'] && (form.elements['entidade'].value = registo.entidade || '');
             form.dataInicio.value = registo.dataInicio || '';
             form.observacoes.value = registo.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -19171,6 +19265,7 @@ function editarHeranca(id) {
             form.iva.value = heranca.iva || 23;
             form.status.value = heranca.status;
             if (form.elements['prioridade']) form.elements['prioridade'].value = heranca.prioridade || 'media';
+            if (form.elements['entidade']) form.elements['entidade'].value = heranca.entidade || '';
             form.dataInicio.value = heranca.dataInicio || '';
             form.observacoes.value = heranca.observacoes || '';
             
@@ -19202,6 +19297,7 @@ function editarMigracao(id) {
             form.iva.value = migracao.iva || 23;
             form.status.value = migracao.status;
             if (form.elements['prioridade']) form.elements['prioridade'].value = migracao.prioridade || 'media';
+            if (form.elements['entidade']) form.elements['entidade'].value = migracao.entidade || '';
             form.dataInicio.value = migracao.dataInicio || '';
             form.observacoes.value = migracao.observacoes || '';
             
@@ -19231,6 +19327,7 @@ function editarRegisto(id) {
             form.iva.value = registo.iva || 23;
             form.status.value = registo.status;
             if (form.elements['prioridade']) form.elements['prioridade'].value = registo.prioridade || 'media';
+            if (form.elements['entidade']) form.elements['entidade'].value = registo.entidade || '';
             form.dataInicio.value = registo.dataInicio || '';
             form.observacoes.value = registo.observacoes || '';
             
@@ -20461,6 +20558,12 @@ function abrirModalEdicaoHeranca(heranca) {
                                     <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                <select id="herancaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}" ${(heranca.entidade || '') === e.id ? 'selected' : ''}>${e.nome}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                         
                         <div>
@@ -20579,6 +20682,12 @@ function abrirModalEdicaoMigracao(migracao) {
                                     <option value="critica" ${(migracao.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                <select id="migracaoEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}" ${(migracao.entidade || '') === e.id ? 'selected' : ''}>${e.nome}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                         
                         <div>
@@ -20695,6 +20804,12 @@ function abrirModalEdicaoRegisto(registo) {
                                         <option value="media" ${(registo.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
                                         <option value="alta" ${(registo.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
                                         <option value="critica" ${(registo.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                    <select id="registoEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}" ${(registo.entidade || '') === e.id ? 'selected' : ''}>${e.nome}</option>`).join('')}
                                     </select>
                                 </div>
                             </div>
@@ -21011,6 +21126,7 @@ function atualizarHeranca(event, id) {
             iva: document.getElementById('herancaIva').value,
             status: document.getElementById('herancaStatus').value,
             prioridade: document.getElementById('herancaPrioridade')?.value || 'media',
+            entidade: document.getElementById('herancaEntidade')?.value || '',
             dataInicio: document.getElementById('herancaDataInicio').value,
             observacoes: document.getElementById('herancaObservacoes').value,
             dataAtualizacao: new Date().toISOString()
@@ -21059,6 +21175,7 @@ function atualizarMigracao(event, id) {
             iva: document.getElementById('migracaoIva').value,
             status: document.getElementById('migracaoStatus').value,
             prioridade: document.getElementById('migracaoPrioridade')?.value || 'media',
+            entidade: document.getElementById('migracaoEntidade')?.value || '',
             dataInicio: document.getElementById('migracaoDataInicio').value,
             observacoes: document.getElementById('migracaoObservacoes').value,
             dataAtualizacao: new Date().toISOString()
@@ -21112,6 +21229,7 @@ function atualizarRegisto(event, id) {
             iva: document.getElementById('registoIva').value,
             status: document.getElementById('registoStatus').value,
             prioridade: document.getElementById('registoPrioridade')?.value || 'media',
+            entidade: document.getElementById('registoEntidade')?.value || '',
             dataInicio: document.getElementById('registoDataInicio').value,
             observacoes: document.getElementById('registoObservacoes').value,
             dataAtualizacao: new Date().toISOString()
