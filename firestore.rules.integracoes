@@ -1,0 +1,31 @@
+// Regras de segurança Firestore - Módulo Integrações Externas
+// Adicione estas regras ao seu firestore.rules (Firebase Console)
+// Nota: O Sistema Legal usa Firebase Auth (ou sessão local). Ajuste conforme a sua autenticação.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Entidades: leitura para todos autenticados; escrita para admin
+    match /entidades/{docId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if false;  // Nunca apagar, apenas desativar (ativo: false)
+    }
+
+    // Integrações externas: admin pode criar/editar; soft delete apenas
+    match /integracoes_externas/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // Logs integrações: apenas criação, sem alteração/apagar
+    match /logs_integracoes/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+  }
+}

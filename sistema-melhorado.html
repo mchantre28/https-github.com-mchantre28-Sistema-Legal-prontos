@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Ana Paula Medina - Sistema de Gestão v35.0 OTIMIZADO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+    
+    <style>
+        /* === ESTILOS OTIMIZADOS === */
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #374151;
+            --accent-color: #6b7280;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --sidebar-width: 224px;
+        }
+
+        /* Sidebar otimizada */
+        .sidebar { 
+            background: var(--primary-color) !important; 
+            min-height: 100vh !important;
+            height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            bottom: 0 !important;
+            width: var(--sidebar-width) !important;
+            z-index: 1000 !important;
+            overflow-y: auto !important;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-item { 
+            color: #ffffff !important; 
+            transition: all 0.2s ease;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 4px 8px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
+        .sidebar-item:hover { 
+            background: rgba(255, 255, 255, 0.1); 
+            color: white;
+            transform: translateX(4px);
+        }
+        
+        .sidebar-item.active { 
+            background: var(--secondary-color); 
+            color: white;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        /* Main content responsivo */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            transition: margin-left 0.3s ease;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 100% !important;
+                max-width: 320px !important;
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0 !important;
+            }
+        }
+
+        /* Cards otimizados */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid #e5e7eb;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* Botões otimizados */
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--secondary-color);
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-error {
+            background: var(--error-color);
+            color: white;
+        }
+
+        /* Modais otimizados */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal.show .modal-content {
+            transform: scale(1);
+        }
+
+        /* Notificações elegantes */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: var(--success-color);
+        }
+
+        .notification.error {
+            background: var(--error-color);
+        }
+
+        .notification.warning {
+            background: var(--warning-color);
+        }
+
+        .notification.info {
+            background: #3b82f6;
+        }
+
+        /* Status badges */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pendente {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-pago {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-vencido {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-ativo {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        /* Tabelas responsivas */
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-responsive table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-responsive th,
+        .table-responsive td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .table-responsive th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .table-responsive tbody tr:hover {
+            background-color: #f9fafb;
+        }
+
+        /* Animações suaves */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Utilitários */
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .space-x-2 > * + * { margin-left: 8px; }
+        .space-x-4 > * + * { margin-left: 16px; }
+        .text-center { text-align: center; }
+        .font-semibold { font-weight: 600; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-800 { color: #1f2937; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Sistema de Notificações -->
+    <div id="notificationContainer"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="p-6">
+            <h2 class="text-white text-xl font-bold mb-6">Sistema Legal</h2>
+            <nav class="space-y-2">
+                <a href="#" onclick="SistemaLegal.carregarSecao('dashboard')" class="sidebar-item active" id="nav-dashboard">
+                    <i data-lucide="home" class="w-5 h-5 mr-3"></i>
+                    Dashboard
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('clientes')" class="sidebar-item" id="nav-clientes">
+                    <i data-lucide="users" class="w-5 h-5 mr-3"></i>
+                    Clientes
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('contratos')" class="sidebar-item" id="nav-contratos">
+                    <i data-lucide="file-text" class="w-5 h-5 mr-3"></i>
+                    Contratos
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('honorarios')" class="sidebar-item" id="nav-honorarios">
+                    <i data-lucide="dollar-sign" class="w-5 h-5 mr-3"></i>
+                    Honorários
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('prazos')" class="sidebar-item" id="nav-prazos">
+                    <i data-lucide="clock" class="w-5 h-5 mr-3"></i>
+                    Prazos
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('agenda')" class="sidebar-item" id="nav-agenda">
+                    <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>
+                    Agenda
+                </a>
+                <a href="#" onclick="SistemaLegal.carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
+                    Relatórios
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Menu Mobile -->
+    <button id="menuHamburguer" class="fixed top-4 left-4 z-50 lg:hidden bg-black text-white p-2 rounded">
+        <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+
+    <!-- Conteúdo Principal -->
+    <div class="main-content min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Dashboard</h1>
+                    <div class="flex items-center space-x-4">
+                        <button onclick="SistemaLegal.exportarDados()" class="btn btn-primary">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            Exportar
+                        </button>
+                        <button onclick="SistemaLegal.importarDados()" class="btn btn-success">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Importar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Dinâmico -->
+        <main class="p-6">
+            <div id="conteudoDinamico">
+                <!-- Dashboard será carregado aqui -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modais (serão carregados dinamicamente) -->
+    <div id="modalContainer"></div>
+
+    <script>
+        // === SISTEMA OTIMIZADO ===
+        
+        // Namespace para evitar poluição global
+        const SistemaLegal = {
+            // Configurações
+            config: {
+                versao: '35.0',
+                debug: false,
+                autoSave: true,
+                notifications: true
+            },
+
+            // Dados centralizados
+            dados: {
+                clientes: [],
+                contratos: [],
+                honorarios: [],
+                prazos: [],
+                agenda: [],
+                relatorios: []
+            },
+
+            // Estado da aplicação
+            estado: {
+                secaoAtiva: 'dashboard',
+                modalAberto: null,
+                carregando: false
+            },
+
+            // Inicialização
+            init() {
+                console.log('🚀 Inicializando Sistema Legal v' + this.config.versao);
+                this.carregarDados();
+                this.configurarEventos();
+                this.carregarSecao('dashboard');
+                this.atualizarInterface();
+            },
+
+            // Carregar dados do localStorage
+            carregarDados() {
+                try {
+                    Object.keys(this.dados).forEach(chave => {
+                        const dadosSalvos = localStorage.getItem(chave);
+                        if (dadosSalvos) {
+                            this.dados[chave] = JSON.parse(dadosSalvos);
+                        }
+                    });
+                    console.log('✅ Dados carregados com sucesso');
+                } catch (error) {
+                    console.error('❌ Erro ao carregar dados:', error);
+                    this.mostrarNotificacao('Erro ao carregar dados salvos', 'error');
+                }
+            },
+
+            // Salvar dados no localStorage
+            salvarDados(chave, dados) {
+                try {
+                    localStorage.setItem(chave, JSON.stringify(dados));
+                    if (this.config.debug) {
+                        console.log(`💾 Dados salvos: ${chave}`, dados);
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao salvar dados:', error);
+                    this.mostrarNotificacao('Erro ao salvar dados', 'error');
+                }
+            },
+
+            // Configurar eventos
+            configurarEventos() {
+                // Menu mobile
+                document.getElementById('menuHamburguer')?.addEventListener('click', () => {
+                    this.toggleSidebar();
+                });
+
+                // Fechar modais com ESC
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.estado.modalAberto) {
+                        this.fecharModal();
+                    }
+                });
+
+                // Auto-save
+                if (this.config.autoSave) {
+                    setInterval(() => {
+                        this.salvarTodosDados();
+                    }, 30000); // Salva a cada 30 segundos
+                }
+            },
+
+            // Toggle sidebar mobile
+            toggleSidebar() {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('open');
+            },
+
+            // Carregar seção
+            carregarSecao(secao) {
+                this.estado.secaoAtiva = secao;
+                this.atualizarNavegacao();
+                this.atualizarTitulo(secao);
+                
+                // Carregar conteúdo da seção
+                const conteudo = this.gerarConteudoSecao(secao);
+                document.getElementById('conteudoDinamico').innerHTML = conteudo;
+                
+                // Inicializar funcionalidades da seção
+                this.inicializarSecao(secao);
+                
+                // Fechar sidebar em mobile
+                if (window.innerWidth <= 1024) {
+                    this.toggleSidebar();
+                }
+            },
+
+            // Atualizar navegação
+            atualizarNavegacao() {
+                document.querySelectorAll('.sidebar-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                document.getElementById(`nav-${this.estado.secaoAtiva}`)?.classList.add('active');
+            },
+
+            // Atualizar título
+            atualizarTitulo(secao) {
+                const titulos = {
+                    dashboard: 'Dashboard',
+                    clientes: 'Gestão de Clientes',
+                    contratos: 'Contratos',
+                    honorarios: 'Honorários',
+                    prazos: 'Prazos Legais',
+                    agenda: 'Agenda',
+                    relatorios: 'Relatórios'
+                };
+                document.getElementById('pageTitle').textContent = titulos[secao] || 'Sistema Legal';
+            },
+
+            // Gerar conteúdo da seção
+            gerarConteudoSecao(secao) {
+                const conteudos = {
+                    dashboard: this.gerarDashboard(),
+                    clientes: this.gerarClientes(),
+                    contratos: this.gerarContratos(),
+                    honorarios: this.gerarHonorarios(),
+                    prazos: this.gerarPrazos(),
+                    agenda: this.gerarAgenda(),
+                    relatorios: this.gerarRelatorios()
+                };
+                return conteudos[secao] || '<p>Seção não encontrada</p>';
+            },
+
+            // Gerar Dashboard
+            gerarDashboard() {
+                const totalClientes = this.dados.clientes.length;
+                const totalContratos = this.dados.contratos.length;
+                const totalHonorarios = this.dados.honorarios.length;
+                const valorTotal = this.dados.honorarios.reduce((sum, h) => sum + (h.valor || 0), 0);
+
+                return `
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-blue-100 rounded-lg">
+                                        <i data-lucide="users" class="w-6 h-6 text-blue-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Clientes</p>
+                                        <p class="text-2xl font-bold text-gray-900">${totalClientes}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-green-100 rounded-lg">
+                                        <i data-lucide="file-text" class="w-6 h-6 text-green-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Contratos</p>
+                                        <p class="text-2xl font-bold text-gray-900">${totalContratos}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-yellow-100 rounded-lg">
+                                        <i data-lucide="dollar-sign" class="w-6 h-6 text-yellow-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Honorários</p>
+                                        <p class="text-2xl font-bold text-gray-900">${totalHonorarios}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-purple-100 rounded-lg">
+                                        <i data-lucide="trending-up" class="w-6 h-6 text-purple-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Valor Total</p>
+                                        <p class="text-2xl font-bold text-gray-900">€${valorTotal.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold mb-4">Últimos Clientes</h3>
+                                <div class="space-y-3">
+                                    ${this.dados.clientes.slice(-3).map(cliente => `
+                                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            <div>
+                                                <p class="font-medium">${cliente.nome}</p>
+                                                <p class="text-sm text-gray-600">${cliente.email}</p>
+                                            </div>
+                                            <span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold mb-4">Próximos Prazos</h3>
+                                <div class="space-y-3">
+                                    ${this.dados.prazos.slice(0, 3).map(prazo => `
+                                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            <div>
+                                                <p class="font-medium">${prazo.assunto}</p>
+                                                <p class="text-sm text-gray-600">${new Date(prazo.vencimento).toLocaleDateString('pt-PT')}</p>
+                                            </div>
+                                            <span class="status-badge status-${prazo.status}">${prazo.status}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // Gerar seção de Clientes
+            gerarClientes() {
+                return `
+                    <div class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-2xl font-bold">Gestão de Clientes</h2>
+                            <button onclick="SistemaLegal.abrirModal('cliente')" class="btn btn-primary">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Novo Cliente
+                            </button>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="p-6">
+                                <div class="table-responsive">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nome</th>
+                                                <th>Email</th>
+                                                <th>Telefone</th>
+                                                <th>Status</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${this.dados.clientes.map(cliente => `
+                                                <tr>
+                                                    <td>${cliente.nome}</td>
+                                                    <td>${cliente.email}</td>
+                                                    <td>${cliente.telefone}</td>
+                                                    <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
+                                                    <td>
+                                                        <button onclick="SistemaLegal.editarItem('cliente', ${cliente.id})" class="text-blue-600 hover:text-blue-800">
+                                                            <i data-lucide="edit" class="w-4 h-4"></i>
+                                                        </button>
+                                                        <button onclick="SistemaLegal.excluirItem('cliente', ${cliente.id})" class="text-red-600 hover:text-red-800 ml-2">
+                                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // Gerar seção de Honorários
+            gerarHonorarios() {
+                return `
+                    <div class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-2xl font-bold">Gestão de Honorários</h2>
+                            <button onclick="SistemaLegal.abrirModal('honorario')" class="btn btn-primary">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Novo Honorário
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-green-100 rounded-lg">
+                                        <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Pagos</p>
+                                        <p class="text-2xl font-bold text-gray-900">${this.dados.honorarios.filter(h => h.status === 'pago').length}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-yellow-100 rounded-lg">
+                                        <i data-lucide="clock" class="w-6 h-6 text-yellow-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Pendentes</p>
+                                        <p class="text-2xl font-bold text-gray-900">${this.dados.honorarios.filter(h => h.status === 'pendente').length}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-red-100 rounded-lg">
+                                        <i data-lucide="alert-circle" class="w-6 h-6 text-red-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Vencidos</p>
+                                        <p class="text-2xl font-bold text-gray-900">${this.dados.honorarios.filter(h => h.status === 'vencido').length}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="p-6">
+                                <div class="table-responsive">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Cliente</th>
+                                                <th>Serviço</th>
+                                                <th>Valor</th>
+                                                <th>Status</th>
+                                                <th>Vencimento</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${this.dados.honorarios.map(honorario => `
+                                                <tr>
+                                                    <td>${honorario.cliente}</td>
+                                                    <td>${honorario.servico}</td>
+                                                    <td>€${honorario.valor?.toFixed(2) || '0.00'}</td>
+                                                    <td><span class="status-badge status-${honorario.status}">${honorario.status}</span></td>
+                                                    <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
+                                                    <td>
+                                                        <button onclick="SistemaLegal.editarItem('honorario', ${honorario.id})" class="text-blue-600 hover:text-blue-800">
+                                                            <i data-lucide="edit" class="w-4 h-4"></i>
+                                                        </button>
+                                                        <button onclick="SistemaLegal.excluirItem('honorario', ${honorario.id})" class="text-red-600 hover:text-red-800 ml-2">
+                                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // Gerar outras seções (simplificadas)
+            gerarContratos() {
+                return '<div class="card p-6"><h3 class="text-lg font-semibold">Contratos</h3><p>Funcionalidade em desenvolvimento...</p></div>';
+            },
+
+            gerarPrazos() {
+                return '<div class="card p-6"><h3 class="text-lg font-semibold">Prazos Legais</h3><p>Funcionalidade em desenvolvimento...</p></div>';
+            },
+
+            gerarAgenda() {
+                return '<div class="card p-6"><h3 class="text-lg font-semibold">Agenda</h3><p>Funcionalidade em desenvolvimento...</p></div>';
+            },
+
+            gerarRelatorios() {
+                return '<div class="card p-6"><h3 class="text-lg font-semibold">Relatórios</h3><p>Funcionalidade em desenvolvimento...</p></div>';
+            },
+
+            // Inicializar seção
+            inicializarSecao(secao) {
+                // Inicializar funcionalidades específicas da seção
+                lucide.createIcons();
+            },
+
+            // Sistema de Modais
+            abrirModal(tipo) {
+                const modal = this.criarModal(tipo);
+                document.getElementById('modalContainer').innerHTML = modal;
+                document.getElementById('modalContainer').classList.add('show');
+                this.estado.modalAberto = tipo;
+                lucide.createIcons();
+            },
+
+            fecharModal() {
+                document.getElementById('modalContainer').classList.remove('show');
+                this.estado.modalAberto = null;
+            },
+
+            criarModal(tipo) {
+                const modais = {
+                    cliente: this.criarModalCliente(),
+                    honorario: this.criarModalHonorario()
+                };
+                return modais[tipo] || '<div class="modal-content p-6">Modal não encontrado</div>';
+            },
+
+            criarModalCliente() {
+                return `
+                    <div class="modal show">
+                        <div class="modal-content p-6" style="max-width: 500px;">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-lg font-semibold">Novo Cliente</h3>
+                                <button onclick="SistemaLegal.fecharModal()" class="text-gray-500 hover:text-gray-700">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            
+                            <form id="formCliente" onsubmit="SistemaLegal.salvarCliente(event)">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Nome *</label>
+                                        <input type="text" id="clienteNome" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                                        <input type="email" id="clienteEmail" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Telefone *</label>
+                                        <input type="tel" id="clienteTelefone" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
+                                        <textarea id="clienteEndereco" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-end space-x-3 mt-6">
+                                    <button type="button" onclick="SistemaLegal.fecharModal()" class="btn btn-secondary">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        Salvar Cliente
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            },
+
+            criarModalHonorario() {
+                return `
+                    <div class="modal show">
+                        <div class="modal-content p-6" style="max-width: 500px;">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-lg font-semibold">Novo Honorário</h3>
+                                <button onclick="SistemaLegal.fecharModal()" class="text-gray-500 hover:text-gray-700">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            
+                            <form id="formHonorario" onsubmit="SistemaLegal.salvarHonorario(event)">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                        <select id="honorarioCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                            <option value="">Selecionar Cliente</option>
+                                            ${this.dados.clientes.map(cliente => `
+                                                <option value="${cliente.nome}">${cliente.nome}</option>
+                                            `).join('')}
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Serviço *</label>
+                                        <input type="text" id="honorarioServico" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
+                                        <input type="number" id="honorarioValor" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                        <select id="honorarioStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                            <option value="pendente">Pendente</option>
+                                            <option value="pago">Pago</option>
+                                            <option value="vencido">Vencido</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Data de Vencimento</label>
+                                        <input type="date" id="honorarioVencimento" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-end space-x-3 mt-6">
+                                    <button type="button" onclick="SistemaLegal.fecharModal()" class="btn btn-secondary">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        Salvar Honorário
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // Salvar cliente
+            salvarCliente(event) {
+                event.preventDefault();
+                
+                const cliente = {
+                    id: Date.now(),
+                    nome: document.getElementById('clienteNome').value,
+                    email: document.getElementById('clienteEmail').value,
+                    telefone: document.getElementById('clienteTelefone').value,
+                    endereco: document.getElementById('clienteEndereco').value,
+                    status: 'ativo',
+                    dataCriacao: new Date().toISOString()
+                };
+                
+                this.dados.clientes.push(cliente);
+                this.salvarDados('clientes', this.dados.clientes);
+                this.mostrarNotificacao('Cliente salvo com sucesso!', 'success');
+                this.fecharModal();
+                this.carregarSecao('clientes');
+            },
+
+            // Salvar honorário
+            salvarHonorario(event) {
+                event.preventDefault();
+                
+                const honorario = {
+                    id: Date.now(),
+                    cliente: document.getElementById('honorarioCliente').value,
+                    servico: document.getElementById('honorarioServico').value,
+                    valor: parseFloat(document.getElementById('honorarioValor').value),
+                    status: document.getElementById('honorarioStatus').value,
+                    vencimento: document.getElementById('honorarioVencimento').value,
+                    dataCriacao: new Date().toISOString()
+                };
+                
+                this.dados.honorarios.push(honorario);
+                this.salvarDados('honorarios', this.dados.honorarios);
+                this.mostrarNotificacao('Honorário salvo com sucesso!', 'success');
+                this.fecharModal();
+                this.carregarSecao('honorarios');
+            },
+
+            // Sistema de notificações
+            mostrarNotificacao(mensagem, tipo = 'info') {
+                if (!this.config.notifications) return;
+                
+                const notification = document.createElement('div');
+                notification.className = `notification ${tipo}`;
+                notification.textContent = mensagem;
+                
+                document.getElementById('notificationContainer').appendChild(notification);
+                
+                // Mostrar notificação
+                setTimeout(() => notification.classList.add('show'), 100);
+                
+                // Remover após 3 segundos
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            },
+
+            // Salvar todos os dados
+            salvarTodosDados() {
+                Object.keys(this.dados).forEach(chave => {
+                    this.salvarDados(chave, this.dados[chave]);
+                });
+            },
+
+            // Atualizar interface
+            atualizarInterface() {
+                lucide.createIcons();
+            },
+
+            // Editar item
+            editarItem(tipo, id) {
+                this.mostrarNotificacao('Funcionalidade de edição em desenvolvimento', 'info');
+            },
+
+            // Excluir item
+            excluirItem(tipo, id) {
+                if (confirm('Tem certeza que deseja excluir este item?')) {
+                    this.dados[tipo] = this.dados[tipo].filter(item => item.id !== id);
+                    this.salvarDados(tipo, this.dados[tipo]);
+                    this.mostrarNotificacao('Item excluído com sucesso!', 'success');
+                    this.carregarSecao(this.estado.secaoAtiva);
+                }
+            },
+
+            // Exportar dados
+            exportarDados() {
+                const dados = {
+                    exportadoEm: new Date().toISOString(),
+                    versao: this.config.versao,
+                    dados: this.dados
+                };
+                
+                const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sistema_legal_backup_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.mostrarNotificacao('Dados exportados com sucesso!', 'success');
+            },
+
+            // Importar dados
+            importarDados() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try {
+                                const dados = JSON.parse(e.target.result);
+                                if (dados.dados) {
+                                    this.dados = dados.dados;
+                                    this.salvarTodosDados();
+                                    this.mostrarNotificacao('Dados importados com sucesso!', 'success');
+                                    this.carregarSecao(this.estado.secaoAtiva);
+                                }
+                            } catch (error) {
+                                this.mostrarNotificacao('Erro ao importar dados', 'error');
+                            }
+                        };
+                        reader.readAsText(file);
+                    }
+                };
+                input.click();
+            }
+        };
+
+        // Funções globais para compatibilidade
+        function carregarSecao(secao) {
+            SistemaLegal.carregarSecao(secao);
+        }
+
+        // Inicializar sistema quando a página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            SistemaLegal.init();
+        });
+    </script>
+</body>
+</html>

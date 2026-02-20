@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Solicitadora - Dashboard Melhorado</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 3rem;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 15px 0 0 0;
+            font-size: 1.3rem;
+            opacity: 0.9;
+        }
+        .login-form {
+            max-width: 450px;
+            margin: 0 auto;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #dc3545;
+        }
+        .nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .nav button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .nav button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .nav button.active {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            border-left: 5px solid #667eea;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: 300;
+        }
+        .stat-card p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+        .chart-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.3rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .data-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            margin: 10px 0;
+        }
+        .data-item h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .data-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-ativo {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-concluido {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .status-pendente {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-pago {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Form -->
+        <div id="loginSection" class="login-form">
+            <h2>🔐 Login - Sistema de Solicitadora</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn">Entrar</button>
+            </form>
+            <div id="loginError" class="error hidden"></div>
+        </div>
+
+        <!-- Main Application -->
+        <div id="mainApp" class="hidden">
+            <div class="header">
+                <h1>⚖️ Sistema de Gestão para Solicitadora</h1>
+                <p>Dashboard Avançado com Gráficos e Estatísticas</p>
+            </div>
+
+            <div class="nav">
+                <button onclick="showSection('dashboard')" class="active">📊 Dashboard</button>
+                <button onclick="showSection('clientes')">👥 Clientes</button>
+                <button onclick="showSection('processos')">📋 Processos</button>
+                <button onclick="showSection('documentos')">📄 Documentos</button>
+                <button onclick="showSection('financeiro')">💰 Financeiro</button>
+                <button onclick="showSection('agenda')">📅 Agenda</button>
+                <button onclick="showSection('perfil')">👤 Perfil</button>
+                <button onclick="logout()">🚪 Sair</button>
+            </div>
+
+            <div class="content">
+                <!-- Dashboard Melhorado -->
+                <div id="dashboard" class="section active">
+                    <h2>📊 Dashboard Avançado</h2>
+                    
+                    <!-- Estatísticas Principais -->
+                    <div class="stats">
+                        <div class="stat-card">
+                            <h3 id="clientesAtivos">-</h3>
+                            <p>Clientes Ativos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="processosAtivos">-</h3>
+                            <p>Processos Ativos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="processosConcluidos">-</h3>
+                            <p>Processos Concluídos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="receitasTotais">-</h3>
+                            <p>Receitas Totais</p>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos -->
+                    <div class="charts-container">
+                        <div class="chart-card">
+                            <h3>📈 Processos por Mês</h3>
+                            <div class="chart-container">
+                                <canvas id="processosChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>💰 Receitas vs Despesas</h3>
+                            <div class="chart-container">
+                                <canvas id="financeiroChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>📊 Estados dos Processos</h3>
+                            <div class="chart-container">
+                                <canvas id="estadosChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>📅 Compromissos Próximos</h3>
+                            <div class="chart-container">
+                                <canvas id="agendaChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resumo do Sistema -->
+                    <div class="card">
+                        <h3>🎯 Sistema de Solicitadora - Funcionalidades</h3>
+                        <div class="responsive-grid">
+                            <div class="data-item">
+                                <h4>👥 Gestão de Clientes</h4>
+                                <p>Controlo completo de dados pessoais e contactos</p>
+                            </div>
+                            <div class="data-item">
+                                <h4>📋 Acompanhamento de Processos</h4>
+                                <p>Estados, prazos e evolução dos casos jurídicos</p>
+                            </div>
+                            <div class="data-item">
+                                <h4>📄 Gestão de Documentos</h4>
+                                <p>Upload, organização e categorização de ficheiros</p>
+                            </div>
+                            <div class="data-item">
+                                <h4>💰 Controlo Financeiro</h4>
+                                <p>Honorários, despesas e relatórios automáticos</p>
+                            </div>
+                            <div class="data-item">
+                                <h4>📅 Agenda Inteligente</h4>
+                                <p>Compromissos, prazos e notificações</p>
+                            </div>
+                            <div class="data-item">
+                                <h4>📊 Relatórios Avançados</h4>
+                                <p>Gráficos, estatísticas e análises em tempo real</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clientes -->
+                <div id="clientes" class="section">
+                    <h2>👥 Gestão de Clientes</h2>
+                    <div class="card">
+                        <h3>📋 Lista de Clientes</h3>
+                        <div id="clientesList" class="loading">
+                            Carregando clientes...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processos -->
+                <div id="processos" class="section">
+                    <h2>📋 Gestão de Processos</h2>
+                    <div class="card">
+                        <h3>📋 Lista de Processos</h3>
+                        <div id="processosList" class="loading">
+                            Carregando processos...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documentos -->
+                <div id="documentos" class="section">
+                    <h2>📄 Gestão de Documentos</h2>
+                    <div class="card">
+                        <h3>📄 Lista de Documentos</h3>
+                        <div id="documentosList" class="loading">
+                            Carregando documentos...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financeiro -->
+                <div id="financeiro" class="section">
+                    <h2>💰 Gestão Financeira</h2>
+                    <div class="card">
+                        <h3>📊 Resumo Financeiro</h3>
+                        <div id="resumoFinanceiro" class="loading">
+                            Carregando dados financeiros...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agenda -->
+                <div id="agenda" class="section">
+                    <h2>📅 Agenda e Compromissos</h2>
+                    <div class="card">
+                        <h3>📅 Próximos Compromissos</h3>
+                        <div id="agendaList" class="loading">
+                            Carregando agenda...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Perfil -->
+                <div id="perfil" class="section">
+                    <h2>👤 Perfil da Solicitadora</h2>
+                    <div class="card">
+                        <h3>📝 Dados Pessoais</h3>
+                        <div id="perfilInfo" class="loading">
+                            Carregando perfil...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        let authToken = localStorage.getItem('authToken');
+        let charts = {};
+
+        // Verificar se já está logado
+        if (authToken) {
+            showMainApp();
+        }
+
+        // Função para fazer requisições à API
+        async function apiRequest(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (authToken) {
+                    options.headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        logout();
+                        throw new Error('Sessão expirada. Faça login novamente.');
+                    }
+                    throw new Error(result.error || 'Erro na requisição');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('Erro na API:', error);
+                throw error;
+            }
+        }
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                const response = await apiRequest('/auth/login', 'POST', data);
+                authToken = response.token;
+                localStorage.setItem('authToken', authToken);
+                
+                showMainApp();
+                loadDashboard();
+            } catch (error) {
+                document.getElementById('loginError').textContent = error.message;
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        });
+
+        // Logout
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+
+        // Mostrar aplicação principal
+        function showMainApp() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+        }
+
+        // Função para mostrar seções
+        function showSection(sectionName) {
+            // Esconder todas as seções
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Remover classe active de todos os botões
+            document.querySelectorAll('.nav button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mostrar a seção selecionada
+            document.getElementById(sectionName).classList.add('active');
+            
+            // Adicionar classe active ao botão clicado
+            event.target.classList.add('active');
+            
+            // Carregar dados se necessário
+            if (sectionName === 'dashboard') {
+                loadDashboard();
+            } else if (sectionName === 'clientes') {
+                loadClientes();
+            } else if (sectionName === 'processos') {
+                loadProcessos();
+            } else if (sectionName === 'documentos') {
+                loadDocumentos();
+            } else if (sectionName === 'financeiro') {
+                loadFinanceiro();
+            } else if (sectionName === 'agenda') {
+                loadAgenda();
+            } else if (sectionName === 'perfil') {
+                loadPerfil();
+            }
+        }
+
+        // Carregar dashboard com gráficos
+        async function loadDashboard() {
+            try {
+                // Carregar estatísticas
+                const stats = await apiRequest('/estatisticas');
+                
+                document.getElementById('clientesAtivos').textContent = stats.clientes_ativos || 0;
+                document.getElementById('processosAtivos').textContent = stats.processos_ativos || 0;
+                document.getElementById('processosConcluidos').textContent = stats.processos_concluidos || 0;
+                document.getElementById('receitasTotais').textContent = `€${(stats.receitas_totais || 0).toFixed(2)}`;
+
+                // Carregar dados para gráficos
+                await loadCharts();
+            } catch (error) {
+                console.error('Erro ao carregar dashboard:', error);
+            }
+        }
+
+        // Carregar gráficos
+        async function loadCharts() {
+            try {
+                // Dados dos processos
+                const processos = await apiRequest('/processos');
+                const financeiro = await apiRequest('/financeiro');
+                const agenda = await apiRequest('/agenda');
+
+                // Gráfico de Processos por Mês
+                createProcessosChart(processos);
+                
+                // Gráfico de Receitas vs Despesas
+                createFinanceiroChart(financeiro);
+                
+                // Gráfico de Estados dos Processos
+                createEstadosChart(processos);
+                
+                // Gráfico de Agenda
+                createAgendaChart(agenda);
+
+            } catch (error) {
+                console.error('Erro ao carregar gráficos:', error);
+            }
+        }
+
+        // Criar gráfico de processos por mês
+        function createProcessosChart(processos) {
+            const ctx = document.getElementById('processosChart').getContext('2d');
+            
+            // Agrupar processos por mês
+            const processosPorMes = {};
+            processos.forEach(proc => {
+                const mes = new Date(proc.data_abertura).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                processosPorMes[mes] = (processosPorMes[mes] || 0) + 1;
+            });
+
+            if (charts.processos) charts.processos.destroy();
+            
+            charts.processos = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(processosPorMes),
+                    datasets: [{
+                        label: 'Processos Abertos',
+                        data: Object.values(processosPorMes),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Criar gráfico de receitas vs despesas
+        function createFinanceiroChart(financeiro) {
+            const ctx = document.getElementById('financeiroChart').getContext('2d');
+            
+            const receitas = financeiro.filter(f => f.tipo === 'Honorário').reduce((sum, f) => sum + (f.valor || 0), 0);
+            const despesas = financeiro.filter(f => f.tipo === 'Despesa').reduce((sum, f) => sum + (f.valor || 0), 0);
+
+            if (charts.financeiro) charts.financeiro.destroy();
+            
+            charts.financeiro = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Receitas', 'Despesas'],
+                    datasets: [{
+                        data: [receitas, despesas],
+                        backgroundColor: ['#28a745', '#dc3545'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Criar gráfico de estados dos processos
+        function createEstadosChart(processos) {
+            const ctx = document.getElementById('estadosChart').getContext('2d');
+            
+            const estados = {};
+            processos.forEach(proc => {
+                estados[proc.estado] = (estados[proc.estado] || 0) + 1;
+            });
+
+            if (charts.estados) charts.estados.destroy();
+            
+            charts.estados = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(estados),
+                    datasets: [{
+                        label: 'Número de Processos',
+                        data: Object.values(estados),
+                        backgroundColor: ['#667eea', '#28a745', '#ffc107'],
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Criar gráfico de agenda
+        function createAgendaChart(agenda) {
+            const ctx = document.getElementById('agendaChart').getContext('2d');
+            
+            // Agrupar por próximos 7 dias
+            const hoje = new Date();
+            const proximos7Dias = [];
+            
+            for (let i = 0; i < 7; i++) {
+                const data = new Date(hoje);
+                data.setDate(hoje.getDate() + i);
+                proximos7Dias.push(data.toLocaleDateString('pt-BR', { weekday: 'short' }));
+            }
+
+            const eventosPorDia = new Array(7).fill(0);
+            agenda.forEach(evt => {
+                const dataEvento = new Date(evt.data_evento);
+                const diffTime = dataEvento - hoje;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 0 && diffDays < 7) {
+                    eventosPorDia[diffDays]++;
+                }
+            });
+
+            if (charts.agenda) charts.agenda.destroy();
+            
+            charts.agenda = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: proximos7Dias,
+                    datasets: [{
+                        label: 'Compromissos',
+                        data: eventosPorDia,
+                        backgroundColor: '#764ba2',
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Carregar clientes
+        async function loadClientes() {
+            try {
+                const clientes = await apiRequest('/clientes');
+                const clientesList = document.getElementById('clientesList');
+                
+                if (clientes.length === 0) {
+                    clientesList.innerHTML = '<p>Nenhum cliente encontrado.</p>';
+                    return;
+                }
+                
+                const html = clientes.map(cliente => `
+                    <div class="data-item">
+                        <h4>${cliente.nome}</h4>
+                        <p><strong>NIF:</strong> ${cliente.nif || '-'}</p>
+                        <p><strong>Email:</strong> ${cliente.email || '-'}</p>
+                        <p><strong>Telefone:</strong> ${cliente.telefone || '-'}</p>
+                    </div>
+                `).join('');
+                
+                clientesList.innerHTML = html;
+            } catch (error) {
+                document.getElementById('clientesList').innerHTML = 
+                    `<div class="error">Erro ao carregar clientes: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar processos
+        async function loadProcessos() {
+            try {
+                const processos = await apiRequest('/processos');
+                const processosList = document.getElementById('processosList');
+                
+                if (processos.length === 0) {
+                    processosList.innerHTML = '<p>Nenhum processo encontrado.</p>';
+                    return;
+                }
+                
+                const html = processos.map(proc => `
+                    <div class="data-item">
+                        <h4>${proc.numero_processo}</h4>
+                        <p><strong>Cliente:</strong> ${proc.cliente_nome || '-'}</p>
+                        <p><strong>Tipo:</strong> ${proc.tipo_processo || '-'}</p>
+                        <p><strong>Estado:</strong> <span class="status-badge status-${proc.estado.toLowerCase().replace(' ', '')}">${proc.estado}</span></p>
+                    </div>
+                `).join('');
+                
+                processosList.innerHTML = html;
+            } catch (error) {
+                document.getElementById('processosList').innerHTML = 
+                    `<div class="error">Erro ao carregar processos: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar documentos
+        async function loadDocumentos() {
+            try {
+                const documentos = await apiRequest('/documentos');
+                const documentosList = document.getElementById('documentosList');
+                
+                if (documentos.length === 0) {
+                    documentosList.innerHTML = '<p>Nenhum documento encontrado.</p>';
+                    return;
+                }
+                
+                const html = documentos.map(doc => `
+                    <div class="data-item">
+                        <h4>${doc.nome_documento}</h4>
+                        <p><strong>Tipo:</strong> ${doc.tipo_documento || '-'}</p>
+                        <p><strong>Processo:</strong> ${doc.numero_processo || '-'}</p>
+                        <p><strong>Data Upload:</strong> ${new Date(doc.data_upload).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                documentosList.innerHTML = html;
+            } catch (error) {
+                document.getElementById('documentosList').innerHTML = 
+                    `<div class="error">Erro ao carregar documentos: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar financeiro
+        async function loadFinanceiro() {
+            try {
+                const financeiro = await apiRequest('/financeiro');
+                const resumoFinanceiro = document.getElementById('resumoFinanceiro');
+                
+                if (financeiro.length === 0) {
+                    resumoFinanceiro.innerHTML = '<p>Nenhum registo financeiro encontrado.</p>';
+                    return;
+                }
+                
+                const html = financeiro.map(fin => `
+                    <div class="data-item">
+                        <h4>${fin.tipo} - €${fin.valor}</h4>
+                        <p><strong>Descrição:</strong> ${fin.descricao || '-'}</p>
+                        <p><strong>Status:</strong> <span class="status-badge status-${fin.status.toLowerCase()}">${fin.status}</span></p>
+                        <p><strong>Data:</strong> ${new Date(fin.data_registo).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                resumoFinanceiro.innerHTML = html;
+            } catch (error) {
+                document.getElementById('resumoFinanceiro').innerHTML = 
+                    `<div class="error">Erro ao carregar dados financeiros: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar agenda
+        async function loadAgenda() {
+            try {
+                const agenda = await apiRequest('/agenda');
+                const agendaList = document.getElementById('agendaList');
+                
+                if (agenda.length === 0) {
+                    agendaList.innerHTML = '<p>Nenhum compromisso encontrado.</p>';
+                    return;
+                }
+                
+                const html = agenda.map(evt => `
+                    <div class="data-item">
+                        <h4>${evt.titulo}</h4>
+                        <p><strong>Data:</strong> ${new Date(evt.data_evento).toLocaleString('pt-BR')}</p>
+                        <p><strong>Processo:</strong> ${evt.numero_processo || '-'}</p>
+                        <p><strong>Observações:</strong> ${evt.observacoes || '-'}</p>
+                    </div>
+                `).join('');
+                
+                agendaList.innerHTML = html;
+            } catch (error) {
+                document.getElementById('agendaList').innerHTML = 
+                    `<div class="error">Erro ao carregar agenda: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar perfil
+        async function loadPerfil() {
+            try {
+                const perfil = await apiRequest('/solicitadora');
+                const perfilInfo = document.getElementById('perfilInfo');
+                
+                if (perfil.length === 0) {
+                    perfilInfo.innerHTML = '<p>Nenhum perfil encontrado.</p>';
+                    return;
+                }
+                
+                const info = perfil[0];
+                const html = `
+                    <div class="responsive-grid">
+                        <div class="data-item">
+                            <h4>Nome</h4>
+                            <p>${info.nome || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>NIF</h4>
+                            <p>${info.nif || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>Email</h4>
+                            <p>${info.email || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>Telefone</h4>
+                            <p>${info.telefone || '-'}</p>
+                        </div>
+                        <div class="data-item" style="grid-column: 1 / -1;">
+                            <h4>Morada</h4>
+                            <p>${info.morada || '-'}</p>
+                        </div>
+                    </div>
+                `;
+                
+                perfilInfo.innerHTML = html;
+            } catch (error) {
+                document.getElementById('perfilInfo').innerHTML = 
+                    `<div class="error">Erro ao carregar perfil: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
