@@ -984,6 +984,7 @@ function prepararProcessoParaFirestore(entidade, item) {
         tipo: item.tipo ?? tipoProcesso,
         estado: item.estado ?? item.status ?? '',
         descricao: item.descricao ?? '',
+        prioridade: item.prioridade ?? 'media',
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
         deleted: item.deleted === true
@@ -995,6 +996,7 @@ function lerProcessoDoFirestore(data) {
     return {
         ...data,
         status: data.status ?? data.estado,
+        prioridade: data.prioridade ?? 'media',
         dataCriacao: data.dataCriacao ?? data.createdAt
     };
 }
@@ -2025,6 +2027,46 @@ function gerarCodigoAcesso() {
     }
     return codigo;
 }
+
+/** Remove definitivamente do Firestore apenas documentos com deleted: true (purga lixo). */
+async function purgarDocumentosEliminadosFirestore() {
+    if (!isCloudReady() || !firestoreDb) {
+        mostrarNotificacao('Firestore não disponível.', 'error');
+        return;
+    }
+    if (!exigirAdmin('purga de dados eliminados')) return;
+    if (!confirm('Remover da base de dados todos os itens que já foram "eliminados" (clientes, convidados, documentos, etc.)?\n\nIsto não afeta dados ativos. É irreversível.')) return;
+    if (!confirm('Confirma a purga?')) return;
+    const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados'];
+    let total = 0;
+    try {
+        mostrarNotificacao('A purgar...', 'info');
+        for (const nome of colecoes) {
+            let n = 0;
+            while (true) {
+                const col = firestoreDb.collection(nome);
+                const snapshot = await col.get();
+                const aApagar = snapshot.docs.filter(d => d.data().deleted === true);
+                if (aApagar.length === 0) break;
+                const batch = firestoreDb.batch();
+                aApagar.slice(0, 500).forEach(d => batch.delete(d.ref));
+                await batch.commit();
+                n += Math.min(aApagar.length, 500);
+            }
+            total += n;
+        }
+        if (total > 0) {
+            mostrarNotificacao(`${total} documento(s) eliminado(s) removido(s) da base de dados.`, 'success');
+            if (typeof carregarSecao === 'function') carregarSecao('backup');
+        } else {
+            mostrarNotificacao('Nenhum documento eliminado encontrado. Base já está limpa.', 'info');
+        }
+    } catch (err) {
+        console.error('Erro na purga:', err);
+        mostrarNotificacao('Erro ao purgar: ' + (err.message || err), 'error');
+    }
+}
+window.purgarDocumentosEliminadosFirestore = purgarDocumentosEliminadosFirestore;
 
 /** Apaga todos os documentos de uma coleção Firestore (em lotes de 500). */
 async function apagarColecaoFirestore(nomeColecao) {
@@ -5441,7 +5483,7 @@ function atualizarTitulo(secao) {
         herancas: 'Gestão de Heranças',
         migracoes: 'Gestão de Migração',
         registos: 'Gestão de Registos',
-        documentos: 'Gestão de Documentos',
+        documentos: 'Minutas',
         tarefas: 'Sistema de Tarefas',
         calendario: 'Calendário de Prazos',
         relatorios: 'Gestão de Relatórios',
@@ -5591,18 +5633,7 @@ ${clientesParaMostrar.map(cliente => {
 Sistema Legal - ANA PAULA MEDINA
     `;
     
-    // Criar e baixar arquivo
-    const blob = new Blob([relatorio], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `relatorio_completo_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    mostrarNotificacao('Relatório completo gerado com sucesso!', 'success');
+    textoParaPdf('Relatório Completo', relatorio, 'baixar', `relatorio_completo_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 /** Abre o relatório completo em janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
@@ -5686,6 +5717,52 @@ function gerarHtmlRelatorioCompleto(d) {
 <h2>Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
 <p><em>Sistema Legal - Relatório gerado automaticamente</em></p>
 </body></html>`;
+}
+
+/** Converte texto em PDF (download ou imprimir). Usado para todos os relatórios. */
+function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
+    try {
+        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
+        if (!jsPDF) {
+            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
+            return;
+        }
+        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+        doc.setFont('times', 'normal');
+        doc.setFontSize(11);
+        const margin = 15;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const maxWidth = pageWidth - margin * 2;
+        const lineHeight = 6;
+        let y = margin;
+        const blocos = (texto || '').split('\n');
+        blocos.forEach(bloco => {
+            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
+            linhas.forEach(linha => {
+                if (y > 280) { doc.addPage(); y = margin; }
+                doc.text(linha, margin, y);
+                y += lineHeight;
+            });
+        });
+        const nome = nomeFicheiro || `${(titulo || 'relatorio').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (acao === 'baixar') {
+            doc.save(nome);
+            mostrarNotificacao('Relatório PDF gerado com sucesso!', 'success');
+        } else if (acao === 'imprimir') {
+            const blob = doc.output('blob');
+            const url = URL.createObjectURL(blob);
+            const janela = window.open(url, '_blank');
+            if (janela) {
+                janela.addEventListener('load', () => setTimeout(() => { janela.print(); URL.revokeObjectURL(url); }, 500));
+            } else {
+                doc.save(nome);
+                URL.revokeObjectURL(url);
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao gerar PDF:', e);
+        mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
+    }
 }
 
 /** Abre relatório em texto numa janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
@@ -5860,7 +5937,7 @@ function gerarRelatorioCliente() {
                     gap: 5px;
                 ">
                     <i data-lucide="download" class="w-4 h-4"></i>
-                    TXT
+                    PDF
                 </button>
                 <button class="btn btn-primary" onclick="gerarRelatorioClienteSelecionado(true)" style="
                     padding: 8px 16px;
@@ -6071,15 +6148,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
     if (exportarComoPdf) {
         abrirRelatorioTextoComoPdf(`Relatório Personalizado - ${clienteSelecionado}`, relatorio);
     } else {
-        const blob = new Blob([relatorio], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `relatorio_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        textoParaPdf(`Relatório - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -6250,7 +6319,7 @@ function gerarRelatorioFinanceiroCliente() {
                     gap: 5px;
                 ">
                     <i data-lucide="download" class="w-4 h-4"></i>
-                    TXT
+                    PDF
                 </button>
                 <button class="btn btn-primary" onclick="gerarRelatorioFinanceiroClienteSelecionado(true)" style="
                     padding: 8px 16px;
@@ -6488,15 +6557,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
     if (exportarComoPdf) {
         abrirRelatorioTextoComoPdf(`Relatório Financeiro - ${clienteSelecionado}`, relatorio);
     } else {
-        const blob = new Blob([relatorio], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `relatorio_financeiro_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        textoParaPdf(`Relatório Financeiro - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_financeiro_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -6669,7 +6730,7 @@ function gerarRelatorioGeralCliente() {
                     gap: 5px;
                 ">
                     <i data-lucide="download" class="w-4 h-4"></i>
-                    TXT
+                    PDF
                 </button>
                 <button class="btn btn-primary" onclick="gerarRelatorioGeralClienteSelecionado(true)" style="
                     padding: 8px 16px;
@@ -6922,15 +6983,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
     if (exportarComoPdf) {
         abrirRelatorioTextoComoPdf(`Relatório Geral - ${clienteSelecionado}`, relatorio);
     } else {
-        const blob = new Blob([relatorio], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `relatorio_geral_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        textoParaPdf(`Relatório Geral - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_geral_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -11093,7 +11146,7 @@ function gerarRelatorios() {
                     <div class="flex flex-wrap gap-2">
                         <button onclick="gerarRelatorioCompleto()" class="btn btn-secondary">
                             <i data-lucide="download" class="w-4 h-4"></i>
-                            TXT
+                            PDF
                         </button>
                         <button onclick="imprimirRelatorioCompletoComoPdf()" class="btn btn-primary" title="Imprimir ou guardar como PDF">
                             <i data-lucide="file-text" class="w-4 h-4"></i>
@@ -11318,20 +11371,59 @@ function gerarTemplateDocumento(acao) {
     }
 
     const conteudo = gerarConteudoTemplateDocumento(modelo.id, dados);
-    const dataUri = `data:text/plain;charset=utf-8,${encodeURIComponent(conteudo)}`;
     const nomeBase = normalizarNomeArquivo(`${modelo.arquivo}_${dados.cliente?.nome || 'cliente'}`);
-    const nomeArquivo = `${nomeBase || modelo.arquivo}.txt`;
+    const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
-    if (acao === 'baixar') {
-        const link = document.createElement('a');
-        link.href = dataUri;
-        link.download = nomeArquivo;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
+    if (acao === 'baixar' || acao === 'imprimir') {
+        try {
+            const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
+            if (!jsPDF) {
+                mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar a página.', 'error');
+                return;
+            }
+            const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+            doc.setFont('times', 'normal');
+            doc.setFontSize(12);
+            const margin = 20;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const maxWidth = pageWidth - margin * 2;
+            const lineHeight = 7;
+            let y = margin;
+            const blocos = conteudo.split('\n');
+            blocos.forEach(bloco => {
+                const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
+                linhas.forEach(linha => {
+                    if (y > 277) { doc.addPage(); y = margin; }
+                    doc.text(linha, margin, y);
+                    y += lineHeight;
+                });
+            });
+            if (acao === 'baixar') {
+                doc.save(nomeArquivo);
+                mostrarNotificacao('Documento PDF gerado com sucesso!', 'success');
+                return;
+            }
+            if (acao === 'imprimir') {
+                const blob = doc.output('blob');
+                const url = URL.createObjectURL(blob);
+                const janela = window.open(url, '_blank');
+                if (janela) {
+                    janela.addEventListener('load', () => setTimeout(() => { janela.print(); URL.revokeObjectURL(url); }, 500));
+                } else {
+                    mostrarNotificacao('Permita abrir a janela para imprimir.', 'warning');
+                    doc.save(nomeArquivo);
+                    URL.revokeObjectURL(url);
+                }
+                return;
+            }
+        } catch (e) {
+            console.error('Erro ao gerar PDF:', e);
+            mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
+            return;
+        }
     }
 
+    const dataUri = `data:text/plain;charset=utf-8,${encodeURIComponent(conteudo)}`;
     const tamanho = new Blob([conteudo]).size;
         const documento = {
             id: gerarIdImutavel(),
@@ -11341,7 +11433,7 @@ function gerarTemplateDocumento(acao) {
         descricao: `Modelo: ${modelo.nome}`,
         tags: ['template', modelo.nome],
         nomeArquivo,
-        tipoArquivo: 'text/plain',
+        tipoArquivo: 'application/pdf',
         tamanho,
         conteudo: dataUri,
         criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
@@ -11427,7 +11519,8 @@ function gerarDocumentos() {
             ${podeCriarDocumento ? `
                 <div class="card p-6">
                     <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <p class="text-gray-600 mb-4">Documentos gerados em PDF a partir de modelos (Procuração, Declarações, Recibos)</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
                             <select id="templateCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
@@ -11453,17 +11546,16 @@ function gerarDocumentos() {
                             </select>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2 mt-4">
-                        <button onclick="gerarTemplateDocumento('salvar')" class="btn btn-primary">
-                            <i data-lucide="file-plus" class="w-4 h-4"></i>
-                            Gerar e guardar
-                        </button>
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="gerarTemplateDocumento('baixar')" class="btn btn-secondary">
                             <i data-lucide="download" class="w-4 h-4"></i>
-                            Baixar
+                            PDF
+                        </button>
+                        <button onclick="gerarTemplateDocumento('imprimir')" class="btn btn-primary" title="Imprimir ou guardar como PDF">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                            PDF / Imprimir
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-3">Os modelos são gerados em formato .txt e podem ser editados depois.</p>
                 </div>
             ` : ''}
             
@@ -11595,7 +11687,10 @@ function renderizarListaDocumentos(lista) {
                 <div class="flex items-center gap-2">
                     <button onclick="baixarDocumento(${JSON.stringify(doc.id)})" class="text-blue-600 hover:text-blue-800" title="Baixar">
                         <i data-lucide="download" class="w-4 h-4" style="pointer-events:none"></i>
-                        </button>
+                    </button>
+                    <button onclick="imprimirDocumento(${JSON.stringify(doc.id)})" class="text-gray-600 hover:text-gray-800" title="Imprimir">
+                        <i data-lucide="printer" class="w-4 h-4" style="pointer-events:none"></i>
+                    </button>
                     ${isConvidado ? '' : `
                         <button onclick="excluirDocumento(${JSON.stringify(doc.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                             <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
@@ -11685,7 +11780,40 @@ function baixarDocumento(id) {
     document.body.removeChild(link);
 }
 
-function excluirDocumento(id) {
+function imprimirDocumento(id) {
+    const doc = obterDocumentosAtual().find(d => d.id === id);
+    if (!doc) {
+        mostrarNotificacao('Documento não encontrado.', 'error');
+        return;
+    }
+    let conteudo = '';
+    if (doc.conteudo && doc.conteudo.startsWith('data:text/plain')) {
+        try {
+            conteudo = decodeURIComponent(doc.conteudo.split(',')[1] || '');
+        } catch (e) {
+            conteudo = 'Conteúdo não disponível para impressão.';
+        }
+    } else {
+        conteudo = doc.descricao || 'Conteúdo do documento.';
+    }
+    const janela = window.open('', '_blank');
+    janela.document.write(`
+        <!DOCTYPE html>
+        <html><head>
+            <meta charset="UTF-8">
+            <title>${doc.nomeArquivo || 'documento'}</title>
+            <style>
+                body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; max-width: 21cm; margin: 2cm auto; padding: 0 1cm; white-space: pre-wrap; }
+                @media print { body { margin: 0; padding: 1cm; } }
+            </style>
+        </head><body>${conteudo.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</body></html>
+    `);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => { janela.print(); }, 250);
+}
+
+async function excluirDocumento(id) {
     if (!exigirPermissaoAcao('apagar', 'documento')) {
         return;
     }
@@ -11698,6 +11826,17 @@ function excluirDocumento(id) {
     if (!confirm('Tem certeza que deseja excluir este documento?')) return;
     const lista = listaDoc.filter(d => d.id !== id);
     salvarDocumentosLocal(lista);
+    if (isCloudReady() && typeof apagarDocumentoCloud === 'function') {
+        try {
+            await apagarDocumentoCloud(id);
+        } catch (err) {
+            console.warn('Erro ao apagar documento na nuvem:', err);
+            salvarDocumentosLocal(listaDoc);
+            aplicarFiltrosDocumentos();
+            mostrarNotificacao('Erro ao eliminar na nuvem. Documento restaurado.', 'error');
+            return;
+        }
+    }
     registrarAuditoria('excluir', 'documento', `Documento excluído: ${doc.nomeArquivo}`, doc, null);
     aplicarFiltrosDocumentos();
     mostrarNotificacao('Documento excluído com sucesso!', 'success');
@@ -14382,7 +14521,7 @@ ${index + 1}. ${cliente.nome}
 `).join('')}
     `;
     
-    downloadRelatorio(relatorio, 'relatorio_clientes.txt');
+    downloadRelatorio(relatorio, 'relatorio_clientes.pdf');
 }
 
 function gerarRelatorioFinanceiro() {
@@ -14415,51 +14554,13 @@ ${index + 1}. ${honorario.cliente} - ${honorario.servico}
 `).join('')}
     `;
     
-    downloadRelatorio(relatorio, 'relatorio_financeiro.txt');
+    downloadRelatorio(relatorio, 'relatorio_financeiro.pdf');
 }
 
-function gerarRelatorioCompleto() {
-    const relatorio = `
-RELATÓRIO COMPLETO DO SISTEMA
-============================
-Data: ${new Date().toLocaleDateString('pt-PT')}
-Versão: 38.0
-
-ESTATÍSTICAS GERAIS:
-- Clientes: ${clientes.length}
-- Honorários: ${honorarios.length}
-
-RESUMO FINANCEIRO:
-- Valor Total: €${Number(honorarios.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0)).toFixed(2)}
-- Honorários Pagos: ${honorarios.filter(h => h.status === 'pago').length}
-- Honorários Pendentes: ${honorarios.filter(h => isHonorarioEmAberto(h)).length}
-
-CLIENTES:
-${clientes.map((cliente, index) => `
-${index + 1}. ${cliente.nome} (${cliente.status})
-`).join('')}
-
-HONORÁRIOS:
-${honorarios.map((honorario, index) => `
-${index + 1}. ${honorario.cliente} - €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} (${formatarStatusHonorario(honorario.status)})
-`).join('')}
-    `;
-    
-    downloadRelatorio(relatorio, 'relatorio_completo.txt');
-}
 
 function downloadRelatorio(conteudo, nomeArquivo) {
-    const blob = new Blob([conteudo], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomeArquivo;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    mostrarNotificacao('Relatório gerado com sucesso!', 'success');
+    const nomePdf = (nomeArquivo || 'relatorio.pdf').replace(/\.txt$/i, '.pdf');
+    textoParaPdf('Relatório', conteudo, 'baixar', nomePdf);
 }
 
 // === SISTEMA DE BACKUP AUTOMÁTICO ===
@@ -15105,6 +15206,18 @@ function gerarBackup() {
                         class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center">
                     <i data-lucide="key" class="w-4 h-4 mr-2"></i>
                     Alterar senha
+                </button>
+            </div>
+            
+            <div class="card p-6 border-amber-200 bg-amber-50/50">
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">🧹 Limpar base de dados (itens eliminados)</h3>
+                <p class="text-sm text-amber-800 mb-4">
+                    Remove da base de dados <strong>definitivamente</strong> apenas clientes, convidados, documentos, etc. que já foram "apagados" no sistema. Os dados ativos ficam intactos. Ideal para não ver mais criações antigas e convidados eliminados na consola do Firestore.
+                </p>
+                <button onclick="purgarDocumentosEliminadosFirestore()" 
+                        class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                    Remover itens eliminados da base de dados
                 </button>
             </div>
             
@@ -17003,6 +17116,7 @@ function gerarHerancas() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -17455,6 +17569,7 @@ function gerarMigracao() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -17471,6 +17586,9 @@ function gerarMigracao() {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -17631,6 +17749,7 @@ function gerarRegistos() {
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -17942,7 +18061,7 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
         return;
     }
     
-    const verMais = total > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__herancasLimit = (window.__herancasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHerancas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__herancasLimit = (window.__herancasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHerancas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = herancasFiltradas.map(heranca => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -17957,6 +18076,9 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${heranca.status || 'pendente'}">${heranca.status || 'Pendente'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge status-${heranca.prioridade || 'media'}">${heranca.prioridade || 'media'}</span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -17992,7 +18114,7 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
     const tbody = document.getElementById('listaMigracoes');
     if (!tbody) return;
     
-    const verMais = total > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__migracoesLimit = (window.__migracoesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosMigracoes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__migracoesLimit = (window.__migracoesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosMigracoes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     tbody.innerHTML = migracoesFiltradas.map(migracao => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -18007,6 +18129,9 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -18033,7 +18158,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
         return;
     }
     
-    const verMais = total > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__registosLimit = (window.__registosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosRegistos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__registosLimit = (window.__registosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosRegistos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = registosFiltrados.map(registo => `
         <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -18048,6 +18173,9 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${registo.status || 'pendente'}">${registo.status || 'Pendente'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge status-${registo.prioridade || 'media'}">${registo.prioridade || 'media'}</span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -18163,6 +18291,16 @@ function abrirModalHeranca() {
                                         <option value="pendente">Pendente</option>
                                         <option value="em_andamento">Em Andamento</option>
                                         <option value="concluido">Concluído</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media" selected>Média</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="critica">Crítica</option>
                                     </select>
                                 </div>
                             </div>
@@ -18350,6 +18488,16 @@ function abrirModalMigracaoDireto() {
                                     <option value="concluido">Concluído</option>
                                 </select>
                             </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="baixa">Baixa</option>
+                                    <option value="media" selected>Média</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="critica">Crítica</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div>
@@ -18487,6 +18635,16 @@ function abrirModalMigracao() {
                                         <option value="concluido">Concluído</option>
                                     </select>
                                 </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media" selected>Média</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="critica">Crítica</option>
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -18600,6 +18758,16 @@ function abrirModalRegisto() {
                                         <option value="concluido">Concluído</option>
                                     </select>
                                 </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media" selected>Média</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="critica">Crítica</option>
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -18657,6 +18825,7 @@ async function salvarHeranca(event) {
         percentagem: percentagem,
         valorComIva: valorComIva,
         status: formData.get('status'),
+        prioridade: formData.get('prioridade') || 'media',
         dataInicio: formData.get('dataInicio'),
         observacoes: formData.get('observacoes'),
         dataCriacao: new Date().toISOString(),
@@ -18739,6 +18908,7 @@ async function salvarMigracao(event) {
         percentagem: percentagem,
         valorComIva: valorComIva,
         status: formData.get('status'),
+        prioridade: formData.get('prioridade') || 'media',
         dataInicio: formData.get('dataInicio'),
             parceria: formData.get('parceria'),
             parceriaNome: formData.get('parceriaNome'),
@@ -18822,6 +18992,7 @@ async function salvarRegisto(event) {
         percentagem: percentagem,
         valorComIva: valorComIva,
         status: formData.get('status'),
+        prioridade: formData.get('prioridade') || 'media',
         dataInicio: formData.get('dataInicio'),
         observacoes: formData.get('observacoes'),
         dataCriacao: new Date().toISOString(),
@@ -18908,6 +19079,7 @@ function duplicarHeranca(id) {
             form.elements['parceriaNome'] && (form.elements['parceriaNome'].value = heranca.parceriaNome || '');
             form.elements['percentagem'] && (form.elements['percentagem'].value = heranca.percentagem ?? '');
             form.status.value = 'pendente';
+            form.elements['prioridade'] && (form.elements['prioridade'].value = heranca.prioridade || 'media');
             form.dataInicio.value = heranca.dataInicio || '';
             form.observacoes.value = heranca.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -18939,6 +19111,7 @@ function duplicarMigracao(id) {
             form.elements['parceriaNome'] && (form.elements['parceriaNome'].value = migracao.parceriaNome || '');
             form.elements['percentagem'] && (form.elements['percentagem'].value = migracao.percentagem ?? '');
             form.status.value = 'pendente';
+            form.elements['prioridade'] && (form.elements['prioridade'].value = migracao.prioridade || 'media');
             form.dataInicio.value = migracao.dataInicio || '';
             form.observacoes.value = migracao.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -18970,6 +19143,7 @@ function duplicarRegisto(id) {
             form.elements['parceriaNome'] && (form.elements['parceriaNome'].value = registo.parceriaNome || '');
             form.elements['percentagem'] && (form.elements['percentagem'].value = registo.percentagem ?? '');
             form.status.value = 'pendente';
+            form.elements['prioridade'] && (form.elements['prioridade'].value = registo.prioridade || 'media');
             form.dataInicio.value = registo.dataInicio || '';
             form.observacoes.value = registo.observacoes || '';
             const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
@@ -18996,6 +19170,7 @@ function editarHeranca(id) {
             form.valor.value = heranca.valor || '';
             form.iva.value = heranca.iva || 23;
             form.status.value = heranca.status;
+            if (form.elements['prioridade']) form.elements['prioridade'].value = heranca.prioridade || 'media';
             form.dataInicio.value = heranca.dataInicio || '';
             form.observacoes.value = heranca.observacoes || '';
             
@@ -19026,6 +19201,7 @@ function editarMigracao(id) {
             form.valor.value = migracao.valor || '';
             form.iva.value = migracao.iva || 23;
             form.status.value = migracao.status;
+            if (form.elements['prioridade']) form.elements['prioridade'].value = migracao.prioridade || 'media';
             form.dataInicio.value = migracao.dataInicio || '';
             form.observacoes.value = migracao.observacoes || '';
             
@@ -19054,6 +19230,7 @@ function editarRegisto(id) {
             form.valor.value = registo.valor || '';
             form.iva.value = registo.iva || 23;
             form.status.value = registo.status;
+            if (form.elements['prioridade']) form.elements['prioridade'].value = registo.prioridade || 'media';
             form.dataInicio.value = registo.dataInicio || '';
             form.observacoes.value = registo.observacoes || '';
             
@@ -20274,6 +20451,16 @@ function abrirModalEdicaoHeranca(heranca) {
                                     <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                <select id="herancaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="baixa" ${(heranca.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                    <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
+                                    <option value="alta" ${(heranca.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
+                                    <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div>
@@ -20382,6 +20569,16 @@ function abrirModalEdicaoMigracao(migracao) {
                                     <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                <select id="migracaoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="baixa" ${(migracao.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                    <option value="media" ${(migracao.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
+                                    <option value="alta" ${(migracao.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
+                                    <option value="critica" ${(migracao.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div>
@@ -20488,6 +20685,16 @@ function abrirModalEdicaoRegisto(registo) {
                                         <option value="pendente" ${registo.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${registo.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
                                         <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>Concluído</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select id="registoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa" ${(registo.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                        <option value="media" ${(registo.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
+                                        <option value="alta" ${(registo.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
+                                        <option value="critica" ${(registo.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                     </select>
                                 </div>
                             </div>
@@ -20803,6 +21010,7 @@ function atualizarHeranca(event, id) {
             valor: document.getElementById('herancaValor').value,
             iva: document.getElementById('herancaIva').value,
             status: document.getElementById('herancaStatus').value,
+            prioridade: document.getElementById('herancaPrioridade')?.value || 'media',
             dataInicio: document.getElementById('herancaDataInicio').value,
             observacoes: document.getElementById('herancaObservacoes').value,
             dataAtualizacao: new Date().toISOString()
@@ -20850,6 +21058,7 @@ function atualizarMigracao(event, id) {
             valor: document.getElementById('migracaoValor').value,
             iva: document.getElementById('migracaoIva').value,
             status: document.getElementById('migracaoStatus').value,
+            prioridade: document.getElementById('migracaoPrioridade')?.value || 'media',
             dataInicio: document.getElementById('migracaoDataInicio').value,
             observacoes: document.getElementById('migracaoObservacoes').value,
             dataAtualizacao: new Date().toISOString()
@@ -20902,6 +21111,7 @@ function atualizarRegisto(event, id) {
             valor: document.getElementById('registoValor').value,
             iva: document.getElementById('registoIva').value,
             status: document.getElementById('registoStatus').value,
+            prioridade: document.getElementById('registoPrioridade')?.value || 'media',
             dataInicio: document.getElementById('registoDataInicio').value,
             observacoes: document.getElementById('registoObservacoes').value,
             dataAtualizacao: new Date().toISOString()
@@ -20947,6 +21157,7 @@ async function salvarHerancaEditada(event, id) {
         valor: document.getElementById('editValor').value,
         iva: document.getElementById('editIva').value,
         status: document.getElementById('editStatus').value,
+        prioridade: document.getElementById('editPrioridade')?.value || 'media',
         dataInicio: document.getElementById('editDataInicio').value,
         observacoes: document.getElementById('editObservacoes').value,
         dataAtualizacao: new Date().toISOString()
@@ -21209,6 +21420,16 @@ function editarHeranca(id) {
                                         <option value="pendente" ${heranca.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${heranca.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
                                         <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>Concluído</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select id="editPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa" ${(heranca.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                        <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
+                                        <option value="alta" ${(heranca.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
+                                        <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                     </select>
                                 </div>
                             </div>
