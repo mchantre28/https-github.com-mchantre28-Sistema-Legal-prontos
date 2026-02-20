@@ -274,7 +274,9 @@ const CLOUD_ENTIDADES = [
     'registos',   // processos
     'documentos',
     'tarefas',
-    'convidados'
+    'convidados',
+    'entidades',
+    'integracoes_externas'
 ];
 /** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
 const ENTIDADES_PORTUGAL = [
@@ -372,6 +374,20 @@ function iniciarListenersFirestore() {
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add)(window.__ouvirConvidadosUnsubscribe);
+    window.__ouvirEntidadesUnsubscribe = ouvirEntidades((lista) => {
+        entidades = lista; window.entidades = entidades;
+        if (lista.length === 0 && isCloudReady() && !window.__entidadesSeedTentado) {
+            window.__entidadesSeedTentado = true;
+            seedEntidadesSeVazio();
+        }
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add)(window.__ouvirEntidadesUnsubscribe);
+    window.__ouvirIntegracoesExternasUnsubscribe = ouvirIntegracoesExternas((lista) => {
+        integracoesExternas = lista; window.integracoesExternas = integracoesExternas;
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add)(window.__ouvirIntegracoesExternasUnsubscribe);
 }
 window.__cloudSyncPending = window.__cloudSyncPending || 0;
 window.__cloudSyncError = window.__cloudSyncError || null;
@@ -984,6 +1000,164 @@ function ouvirConvidados(callback) {
     }, (err) => console.warn('Erro na escuta de convidados:', err));
 }
 
+// === ENTIDADES (Integrações Externas - catálogo) ===
+function prepararEntidadeParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        id: item.id,
+        nome: item.nome ?? '',
+        tipo: item.tipo ?? 'outra',
+        sigla: item.sigla ?? '',
+        contactos: item.contactos ?? null,
+        website: item.website ?? '',
+        portalUrl: item.portalUrl ?? '',
+        ativo: item.ativo !== false,
+        notas: item.notas ?? '',
+        ordem: typeof item.ordem === 'number' ? item.ordem : 0,
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora,
+        deleted: item.deleted === true
+    };
+}
+function lerEntidadeDoFirestore(data) {
+    if (!data) return data;
+    return { ...data };
+}
+async function criarEntidadeCloud(item) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const id = item.id || gerarIdImutavel();
+    const payload = prepararEntidadeParaFirestore({ ...item, id });
+    await firestoreDb.collection('entidades').doc(String(id)).set(payload, { merge: true });
+    return { ...item, id, ...payload };
+}
+async function atualizarEntidadeCloud(id, dados) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const payload = { ...prepararEntidadeParaFirestore({ ...dados, id }), updatedAt: new Date().toISOString() };
+    await firestoreDb.collection('entidades').doc(String(id)).update(payload);
+    return { ...dados, id, ...payload };
+}
+async function desativarEntidadeCloud(id) {
+    if (!isCloudReady()) return;
+    await firestoreDb.collection('entidades').doc(String(id)).update({ ativo: false, updatedAt: new Date().toISOString() });
+}
+function ouvirEntidades(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('entidades').onSnapshot((snapshot) => {
+        const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(e => !e.deleted).map(lerEntidadeDoFirestore).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => console.warn('Erro na escuta de entidades:', err));
+}
+/** Seed inicial: popula coleção entidades a partir de ENTIDADES_PORTUGAL se estiver vazia. */
+async function seedEntidadesSeVazio() {
+    if (!isCloudReady()) return;
+    try {
+        const snap = await firestoreDb.collection('entidades').limit(1).get();
+        if (!snap.empty) return;
+        const tipos = { financas_at: 'financas', conservatorias_irn: 'conservatoria', imt: 'imt', camaras_municipais: 'camara_municipal', seguranca_social: 'seguranca_social', bancos: 'banco', embaixadas_consulados: 'embaixada_consulado', registo_predial: 'registo_online', registo_comercial: 'registo_online', registo_automovel: 'registo_online' };
+        const origem = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
+        for (let i = 0; i < origem.length; i++) {
+            const e = origem[i];
+            await criarEntidadeCloud({
+                id: e.id,
+                nome: e.nome,
+                tipo: tipos[e.id] || 'outra',
+                ativo: true,
+                ordem: i
+            });
+        }
+    } catch (err) { console.warn('Seed entidades:', err); }
+}
+
+/** Retorna ENTIDADES_PORTUGAL da coleção Firestore ou fallback para constante. */
+function obterEntidadesParaSelect() {
+    const lista = Array.isArray(entidades) ? entidades.filter(e => e.ativo !== false) : [];
+    if (lista.length > 0) {
+        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome }))];
+    }
+    return typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
+}
+
+// === INTEGRAÇÕES EXTERNAS ===
+function prepararIntegracaoParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        id: item.id,
+        entidadeId: item.entidadeId ?? '',
+        entidadeNome: item.entidadeNome ?? '',
+        clienteId: item.clienteId ?? null,
+        clienteNome: item.clienteNome ?? '',
+        processoTipo: item.processoTipo ?? 'heranca',
+        processoId: item.processoId ?? null,
+        processoRef: item.processoRef ?? '',
+        tipoInteracao: item.tipoInteracao ?? 'pedido',
+        descricao: item.descricao ?? '',
+        estado: item.estado ?? 'pendente',
+        dataEnvio: item.dataEnvio ?? null,
+        dataResposta: item.dataResposta ?? null,
+        prazoResposta: item.prazoResposta ?? null,
+        canal: item.canal ?? 'online',
+        referenciaExterna: item.referenciaExterna ?? '',
+        anexosEnvio: Array.isArray(item.anexosEnvio) ? item.anexosEnvio : [],
+        anexosResposta: Array.isArray(item.anexosResposta) ? item.anexosResposta : [],
+        comprovativoPagamento: item.comprovativoPagamento ?? '',
+        taxaPaga: typeof item.taxaPaga === 'number' ? item.taxaPaga : 0,
+        utilizadorId: item.utilizadorId ?? null,
+        utilizadorNome: item.utilizadorNome ?? '',
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora,
+        deleted: item.deleted === true
+    };
+}
+function lerIntegracaoDoFirestore(data) {
+    if (!data) return data;
+    return { ...data };
+}
+async function criarIntegracaoCloud(item) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const id = item.id || gerarIdImutavel();
+    const payload = prepararIntegracaoParaFirestore({ ...item, id });
+    await firestoreDb.collection('integracoes_externas').doc(String(id)).set(payload, { merge: true });
+    await criarLogIntegracaoCloud({ integracaoId: id, acao: 'criar', detalhes: { descricao: item.descricao } });
+    return { ...item, id, ...payload };
+}
+async function atualizarIntegracaoCloud(id, dados) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const payload = { ...prepararIntegracaoParaFirestore({ ...dados, id }), updatedAt: new Date().toISOString() };
+    await firestoreDb.collection('integracoes_externas').doc(String(id)).update(payload);
+    await criarLogIntegracaoCloud({ integracaoId: id, acao: 'atualizar', detalhes: {} });
+    return { ...dados, id, ...payload };
+}
+async function apagarIntegracaoCloud(id) {
+    if (!isCloudReady()) return;
+    await firestoreDb.collection('integracoes_externas').doc(String(id)).update({ deleted: true, updatedAt: new Date().toISOString() });
+}
+function ouvirIntegracoesExternas(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('integracoes_externas').onSnapshot((snapshot) => {
+        const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(i => !i.deleted).map(lerIntegracaoDoFirestore);
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => console.warn('Erro na escuta de integracoes_externas:', err));
+}
+
+// === LOGS INTEGRAÇÕES (auditoria) ===
+async function criarLogIntegracaoCloud(item) {
+    if (!isCloudReady()) return;
+    const id = gerarIdImutavel();
+    const payload = {
+        id,
+        integracaoId: item.integracaoId ?? '',
+        acao: item.acao ?? 'criar',
+        data: new Date().toISOString(),
+        utilizadorId: item.utilizadorId ?? appStorage.getItem('usuarioLogado') ?? null,
+        utilizadorNome: item.utilizadorNome ?? '',
+        detalhes: item.detalhes ?? {},
+        createdAt: new Date().toISOString()
+    };
+    await firestoreDb.collection('logs_integracoes').doc(id).set(payload, { merge: true });
+}
+
 // Estrutura recomendada Firestore processos: clienteId, tipo, estado, descricao, createdAt, updatedAt, deleted
 const PROCESSO_ENTIDADES = ['herancas', 'migracoes', 'registos'];
 const PROCESSO_TIPOS = { herancas: 'heranca', migracoes: 'migracao', registos: 'registo' };
@@ -1197,6 +1371,8 @@ function obterListaGlobal(entidade) {
     if (entidade === 'documentos') return documentos;
     if (entidade === 'tarefas') return tarefas;
     if (entidade === 'convidados') return obterConvidadosAtual();
+    if (entidade === 'entidades') return obterEntidadesAtual();
+    if (entidade === 'integracoes_externas') return obterIntegracoesExternasAtual();
     return [];
 }
 
@@ -1214,6 +1390,8 @@ function salvarEntidadeCloud(entidade, item) {
     else if (entidade === 'notificacoes') payload = prepararNotificacaoParaFirestore(item);
     else if (entidade === 'documentos') payload = prepararDocumentoParaFirestore(item);
     else if (entidade === 'convidados') payload = prepararConvidadoParaFirestore(item);
+    else if (entidade === 'entidades') payload = prepararEntidadeParaFirestore(item);
+    else if (entidade === 'integracoes_externas') payload = prepararIntegracaoParaFirestore(item);
     if (payload && typeof payload === 'object') payload = Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
     return firestoreDb.collection(entidade).doc(String(id)).set(payload, { merge: true })
         .catch((error) => {
@@ -1320,6 +1498,10 @@ async function sincronizarEntidadeNuvem(entidade) {
                 cloud = raw.map(lerDocumentoDoFirestore).filter(d => !d.deleted);
             } else if (entidade === 'convidados') {
                 cloud = snap.docs.map(doc => ({ ...doc.data(), codigo: doc.id, id: doc.data().id || doc.id })).map(lerConvidadoDoFirestore).filter(c => !c.deleted);
+            } else if (entidade === 'entidades') {
+                cloud = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(e => !e.deleted).map(lerEntidadeDoFirestore);
+            } else if (entidade === 'integracoes_externas') {
+                cloud = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(i => !i.deleted).map(lerIntegracaoDoFirestore);
             }
             merged = mesclarListasPorId(entidade, local, cloud);
         }
@@ -1393,7 +1575,7 @@ async function executarMigracaoLocalParaFirebase() {
     try {
         appStorage.removeItem(CHAVE_LOCALSTORAGE_MIGRADO);
         await migrarLocalStorageParaFirestore(true);
-        const entidades = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados'];
+        const entidades = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'entidades', 'integracoes_externas'];
         if (typeof localStorage !== 'undefined') {
             entidades.forEach(e => { try { localStorage.removeItem(e); } catch (x) {} });
         }
@@ -2655,7 +2837,8 @@ function ocultarSecoesConvidado() {
         'nav-relatorios',
         'nav-backup',
         'nav-historico',
-        'nav-convidados'
+        'nav-convidados',
+        'nav-integracoes'
     ];
     
     secoesParaOcultar.forEach(id => {
@@ -2701,6 +2884,7 @@ function mostrarTodasSecoes() {
         'nav-tarefas',
         'nav-calendario',
         'nav-documentos',
+        'nav-integracoes',
         'nav-relatorios',
         'nav-backup',
         'nav-historico',
@@ -2727,6 +2911,8 @@ let registos = [];
 let documentos = [];
 let tarefas = [];
 let convidados = [];
+let entidades = [];
+let integracoesExternas = [];
 let calendarioModo = 'mensal';
 let calendarioDataRef = new Date();
 let calendarioFiltroCliente = '';
@@ -3658,7 +3844,7 @@ function inicializarGestosTouch() {
 }
 
 function navegarSecaoAnterior() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva);
     if (indiceAtual > 0) {
         carregarSecao(secoes[indiceAtual - 1]);
@@ -3666,7 +3852,7 @@ function navegarSecaoAnterior() {
 }
 
 function navegarProximaSecao() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva);
     if (indiceAtual < secoes.length - 1) {
         carregarSecao(secoes[indiceAtual + 1]);
@@ -5350,7 +5536,7 @@ function carregarSecao(secao) {
     else if (typeof fecharModal === 'function') fecharModal();
     
     // Mostrar loader em secções pesadas
-    const secoesComLoader = ['dashboard', 'clientes', 'honorarios', 'contratos', 'relatorios', 'tarefas', 'documentos', 'migracoes', 'herancas', 'registos', 'prazos'];
+    const secoesComLoader = ['dashboard', 'clientes', 'honorarios', 'contratos', 'relatorios', 'tarefas', 'documentos', 'integracoes', 'migracoes', 'herancas', 'registos', 'prazos'];
     const mensagensLoader = {
         dashboard: 'A preparar visão geral',
         clientes: 'A preparar lista de clientes',
@@ -5359,6 +5545,7 @@ function carregarSecao(secao) {
         relatorios: 'A preparar relatórios',
         tarefas: 'A preparar tarefas',
         documentos: 'A preparar documentos',
+        integracoes: 'A preparar integrações externas',
         migracoes: 'A preparar migrações',
         herancas: 'A preparar heranças',
         registos: 'A preparar registos',
@@ -5452,6 +5639,11 @@ function carregarSecao(secao) {
             if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos();
         }, 100);
     }
+    if (secao === 'integracoes') {
+        setTimeout(() => {
+            if (typeof aplicarFiltrosIntegracoes === 'function') aplicarFiltrosIntegracoes();
+        }, 100);
+    }
     
     // Sem execução de testes automáticos para heranças/registos
     
@@ -5498,6 +5690,7 @@ function atualizarTitulo(secao) {
         migracoes: 'Gestão de Migração',
         registos: 'Gestão de Registos',
         documentos: 'Minutas',
+        integracoes: 'Integrações Externas',
         tarefas: 'Sistema de Tarefas',
         calendario: 'Calendário de Prazos',
         relatorios: 'Gestão de Relatórios',
@@ -5532,6 +5725,7 @@ function gerarConteudoSecao(secao) {
         migracoes: gerarMigracao(),
         registos: gerarRegistos(),
         documentos: gerarDocumentos(),
+        integracoes: gerarIntegracoes(),
         tarefas: gerarTarefas(),
         calendario: gerarCalendarioPrazos(),
         notificacoes: gerarNotificacoes(),
@@ -11494,6 +11688,237 @@ function gerarTemplateDocumento(acao) {
     aplicarFiltrosDocumentos();
 }
 
+function gerarIntegracoes() {
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const isAdmin = tipoUsuario === 'admin';
+    const clientesLista = obterClientesAtual();
+    const entidadesLista = obterEntidadesParaSelect().filter(e => e.id);
+    const lista = obterIntegracoesExternasAtual();
+    const processosTipos = [
+        { value: 'heranca', label: 'Herança' },
+        { value: 'migracao', label: 'Migração' },
+        { value: 'registo', label: 'Registo' }
+    ];
+    const estadosLista = [
+        { value: 'pendente', label: 'Pendente' },
+        { value: 'enviado', label: 'Enviado' },
+        { value: 'concluido', label: 'Concluído' },
+        { value: 'indeferido', label: 'Indeferido' },
+        { value: 'cancelado', label: 'Cancelado' }
+    ];
+    const canaisLista = [
+        { value: 'online', label: 'Online' },
+        { value: 'presencial', label: 'Presencial' },
+        { value: 'email', label: 'Email' },
+        { value: 'portal', label: 'Portal' },
+        { value: 'correio', label: 'Correio' }
+    ];
+    return `
+        <div class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold">Integrações Externas</h2>
+                ${isAdmin ? `
+                    <button onclick="abrirModalNovaIntegracao()" class="btn btn-primary">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Nova Integração
+                    </button>
+                ` : ''}
+            </div>
+            ${isAdmin ? `
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-4">Entidades</h3>
+                    <p class="text-gray-600 mb-3">Gestão de entidades (Finanças, IRN, IMT, etc.). As entidades são carregadas do Firestore ou da lista padrão.</p>
+                    <button onclick="seedEntidadesSeVazio()" class="btn btn-secondary">
+                        <i data-lucide="database" class="w-4 h-4"></i>
+                        Inicializar entidades (se vazio)
+                    </button>
+                </div>
+            ` : ''}
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4">Filtros</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                        <select id="filtroIntCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosIntegracoes()">
+                            <option value="">Todos</option>
+                            ${clientesLista.map(c => `<option value="${c.id}">${escaparHtml(c.nome)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                        <select id="filtroIntEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosIntegracoes()">
+                            <option value="">Todas</option>
+                            ${entidadesLista.map(e => `<option value="${e.id}">${escaparHtml(e.nome)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+                        <select id="filtroIntEstado" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosIntegracoes()">
+                            <option value="">Todos</option>
+                            ${estadosLista.map(s => `<option value="${s.value}">${s.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Interações</h3>
+                    <span class="text-sm text-gray-600" id="contadorIntegracoes">${lista.length}</span> integrações
+                </div>
+                <div id="listaIntegracoes" class="space-y-3"></div>
+            </div>
+        </div>
+    `;
+}
+function aplicarFiltrosIntegracoes() {
+    const clienteId = document.getElementById('filtroIntCliente')?.value || '';
+    const entidadeId = document.getElementById('filtroIntEntidade')?.value || '';
+    const estado = document.getElementById('filtroIntEstado')?.value || '';
+    let lista = obterIntegracoesExternasAtual();
+    if (clienteId) lista = lista.filter(i => String(i.clienteId) === clienteId);
+    if (entidadeId) lista = lista.filter(i => String(i.entidadeId) === entidadeId);
+    if (estado) lista = lista.filter(i => (i.estado || '') === estado);
+    lista = lista.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    renderizarListaIntegracoes(lista);
+}
+function renderizarListaIntegracoes(lista) {
+    const container = document.getElementById('listaIntegracoes');
+    const contador = document.getElementById('contadorIntegracoes');
+    if (contador) contador.textContent = lista.length;
+    if (!container) return;
+    if (lista.length === 0) {
+        container.innerHTML = '<div class="text-sm text-gray-500 py-4">Nenhuma integração encontrada.</div>';
+        return;
+    }
+    container.innerHTML = lista.map(i => `
+        <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="text-sm font-semibold text-gray-800">${escaparHtml(i.descricao || 'Sem descrição')}</div>
+                    <div class="text-xs text-gray-500">${renderClienteLink(i.clienteId, i.clienteNome || 'Cliente')} • ${escaparHtml(i.entidadeNome || i.entidadeId || '—')} • ${i.estado || 'pendente'}</div>
+                    ${i.dataEnvio ? `<div class="text-xs text-gray-400">Enviado: ${new Date(i.dataEnvio).toLocaleDateString('pt-PT')}</div>` : ''}
+                    ${i.referenciaExterna ? `<div class="text-xs text-gray-400">Ref. externa: ${escaparHtml(i.referenciaExterna)}</div>` : ''}
+                </div>
+                <span class="status-badge status-${i.estado || 'pendente'}">${i.estado || 'pendente'}</span>
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+async function seedEntidadesSeVazio() {
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
+    const lista = obterEntidadesAtual();
+    if (lista.length > 0) { mostrarNotificacao('Entidades já existem. Nada a fazer.', 'info'); return; }
+    const padrao = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
+    for (const e of padrao) {
+        await criarEntidadeCloud({ id: e.id, nome: e.nome, tipo: e.id.replace(/_/g, '-'), ativo: true });
+    }
+    mostrarNotificacao(padrao.length + ' entidades inicializadas.', 'success');
+}
+function abrirModalNovaIntegracao() {
+    const clientesLista = obterClientesAtual();
+    const entidadesLista = obterEntidadesParaSelect().filter(e => e.id);
+    const processosTipos = [{ value: 'heranca', label: 'Herança' }, { value: 'migracao', label: 'Migração' }, { value: 'registo', label: 'Registo' }];
+    const estadosLista = [{ value: 'pendente', label: 'Pendente' }, { value: 'enviado', label: 'Enviado' }, { value: 'concluido', label: 'Concluído' }];
+    const canaisLista = [{ value: 'online', label: 'Online' }, { value: 'presencial', label: 'Presencial' }, { value: 'email', label: 'Email' }];
+    const modal = `
+        <div class="modal show" onclick="fecharModalRobusto()">
+            <div class="modal-content" style="max-width: 640px;" onclick="event.stopPropagation()">
+                <h3 class="text-lg font-semibold mb-4">Nova Integração Externa</h3>
+                <form onsubmit="criarIntegracaoExterna(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                            <select id="intCliente" required class="w-full border border-gray-300 rounded px-3 py-2">
+                                <option value="">Selecione</option>
+                                ${clientesLista.map(c => `<option value="${c.id}">${escaparHtml(c.nome)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Entidade *</label>
+                            <select id="intEntidade" required class="w-full border border-gray-300 rounded px-3 py-2">
+                                ${entidadesLista.map(e => `<option value="${e.id}">${escaparHtml(e.nome)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo processo</label>
+                                <select id="intProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2">
+                                    ${processosTipos.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Processo (ID)</label>
+                                <input id="intProcessoId" type="text" class="w-full border border-gray-300 rounded px-3 py-2" placeholder="ID do processo">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
+                            <textarea id="intDescricao" required rows="2" class="w-full border border-gray-300 rounded px-3 py-2"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+                                <select id="intEstado" class="w-full border border-gray-300 rounded px-3 py-2">
+                                    ${estadosLista.map(s => `<option value="${s.value}">${s.label}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Canal</label>
+                                <select id="intCanal" class="w-full border border-gray-300 rounded px-3 py-2">
+                                    ${canaisLista.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Ref. externa</label>
+                            <input id="intRefExterna" type="text" class="w-full border border-gray-300 rounded px-3 py-2" placeholder="Nº pedido no portal">
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-4">
+                        <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Criar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+    document.getElementById('modalContainer').classList.add('show');
+    lucide.createIcons();
+}
+async function criarIntegracaoExterna(event) {
+    event.preventDefault();
+    const clienteId = document.getElementById('intCliente')?.value || '';
+    const entidadeId = document.getElementById('intEntidade')?.value || '';
+    const cliente = clientes.find(c => String(c.id) === String(clienteId));
+    const entidade = entidades.find(e => String(e.id) === String(entidadeId)) || { nome: entidadeId };
+    if (!clienteId || !entidadeId) { mostrarNotificacao('Cliente e Entidade são obrigatórios.', 'warning'); return; }
+    const item = {
+        entidadeId,
+        entidadeNome: entidade.nome,
+        clienteId,
+        clienteNome: cliente ? cliente.nome : '',
+        processoTipo: document.getElementById('intProcessoTipo')?.value || 'heranca',
+        processoId: document.getElementById('intProcessoId')?.value || '',
+        tipoInteracao: 'pedido',
+        descricao: document.getElementById('intDescricao')?.value?.trim() || '',
+        estado: document.getElementById('intEstado')?.value || 'pendente',
+        canal: document.getElementById('intCanal')?.value || 'online',
+        referenciaExterna: document.getElementById('intRefExterna')?.value?.trim() || '',
+        utilizadorId: appStorage.getItem('usuarioLogado') || null,
+        utilizadorNome: ''
+    };
+    try {
+        await criarIntegracaoCloud(item);
+        mostrarNotificacao('Integração criada com sucesso!', 'success');
+        fecharModalRobusto();
+        aplicarFiltrosIntegracoes();
+    } catch (err) {
+        mostrarNotificacao('Erro ao criar: ' + (err.message || err), 'error');
+    }
+}
+
 function gerarDocumentos() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const isConvidado = tipoUsuario === 'convidado';
@@ -14231,7 +14656,8 @@ function atualizarContadoresSidebar() {
         { secao: 'registos', navId: 'nav-registos', count: () => (Array.isArray(registos) ? registos : []).length },
         { secao: 'prazos', navId: 'nav-prazos', count: () => obterPrazos().length, extra: 'prazos' },
         { secao: 'tarefas', navId: 'nav-tarefas', count: () => obterTarefas().length, extra: 'tarefas' },
-        { secao: 'documentos', navId: 'nav-documentos', count: () => (Array.isArray(documentos) ? documentos : []).length }
+        { secao: 'documentos', navId: 'nav-documentos', count: () => (Array.isArray(documentos) ? documentos : []).length },
+        { secao: 'integracoes', navId: 'nav-integracoes', count: () => (Array.isArray(integracoesExternas) ? integracoesExternas : []).length }
     ];
 
     mapa.forEach(({ navId, count, extra }) => {
@@ -22559,6 +22985,14 @@ function obterMigracoesAtual() {
 /** Lista registos: apenas Firestore (global atualizada por ouvirProcessos). Sem localStorage. */
 function obterRegistosAtual() {
     return Array.isArray(registos) ? registos : [];
+}
+
+function obterEntidadesAtual() {
+    return Array.isArray(entidades) ? entidades : [];
+}
+
+function obterIntegracoesExternasAtual() {
+    return Array.isArray(integracoesExternas) ? integracoesExternas : [];
 }
 
 function editarContratoDireto(id) {

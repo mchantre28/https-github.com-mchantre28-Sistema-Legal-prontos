@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "firebase-tools": "^15.7.0",
     "serve": "^14.2.0"
   },
   "dependencies": {
