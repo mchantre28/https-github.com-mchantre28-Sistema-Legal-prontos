@@ -58,3 +58,33 @@
 ```
 
 Ficheiros: `firebase.json`, `firestore.rules`, `firestore.indexes.json`
+
+---
+
+## Inicializar coleções (aparecer na consola)
+
+As coleções só aparecem no Firebase Console após o primeiro documento. Para criar todas:
+
+1. Abra `inicializar-firestore.html` no browser (ou via GitHub Pages)
+2. Clique em **"Criar estrutura Firestore"**
+3. Atualize a consola do Firebase
+
+Alternativa: consola do browser (F12) no index.html após login → colar e executar `seed-firestore-colecoes.js`.
+
+---
+
+## Documentação completa
+
+Ver **FIRESTORE-ESTRUTURA-COMPLETA.md** para todos os campos, tipos, regras, relações e índices.
+
+---
+
+## Por que só aparecem 2 coleções?
+
+O Firestore só cria coleções quando se escreve o primeiro documento. As regras e índices estão definidos, mas coleções sem dados não aparecem na consola. Para criar as coleções:
+
+1. Abra `inicializar-firestore.html` (ou o sistema em produção)
+2. Clique em **Criar estrutura Firestore**
+3. Atualize a consola do Firebase
+
+Ver `FIRESTORE-ESTRUTURA-COMPLETA.md` para a especificação completa.

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inicializar Firestore - Sistema Legal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-2xl mx-auto bg-white rounded-lg shadow p-6">
+    <h1 class="text-xl font-bold mb-4">Inicializar estrutura Firestore</h1>
+    <p class="text-gray-600 mb-4">
+      Este script cria documentos iniciais em todas as coleções definidas nas regras. 
+      Assim, as coleções passam a aparecer na consola do Firebase.
+    </p>
+    <p class="text-sm text-amber-700 mb-4">
+      Requisito: tem de ter feito login no Sistema Legal primeiro (para carregar a config Firebase), 
+      ou abra o <a href="index.html" class="underline">index.html</a>, faça login, e depois volte aqui.
+    </p>
+    <button id="btnSeed" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+      Criar estrutura Firestore
+    </button>
+    <div id="log" class="mt-4 font-mono text-sm"></div>
+  </div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBv1KtXvzvHKZRL367ST4GrZFTYVOmFuzE",
+      authDomain: "anapaulamedinasolicitadora.firebaseapp.com",
+      projectId: "anapaulamedinasolicitadora",
+      storageBucket: "anapaulamedinasolicitadora.firebasestorage.app",
+      messagingSenderId: "420983654368",
+      appId: "1:420983654368:web:4918cacde4ea3603b78d85"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const firestoreDb = firebase.firestore();
+    const log = (msg, isErr = false) => {
+      const el = document.getElementById('log');
+      el.innerHTML += '<div class="' + (isErr ? 'text-red-600' : '') + '">' + msg + '</div>';
+    };
+    document.getElementById('btnSeed').onclick = async function() {
+      this.disabled = true;
+      document.getElementById('log').innerHTML = '';
+      const ts = new Date().toISOString();
+      const colecoes = [
+        { nome: 'tipos_de_processos', doc: { id: 'tp1', nome: 'Herança', descricao: 'Processo de heranças', ativo: true } },
+        { nome: 'tipos_de_processos', doc: { id: 'tp2', nome: 'Migração', descricao: 'Processo de migração', ativo: true } },
+        { nome: 'tipos_de_processos', doc: { id: 'tp3', nome: 'Registo', descricao: 'Processo de registos', ativo: true } },
+        { nome: 'tipos_de_documentos', doc: { id: 'td1', nome: 'Certidão', tipoProcesso: 'herancas', ativo: true } },
+        { nome: 'estados_de_processo', doc: { id: 'ep1', nome: 'Em análise', ordem: 1, ativo: true } },
+        { nome: 'estados_de_processo', doc: { id: 'ep2', nome: 'Em curso', ordem: 2, ativo: true } },
+        { nome: 'estados_de_processo', doc: { id: 'ep3', nome: 'Concluído', ordem: 3, ativo: true } },
+        { nome: 'checklists', doc: { id: 'cl1', nome: 'Checklist Herança', tipoProcesso: 'herancas', itens: [], ativo: true } },
+        { nome: 'tabelas_de_prazos', doc: { id: 'tpp1', tipoProcesso: 'herancas', entidade: 'conservatorias_irn', tipoPrazo: 'legal', dias: 30, descricao: 'Prazo exemplo', ativo: true } },
+        { nome: 'modelos_de_documentos', doc: { id: 'md1', nome: 'Modelo Base', tipoProcesso: 'herancas', conteudoTemplate: '', versao: 1, ativo: true } },
+        { nome: 'utilizadores', doc: { id: 'u1', nome: 'Administrador', email: 'admin@sistema.pt', funcao: 'gestor', ativo: true } },
+        { nome: 'faturas', doc: { id: '__seed__', numero: 'SEED', clienteId: '', estado: 'cancelada', valorTotal: 0, dataEmissao: ts, createdAt: ts } },
+        { nome: 'pagamentos', doc: { id: '__seed__', faturaId: '__seed__', valor: 0, dataPagamento: ts, createdAt: ts } },
+        { nome: 'despesas', doc: { id: '__seed__', processoTipo: 'herancas', processoId: '__seed__', descricao: 'Seed', valor: 0, data: ts, createdAt: ts } },
+        { nome: 'comunicacoes', doc: { id: '__seed__', tipo: 'mensagem_interna', assunto: 'Seed', mensagem: '', data: ts, createdAt: ts } },
+        { nome: 'logs_financeiros', doc: { id: '__seed__', tipo: 'seed', referenciaTipo: 'faturas', referenciaId: '__seed__', data: ts } },
+        { nome: 'logs_integracoes', doc: { id: '__seed__', integracaoId: '__seed__', acao: 'seed', data: ts } },
+        { nome: 'logs_comunicacoes', doc: { id: '__seed__', comunicacaoId: '__seed__', acao: 'seed', data: ts } },
+        { nome: 'anexos_comunicacao', doc: { id: '__seed__', comunicacaoId: '__seed__', url: '', nomeFicheiro: 'seed', dataUpload: ts } },
+      ];
+      let ok = 0, err = 0;
+      for (const c of colecoes) {
+        try {
+          await firestoreDb.collection(c.nome).doc(String(c.doc.id)).set({ ...c.doc, __seed: true }, { merge: true });
+          ok++; log('OK: ' + c.nome);
+        } catch (e) {
+          err++; log('Erro ' + c.nome + ': ' + e.message, true);
+        }
+      }
+      log('Concluído: ' + ok + ' ok, ' + err + ' erros. Atualize a consola do Firebase.');
+      this.disabled = false;
+    };
+  </script>
+</body>
+</html>
