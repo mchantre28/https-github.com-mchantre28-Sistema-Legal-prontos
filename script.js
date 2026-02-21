@@ -208,6 +208,10 @@ const firebaseConfig = {
     measurementId: "G-Z3DM5PB0LR"
 };
 
+// App Check: coloque aqui a chave reCAPTCHA v3 (Consola Firebase > App Check > Register)
+// Obter em: https://www.google.com/recaptcha/admin (tipo reCAPTCHA v3)
+const APP_CHECK_SITE_KEY = ''; // Ex: '6LcXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+
 let firestoreDb = null;
 
 function initFirebase() {
@@ -215,6 +219,15 @@ function initFirebase() {
         if (typeof firebase === 'undefined') return;
         if (!firebase.apps || firebase.apps.length === 0) {
             firebase.initializeApp(firebaseConfig);
+        }
+        // App Check: proteção contra abusos/bots (só ativa se chave configurada)
+        if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
+            try {
+                const provider = firebase.appCheck?.ReCaptchaV3Provider
+                    ? new firebase.appCheck.ReCaptchaV3Provider(APP_CHECK_SITE_KEY)
+                    : APP_CHECK_SITE_KEY;
+                firebase.appCheck().activate(provider, true);
+            } catch (e) { console.warn('App Check não ativado:', e?.message || e); }
         }
         firestoreDb = firebase.firestore();
         const deveLimparCache = (typeof sessionStorage !== 'undefined' ? sessionStorage : {}).getItem?.('limparCacheFirestoreNaProximaCarga') === 'true';
@@ -394,6 +407,11 @@ function iniciarListenersFirestore() {
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add)(window.__ouvirRepresentantesUnsubscribe);
+    window.__ouvirFaturasUnsubscribe = ouvirFaturas((lista) => {
+        window.faturas = lista;
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add)(window.__ouvirFaturasUnsubscribe);
 }
 window.__cloudSyncPending = window.__cloudSyncPending || 0;
 window.__cloudSyncError = window.__cloudSyncError || null;
@@ -619,6 +637,43 @@ function lerRepresentanteDoFirestore(data) {
     return { ...data };
 }
 
+// Estrutura Firestore faturas: numero, clienteId, valorTotal, estado, dataEmissao
+function prepararFaturaParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        id: item.id,
+        numero: item.numero ?? '',
+        clienteId: item.clienteId ?? '',
+        clienteNome: item.clienteNome ?? '',
+        honorarioId: item.honorarioId ?? null,
+        processoTipo: item.processoTipo ?? null,
+        processoId: item.processoId ?? null,
+        dataEmissao: item.dataEmissao ?? item.data ?? agora,
+        valorTotal: parseFloat(item.valorTotal ?? item.valor ?? 0),
+        valorBase: parseFloat(item.valorBase ?? item.valor ?? 0),
+        valorIva: parseFloat(item.valorIva ?? item.juros ?? 0),
+        estado: item.estado ?? item.status ?? 'pendente',
+        itens: item.itens ?? [],
+        metodoPagamento: item.metodoPagamento ?? '',
+        notas: item.notas ?? item.observacoes ?? '',
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora,
+        deleted: item.deleted === true
+    };
+}
+
+function lerFaturaDoFirestore(data) {
+    if (!data) return data;
+    return {
+        ...data,
+        data: data.data ?? data.dataEmissao,
+        valor: data.valor ?? data.valorTotal,
+        status: data.status ?? data.estado,
+        observacoes: data.observacoes ?? data.notas
+    };
+}
+
 // === CRUD Clientes (simples e seguro, usa serverTimestamp) ===
 function obterServerTimestamp() {
     return typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
@@ -760,6 +815,22 @@ async function apagarHonorarioCloud(id) {
     });
 }
 
+/** Criar/atualizar fatura no Firestore. */
+async function criarFaturaCloud(fatura) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const id = fatura.id || gerarIdImutavel();
+    const prep = prepararFaturaParaFirestore({ ...fatura, id });
+    const payload = {
+        ...prep,
+        id,
+        createdAt: obterServerTimestamp(),
+        updatedAt: obterServerTimestamp(),
+        deleted: false
+    };
+    await firestoreDb.collection('faturas').doc(String(id)).set(payload, { merge: true });
+    return { ...fatura, id };
+}
+
 /** Escuta honorários em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirHonorarios(callback) {
     if (!isCloudReady()) return () => {};
@@ -799,6 +870,20 @@ function ouvirRepresentantes(callback) {
         if (typeof callback === 'function') callback(lista);
     }, (err) => {
         console.warn('Erro na escuta em tempo real de representantes:', err);
+    });
+}
+
+/** Escuta faturas em tempo real. */
+function ouvirFaturas(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('faturas').onSnapshot((snapshot) => {
+        const lista = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(f => !f.deleted && f.id !== 'seed-inicial')
+            .map(lerFaturaDoFirestore);
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => {
+        console.warn('Erro na escuta em tempo real de faturas:', err);
     });
 }
 
@@ -1830,6 +1915,29 @@ async function migrarDocumentosLocalParaFirestore() {
     } catch (err) { console.warn('Erro na migração de documentos:', err); }
 }
 
+const CHAVE_MIGRACAO_FATURAS = 'faturasMigrados';
+/** Migração única: envia faturas do appStorage para o Firestore. */
+async function migrarFaturasLocalParaFirestore() {
+    if (!isCloudReady()) return;
+    if (appStorage.getItem(CHAVE_MIGRACAO_FATURAS) === 'true') return;
+    const raw = appStorage.getItem('faturas');
+    const lista = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(lista) || lista.length === 0) {
+        try { appStorage.setItem(CHAVE_MIGRACAO_FATURAS, 'true'); } catch (e) {}
+        return;
+    }
+    try {
+        for (const f of lista) {
+            if (!f || (f.deleted === true) || f.id === 'seed-inicial') continue;
+            if (!f.id) f.id = gerarIdImutavel();
+            await criarFaturaCloud(f);
+        }
+        appStorage.removeItem('faturas');
+        appStorage.setItem(CHAVE_MIGRACAO_FATURAS, 'true');
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Faturas migradas para a nuvem.', 'success');
+    } catch (err) { console.warn('Erro na migração de faturas:', err); }
+}
+
 const CHAVE_MIGRACAO_CONVIDADOS = 'convidadosMigrados';
 /** Migração única: envia convidados do appStorage para o Firestore. */
 async function migrarConvidadosLocalParaFirestore() {
@@ -1898,6 +2006,7 @@ async function sincronizarTodasEntidadesNuvem() {
     await migrarNotificacoesLocalParaFirestore();
     await migrarDocumentosLocalParaFirestore();
     await migrarConvidadosLocalParaFirestore();
+    await migrarFaturasLocalParaFirestore();
     for (const entidade of CLOUD_ENTIDADES) {
         await sincronizarEntidadeNuvem(entidade);
     }
@@ -4049,7 +4158,7 @@ function calcularJurosAutomaticos_REMOVED() {
 }
 
 // 3. GERAÇÃO AUTOMÁTICA DE FATURAS
-function gerarFaturaAutomatica(honorarioId) {
+async function gerarFaturaAutomatica(honorarioId) {
     const honorario = honorarios.find(h => h.id === honorarioId);
     if (!honorario) return;
     
@@ -4069,10 +4178,22 @@ function gerarFaturaAutomatica(honorarioId) {
         observacoes: `Fatura gerada automaticamente para ${honorario.descricao}`
     };
     
-    // Adicionar fatura
-    const faturas = obterFaturas();
-    faturas.push(fatura);
-    appStorage.setItem('faturas', JSON.stringify(faturas));
+    // Guardar fatura (Firestore ou localStorage)
+    if (isCloudReady()) {
+        try {
+            await criarFaturaCloud(fatura);
+            if (Array.isArray(window.faturas)) window.faturas = [...(window.faturas || []), fatura];
+        } catch (e) {
+            console.warn('Erro ao guardar fatura na nuvem, fallback local:', e);
+            const faturas = obterFaturas();
+            faturas.push(fatura);
+            appStorage.setItem('faturas', JSON.stringify(faturas));
+        }
+    } else {
+        const faturas = obterFaturas();
+        faturas.push(fatura);
+        appStorage.setItem('faturas', JSON.stringify(faturas));
+    }
     
     // Criar notificação
     criarNotificacao({
@@ -4272,9 +4393,10 @@ function configurarIntegracaoContabilidade(config) {
 
 
 function obterFaturas() {
-    const faturas = appStorage.getItem('faturas');
-    const resultado = faturas ? JSON.parse(faturas) : [];
-    return resultado;
+    // Firestore = fonte principal quando disponível
+    if (isCloudReady() && Array.isArray(window.faturas)) return window.faturas;
+    const raw = appStorage.getItem('faturas');
+    return raw ? JSON.parse(raw) : [];
 }
 
 function obterIntegracoes() {
@@ -4301,22 +4423,19 @@ function salvarHonorarios() {
 
 
 
-function gerarFaturasAutomaticas() {
+async function gerarFaturasAutomaticas() {
     const honorariosComJuros = honorarios.filter(h => h.jurosCalculados && h.jurosCalculados > 0);
-    
     if (honorariosComJuros.length === 0) {
         mostrarNotificacao('Nenhum honorário com juros encontrado!', 'info');
         return;
     }
-    
     let faturasGeradas = 0;
-    honorariosComJuros.forEach(honorario => {
+    for (const honorario of honorariosComJuros) {
         if (!obterFaturas().find(f => f.honorarioId === honorario.id)) {
-            gerarFaturaAutomatica(honorario.id);
+            await gerarFaturaAutomatica(honorario.id);
             faturasGeradas++;
         }
-    });
-    
+    }
     mostrarNotificacao(`${faturasGeradas} faturas geradas automaticamente!`, 'success');
     carregarSecao('dashboard');
 }
