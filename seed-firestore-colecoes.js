@@ -21,14 +21,14 @@
     { nome: 'tabelas_de_prazos', doc: { id: 'tpp1', tipoProcesso: 'herancas', entidade: 'conservatorias_irn', tipoPrazo: 'legal', dias: 30, descricao: 'Prazo exemplo', ativo: true } },
     { nome: 'modelos_de_documentos', doc: { id: 'md1', nome: 'Modelo Base', tipoProcesso: 'herancas', conteudoTemplate: '', versao: 1, ativo: true } },
     { nome: 'utilizadores', doc: { id: 'u1', nome: 'Administrador', email: 'admin@sistema.pt', funcao: 'gestor', ativo: true } },
-    { nome: 'faturas', doc: { id: '__seed__', numero: 'SEED', clienteId: '', estado: 'cancelada', valorTotal: 0, dataEmissao: ts, createdAt: ts } },
-    { nome: 'pagamentos', doc: { id: '__seed__', faturaId: '__seed__', valor: 0, dataPagamento: ts, createdAt: ts } },
-    { nome: 'despesas', doc: { id: '__seed__', processoTipo: 'herancas', processoId: '__seed__', descricao: 'Seed', valor: 0, data: ts, createdAt: ts } },
-    { nome: 'comunicacoes', doc: { id: '__seed__', tipo: 'mensagem_interna', assunto: 'Seed', mensagem: '', data: ts, createdAt: ts } },
-    { nome: 'logs_financeiros', doc: { id: '__seed__', tipo: 'seed', referenciaTipo: 'faturas', referenciaId: '__seed__', data: ts } },
-    { nome: 'logs_integracoes', doc: { id: '__seed__', integracaoId: '__seed__', acao: 'seed', data: ts } },
-    { nome: 'logs_comunicacoes', doc: { id: '__seed__', comunicacaoId: '__seed__', acao: 'seed', data: ts } },
-    { nome: 'anexos_comunicacao', doc: { id: '__seed__', comunicacaoId: '__seed__', url: '', nomeFicheiro: 'seed', dataUpload: ts } },
+    { nome: 'faturas', doc: { id: 'seed-inicial', numero: 'SEED', clienteId: '', estado: 'cancelada', valorTotal: 0, dataEmissao: ts, createdAt: ts } },
+    { nome: 'pagamentos', doc: { id: 'seed-inicial', faturaId: 'seed-inicial', valor: 0, dataPagamento: ts, createdAt: ts } },
+    { nome: 'despesas', doc: { id: 'seed-inicial', processoTipo: 'herancas', processoId: 'seed-inicial', descricao: 'Seed', valor: 0, data: ts, createdAt: ts } },
+    { nome: 'comunicacoes', doc: { id: 'seed-inicial', tipo: 'mensagem_interna', assunto: 'Seed', mensagem: '', data: ts, createdAt: ts } },
+    { nome: 'logs_financeiros', doc: { id: 'seed-inicial', tipo: 'seed', referenciaTipo: 'faturas', referenciaId: 'seed-inicial', data: ts } },
+    { nome: 'logs_integracoes', doc: { id: 'seed-inicial', integracaoId: 'seed-inicial', acao: 'seed', data: ts } },
+    { nome: 'logs_comunicacoes', doc: { id: 'seed-inicial', comunicacaoId: 'seed-inicial', acao: 'seed', data: ts } },
+    { nome: 'anexos_comunicacao', doc: { id: 'seed-inicial', comunicacaoId: 'seed-inicial', url: '', nomeFicheiro: 'seed', dataUpload: ts } },
   ];
   let ok = 0, err = 0;
   for (const c of colecoes) {
