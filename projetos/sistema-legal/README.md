@@ -46,7 +46,6 @@ O script inicia o servidor (Python) e abre http://localhost:8000 no browser. Ou 
 
 ## 🧪 Testes automatizados (Playwright E2E)
 
-[![Sistema Legal - Testes](https://github.com/mchantre28/SISTEMA-LEGAL-final/actions/workflows/test-sistema-legal.yml/badge.svg)](https://github.com/mchantre28/SISTEMA-LEGAL-final/actions/workflows/test-sistema-legal.yml)
 
 ```powershell
 cd projetos\sistema-legal
@@ -63,10 +62,8 @@ code index.html
 .\verificar-funcionalidade.ps1   # verificar funções em script.js
 ```
 
-## 🌐 Link Externo (GitHub Pages)
-- Link publicado:
-  - `https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/`
-- Se aparecer o README em vez do sistema, faça `Ctrl+F5` ou abra em janela anónima.
+## 🌐 Link oficial (GitHub Pages)
+- `https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/`
 
 
 
