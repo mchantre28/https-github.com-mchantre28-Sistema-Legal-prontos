@@ -276,7 +276,8 @@ const CLOUD_ENTIDADES = [
     'tarefas',
     'convidados',
     'entidades',
-    'integracoes_externas'
+    'integracoes_externas',
+    'representantes'
 ];
 /** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
 const ENTIDADES_PORTUGAL = [
@@ -388,6 +389,11 @@ function iniciarListenersFirestore() {
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add)(window.__ouvirIntegracoesExternasUnsubscribe);
+    window.__ouvirRepresentantesUnsubscribe = ouvirRepresentantes((lista) => {
+        representantes = lista; window.representantes = representantes;
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add)(window.__ouvirRepresentantesUnsubscribe);
 }
 window.__cloudSyncPending = window.__cloudSyncPending || 0;
 window.__cloudSyncError = window.__cloudSyncError || null;
@@ -544,17 +550,22 @@ function prepararListaParaSync(entidade, lista) {
     });
 }
 
-// Estrutura recomendada Firestore para clientes: clientes/{clienteId} com nome, email, telefone, nif, morada, createdAt, updatedAt, deleted
+// Estrutura Firestore clientes: tipo (particular|empresa), razaoSocial, documentosIdentificacao, ativo
 function prepararClienteParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
     const obj = {
         id: item.id,
+        tipo: item.tipo ?? 'particular',
         nome: item.nome ?? '',
+        razaoSocial: item.razaoSocial ?? '',
+        nif: item.nif ?? '',
         email: item.email ?? '',
         telefone: item.telefone ?? '',
-        nif: item.nif ?? '',
+        contactos: item.contactos ?? { emailAlternativo: '', telefoneAlternativo: '' },
         morada: item.morada ?? item.endereco ?? '',
+        documentosIdentificacao: item.documentosIdentificacao ?? [],
+        ativo: item.ativo !== false,
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
         deleted: item.deleted === true,
@@ -577,6 +588,35 @@ function lerClienteDoFirestore(data) {
         endereco: data.endereco ?? data.morada ?? '',
         dataCriacao: data.dataCriacao ?? data.createdAt
     };
+}
+
+// Estrutura Firestore representantes: clienteEmpresaId, validadeProcuracao, poderes
+function prepararRepresentanteParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        ...item,
+        clienteEmpresaId: item.clienteEmpresaId ?? null,
+        clienteEmpresaNome: item.clienteEmpresaNome ?? '',
+        nome: item.nome ?? '',
+        nif: item.nif ?? '',
+        cargo: item.cargo ?? '',
+        contactoEmail: item.contactoEmail ?? '',
+        contactoTelefone: item.contactoTelefone ?? '',
+        poderes: item.poderes ?? [],
+        documentoIdentificacaoUrl: item.documentoIdentificacaoUrl ?? '',
+        procuracaoUrl: item.procuracaoUrl ?? '',
+        validadeProcuracao: item.validadeProcuracao ?? null,
+        ativo: item.ativo !== false,
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora,
+        deleted: item.deleted === true
+    };
+}
+
+function lerRepresentanteDoFirestore(data) {
+    if (!data) return data;
+    return { ...data };
 }
 
 // === CRUD Clientes (simples e seguro, usa serverTimestamp) ===
@@ -745,6 +785,20 @@ function ouvirContratos(callback) {
         if (typeof callback === 'function') callback(lista);
     }, (err) => {
         console.warn('Erro na escuta em tempo real de contratos:', err);
+    });
+}
+
+/** Escuta representantes em tempo real. */
+function ouvirRepresentantes(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('representantes').onSnapshot((snapshot) => {
+        const lista = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(r => !r.deleted)
+            .map(lerRepresentanteDoFirestore);
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => {
+        console.warn('Erro na escuta em tempo real de representantes:', err);
     });
 }
 
@@ -1158,7 +1212,7 @@ async function criarLogIntegracaoCloud(item) {
     await firestoreDb.collection('logs_integracoes').doc(id).set(payload, { merge: true });
 }
 
-// Estrutura recomendada Firestore processos: clienteId, tipo, estado, descricao, createdAt, updatedAt, deleted
+// Estrutura Firestore processos: numeroInterno, solicitadorResponsavel, dataConclusao
 const PROCESSO_ENTIDADES = ['herancas', 'migracoes', 'registos'];
 const PROCESSO_TIPOS = { herancas: 'heranca', migracoes: 'migracao', registos: 'registo' };
 
@@ -1168,11 +1222,17 @@ function prepararProcessoParaFirestore(entidade, item) {
     const tipoProcesso = PROCESSO_TIPOS[entidade] || entidade.replace(/s$/, '');
     return {
         ...item,
+        numeroInterno: item.numeroInterno ?? item.numero ?? '',
         clienteId: item.clienteId ?? null,
+        clienteNome: item.clienteNome ?? '',
         tipo: item.tipo ?? tipoProcesso,
         estado: item.estado ?? item.status ?? '',
-        descricao: item.descricao ?? '',
         prioridade: item.prioridade ?? 'media',
+        dataAbertura: item.dataAbertura ?? item.dataCriacao ?? item.createdAt ?? agora,
+        dataConclusao: item.dataConclusao ?? null,
+        solicitadorResponsavel: item.solicitadorResponsavel ?? null,
+        descricao: item.descricao ?? '',
+        notas: item.notas ?? '',
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
         deleted: item.deleted === true
@@ -1189,17 +1249,24 @@ function lerProcessoDoFirestore(data) {
     };
 }
 
-// Estrutura recomendada Firestore tarefas: processoId, titulo, descricao, dataLimite, concluida, createdAt, updatedAt, deleted
+// Estrutura Firestore tarefas: processoTipo, processoId, estado, prazo, responsavelId
 function prepararTarefaParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
     return {
         ...item,
+        processoTipo: item.processoTipo ?? null,
         processoId: item.processoId ?? item.referenciaId ?? null,
+        clienteId: item.clienteId ?? null,
         titulo: item.titulo ?? '',
         descricao: item.descricao ?? '',
-        dataLimite: item.dataLimite ?? null,
+        estado: item.estado ?? (item.concluida ? 'concluida' : 'aberta'),
         concluida: item.concluida === true || item.status === 'concluida',
+        prazo: item.prazo ?? item.dataLimite ?? null,
+        dataLimite: item.dataLimite ?? item.prazo ?? null,
+        responsavelId: item.responsavelId ?? null,
+        anexos: item.anexos ?? [],
+        dataCriacao: item.dataCriacao ?? item.createdAt ?? agora,
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
         deleted: item.deleted === true
@@ -1272,16 +1339,21 @@ function lerContratoDoFirestore(data) {
     };
 }
 
-// Estrutura Firestore prazos: clienteId, tipo, descricao, dataLimite, status, prioridade, referenciaId, createdAt, updatedAt, deleted
+// Estrutura Firestore prazos: processoTipo, processoId, tipoPrazo, entidadeRelacionada, alertaGerado
 function prepararPrazoParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
     return {
         ...item,
+        processoTipo: item.processoTipo ?? null,
+        processoId: item.processoId ?? item.referenciaId ?? null,
         clienteId: item.clienteId ?? null,
-        tipo: item.tipo ?? '',
+        tipo: item.tipo ?? item.tipoPrazo ?? '',
+        tipoPrazo: item.tipoPrazo ?? item.tipo ?? 'legal',
         descricao: item.descricao ?? '',
         dataLimite: item.dataLimite ?? null,
+        entidadeRelacionada: item.entidadeRelacionada ?? null,
+        alertaGerado: item.alertaGerado === true,
         status: item.status ?? 'ativo',
         prioridade: item.prioridade ?? 'media',
         referenciaId: item.referenciaId ?? null,
@@ -1373,6 +1445,7 @@ function obterListaGlobal(entidade) {
     if (entidade === 'convidados') return obterConvidadosAtual();
     if (entidade === 'entidades') return obterEntidadesAtual();
     if (entidade === 'integracoes_externas') return obterIntegracoesExternasAtual();
+    if (entidade === 'representantes') return representantes || [];
     return [];
 }
 
@@ -1392,6 +1465,7 @@ function salvarEntidadeCloud(entidade, item) {
     else if (entidade === 'convidados') payload = prepararConvidadoParaFirestore(item);
     else if (entidade === 'entidades') payload = prepararEntidadeParaFirestore(item);
     else if (entidade === 'integracoes_externas') payload = prepararIntegracaoParaFirestore(item);
+    else if (entidade === 'representantes') payload = prepararRepresentanteParaFirestore(item);
     if (payload && typeof payload === 'object') payload = Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
     return firestoreDb.collection(entidade).doc(String(id)).set(payload, { merge: true })
         .catch((error) => {
@@ -1502,6 +1576,8 @@ async function sincronizarEntidadeNuvem(entidade) {
                 cloud = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(e => !e.deleted).map(lerEntidadeDoFirestore);
             } else if (entidade === 'integracoes_externas') {
                 cloud = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(i => !i.deleted).map(lerIntegracaoDoFirestore);
+            } else if (entidade === 'representantes') {
+                cloud = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(r => !r.deleted).map(lerRepresentanteDoFirestore);
             }
             merged = mesclarListasPorId(entidade, local, cloud);
         }
@@ -2913,6 +2989,7 @@ let tarefas = [];
 let convidados = [];
 let entidades = [];
 let integracoesExternas = [];
+let representantes = [];
 let calendarioModo = 'mensal';
 let calendarioDataRef = new Date();
 let calendarioFiltroCliente = '';
@@ -4802,6 +4879,15 @@ function salvarDados(chave, dados, opcoes = {}) {
         } else if (chave === 'convidados') {
             convidados = dadosParaSalvar;
             window.convidados = convidados;
+        } else if (chave === 'entidades') {
+            entidades = dadosParaSalvar;
+            window.entidades = entidades;
+        } else if (chave === 'integracoes_externas') {
+            integracoesExternas = dadosParaSalvar;
+            window.integracoesExternas = integracoesExternas;
+        } else if (chave === 'representantes') {
+            representantes = dadosParaSalvar;
+            window.representantes = representantes;
         }
         
         if (!skipCloudSync && isSyncavel) {

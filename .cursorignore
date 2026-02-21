@@ -1,0 +1,19 @@
+﻿# Reduzir ficheiros processados (limite ~100 por operacao)
+node_modules/
+.cache/
+dist/
+build/
+**/backup/
+**/_arquivados/
+**/_backups/
+**/*-BACKUP*
+**/*-OLD*
+*.zip
+**/_deploy_github/
+**/.prisma/
+**/Sistema-Legal-completo/
+**/_outros-projetos/
+.git/
+*.log
+.env
+.env.*
