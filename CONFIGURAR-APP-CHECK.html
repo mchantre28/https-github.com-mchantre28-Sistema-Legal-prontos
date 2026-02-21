@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurar App Check — Sistema Legal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-2xl mx-auto bg-white rounded-lg shadow p-6">
+    <h1 class="text-xl font-bold mb-6">Configurar App Check</h1>
+
+    <div class="space-y-6 text-sm">
+      <div class="p-4 bg-amber-50 rounded-lg">
+        <p class="font-medium mb-2">Passo 1 — Criar chave reCAPTCHA v3</p>
+        <a href="https://www.google.com/recaptcha/admin/create" target="_blank" class="text-blue-600 underline">Abrir reCAPTCHA Admin</a>
+        <p class="mt-2 text-gray-600">Tipo: reCAPTCHA v3. Domínios: <code class="bg-gray-200 px-1">mchantre28.github.io</code>, <code class="bg-gray-200 px-1">localhost</code></p>
+      </div>
+
+      <div class="p-4 bg-blue-50 rounded-lg">
+        <p class="font-medium mb-2">Passo 2 — Registar no Firebase</p>
+        <a href="https://console.firebase.google.com/project/anapaulamedinasolicitadora/appcheck" target="_blank" class="text-blue-600 underline">Abrir Firebase App Check</a>
+        <p class="mt-2 text-gray-600">Registar app Web com reCAPTCHA v3 (use a chave secreta do passo 1)</p>
+      </div>
+
+      <div class="p-4 bg-green-50 rounded-lg">
+        <p class="font-medium mb-2">Passo 3 — Colar a chave do site aqui</p>
+        <p class="text-gray-600 mb-2">Após criar a chave, copie a <strong>Site Key</strong> (não a Secret Key) e cole abaixo:</p>
+        <input type="text" id="siteKey" placeholder="6LcXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" 
+               class="w-full p-2 border rounded font-mono text-sm">
+        <button onclick="aplicarChave()" class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Copiar linha para script.js
+        </button>
+        <p id="feedback" class="mt-2 text-green-600 hidden">Copiado! Cole no script.js na linha do APP_CHECK_SITE_KEY.</p>
+      </div>
+
+      <p class="text-gray-500 text-xs">Em <code>script.js</code>, substitua a linha <code>const APP_CHECK_SITE_KEY = '';</code> pela linha que copiou.</p>
+    </div>
+  </div>
+  <script>
+    function aplicarChave() {
+      const key = document.getElementById('siteKey').value.trim();
+      if (!key) { alert('Cole primeiro a chave do site.'); return; }
+      const linha = "const APP_CHECK_SITE_KEY = '" + key + "';";
+      navigator.clipboard.writeText(linha).then(() => {
+        document.getElementById('feedback').classList.remove('hidden');
+        setTimeout(() => document.getElementById('feedback').classList.add('hidden'), 3000);
+      }).catch(() => alert('Copie manualmente: ' + linha));
+    }
+  </script>
+</body>
+</html>

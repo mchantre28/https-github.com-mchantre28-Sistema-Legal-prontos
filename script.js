@@ -210,7 +210,7 @@ const firebaseConfig = {
 
 // App Check: coloque aqui a chave reCAPTCHA v3 (Consola Firebase > App Check > Register)
 // Obter em: https://www.google.com/recaptcha/admin (tipo reCAPTCHA v3)
-const APP_CHECK_SITE_KEY = ''; // Ex: '6LcXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+const APP_CHECK_SITE_KEY = '6LfKwnlsAAAAAOOVL18SsaffTQagJdCQAID58hQj';
 
 let firestoreDb = null;
 
