@@ -16,7 +16,8 @@ $ficheiros = @(
     "FIRESTORE-ESTRUTURA.md",
     "FIRESTORE-ESTRUTURA-COMPLETA.md",
     "inicializar-firestore.html",
-    "seed-firestore-colecoes.js"
+    "seed-firestore-colecoes.js",
+    "GUIA-APP-CHECK.md"
 )
 
 Write-Host "Sincronizando Sistema Legal para prontos..." -ForegroundColor Cyan
