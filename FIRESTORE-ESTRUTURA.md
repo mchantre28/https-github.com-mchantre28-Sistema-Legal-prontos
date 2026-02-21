@@ -1,6 +1,6 @@
 # Estrutura Firestore — Sistema Legal Prontos
 
-> Projeto: https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/  
+> Projeto oficial: https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/  
 > Firebase: anapaulamedinasolicitadora
 
 ---
