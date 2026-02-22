@@ -208,9 +208,8 @@ const firebaseConfig = {
     measurementId: "G-Z3DM5PB0LR"
 };
 
-// App Check: coloque aqui a chave reCAPTCHA v3 (Consola Firebase > App Check > Register)
-// Obter em: https://www.google.com/recaptcha/admin (tipo reCAPTCHA v3)
-const APP_CHECK_SITE_KEY = '6LfKwnlsAAAAAOOVL18SsaffTQagJdCQAID58hQj';
+// App Check: chave reCAPTCHA v3. Desativado para evitar recaptcha-error em localhost.
+const APP_CHECK_SITE_KEY = '';
 
 let firestoreDb = null;
 
@@ -220,16 +219,18 @@ function initFirebase() {
         if (!firebase.apps || firebase.apps.length === 0) {
             firebase.initializeApp(firebaseConfig);
         }
-        // App Check: proteção contra abusos/bots (só ativa se chave configurada)
-        if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
-            try {
-                const provider = firebase.appCheck?.ReCaptchaV3Provider
-                    ? new firebase.appCheck.ReCaptchaV3Provider(APP_CHECK_SITE_KEY)
-                    : APP_CHECK_SITE_KEY;
-                firebase.appCheck().activate(provider, true);
-            } catch (e) { console.warn('App Check não ativado:', e?.message || e); }
-        }
         firestoreDb = firebase.firestore();
+        // App Check (opcional): ativa em background para não bloquear init; se falhar, Firestore pode ainda funcionar se "Enforce" estiver desativado no Console
+        if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
+            setTimeout(() => {
+                try {
+                    const provider = firebase.appCheck?.ReCaptchaV3Provider
+                        ? new firebase.appCheck.ReCaptchaV3Provider(APP_CHECK_SITE_KEY)
+                        : APP_CHECK_SITE_KEY;
+                    firebase.appCheck().activate(provider, true);
+                } catch (e) { console.warn('App Check não ativado:', e?.message || e); }
+            }, 0);
+        }
         const deveLimparCache = (typeof sessionStorage !== 'undefined' ? sessionStorage : {}).getItem?.('limparCacheFirestoreNaProximaCarga') === 'true';
         if (deveLimparCache) {
             try { sessionStorage.removeItem('limparCacheFirestoreNaProximaCarga'); } catch (e) {}
@@ -342,17 +343,17 @@ function iniciarListenersFirestore() {
             if (typeof atualizarInterface === 'function') atualizarInterface();
         }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirClientesUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
         contratos = lista; window.contratos = contratos;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirContratosUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirContratosUnsubscribe);
     window.__ouvirHonorariosUnsubscribe = ouvirHonorarios((lista) => {
         honorarios = lista; window.honorarios = honorarios;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirHonorariosUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirHonorariosUnsubscribe);
     for (const entidade of PROCESSO_ENTIDADES) {
         const key = '__ouvir' + entidade.charAt(0).toUpperCase() + entidade.slice(1).replace(/s$/, '') + 'sUnsubscribe';
         window[key] = ouvirProcessos(entidade, (lista) => {
@@ -362,32 +363,32 @@ function iniciarListenersFirestore() {
             if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
         });
     }
-    PROCESSO_ENTIDADES.forEach(ent => { const k = '__ouvir' + ent.charAt(0).toUpperCase() + ent.slice(1).replace(/s$/, '') + 'sUnsubscribe'; if (window[k]) (window.addListener || listenerManager.add)(window[k]); });
+    PROCESSO_ENTIDADES.forEach(ent => { const k = '__ouvir' + ent.charAt(0).toUpperCase() + ent.slice(1).replace(/s$/, '') + 'sUnsubscribe'; if (window[k]) (window.addListener || listenerManager.add.bind(listenerManager))(window[k]); });
     window.__ouvirTarefasUnsubscribe = ouvirTarefas((lista) => {
         tarefas = lista; window.tarefas = tarefas;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirTarefasUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirTarefasUnsubscribe);
     window.__ouvirPrazosUnsubscribe = ouvirPrazos((lista) => {
         prazos = lista; window.prazos = prazos;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirPrazosUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPrazosUnsubscribe);
     window.__ouvirNotificacoesUnsubscribe = ouvirNotificacoes((lista) => {
         notificacoes = lista; window.notificacoes = notificacoes;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirNotificacoesUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirNotificacoesUnsubscribe);
     window.__ouvirDocumentosUnsubscribe = ouvirDocumentos((lista) => {
         documentos = lista; window.documentos = documentos;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirDocumentosUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDocumentosUnsubscribe);
     window.__ouvirConvidadosUnsubscribe = ouvirConvidados((lista) => {
         convidados = lista; window.convidados = convidados;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirConvidadosUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirConvidadosUnsubscribe);
     window.__ouvirEntidadesUnsubscribe = ouvirEntidades((lista) => {
         entidades = lista; window.entidades = entidades;
         if (lista.length === 0 && isCloudReady() && !window.__entidadesSeedTentado) {
@@ -396,22 +397,34 @@ function iniciarListenersFirestore() {
         }
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirEntidadesUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirEntidadesUnsubscribe);
     window.__ouvirIntegracoesExternasUnsubscribe = ouvirIntegracoesExternas((lista) => {
         integracoesExternas = lista; window.integracoesExternas = integracoesExternas;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirIntegracoesExternasUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirIntegracoesExternasUnsubscribe);
     window.__ouvirRepresentantesUnsubscribe = ouvirRepresentantes((lista) => {
         representantes = lista; window.representantes = representantes;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirRepresentantesUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirRepresentantesUnsubscribe);
     window.__ouvirFaturasUnsubscribe = ouvirFaturas((lista) => {
         window.faturas = lista;
         if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
-    (window.addListener || listenerManager.add)(window.__ouvirFaturasUnsubscribe);
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirFaturasUnsubscribe);
+    window.__ouvirPagamentosUnsubscribe = ouvirPagamentos((lista) => {
+        pagamentos = lista;
+        window.pagamentos = pagamentos;
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPagamentosUnsubscribe);
+    window.__ouvirDespesasUnsubscribe = ouvirDespesas((lista) => {
+        despesas = lista;
+        window.despesas = despesas;
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
+    });
+    (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDespesasUnsubscribe);
 }
 window.__cloudSyncPending = window.__cloudSyncPending || 0;
 window.__cloudSyncError = window.__cloudSyncError || null;
@@ -674,6 +687,60 @@ function lerFaturaDoFirestore(data) {
     };
 }
 
+// Estrutura Firestore pagamentos: faturaId, valor, dataPagamento, metodoPagamento
+function prepararPagamentoParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        id: item.id,
+        faturaId: item.faturaId ?? '',
+        valor: parseFloat(item.valor ?? 0),
+        dataPagamento: item.dataPagamento ?? item.data ?? agora.split('T')[0],
+        metodoPagamento: item.metodoPagamento ?? item.metodo ?? '',
+        referencia: item.referencia ?? '',
+        notas: item.notas ?? '',
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora,
+        anulado: item.anulado === true,
+        deleted: item.deleted === true
+    };
+}
+
+function lerPagamentoDoFirestore(data) {
+    if (!data) return data;
+    return {
+        ...data,
+        data: data.data ?? data.dataPagamento,
+        metodo: data.metodo ?? data.metodoPagamento
+    };
+}
+
+const DESPESA_TIPOS = ['taxa', 'certidao', 'deslocacao', 'fotocopia', 'outro'];
+const DESPESA_PROCESOS = ['herancas', 'migracoes', 'registos'];
+
+function prepararDespesaParaFirestore(item) {
+    if (!item) return item;
+    const agora = new Date().toISOString();
+    return {
+        id: item.id,
+        processoTipo: item.processoTipo ?? 'herancas',
+        processoId: item.processoId ?? '',
+        descricao: item.descricao ?? '',
+        valor: parseFloat(item.valor ?? 0),
+        data: item.data ?? agora.split('T')[0],
+        tipo: item.tipo ?? 'outro',
+        anulado: item.anulado === true,
+        deleted: item.deleted === true,
+        createdAt: item.createdAt ?? agora,
+        updatedAt: item.updatedAt ?? agora
+    };
+}
+
+function lerDespesaDoFirestore(data) {
+    if (!data) return data;
+    return { ...data };
+}
+
 // === CRUD Clientes (simples e seguro, usa serverTimestamp) ===
 function obterServerTimestamp() {
     return typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
@@ -815,6 +882,37 @@ async function apagarHonorarioCloud(id) {
     });
 }
 
+/** Criar pagamento no Firestore e atualizar fatura (somaPagamentos, estado). */
+async function criarPagamentoCloud(pagamento) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const faturaId = pagamento.faturaId;
+    if (!faturaId) throw new Error('faturaId obrigatório');
+    const id = pagamento.id || gerarIdImutavel();
+    const prep = prepararPagamentoParaFirestore({ ...pagamento, id });
+    const payload = { ...prep, id, anulado: false, deleted: false };
+    await firestoreDb.collection('pagamentos').doc(String(id)).set(payload, { merge: true });
+    await atualizarFaturaAposPagamento(faturaId);
+    return { ...pagamento, id };
+}
+
+/** Recalcula somaPagamentos na fatura e atualiza estado (pago/pendente). */
+async function atualizarFaturaAposPagamento(faturaId) {
+    if (!isCloudReady() || !faturaId) return;
+    const snap = await firestoreDb.collection('pagamentos').where('faturaId', '==', String(faturaId)).get();
+    const soma = snap.docs
+        .filter(d => !d.data().anulado && !d.data().deleted)
+        .reduce((s, d) => s + (parseFloat(d.data().valor) || 0), 0);
+    const faturaDoc = await firestoreDb.collection('faturas').doc(String(faturaId)).get();
+    if (!faturaDoc.exists) return;
+    const valorTotal = parseFloat(faturaDoc.data().valorTotal ?? faturaDoc.data().valor ?? 0);
+    const estado = soma >= valorTotal ? 'pago' : (soma > 0 ? 'parcial' : 'pendente');
+    await firestoreDb.collection('faturas').doc(String(faturaId)).update({
+        somaPagamentos: soma,
+        estado,
+        updatedAt: obterServerTimestamp()
+    });
+}
+
 /** Criar/atualizar fatura no Firestore. */
 async function criarFaturaCloud(fatura) {
     if (!isCloudReady()) throw new Error('Firestore não disponível');
@@ -885,6 +983,92 @@ function ouvirFaturas(callback) {
     }, (err) => {
         console.warn('Erro na escuta em tempo real de faturas:', err);
     });
+}
+
+/** Escuta pagamentos em tempo real. */
+function ouvirPagamentos(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('pagamentos').onSnapshot((snapshot) => {
+        const lista = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(p => !p.deleted && !p.anulado && p.id !== 'seed-inicial')
+            .map(lerPagamentoDoFirestore);
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => {
+        console.warn('Erro na escuta em tempo real de pagamentos:', err);
+    });
+}
+
+/** Escuta despesas em tempo real. */
+function ouvirDespesas(callback) {
+    if (!isCloudReady()) return () => {};
+    return firestoreDb.collection('despesas').onSnapshot((snapshot) => {
+        const lista = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(d => !d.deleted && !d.anulado && d.id !== 'seed-inicial')
+            .map(lerDespesaDoFirestore);
+        if (typeof callback === 'function') callback(lista);
+    }, (err) => {
+        console.warn('Erro na escuta em tempo real de despesas:', err);
+    });
+}
+
+async function criarDespesaCloud(despesa) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const processoTipo = despesa.processoTipo || 'herancas';
+    const processoId = despesa.processoId;
+    if (!processoId) throw new Error('Processo obrigatório');
+    const valor = parseFloat(despesa.valor ?? 0);
+    if (valor < 0) throw new Error('Valor inválido');
+
+    const id = despesa.id || gerarIdImutavel();
+    const prep = prepararDespesaParaFirestore({ ...despesa, id });
+    const payload = { ...prep, id, createdAt: obterServerTimestamp(), updatedAt: obterServerTimestamp(), deleted: false, anulado: false };
+    await firestoreDb.collection('despesas').doc(String(id)).set(payload, { merge: true });
+    return { ...despesa, id };
+}
+
+async function anularDespesaCloud(id) {
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
+    await firestoreDb.collection('despesas').doc(String(id)).update({ anulado: true, updatedAt: obterServerTimestamp() });
+}
+
+/** Criar pagamento e atualizar somaPagamentos na fatura. */
+async function criarPagamentoCloud(pagamento) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    const faturaId = pagamento.faturaId;
+    if (!faturaId) throw new Error('Fatura obrigatória');
+    const valor = parseFloat(pagamento.valor ?? 0);
+    if (valor <= 0) throw new Error('Valor deve ser maior que zero');
+
+    const id = pagamento.id || gerarIdImutavel();
+    const prep = prepararPagamentoParaFirestore({ ...pagamento, id });
+    const payload = {
+        ...prep,
+        id,
+        createdAt: obterServerTimestamp(),
+        updatedAt: obterServerTimestamp(),
+        deleted: false,
+        anulado: false
+    };
+
+    await firestoreDb.collection('pagamentos').doc(String(id)).set(payload, { merge: true });
+
+    const faturaRef = firestoreDb.collection('faturas').doc(String(faturaId));
+    const faturaSnap = await faturaRef.get();
+    if (faturaSnap.exists) {
+        const faturaData = faturaSnap.data();
+        const somaAtual = parseFloat(faturaData.somaPagamentos ?? 0) || 0;
+        const novaSoma = somaAtual + valor;
+        const valorTotal = parseFloat(faturaData.valorTotal ?? faturaData.valor ?? 0) || 0;
+        const estado = novaSoma >= valorTotal - 0.01 ? 'pago' : (faturaData.estado || 'pendente');
+        await faturaRef.update({
+            somaPagamentos: novaSoma,
+            estado,
+            updatedAt: obterServerTimestamp()
+        });
+    }
+    return { ...pagamento, id };
 }
 
 /** Escuta clientes em tempo real. Devolve função para cancelar a subscrição. */
@@ -2136,6 +2320,62 @@ async function firestoreClearBackupLogs() {
     } catch (e) { console.warn('firestoreClearBackupLogs:', e); }
 }
 
+/** getBackupLogs, logBackup, clearBackupLogs — base para secção Backup (Firestore) */
+function getBackupLogs() { return Array.isArray(window.__backupLogsCache) ? window.__backupLogsCache : []; }
+function logBackup(msg) { try { console.log('Backup:', msg); } catch (e) {} }
+function clearBackupLogs() { window.__backupLogsCache = []; }
+
+/** Exporta todos os dados do Firestore para JSON (download). */
+async function exportarBackupFirestore() {
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
+    const lerPorColecao = {
+        clientes: lerClienteDoFirestore,
+        honorarios: lerHonorarioDoFirestore,
+        contratos: lerContratoDoFirestore,
+        prazos: lerPrazoDoFirestore,
+        notificacoes: lerNotificacaoDoFirestore,
+        herancas: lerProcessoDoFirestore,
+        migracoes: lerProcessoDoFirestore,
+        registos: lerProcessoDoFirestore,
+        documentos: lerDocumentoDoFirestore,
+        tarefas: lerTarefaDoFirestore,
+        convidados: lerConvidadoDoFirestore,
+        entidades: lerEntidadeDoFirestore,
+        integracoes_externas: lerIntegracaoDoFirestore,
+        representantes: lerRepresentanteDoFirestore,
+        faturas: lerFaturaDoFirestore,
+        pagamentos: lerPagamentoDoFirestore,
+        despesas: lerDespesaDoFirestore
+    };
+    try {
+        mostrarNotificacao('A exportar dados do Firestore...', 'info');
+        const dados = {};
+        for (const [col, lerFn] of Object.entries(lerPorColecao)) {
+            const snap = await firestoreDb.collection(col).get();
+            let lista = snap.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(d => !d.deleted && !d.anulado && !['faturas','pagamentos','despesas'].includes(col) ? true : d.id !== 'seed-inicial');
+            if (typeof lerFn === 'function') lista = lista.map(d => lerFn(d));
+            dados[col] = lista;
+        }
+        const backup = { timestamp: new Date().toISOString(), versao: '1.0', dados };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `backup_firestore_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        try { appStorage.setItem('backupExportUltimo', new Date().toISOString()); } catch (e) {}
+        if (typeof logBackup === 'function') logBackup('Exportação Firestore concluída');
+        mostrarNotificacao('Backup exportado com sucesso.', 'success');
+    } catch (e) {
+        console.warn('exportarBackupFirestore:', e);
+        mostrarNotificacao('Erro ao exportar: ' + (e?.message || e), 'error');
+    }
+}
+window.exportarBackupFirestore = exportarBackupFirestore;
+window.exportBackupFromFirestore = exportarBackupFirestore;
+
 (function() {
     const origLog = window.logBackup;
     const origClear = window.clearBackupLogs;
@@ -2418,7 +2658,7 @@ async function purgarDocumentosEliminadosFirestore() {
     if (!exigirAdmin('purga de dados eliminados')) return;
     if (!confirm('Remover da base de dados todos os itens que já foram "eliminados" (clientes, convidados, documentos, etc.)?\n\nIsto não afeta dados ativos. É irreversível.')) return;
     if (!confirm('Confirma a purga?')) return;
-    const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados'];
+    const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'representantes'];
     let total = 0;
     try {
         mostrarNotificacao('A purgar...', 'info');
@@ -2595,6 +2835,62 @@ async function executarZeroAbsoluto() {
     }
 }
 window.comecarDoZeroAbsoluto = comecarDoZeroAbsoluto;
+
+/** Limpa TUDO exceto o cliente DACIANA e o convidado WILSON. Elimina dados fantasmas que reaparecem. */
+async function limparBaseManterApenasDacianaWilson() {
+    if (!exigirAdmin('esta limpeza')) return;
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
+    if (!confirm('Esta ação vai:\n\n• Apagar TODOS honorários, contratos, heranças, migrações, registos, prazos, tarefas, notificações, documentos\n• Manter APENAS o cliente "DACIANA" e o convidado "WILSON"\n• Apagar todos os outros clientes e convidados\n\nÉ irreversível. Continuar?')) return;
+    if (!confirm('Confirma? O cliente DACIANA e o convidado WILSON serão os únicos a ficar.')) return;
+
+    try {
+        mostrarNotificacao('A limpar...', 'info');
+        if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
+
+        // Apagar coleções inteiras
+        const colecoesCompletas = ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'tarefas', 'entidades', 'integracoes_externas', 'representantes'];
+        for (const col of colecoesCompletas) {
+            try { await apagarColecaoFirestore(col); } catch (e) { console.warn('Erro ao apagar', col, e); }
+        }
+
+        // Faturas: apagar tudo exceto seed-inicial
+        const snapFaturas = await firestoreDb.collection('faturas').get();
+        const batchF = firestoreDb.batch();
+        snapFaturas.docs.forEach(d => { if (d.id !== 'seed-inicial') batchF.delete(d.ref); });
+        if (!snapFaturas.empty) await batchF.commit();
+
+        // Clientes: apagar todos exceto DACIANA (nome contém "daciana", insensível a maiúsculas)
+        const snapClientes = await firestoreDb.collection('clientes').get();
+        const aApagarClientes = snapClientes.docs.filter(d => !(d.data().nome || '').toLowerCase().includes('daciana'));
+        for (let i = 0; i < aApagarClientes.length; i += 500) {
+            const batchC = firestoreDb.batch();
+            aApagarClientes.slice(i, i + 500).forEach(d => batchC.delete(d.ref));
+            await batchC.commit();
+        }
+
+        // Convidados: apagar todos exceto WILSON (nome contém "wilson", insensível a maiúsculas)
+        const snapConvidados = await firestoreDb.collection('convidados').get();
+        const aApagarConvidados = snapConvidados.docs.filter(d => !(d.data().nome || '').toLowerCase().includes('wilson'));
+        for (let i = 0; i < aApagarConvidados.length; i += 500) {
+            const batchConv = firestoreDb.batch();
+            aApagarConvidados.slice(i, i + 500).forEach(d => batchConv.delete(d.ref));
+            await batchConv.commit();
+        }
+
+        // Limpar localStorage/sessionStorage para evitar que dados antigos migrem de volta
+        const chaves = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'representantes', 'entidades', 'integracoes_externas'];
+        chaves.forEach(k => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) {} });
+        ['honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'faturasMigrados', 'localStorageMigradoParaFirebase', 'clientesMigradosParaFirestore'].forEach(k => { try { appStorage.setItem(k, 'true'); localStorage.setItem(k, 'true'); sessionStorage.setItem(k, 'true'); } catch (e) {} });
+
+        appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
+        mostrarNotificacao('✅ Base limpa. Mantidos apenas DACIANA e WILSON. A recarregar...', 'success');
+        setTimeout(() => location.reload(), 2000);
+    } catch (err) {
+        console.error(err);
+        mostrarNotificacao('Erro: ' + (err?.message || err), 'error');
+    }
+}
+window.limparBaseManterApenasDacianaWilson = limparBaseManterApenasDacianaWilson;
 
 // FUNÇÃO PARA LIMPEZA PROFISSIONAL (só local – mantém opção antiga)
 function limparDadosParaUsoProfissional() {
@@ -3038,6 +3334,8 @@ function ocultarSecoesConvidado() {
         'nav-dashboard',
         'nav-clientes',
         'nav-honorarios',
+        'nav-pagamentos',
+        'nav-despesas',
         'nav-contratos',
         'nav-herancas',
         'nav-migracao',
@@ -3061,6 +3359,8 @@ function mostrarTodasSecoes() {
         'nav-dashboard',
         'nav-clientes',
         'nav-honorarios',
+        'nav-pagamentos',
+        'nav-despesas',
         'nav-contratos', 
         'nav-herancas',
         'nav-migracao',
@@ -3099,6 +3399,8 @@ let convidados = [];
 let entidades = [];
 let integracoesExternas = [];
 let representantes = [];
+let pagamentos = [];
+let despesas = [];
 let calendarioModo = 'mensal';
 let calendarioDataRef = new Date();
 let calendarioFiltroCliente = '';
@@ -4030,7 +4332,7 @@ function inicializarGestosTouch() {
 }
 
 function navegarSecaoAnterior() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva);
     if (indiceAtual > 0) {
         carregarSecao(secoes[indiceAtual - 1]);
@@ -4038,7 +4340,7 @@ function navegarSecaoAnterior() {
 }
 
 function navegarProximaSecao() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva);
     if (indiceAtual < secoes.length - 1) {
         carregarSecao(secoes[indiceAtual + 1]);
@@ -4162,20 +4464,20 @@ async function gerarFaturaAutomatica(honorarioId) {
     const honorario = honorarios.find(h => h.id === honorarioId);
     if (!honorario) return;
     
-    const cliente = clientes.find(c => c.id === honorario.clienteId);
+    const cliente = (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(honorario.clienteId, honorario.clienteNome || honorario.cliente) : null) || clientes.find(c => String(c.id) === String(honorario.clienteId));
     if (!cliente) return;
     
     const fatura = {
         id: gerarIdImutavel(),
         numero: `FAT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
-        clienteId: honorario.clienteId,
-        clienteNome: honorario.clienteNome,
+        clienteId: cliente.id,
+        clienteNome: cliente.nome || honorario.clienteNome || honorario.cliente || '[Cliente]',
         honorarioId: honorarioId,
         data: new Date().toISOString().split('T')[0],
         valor: honorario.valorComJuros || honorario.valor,
         juros: honorario.jurosCalculados || 0,
         status: 'pendente',
-        observacoes: `Fatura gerada automaticamente para ${honorario.descricao}`
+        observacoes: `Fatura gerada automaticamente para ${honorario.descricao || honorario.servico || 'Honorário'}`
     };
     
     // Guardar fatura (Firestore ou localStorage)
@@ -4424,20 +4726,29 @@ function salvarHonorarios() {
 
 
 async function gerarFaturasAutomaticas() {
-    const honorariosComJuros = honorarios.filter(h => h.jurosCalculados && h.jurosCalculados > 0);
-    if (honorariosComJuros.length === 0) {
-        mostrarNotificacao('Nenhum honorário com juros encontrado!', 'info');
+    // Inclui TODOS os honorários com valor que ainda não têm fatura (com ou sem juros)
+    const honorariosElegiveis = (honorarios || []).filter(h => {
+        if (h.deleted) return false;
+        const valor = parseFloat(h.valor) || 0;
+        return valor > 0 && !obterFaturas().find(f => String(f.honorarioId) === String(h.id));
+    });
+    if (honorariosElegiveis.length === 0) {
+        mostrarNotificacao('Nenhum honorário elegível! Crie um honorário com valor e que ainda não tenha fatura.', 'info');
         return;
     }
     let faturasGeradas = 0;
-    for (const honorario of honorariosComJuros) {
-        if (!obterFaturas().find(f => f.honorarioId === honorario.id)) {
-            await gerarFaturaAutomatica(honorario.id);
-            faturasGeradas++;
-        }
+    for (const honorario of honorariosElegiveis) {
+        await gerarFaturaAutomatica(honorario.id);
+        faturasGeradas++;
     }
-    mostrarNotificacao(`${faturasGeradas} faturas geradas automaticamente!`, 'success');
-    carregarSecao('dashboard');
+    mostrarNotificacao(`${faturasGeradas} fatura(s) gerada(s) com sucesso!`, 'success');
+    carregarSecao('documentos');
+    setTimeout(() => {
+        const sel = document.getElementById('templateModelo');
+        if (sel) sel.value = 'fatura_recibo';
+        if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
+        if (typeof atualizarPreviewTemplateDocumento === 'function') atualizarPreviewTemplateDocumento();
+    }, 400);
 }
 
 // Funções para gerenciar lembretes
@@ -4746,6 +5057,10 @@ function carregarDados() {
         window.tarefas = tarefas;
         convidados = Array.isArray(convidados) ? convidados : [];
         window.convidados = convidados;
+        pagamentos = Array.isArray(pagamentos) ? pagamentos : [];
+        window.pagamentos = pagamentos;
+        despesas = Array.isArray(despesas) ? despesas : [];
+        window.despesas = despesas;
 
         // Dados vêm apenas do Firestore (cache IndexedDB quando offline)
     } catch (error) {
@@ -5722,6 +6037,7 @@ function carregarSecao(secao) {
             'dashboard',
             'clientes',
             'honorarios',
+            'pagamentos',
             'contratos',
             'herancas',
             'migracoes',
@@ -5889,6 +6205,8 @@ function atualizarTitulo(secao) {
         dashboard: 'Visão Geral',
         clientes: 'Gestão de Clientes',
         honorarios: 'Gestão de Honorários',
+        pagamentos: 'Registo de Pagamentos',
+        despesas: 'Gestão de Despesas',
         contratos: 'Gestão de Contratos',
         prazos: 'Gestão de Prazos',
         herancas: 'Gestão de Heranças',
@@ -5923,6 +6241,8 @@ function gerarConteudoSecao(secao) {
         dashboard: gerarDashboard(),
         clientes: gerarClientes(),
         honorarios: gerarHonorarios(),
+        pagamentos: gerarPagamentos(),
+        despesas: gerarDespesas(),
         contratos: gerarContratos(),
         prazos: gerarPrazos(),
         herancas: gerarHerancas(),
@@ -6133,7 +6453,7 @@ function gerarHtmlRelatorioCompleto(d) {
 }
 
 /** Converte texto em PDF (download ou imprimir). Usado para todos os relatórios. */
-function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
+async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
     try {
         const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
         if (!jsPDF) {
@@ -6141,14 +6461,15 @@ function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
             return;
         }
         const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+        const margin = 15;
+        let y = await adicionarLogoAoPdf(doc, margin);
         doc.setFont('times', 'normal');
         doc.setFontSize(11);
-        const margin = 15;
         const pageWidth = doc.internal.pageSize.getWidth();
         const maxWidth = pageWidth - margin * 2;
         const lineHeight = 6;
-        let y = margin;
-        const blocos = (texto || '').split('\n');
+        const textoComRodape = (texto || '') + '\n' + (typeof obterRodapeDocumento === 'function' ? obterRodapeDocumento() : '');
+        const blocos = textoComRodape.split('\n');
         blocos.forEach(bloco => {
             const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
             linhas.forEach(linha => {
@@ -9420,6 +9741,304 @@ function gerarClientes() {
     `;
 }
 
+function gerarPagamentos() {
+    const lista = Array.isArray(pagamentos) ? pagamentos : [];
+    const faturasLista = obterFaturas();
+    const valorTotal = lista.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+
+    const obterFaturaInfo = (fid) => {
+        const f = faturasLista.find(x => String(x.id) === String(fid));
+        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (€${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
+    };
+
+    return `
+        <div class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Registo de Pagamentos</h3>
+                <button onclick="abrirModalNovoPagamento()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Novo Pagamento
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="card p-4">
+                    <p class="text-sm text-gray-600">Total de pagamentos</p>
+                    <p class="text-2xl font-bold">${lista.length}</p>
+                </div>
+                <div class="card p-4">
+                    <p class="text-sm text-gray-600">Valor total recebido</p>
+                    <p class="text-2xl font-bold text-green-700">€${valorTotal.toFixed(2)}</p>
+                </div>
+            </div>
+            <div class="card p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th class="text-left py-2">Fatura</th>
+                                <th class="text-left py-2">Valor</th>
+                                <th class="text-left py-2">Data</th>
+                                <th class="text-left py-2">Método</th>
+                                <th class="text-left py-2">Ref.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lista.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-500">Nenhum pagamento registado. Clique em "Novo Pagamento" para registar.</td></tr>' : lista.map(p => `
+                                <tr>
+                                    <td class="py-2">${obterFaturaInfo(p.faturaId)}</td>
+                                    <td class="py-2 font-medium">€${(parseFloat(p.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2">${(p.dataPagamento || p.data || '').toString().split('T')[0]}</td>
+                                    <td class="py-2">${p.metodoPagamento || p.metodo || '-'}</td>
+                                    <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function obterProcessosParaDespesa() {
+    const lista = [];
+    (obterHerancasAtual?.() || []).forEach(h => {
+        lista.push({ processoTipo: 'herancas', processoId: h.id, label: `Herança: ${h.clienteNome || h.id} (${h.tipo || '-'})` });
+    });
+    (obterMigracoesAtual?.() || []).forEach(m => {
+        lista.push({ processoTipo: 'migracoes', processoId: m.id, label: `Migração: ${m.clienteNome || m.id} (${m.tipo || '-'})` });
+    });
+    (obterRegistosAtual?.() || []).forEach(r => {
+        lista.push({ processoTipo: 'registos', processoId: r.id, label: `Registo: ${r.clienteNome || r.id} (${r.tipo || '-'})` });
+    });
+    return lista;
+}
+
+function obterProcessoInfo(processoTipo, processoId) {
+    const tipos = { herancas: 'Herança', migracoes: 'Migração', registos: 'Registo' };
+    let proc = null;
+    if (processoTipo === 'herancas') proc = (obterHerancasAtual?.() || []).find(h => String(h.id) === String(processoId));
+    else if (processoTipo === 'migracoes') proc = (obterMigracoesAtual?.() || []).find(m => String(m.id) === String(processoId));
+    else if (processoTipo === 'registos') proc = (obterRegistosAtual?.() || []).find(r => String(r.id) === String(processoId));
+    const nome = proc ? (proc.clienteNome || proc.id) : processoId;
+    return `${tipos[processoTipo] || processoTipo}: ${nome}`;
+}
+
+function gerarDespesas() {
+    const lista = Array.isArray(despesas) ? despesas : [];
+    const valorTotal = lista.reduce((s, d) => s + (parseFloat(d.valor) || 0), 0);
+
+    return `
+        <div class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Gestão de Despesas</h3>
+                <button onclick="abrirModalNovaDespesa()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Nova Despesa
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="card p-4">
+                    <p class="text-sm text-gray-600">Total de despesas</p>
+                    <p class="text-2xl font-bold">${lista.length}</p>
+                </div>
+                <div class="card p-4">
+                    <p class="text-sm text-gray-600">Valor total</p>
+                    <p class="text-2xl font-bold text-red-700">€${valorTotal.toFixed(2)}</p>
+                </div>
+            </div>
+            <div class="card p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th class="text-left py-2">Processo</th>
+                                <th class="text-left py-2">Descrição</th>
+                                <th class="text-left py-2">Tipo</th>
+                                <th class="text-left py-2">Valor</th>
+                                <th class="text-left py-2">Data</th>
+                                <th class="text-left py-2">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lista.length === 0 ? '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhuma despesa registada. Associe despesas a processos (heranças, migrações, registos).</td></tr>' : lista.map(d => `
+                                <tr>
+                                    <td class="py-2">${obterProcessoInfo(d.processoTipo, d.processoId)}</td>
+                                    <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
+                                    <td class="py-2">${d.tipo || 'outro'}</td>
+                                    <td class="py-2 font-medium">€${(parseFloat(d.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2">${(d.data || '').toString().split('T')[0]}</td>
+                                    <td class="py-2">
+                                        <button onclick="anularDespesaUi(${JSON.stringify(d.id)})" class="text-red-600 hover:text-red-800 text-sm" title="Anular">Anular</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function abrirModalNovaDespesa() {
+    const processosOpts = obterProcessosParaDespesa();
+    if (processosOpts.length === 0) {
+        mostrarNotificacao('Crie primeiro um processo (herança, migração ou registo).', 'info');
+        return;
+    }
+    const hoje = new Date().toISOString().split('T')[0];
+    const opts = processosOpts.map(p => `<option value="${p.processoTipo}|${p.processoId}">${p.label}</option>`).join('');
+    const tipoOpts = DESPESA_TIPOS.map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
+    const html = `
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Registar Despesa</h3>
+            <form id="formNovaDespesa" onsubmit="guardarNovaDespesa(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Processo *</label>
+                    <select name="processo" required class="w-full p-2 border rounded-lg">
+                        <option value="">Selecione o processo</option>
+                        ${opts}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Descrição *</label>
+                    <input type="text" name="descricao" required class="w-full p-2 border rounded-lg" placeholder="Ex: Taxa IRN">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Tipo</label>
+                    <select name="tipo" class="w-full p-2 border rounded-lg">${tipoOpts}</select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Valor (€) *</label>
+                    <input type="number" name="valor" step="0.01" min="0" required class="w-full p-2 border rounded-lg" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Data *</label>
+                    <input type="date" name="data" required class="w-full p-2 border rounded-lg" value="${hoje}">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    `;
+    mostrarModalRobusto(html);
+}
+
+async function guardarNovaDespesa(event) {
+    event.preventDefault();
+    const form = event.target;
+    const processoVal = form.processo?.value;
+    if (!processoVal) { mostrarNotificacao('Selecione o processo.', 'error'); return; }
+    const [processoTipo, processoId] = processoVal.split('|');
+    const valor = parseFloat(form.valor?.value || 0);
+    if (valor < 0) { mostrarNotificacao('Valor inválido.', 'error'); return; }
+    try {
+        await criarDespesaCloud({
+            processoTipo: processoTipo || 'herancas',
+            processoId,
+            descricao: form.descricao?.value || '',
+            tipo: form.tipo?.value || 'outro',
+            valor,
+            data: form.data?.value || new Date().toISOString().split('T')[0]
+        });
+        fecharModalRobusto();
+        mostrarNotificacao('Despesa registada.', 'success');
+        carregarSecao('despesas');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
+async function anularDespesaUi(id) {
+    if (!confirm('Anular esta despesa? (ficará registada como anulada)')) return;
+    try {
+        await anularDespesaCloud(id);
+        mostrarNotificacao('Despesa anulada.', 'success');
+        carregarSecao('despesas');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
+function abrirModalNovoPagamento() {
+    const faturas = obterFaturas().filter(f => (f.estado || f.status) !== 'pago');
+    if (faturas.length === 0) {
+        mostrarNotificacao('Não há faturas pendentes para registar pagamento.', 'info');
+        return;
+    }
+    const opcoes = faturas.map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
+    const hoje = new Date().toISOString().split('T')[0];
+    const html = `
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Registar Pagamento</h3>
+            <form id="formNovoPagamento" onsubmit="guardarNovoPagamento(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Fatura *</label>
+                    <select name="faturaId" required class="w-full p-2 border rounded-lg">
+                        <option value="">Selecione a fatura</option>
+                        ${opcoes}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Valor (€) *</label>
+                    <input type="number" name="valor" step="0.01" min="0.01" required class="w-full p-2 border rounded-lg" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Data do pagamento *</label>
+                    <input type="date" name="dataPagamento" required class="w-full p-2 border rounded-lg" value="${hoje}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Método</label>
+                    <select name="metodoPagamento" class="w-full p-2 border rounded-lg">
+                        <option value="transferencia">Transferência</option>
+                        <option value="numerario">Numerário</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="multibanco">Multibanco</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Referência</label>
+                    <input type="text" name="referencia" class="w-full p-2 border rounded-lg" placeholder="Nº referência ou descrição">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    `;
+    mostrarModalRobusto(html);
+}
+
+async function guardarNovoPagamento(event) {
+    event.preventDefault();
+    const form = event.target;
+    const faturaId = form.faturaId?.value;
+    const valor = parseFloat(form.valor?.value || 0);
+    if (!faturaId || valor <= 0) {
+        mostrarNotificacao('Preencha fatura e valor.', 'error');
+        return;
+    }
+    try {
+        await criarPagamentoCloud({
+            faturaId,
+            valor,
+            dataPagamento: form.dataPagamento?.value || new Date().toISOString().split('T')[0],
+            metodoPagamento: form.metodoPagamento?.value || 'transferencia',
+            referencia: form.referencia?.value || ''
+        });
+        fecharModalRobusto();
+        mostrarNotificacao('Pagamento registado.', 'success');
+        carregarSecao('pagamentos');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
 function formatarStatusHonorario(status) {
     if (status === 'parcial') return 'Parcial';
     if (status === 'pago') return 'Pago';
@@ -9448,10 +10067,14 @@ function gerarHonorarios() {
                 <button type="button" onclick="document.getElementById('dicaPrimeiroHonorario')?.remove(); appStorage.setItem('guiaHonorarioVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
             </div>
             ` : ''}
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <button onclick="abrirModal('honorario')" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Honorário
+                </button>
+                <button onclick="gerarFaturasAutomaticas()" class="btn btn-secondary" title="Cria faturas a partir de honorários que ainda não têm fatura">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Gerar faturas
                 </button>
             </div>
             
@@ -9808,11 +10431,15 @@ function gerarPrazos() {
 
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-4">
                 <div class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
                     <i data-lucide="info" class="w-4 h-4 inline mr-2"></i>
                     Prazos criados automaticamente pelas áreas de execução
                 </div>
+                <button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Novo Prazo
+                </button>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -9969,7 +10596,9 @@ function gerarPrazos() {
                                 </tr>
                             </thead>
                             <tbody id="listaPrazos">
-                                ${prazos.map(prazo => `
+                                ${listaPrazos.length === 0
+                                    ? '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>'
+                                    : listaPrazos.map(prazo => `
                                     <tr>
                                         <td>
                                             ${renderClienteLink(prazo.clienteId, prazo.clienteNome)}
@@ -9980,6 +10609,7 @@ function gerarPrazos() {
                                         <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                                         <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
                                         <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
+                                        <td>${prazo.criadoPor || '-'}</td>
                                         <td>
                                             <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800 mr-2">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
@@ -11702,12 +12332,189 @@ function salvarDocumentosLocal(novos) {
     salvarDados('documentos', documentos);
 }
 
+/** Logos para documentos PDF — tenta logo.png primeiro, depois ana.jpg (relativo à raiz do site). */
+const LOGO_EMPRESA_URLS = ['logo.png', 'ana.jpg'];
+
+/** Carrega a logo como base64 para incluir em PDFs. Devolve null se falhar. */
+function carregarLogoBase64() {
+    return new Promise((resolve) => {
+        const base = (document.querySelector('base')?.href || window.location.origin + '/').replace(/\/$/, '') + '/';
+        const urls = LOGO_EMPRESA_URLS.map(nome => base + nome);
+        let idx = 0;
+        function tentarProximo() {
+            if (idx >= urls.length) { resolve(null); return; }
+            try {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function() {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(img, 0, 0);
+                            const isPng = (urls[idx] || '').toLowerCase().endsWith('.png');
+                            resolve(canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.9));
+                        } else resolve(null);
+                    } catch (e) { resolve(null); }
+                };
+                img.onerror = () => { idx++; tentarProximo(); };
+                img.src = urls[idx];
+            } catch (e) { idx++; tentarProximo(); }
+        }
+        tentarProximo();
+    });
+}
+
+/** Adiciona a logo ao topo do PDF e devolve o y onde deve começar o conteúdo. */
+async function adicionarLogoAoPdf(doc, margin) {
+    const marginY = margin || 20;
+    const logoData = await carregarLogoBase64();
+    if (!logoData || !doc) return marginY;
+    try {
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const logoLargura = 40;
+        const logoAltura = 22;
+        const x = (pageWidth - logoLargura) / 2;
+        const formato = logoData.indexOf('data:image/png') === 0 ? 'PNG' : 'JPEG';
+        doc.addImage(logoData, formato, x, marginY - 5, logoLargura, logoAltura);
+        return marginY + logoAltura + 10;
+    } catch (e) { return marginY; }
+}
+
+/** Dados da solicitadora — edite aqui para personalizar procurações, faturas e rodapé. */
+const DADOS_SOLICITADORA = {
+    nome: 'Dra. Ana Paula Pinto Medina',
+    titulo: 'Solicitadora',
+    cedula: '9738',
+    sede: 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa',
+    nif: '288132335',
+    morada: 'Rua Melo Antunes, número 34, 3º DTO, 2526-728 Vialonga',
+    contacto: '+351 938057340',
+    email: 'anapaulamedina09738@osae.pt',
+    iban: 'PT50 0193 0000 10514937886 86',
+    website: 'Solicitadora Ana Paula'
+};
+
+/** Converte valor em euros para texto por extenso (simplificado). */
+function valorPorExtenso(valor) {
+    const v = Math.round((parseFloat(valor) || 0) * 100) / 100;
+    const inteiro = Math.floor(v);
+    const centavos = Math.round((v - inteiro) * 100);
+    if (inteiro === 0 && centavos === 0) return 'zero euros';
+    const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+    const especiais = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezasseis', 'dezassete', 'dezoito', 'dezanove'];
+    const dezenas = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+    const centenas = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+    function ate999(n) {
+        if (n === 0) return '';
+        if (n < 10) return unidades[n];
+        if (n < 20) return especiais[n - 10];
+        if (n < 100) return (dezenas[Math.floor(n / 10)] + (n % 10 ? ' e ' + unidades[n % 10] : '')).trim();
+        return (centenas[Math.floor(n / 100)] + (n % 100 ? ' e ' + ate999(n % 100) : '')).trim();
+    }
+    const milhares = Math.floor(inteiro / 1000);
+    const restante = inteiro % 1000;
+    let txt = '';
+    if (milhares > 0) txt += ate999(milhares) + (milhares === 1 ? ' mil' : ' mil');
+    if (restante > 0) txt += (txt ? ' e ' : '') + ate999(restante);
+    if (inteiro === 1) txt += ' euro';
+    else txt += ' euros';
+    if (centavos > 0) txt += ' e ' + ate999(centavos) + (centavos === 1 ? ' cêntimo' : ' cêntimos');
+    return txt;
+}
+
+/** Gera conteúdo da Fatura/Recibo profissional (com logo e rodapé no PDF). */
+function gerarConteudoFaturaRecibo(dados) {
+    const fatura = dados.fatura;
+    const cliente = dados.cliente || {};
+    const sol = dados.solicitadora || {};
+    const pagamentos = dados.pagamentos || [];
+    if (!fatura) return 'Selecione uma fatura.';
+
+    const numero = fatura.numero || fatura.id || 'FAC-';
+    const ano = new Date().getFullYear();
+    const numeroFmt = (numero + '').replace('FAT-', 'FAC ' + ano + 'FAC').replace(/\//g, '/') || `FAC ${ano}FAC001/1`;
+    const dataEmissao = (fatura.dataEmissao || fatura.data || new Date().toISOString()).toString().split('T')[0];
+    const dataFmt = dataEmissao.split('-').reverse().join('-');
+    const vencimento = (fatura.vencimento || fatura.dataEmissao || fatura.data || dataEmissao).toString().split('T')[0];
+    const vencFmt = vencimento.split('-').reverse().join('-');
+    const atcud = fatura.atcud || 'ATCUD: ' + (Math.random().toString(36).substring(2, 10).toUpperCase() + '-1');
+
+    const valorTotal = parseFloat(fatura.valorTotal || fatura.valor || 0);
+    const valorBase = parseFloat(fatura.valorBase || fatura.valor || valorTotal);
+    const iva = parseFloat(fatura.valorIva || fatura.iva || 0);
+    const retencao = parseFloat(fatura.retencao || 0);
+    const valorPagar = Math.max(0, valorTotal - (parseFloat(fatura.somaPagamentos || 0) || 0));
+    const somaPagamentos = pagamentos.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+    const valorRecebido = somaPagamentos || valorPagar;
+    const descricaoServico = fatura.observacoes || fatura.notas || 'Assessoria Jurídica - AIMA';
+
+    const nifCliente = (cliente.nif || cliente.documento || '').replace(/\s/g, '');
+    const nifFormatado = nifCliente ? nifCliente.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') : '__________';
+    const nifSolicitadora = (sol.nif || '288132335').replace(/\s/g, '').replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+    const moradaCliente = (cliente.morada || cliente.endereco || '').toString().replace(/\n/g, ', ') || '[Morada]';
+
+    const linhas = [
+        'SOLICITADORA ANA PAULA MEDINA',
+        `Contribuinte n.º ${nifSolicitadora}  |  Tlm: ${sol.contacto || '+351 938057340'}  |  Email: ${sol.email || 'anapaulamedina09738@osae.pt'}`,
+        `IBAN: ${sol.iban || 'PT50 0193 0000 10514937886 86'}`,
+        `V/ n.º contribuinte: ${nifFormatado}`,
+        '',
+        `Fatura/Recibo: ${numeroFmt} (Original)`,
+        `Data de Emissão: ${dataFmt}  |  Vencimento: ${vencFmt}  |  ${atcud}`,
+        '',
+        'Exmo(s) Sr(s)',
+        cliente.nome || '[Nome do Cliente]',
+        moradaCliente,
+        '',
+        'Descrição                                    | Art. | Qt    | Incidência | IVA% | Total (€)',
+        `Acto #1 ${descricaoServico.substring(0, 35).padEnd(35)} | 7    | 1,00  | ${valorBase.toFixed(2).padStart(8)} | (1)  | ${valorBase.toFixed(2)}`,
+        `Taxa de IVA Base de Incidência 0,00%                                              | 0,00`,
+        '',
+        `Serviços/Produtos: ${valorBase.toFixed(2)}  |  IVA: ${iva.toFixed(2)}  |  TOTAL: ${valorTotal.toFixed(2)}`,
+        `Retenção na fonte: ${retencao.toFixed(2)}  |  Valor a Pagar: €${valorPagar.toFixed(2)}`,
+        '',
+        `Recebemos por este documento ${valorPorExtenso(valorRecebido).replace(/^./, c => c.toUpperCase())}.`,
+        '',
+        'Artigo 7 Honorários: ' + valorBase.toFixed(2) + '  |  Impostos: ' + iva.toFixed(2) + '  |  Total: ' + valorTotal.toFixed(2),
+        '',
+        '(1) Artigo 16.º, n.º 6 do CIVA',
+        '',
+        'Recibos:',
+        ...(pagamentos.length > 0 ? pagamentos.map((p, i) => `  Recibo REC ${ano}REC${String(i + 1).padStart(3, '0')}/1 | ${(p.dataPagamento || p.data || '').toString().split('T')[0]} | Valor Recebido: ${(parseFloat(p.valor) || 0).toFixed(2)} | Retenção: ${retencao.toFixed(2)}`) : ['  (Nenhum recibo registado)']),
+        obterRodapeDocumento()
+    ];
+    return linhas.join('\n');
+}
+
+/** Rodapé padrão — aparece no fim de todos os documentos PDF gerados. */
+function obterRodapeDocumento() {
+    const s = typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {};
+    return [
+        '',
+        '---',
+        '',
+        `Contacto: ${s.contacto || '+351 938057340'}`,
+        `Endereço: ${s.sede || 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa'}`,
+        `Email: ${s.email || 'anapaulamedina09738@osae.pt'}`,
+        `Website: ${s.website || 'Solicitadora Ana Paula'}`
+    ].join('\n');
+}
+
 function obterModelosDocumentos() {
     return [
-        { id: 'procuracao_simples', nome: 'Procuração Simples', arquivo: 'procuracao_simples' },
-        { id: 'declaracao_comparecimento', nome: 'Declaração de Comparecimento', arquivo: 'declaracao_comparecimento' },
-        { id: 'declaracao_residencia', nome: 'Declaração de Residência', arquivo: 'declaracao_residencia' },
-        { id: 'recibo_honorarios', nome: 'Recibo de Honorários', arquivo: 'recibo_honorarios' }
+        { id: 'procuracao_simples', nome: 'Procuração Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
+        { id: 'procuracao_aima', nome: 'Procuração para AIMA / Residência', arquivo: 'procuracao_aima', tipo: 'procuracao' },
+        { id: 'procuracao_irn', nome: 'Procuração para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
+        { id: 'procuracao_financas', nome: 'Procuração para Finanças', arquivo: 'procuracao_financas', tipo: 'procuracao' },
+        { id: 'procuracao_geral', nome: 'Procuração Geral', arquivo: 'procuracao_geral', tipo: 'procuracao' },
+        { id: 'declaracao_comparecimento', nome: 'Declaração de Comparecimento', arquivo: 'declaracao_comparecimento', tipo: 'outro' },
+        { id: 'declaracao_residencia', nome: 'Declaração de Residência', arquivo: 'declaracao_residencia', tipo: 'outro' },
+        { id: 'declaracao_conhecimento', nome: 'Declaração de Conhecimento', arquivo: 'declaracao_conhecimento', tipo: 'outro' },
+        { id: 'recibo_honorarios', nome: 'Recibo de Honorários', arquivo: 'recibo_honorarios', tipo: 'outro' },
+        { id: 'fatura_recibo', nome: 'Fatura/Recibo (Profissional)', arquivo: 'fatura_recibo', tipo: 'fatura' }
     ];
 }
 
@@ -11718,37 +12525,125 @@ function normalizarNomeArquivo(valor) {
         .replace(/^_+|_+$/g, '');
 }
 
-function obterDadosTemplateDocumento() {
+/** Mostra/oculta campos extras consoante o modelo selecionado. */
+function toggleCamposProcuracaoAima() {
+    const modeloId = document.getElementById('templateModelo')?.value || '';
+    const containerNum = document.getElementById('containerNumeroProcesso');
+    const containerObj = document.getElementById('containerObjetoProcuracao');
+    const containerCliente = document.getElementById('containerTemplateCliente');
+    const containerFatura = document.getElementById('containerTemplateFatura');
+    const hintSemFaturas = document.getElementById('hintSemFaturas');
+    const selectFatura = document.getElementById('templateFatura');
+    const isAima = modeloId === 'procuracao_aima';
+    const isFaturaRecibo = modeloId === 'fatura_recibo';
+    if (containerNum) containerNum.classList.toggle('hidden', !isAima);
+    if (containerNum) containerNum.classList.toggle('md:col-span-2', isAima);
+    if (containerObj) containerObj.classList.toggle('hidden', !isAima);
+    if (containerObj) containerObj.classList.toggle('md:col-span-3', isAima);
+    if (containerCliente) containerCliente.classList.toggle('hidden', isFaturaRecibo);
+    if (containerFatura) containerFatura.classList.toggle('hidden', !isFaturaRecibo);
+    const faturas = (typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial');
+    const numFaturas = faturas.length;
+    if (hintSemFaturas) hintSemFaturas.classList.toggle('hidden', !isFaturaRecibo || numFaturas > 0);
+    // Atualiza o dropdown de faturas com dados em tempo real (importante após "Gerar faturas")
+    if (isFaturaRecibo && selectFatura) {
+        const valorSel = selectFatura.value;
+        selectFatura.innerHTML = '<option value="">Selecione a fatura</option>' + faturas.map(f => 
+            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
+        ).join('');
+        if (valorSel && faturas.some(f => String(f.id) === String(valorSel))) selectFatura.value = valorSel;
+    }
+}
+
+/** Atualiza a área de texto com o conteúdo do modelo selecionado (permite adaptar antes de gerar PDF). */
+function atualizarPreviewTemplateDocumento() {
+    const modeloId = document.getElementById('templateModelo')?.value || '';
+    if (!modeloId) {
+        const ta = document.getElementById('templateConteudoAdaptavel');
+        if (ta) ta.value = '';
+        return;
+    }
+    const dados = obterDadosTemplateDocumento(true);
+    const dadosPreview = dados || {
+        cliente: null,
+        fatura: null,
+        modeloId,
+        numeroProcesso: document.getElementById('templateNumeroProcesso')?.value?.trim() || '',
+        objetoProcuracao: document.getElementById('templateObjetoProcuracao')?.value?.trim() || '',
+        pagamentos: [],
+        hoje: new Date(),
+        solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}
+    };
+    if (!dadosPreview.cliente) {
+        dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
+    }
+    const conteudo = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
+    const ta = document.getElementById('templateConteudoAdaptavel');
+    if (ta) ta.value = conteudo;
+    setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
+}
+
+function obterDadosTemplateDocumento(apenasPreview) {
     const clienteId = parseIdSafe(document.getElementById('templateCliente')?.value || '');
+    const faturaId = document.getElementById('templateFatura')?.value?.trim() || '';
     const modeloId = document.getElementById('templateModelo')?.value || '';
     const processoTipo = document.getElementById('templateProcessoTipo')?.value || 'outro';
+    const numeroProcesso = document.getElementById('templateNumeroProcesso')?.value?.trim() || '';
+    const objetoProcuracao = document.getElementById('templateObjetoProcuracao')?.value?.trim() || '';
 
-    if (!clienteId) {
+    if (!modeloId) return null;
+    if (modeloId === 'fatura_recibo') {
+        if (!apenasPreview && !faturaId) {
+            mostrarNotificacao('Selecione a fatura.', 'warning');
+            return null;
+        }
+        const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
+        const fatura = faturaId ? faturas.find(f => String(f.id) === String(faturaId)) : null;
+        const cliente = fatura && fatura.clienteId ? clientes.find(c => String(c.id) === String(fatura.clienteId)) : { nome: 'N/D', nif: 'N/D', morada: 'N/D', endereco: '' };
+        const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(faturaId));
+        return { faturaId, fatura, cliente, clienteId: fatura?.clienteId, processoTipo, modeloId, numeroProcesso, objetoProcuracao, hoje: new Date(), solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}, pagamentos: pagamentosFatura };
+    }
+    if (!apenasPreview && !clienteId) {
         mostrarNotificacao('Selecione o cliente do modelo.', 'warning');
         return null;
     }
-    if (!modeloId) {
-        mostrarNotificacao('Selecione o modelo.', 'warning');
-        return null;
-    }
 
-    const cliente = clientes.find(c => c.id === clienteId);
+    const cliente = clienteId ? clientes.find(c => c.id === clienteId) : { nome: 'N/D', nif: 'N/D', morada: 'N/D', endereco: '', documento: '' };
     return {
         clienteId,
         cliente,
         processoTipo,
         modeloId,
-        hoje: new Date()
+        numeroProcesso,
+        objetoProcuracao,
+        hoje: new Date(),
+        solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}
     };
 }
 
 function gerarConteudoTemplateDocumento(modeloId, dados) {
     const nomeCliente = dados.cliente?.nome || 'N/D';
     const nif = dados.cliente?.nif || dados.cliente?.documento || 'N/D';
-    const morada = dados.cliente?.morada || dados.cliente?.endereco || 'N/D';
-    const dataHoje = dados.hoje.toLocaleDateString('pt-PT');
+    const morada = dados.cliente?.morada || dados.cliente?.endereco || dados.cliente?.morada || 'N/D';
+    const dataHoje = dados.hoje.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+    const sol = dados.solicitadora || {};
+    const numProc = dados.numeroProcesso || '__________';
+    const objCustom = dados.objetoProcuracao;
 
     switch (modeloId) {
+        case 'procuracao_aima':
+            return [
+                'PROCURAÇÃO',
+                '',
+                `Por mim outorgado, ${nomeCliente}, NF ${nif}, solteiro(a), maior, residente em ${morada}, portador(a) do passaporte n.º __________ da República da ________________, válido até __________,`,
+                '',
+                `concedo poderes a ${sol.nome || 'Dra. Ana Paula Pinto Medina'}, ${sol.titulo || 'Solicitadora'}, com cédula profissional n.º ${sol.cedula || '9738'}, com sede em ${sol.sede || 'Av. Aquilino Ribeiro Machado n.º 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, solteira, maior, residente em ${sol.morada || 'Rua Melo Antunes, número 34, 3º DTO, 2526-728 Vialonga'},`,
+                '',
+                objCustom ? objCustom : `confere poderes para, em seu nome, acompanhar e praticar todos os atos necessários à Concessão do título de residência em Portugal com base no processo número ${numProc} ao abrigo do artigo 88º da Lei 23/2007 de 04 de Julho na sua redação atual, junto das competentes entidades portuguesas, nomeadamente Agência para Integração, Migração e Asilo (AIMA) podendo para o efeito declarar, praticar e assinar tudo o que seja necessário ao indicado fim, se necessário, substabelecer os poderes que lhe forem conferidos.`,
+                '',
+                `Lisboa, ${dataHoje}`,
+                obterRodapeDocumento()
+            ].join('\n');
         case 'procuracao_simples':
             return [
                 'PROCURAÇÃO SIMPLES',
@@ -11759,7 +12654,53 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
-                'Assinatura: ________________________________'
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
+            ].join('\n');
+        case 'procuracao_irn':
+            return [
+                'PROCURAÇÃO PARA INSTITUTO DOS REGISTOS E NOTARIADO',
+                '',
+                `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
+                'pelo presente instrumento particular, nomeio e constituo como meu bastante procurador(a)',
+                'o(a) Dr(a). ________________________, para me representar junto do IRN e Conservatórias,',
+                'com poderes para praticar actos de registo civil, predial e comercial, requerer certidões,',
+                'autenticar documentos e demais actos inerentes ao âmbito notarial e registral.',
+                '',
+                `Local e data: _____________________, ${dataHoje}`,
+                '',
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
+            ].join('\n');
+        case 'procuracao_financas':
+            return [
+                'PROCURAÇÃO PARA AUTORIDADE TRIBUTÁRIA',
+                '',
+                `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
+                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
+                'o(a) Dr(a). ________________________, para me representar junto das Finanças / AT,',
+                'com poderes para consultar e submeter declarações fiscais, obter certidões,',
+                'tratar de matéria contributiva e aduaneira, e demais actos necessários.',
+                '',
+                `Local e data: _____________________, ${dataHoje}`,
+                '',
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
+            ].join('\n');
+        case 'procuracao_geral':
+            return [
+                'PROCURAÇÃO GERAL',
+                '',
+                `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
+                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
+                'o(a) Dr(a). ________________________, para me representar junto de quaisquer entidades,',
+                'com poderes genéricos para praticar todos os actos que no meu interesse entender,',
+                'incluindo representação em organismos públicos, bancos e serviços administrativos.',
+                '',
+                `Local e data: _____________________, ${dataHoje}`,
+                '',
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
             ].join('\n');
         case 'declaracao_comparecimento':
             return [
@@ -11771,7 +12712,8 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
-                'Assinatura: ________________________________'
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
             ].join('\n');
         case 'declaracao_residencia':
             return [
@@ -11783,7 +12725,24 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
-                'Assinatura: ________________________________'
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
+            ].join('\n');
+        case 'declaracao_conhecimento':
+            return [
+                'DECLARAÇÃO DE CONHECIMENTO',
+                '',
+                `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
+                'declaro, sob compromisso de honra, que tomei conhecimento do conteúdo',
+                'dos documentos que me foram apresentados e que as informações prestadas',
+                'correspondem à verdade dos factos.',
+                '',
+                'Para os devidos efeitos legais, assino a presente declaração.',
+                '',
+                `Local e data: _____________________, ${dataHoje}`,
+                '',
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
             ].join('\n');
         case 'recibo_honorarios':
             return [
@@ -11794,14 +12753,17 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
-                'Assinatura: ________________________________'
+                'Assinatura: ________________________________',
+                obterRodapeDocumento()
             ].join('\n');
+        case 'fatura_recibo':
+            return gerarConteudoFaturaRecibo(dados);
         default:
             return 'Modelo não encontrado.';
     }
 }
 
-function gerarTemplateDocumento(acao) {
+async function gerarTemplateDocumento(acao) {
     if (!exigirPermissaoAcao('criar', 'documento')) {
         return;
     }
@@ -11815,7 +12777,8 @@ function gerarTemplateDocumento(acao) {
         return;
     }
 
-    const conteudo = gerarConteudoTemplateDocumento(modelo.id, dados);
+    const conteudoAdaptado = document.getElementById('templateConteudoAdaptavel')?.value?.trim();
+    const conteudo = conteudoAdaptado || gerarConteudoTemplateDocumento(modelo.id, dados);
     const nomeBase = normalizarNomeArquivo(`${modelo.arquivo}_${dados.cliente?.nome || 'cliente'}`);
     const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
@@ -11827,13 +12790,13 @@ function gerarTemplateDocumento(acao) {
                 return;
             }
             const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+            const margin = 20;
+            let y = await adicionarLogoAoPdf(doc, margin);
             doc.setFont('times', 'normal');
             doc.setFontSize(12);
-            const margin = 20;
             const pageWidth = doc.internal.pageSize.getWidth();
             const maxWidth = pageWidth - margin * 2;
             const lineHeight = 7;
-            let y = margin;
             const blocos = conteudo.split('\n');
             blocos.forEach(bloco => {
                 const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
@@ -12203,16 +13166,24 @@ function gerarDocumentos() {
                     <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
                     <p class="text-gray-600 mb-4">Documentos gerados em PDF a partir de modelos (Procuração, Declarações, Recibos)</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                        <div>
+                        <div id="containerTemplateCliente">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                            <select id="templateCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <select id="templateCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="">Selecione</option>
                                 ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
                             </select>
                         </div>
+                        <div id="containerTemplateFatura" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Fatura *</label>
+                            <select id="templateFatura" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
+                                <option value="">Selecione a fatura</option>
+                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
+                            </select>
+                            <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? Vá a <strong>Honorários</strong> e clique em <strong>Gerar faturas</strong>.</p>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
-                            <select id="templateProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <select id="templateProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="contrato">Contrato</option>
                                 <option value="heranca">Herança</option>
                                 <option value="migracao">Migração</option>
@@ -12223,10 +13194,23 @@ function gerarDocumentos() {
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Modelo *</label>
-                            <select id="templateModelo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <select id="templateModelo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento(); toggleCamposProcuracaoAima();" onload="toggleCamposProcuracaoAima();">
                                 ${obterModelosDocumentos().map(modelo => `<option value="${modelo.id}">${modelo.nome}</option>`).join('')}
                             </select>
                         </div>
+                        <div id="containerNumeroProcesso" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">N.º do processo (AIMA)</label>
+                            <input id="templateNumeroProcesso" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 6222911" onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()">
+                        </div>
+                        <div id="containerObjetoProcuracao" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Objeto personalizado (opcional)</label>
+                            <textarea id="templateObjetoProcuracao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black text-sm" placeholder="Deixe vazio para usar o texto padrão AIMA. Ou escreva o objeto da procuração..." onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()"></textarea>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Adaptar texto antes de gerar PDF</label>
+                        <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário. Os dados da solicitadora estão em DADOS_SOLICITADORA no script.js</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button onclick="gerarTemplateDocumento('baixar')" class="btn btn-secondary">
@@ -12924,6 +13908,7 @@ function inicializarSecao(secao) {
     if (secao === 'documentos') {
         setTimeout(() => {
             aplicarFiltrosDocumentos();
+            if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
         }, 100);
     }
     if (secao === 'tarefas') {
@@ -13448,7 +14433,7 @@ function criarModalHonorario() {
                             <select id="honorarioCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Cliente</option>
                                 ${clientes.map(cliente => `
-                                    <option value="${cliente.nome}">${cliente.nome}</option>
+                                    <option value="${cliente.id}">${cliente.nome}</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -13852,10 +14837,13 @@ async function salvarHonorario(event) {
         return;
     }
     
+    const clienteIdHon = parseIdSafe(document.getElementById('honorarioCliente')?.value) || clienteHonorario;
+    const clienteHon = clientes.find(c => String(c.id) === String(clienteIdHon));
     const honorario = {
         id: gerarIdImutavel(),
-        cliente: clienteHonorario,
-        clienteId: parseIdSafe(document.getElementById('honorarioCliente')?.value) || clienteHonorario,
+        cliente: clienteHon?.nome || clienteHonorario,
+        clienteId: clienteIdHon,
+        clienteNome: clienteHon?.nome || clienteHonorario,
         servico: servicoHonorario,
         valor: valorHonorario,
         status: document.getElementById('honorarioStatus').value,
@@ -14855,6 +15843,8 @@ function atualizarContadoresSidebar() {
     const mapa = [
         { secao: 'clientes', navId: 'nav-clientes', count: () => (Array.isArray(clientes) ? clientes.filter(c => (c.status || 'ativo') === 'ativo') : []).length },
         { secao: 'honorarios', navId: 'nav-honorarios', count: () => (Array.isArray(honorarios) ? honorarios : []).length, extra: 'honorarios' },
+        { secao: 'pagamentos', navId: 'nav-pagamentos', count: () => (Array.isArray(pagamentos) ? pagamentos : []).length },
+        { secao: 'despesas', navId: 'nav-despesas', count: () => (Array.isArray(despesas) ? despesas : []).length },
         { secao: 'contratos', navId: 'nav-contratos', count: () => (Array.isArray(contratos) ? contratos : []).length },
         { secao: 'herancas', navId: 'nav-herancas', count: () => (Array.isArray(herancas) ? herancas : []).length },
         { secao: 'migracoes', navId: 'nav-migracao', count: () => (Array.isArray(migracoes) ? migracoes : []).length },
@@ -15915,6 +16905,17 @@ function gerarBackup() {
                 </button>
             </div>
             
+            <div class="card p-6 border-orange-300 bg-orange-50 border-2">
+                <h3 class="text-lg font-semibold mb-4 text-orange-900">🧹 Manter só DACIANA e WILSON</h3>
+                <p class="text-sm text-orange-800 mb-4">
+                    Apaga <strong>tudo</strong> excepto o cliente DACIANA e o convidado WILSON. Elimina honorários, contratos, prazos e dados fantasma que reaparecem.
+                </p>
+                <button onclick="limparBaseManterApenasDacianaWilson()" 
+                        class="w-full bg-orange-600 text-white py-3 px-4 rounded-md hover:bg-orange-700 flex items-center justify-center">
+                    <i data-lucide="user-check" class="w-4 h-4 mr-2"></i>
+                    Limpar base – manter apenas DACIANA e WILSON
+                </button>
+            </div>
             <div class="card p-6 border-red-300 bg-red-100 border-2">
                 <h3 class="text-lg font-semibold mb-4 text-red-900">🚨 Começar do zero absoluto</h3>
                 <p class="text-sm text-red-800 mb-4">
@@ -18721,13 +19722,13 @@ function atualizarListaPrazos(prazosFiltrados, total, limit) {
     if (prazosFiltrados.length === 0) {
         const temFiltros = (document.getElementById('buscaPrazos')?.value?.trim() || document.getElementById('filtroStatusPrazo')?.value || document.getElementById('filtroTipoPrazo')?.value || document.getElementById('filtroVencimentoPrazo')?.value || document.getElementById('filtroPrioridadePrazo')?.value || document.getElementById('filtroClientePrazo')?.value);
         const msg = listaPrazosTotal.length > 0 && temFiltros
-            ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo corresponde aos filtros.</p><button type="button" onclick="limparFiltrosPrazos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
-            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>';
+            ? '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo corresponde aos filtros.</p><button type="button" onclick="limparFiltrosPrazos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
+            : '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>';
         tbody.innerHTML = msg;
         setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
         return;
     }
-    const verMais = total > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__prazosLimit = (window.__prazosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPrazos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
+    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__prazosLimit = (window.__prazosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPrazos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     tbody.innerHTML = prazosFiltrados.map(prazo => `
         <tr>
             <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
