@@ -2804,7 +2804,7 @@ async function executarZeroAbsoluto() {
         // Pausar listeners para permitir limpeza do cache
         if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
 
-        const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados'];
+        const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'pagamentos', 'despesas'];
         if (isCloudReady()) {
             for (const col of colecoes) {
                 try {
@@ -2816,11 +2816,12 @@ async function executarZeroAbsoluto() {
             }
         }
 
-        ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'convidados', 'prazos', 'notificacoes', 'tarefas', 'documentos', 'clientes',
-         'honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'clientesMigrados'
-        ].forEach(k => appStorage.removeItem(k));
+        ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'convidados', 'prazos', 'notificacoes', 'tarefas', 'documentos', 'clientes', 'faturas', 'pagamentos', 'despesas',
+         'honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'clientesMigrados', 'faturasMigrados'
+        ].forEach(k => { try { appStorage.removeItem(k); if (typeof localStorage !== 'undefined') localStorage.removeItem(k); } catch (e) {} });
 
         clientes = []; honorarios = []; contratos = []; herancas = []; migracoes = []; registos = []; prazos = []; notificacoes = []; tarefas = []; documentos = []; convidados = [];
+        if (typeof window.faturas !== 'undefined') window.faturas = []; if (typeof window.pagamentos !== 'undefined') window.pagamentos = []; if (typeof window.despesas !== 'undefined') window.despesas = [];
         window.clientes = clientes; window.honorarios = honorarios; window.contratos = contratos; window.herancas = herancas; window.migracoes = migracoes; window.registos = registos; window.prazos = prazos; window.notificacoes = notificacoes; window.tarefas = tarefas; window.documentos = documentos; window.convidados = convidados;
 
         appStorage.setItem('dadosLimpos', 'true');
@@ -2848,37 +2849,38 @@ async function limparBaseManterApenasDacianaWilson() {
         if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
 
         // Apagar coleções inteiras
-        const colecoesCompletas = ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'tarefas', 'entidades', 'integracoes_externas', 'representantes'];
+        const colecoesCompletas = ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'tarefas', 'entidades', 'integracoes_externas', 'representantes', 'faturas', 'pagamentos', 'despesas'];
         for (const col of colecoesCompletas) {
             try { await apagarColecaoFirestore(col); } catch (e) { console.warn('Erro ao apagar', col, e); }
         }
 
-        // Faturas: apagar tudo exceto seed-inicial
-        const snapFaturas = await firestoreDb.collection('faturas').get();
-        const batchF = firestoreDb.batch();
-        snapFaturas.docs.forEach(d => { if (d.id !== 'seed-inicial') batchF.delete(d.ref); });
-        if (!snapFaturas.empty) await batchF.commit();
-
         // Clientes: apagar todos exceto DACIANA (nome contém "daciana", insensível a maiúsculas)
         const snapClientes = await firestoreDb.collection('clientes').get();
-        const aApagarClientes = snapClientes.docs.filter(d => !(d.data().nome || '').toLowerCase().includes('daciana'));
+        const aApagarClientes = snapClientes.docs.filter(d => {
+            const txt = (d.data().nome || '').toLowerCase();
+            return !txt.includes('daciana');
+        });
         for (let i = 0; i < aApagarClientes.length; i += 500) {
             const batchC = firestoreDb.batch();
             aApagarClientes.slice(i, i + 500).forEach(d => batchC.delete(d.ref));
             await batchC.commit();
         }
 
-        // Convidados: apagar todos exceto WILSON (nome contém "wilson", insensível a maiúsculas)
+        // Convidados: apagar todos exceto WILSON (nome ou codigo contém "wilson", insensível a maiúsculas)
         const snapConvidados = await firestoreDb.collection('convidados').get();
-        const aApagarConvidados = snapConvidados.docs.filter(d => !(d.data().nome || '').toLowerCase().includes('wilson'));
+        const aApagarConvidados = snapConvidados.docs.filter(d => {
+            const data = d.data();
+            const txt = ((data.nome || '') + ' ' + (data.codigo || '')).toLowerCase();
+            return !txt.includes('wilson');
+        });
         for (let i = 0; i < aApagarConvidados.length; i += 500) {
             const batchConv = firestoreDb.batch();
             aApagarConvidados.slice(i, i + 500).forEach(d => batchConv.delete(d.ref));
             await batchConv.commit();
         }
 
-        // Limpar localStorage/sessionStorage para evitar que dados antigos migrem de volta
-        const chaves = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'representantes', 'entidades', 'integracoes_externas'];
+        // Limpar localStorage/sessionStorage e cache para evitar que dados antigos migrem de volta
+        const chaves = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'pagamentos', 'despesas', 'representantes', 'entidades', 'integracoes_externas'];
         chaves.forEach(k => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) {} });
         ['honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'faturasMigrados', 'localStorageMigradoParaFirebase', 'clientesMigradosParaFirestore'].forEach(k => { try { appStorage.setItem(k, 'true'); localStorage.setItem(k, 'true'); sessionStorage.setItem(k, 'true'); } catch (e) {} });
 
@@ -2891,6 +2893,19 @@ async function limparBaseManterApenasDacianaWilson() {
     }
 }
 window.limparBaseManterApenasDacianaWilson = limparBaseManterApenasDacianaWilson;
+
+/** Limpa cache do Firestore (IndexedDB) e recarrega – útil quando dados antigos reaparecem */
+function limparCacheFirestoreERecarregar() {
+    try {
+        sessionStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
+        localStorage.removeItem('naoRestaurarDaNuvem');
+        mostrarNotificacao('Cache será limpo. A recarregar...', 'info');
+        setTimeout(() => location.reload(), 500);
+    } catch (e) {
+        mostrarNotificacao('Erro ao limpar cache. Tente recarregar manualmente (Ctrl+F5).', 'warning');
+    }
+}
+window.limparCacheFirestoreERecarregar = limparCacheFirestoreERecarregar;
 
 // FUNÇÃO PARA LIMPEZA PROFISSIONAL (só local – mantém opção antiga)
 function limparDadosParaUsoProfissional() {
@@ -16673,8 +16688,23 @@ function gerarBackup() {
     const mostrarLembreteExport = diasDesdeExport === null || diasDesdeExport >= 7;
     const textoLembrete = diasDesdeExport === null ? 'Nunca exportou um backup.' : `Última exportação há ${diasDesdeExport} dias.`;
     
+    const urlAtual = typeof location !== 'undefined' ? (location.href || '') : '';
+    const urlErrada = urlAtual.includes('mchantre26') || urlAtual.includes('prontes');
+    
     return `
         <div class="space-y-6">
+            ${urlErrada ? `
+            <div class="card p-4 border-2 border-red-400 bg-red-50 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-red-600 flex-shrink-0"></i>
+                    <div>
+                        <p class="font-bold text-red-900">URL incorreta – está num site antigo/diferente!</p>
+                        <p class="text-sm text-red-800 mt-1">Use o link correto: <strong>mchantre28</strong> e <strong>prontos</strong> (não prontes)</p>
+                        <p class="text-xs text-red-700 mt-1">Correto: https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/</p>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
             ${mostrarLembreteExport ? `
             <div class="card p-4 border-2 border-amber-400 bg-amber-50 rounded-lg">
                 <div class="flex items-center gap-3">
@@ -16916,10 +16946,21 @@ function gerarBackup() {
                     Limpar base – manter apenas DACIANA e WILSON
                 </button>
             </div>
+            <div class="card p-6 border-amber-300 bg-amber-50 border-2">
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">🔄 Limpar cache do browser (dados antigos reaparecem)</h3>
+                <p class="text-sm text-amber-800 mb-4">
+                    Se vê dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A página recarrega e traz dados atualizados da nuvem.
+                </p>
+                <button onclick="limparCacheFirestoreERecarregar()" 
+                        class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center font-semibold">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    Limpar cache e recarregar
+                </button>
+            </div>
             <div class="card p-6 border-red-300 bg-red-100 border-2">
                 <h3 class="text-lg font-semibold mb-4 text-red-900">🚨 Começar do zero absoluto</h3>
                 <p class="text-sm text-red-800 mb-4">
-                    Apaga <strong>tudo</strong>: Firestore e memória. Ideal para não ver mais nenhum dado antigo. Irreversível.
+                    Apaga <strong>tudo</strong>: Firestore, faturas, pagamentos, despesas e memória. Ideal para não ver mais nenhum dado antigo. Irreversível.
                 </p>
                 <button onclick="comecarDoZeroAbsoluto()" 
                         class="w-full bg-red-700 text-white py-3 px-4 rounded-md hover:bg-red-800 flex items-center justify-center font-semibold">
