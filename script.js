@@ -1437,6 +1437,19 @@ async function apagarIntegracaoCloud(id) {
     if (!isCloudReady()) return;
     await firestoreDb.collection('integracoes_externas').doc(String(id)).delete();
 }
+async function excluirIntegracao(id) {
+    if (!id) return;
+    if (!confirm('Eliminar esta integração?')) return;
+    try {
+        await apagarIntegracaoCloud(id);
+        integracoesExternas = (integracoesExternas || []).filter(x => String(x.id) !== String(id));
+        window.integracoesExternas = integracoesExternas;
+        mostrarNotificacao('Integração eliminada.', 'success');
+        aplicarFiltrosIntegracoes();
+    } catch (e) {
+        mostrarNotificacao('Erro ao eliminar: ' + (e?.message || e), 'error');
+    }
+}
 function ouvirIntegracoesExternas(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('integracoes_externas').onSnapshot((snapshot) => {
@@ -2994,7 +3007,7 @@ function ativarDesativarConvidadoCore(idOuCodigo, ativo) {
         } else {
             convidado.desativadoEm = null;
         }
-        salvarDados('convidados', convidados);
+        salvarDados('convidados', convidados, { skipCloudSync: true });
         salvarConvidadoCloud(convidado);
     }
 }
@@ -3013,29 +3026,34 @@ function excluirConvidado(idOuCodigo) {
         String(c.id) !== String(idOuCodigo) && String(c.codigo) !== String(idOuCodigo)
     );
     salvarDados('convidados', novos);
+    if (window.convidados) { window.convidados.length = 0; novos.forEach(n => window.convidados.push(n)); }
     const docId = convidado.codigo || convidado.id;
     excluirEntidadeCloud('convidados', docId);
     mostrarNotificacao('Convidado eliminado.', 'success');
     carregarSecao('convidados');
 }
 
+function limparConvidadosInativosConfirmado() {
+    if (!confirm('Eliminar convidados inativos há mais de 7 dias?')) return;
+    limparConvidadosInativos();
+    carregarSecao('convidados');
+    mostrarNotificacao('Convidados inativos eliminados.', 'success');
+}
+
 function limparConvidadosInativos() {
-    const convidados = obterConvidados();
-    const agora = Date.now();
-    const limite = 7 * 24 * 60 * 60 * 1000;
-    const paraRemover = convidados.filter(c => {
+    const lista = obterConvidados();
+    const paraRemover = lista.filter(c => {
         if (c.ativo) return false;
         const data = c.desativadoEm || c.dataCriacao;
         const ts = data ? new Date(data).getTime() : 0;
-        return ts && (agora - ts) > limite;
+        const limite = 7 * 24 * 60 * 60 * 1000;
+        return ts && !isNaN(ts) && (Date.now() - ts) > limite;
     });
-    if (!paraRemover.length) return convidados;
-    const restantes = convidados.filter(c => !paraRemover.includes(c));
-    salvarDados('convidados', restantes);
-    paraRemover.forEach(c => {
-        const docId = c.codigo || c.id;
-        excluirEntidadeCloud('convidados', docId);
-    });
+    if (!paraRemover.length) return lista;
+    const restantes = lista.filter(c => !paraRemover.includes(c));
+    window.convidados = restantes;
+    salvarDados('convidados', restantes, { skipCloudSync: true });
+    paraRemover.forEach(c => excluirEntidadeCloud('convidados', c.codigo || c.id));
     return restantes;
 }
 
@@ -3582,7 +3600,6 @@ function init() {
     }
     window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
     window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
-    limparConvidadosInativos();
 
     // Sincronizar sempre ao carregar (após zero absoluto o Firestore está vazio; cache é limpo)
     sincronizarTodasEntidadesNuvem().then(() => {
@@ -6022,6 +6039,7 @@ function carregarSecao(secao) {
             'clientes',
             'honorarios',
             'pagamentos',
+            'despesas',
             'contratos',
             'herancas',
             'migracoes',
@@ -12951,7 +12969,12 @@ function renderizarListaIntegracoes(lista) {
                     ${i.dataEnvio ? `<div class="text-xs text-gray-400">Enviado: ${new Date(i.dataEnvio).toLocaleDateString('pt-PT')}</div>` : ''}
                     ${i.referenciaExterna ? `<div class="text-xs text-gray-400">Ref. externa: ${escaparHtml(i.referenciaExterna)}</div>` : ''}
                 </div>
-                <span class="status-badge status-${i.estado || 'pendente'}">${i.estado || 'pendente'}</span>
+                <div class="flex items-center gap-2">
+                    <span class="status-badge status-${i.estado || 'pendente'}">${i.estado || 'pendente'}</span>
+                    <button type="button" onclick="excluirIntegracao('${String(i.id).replace(/'/g, "\\'")}')" class="text-red-600 hover:text-red-800 p-1" title="Eliminar">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
         </div>
     `).join('');
@@ -15289,8 +15312,11 @@ function ordenarClientes(col) {
     aplicarFiltrosClientes();
 }
 function aplicarFiltrosClientes() {
-    const busca = document.getElementById('buscaClientes')?.value.toLowerCase() || '';
-    const buscaNif = document.getElementById('buscaNifClientes')?.value.toLowerCase() || '';
+    // Não executar se a secção Clientes não está visível (evita erro ao navegar para Despesas, etc.)
+    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'clientes') return;
+    if (!document.getElementById('listaClientes')) return;
+    const busca = document.getElementById('buscaClientes')?.value?.toLowerCase() || '';
+    const buscaNif = document.getElementById('buscaNifClientes')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusCliente')?.value || '';
     const dataFiltro = document.getElementById('filtroDataCliente')?.value || '';
     
@@ -15346,7 +15372,8 @@ function aplicarFiltrosClientes() {
         return d * (va < vb ? -1 : va > vb ? 1 : 0);
     });
     atualizarListaClientes(clientesFiltrados);
-    document.getElementById('contadorClientes').textContent = clientesFiltrados.length;
+    const elContador = document.getElementById('contadorClientes');
+    if (elContador) elContador.textContent = clientesFiltrados.length;
     try { appStorage.setItem('filtrosClientes', JSON.stringify({ busca, buscaNif, status, dataFiltro })); } catch (e) {}
 }
 
@@ -15370,10 +15397,11 @@ function restaurarFiltrosClientes() {
 }
 
 function limparFiltrosClientes() {
-    document.getElementById('buscaClientes').value = '';
-    document.getElementById('buscaNifClientes').value = '';
-    document.getElementById('filtroStatusCliente').value = '';
-    document.getElementById('filtroDataCliente').value = '';
+    const b = document.getElementById('buscaClientes');
+    const n = document.getElementById('buscaNifClientes');
+    const s = document.getElementById('filtroStatusCliente');
+    const d = document.getElementById('filtroDataCliente');
+    if (b) b.value = ''; if (n) n.value = ''; if (s) s.value = ''; if (d) d.value = '';
     aplicarFiltrosClientes();
 }
 
@@ -18838,7 +18866,7 @@ function gerarHerancas() {
 }
 
 function gerarConvidados() {
-    const convidados = limparConvidadosInativos();
+    const convidados = obterConvidados();
     const convidadosAtivos = convidados.filter(c => c.ativo).length;
     const convidadosInativos = convidados.filter(c => !c.ativo).length;
     const totalConvidados = convidados.length;
@@ -18859,6 +18887,10 @@ function gerarConvidados() {
                     <button onclick="verConversas()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center" title="Ver conversas com convidados">
                         <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i>
                         Ver Conversas
+                    </button>
+                    <button onclick="limparConvidadosInativosConfirmado()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center" title="Eliminar convidados desativados há mais de 7 dias">
+                        <i data-lucide="user-minus" class="w-4 h-4 mr-2"></i>
+                        Limpar Inativos (7+ dias)
                     </button>
                 </div>
             </div>
@@ -18928,7 +18960,7 @@ function gerarConvidados() {
                                             <span class="status-badge status-${convidado.ativo ? 'ativo' : 'inativo'}">${convidado.ativo ? 'Ativo' : 'Inativo'}</span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(convidado.clientesAutorizados || []).length} cliente(s)</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(convidado.dataCriacao).toLocaleDateString('pt-PT')}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(() => { const d = convidado.dataCriacao || convidado.createdAt; if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? '-' : dt.toLocaleDateString('pt-PT'); })()}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button onclick="abrirModalEditarPermissoes('${String(convidado.codigo || convidado.id).replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar Permissões">
                                                 <i data-lucide="settings" class="w-4 h-4"></i>
@@ -19007,7 +19039,7 @@ function abrirModalNovoConvidado() {
             return;
         }
         const clientesSelecionados = Array.from(document.querySelectorAll('#listaClientesConvidado input[type="checkbox"]:checked'))
-            .map(cb => parseInt(cb.value));
+            .map(cb => cb.value);
         
         const novoConvidado = await criarConvidado(nome, clientesSelecionados);
         mostrarNotificacao(`Convidado criado! Código: ${novoConvidado.codigo}`, 'success');
