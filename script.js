@@ -791,13 +791,10 @@ async function excluirClienteCloud(id, softDelete = false) {
     }
 }
 
-/** Soft delete: marca cliente como apagado (deleted: true, updatedAt no servidor). */
+/** Eliminação definitiva: remove o cliente do Firestore (não volta a aparecer). */
 async function apagarClienteCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection('clientes').doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection('clientes').doc(String(id)).delete();
 }
 
 // === CRUD Contratos (Firestore como fonte principal) ===
@@ -836,10 +833,7 @@ async function atualizarContratoCloud(id, dados) {
 
 async function apagarContratoCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection('contratos').doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection('contratos').doc(String(id)).delete();
 }
 
 // === CRUD Honorários (Firestore como fonte principal) ===
@@ -876,10 +870,7 @@ async function atualizarHonorarioCloud(id, dados) {
 
 async function apagarHonorarioCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection('honorarios').doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection('honorarios').doc(String(id)).delete();
 }
 
 /** Criar pagamento no Firestore e atualizar fatura (somaPagamentos, estado). */
@@ -1119,10 +1110,7 @@ async function atualizarProcessoCloud(entidade, id, dados) {
 
 async function apagarProcessoCloud(entidade, id) {
     if (!isCloudReady() || !id || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection(entidade).doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection(entidade).doc(String(id)).delete();
 }
 
 /** Escuta processos em tempo real. entidade: herancas | migracoes | registos */
@@ -1173,10 +1161,7 @@ async function atualizarTarefaCloud(id, dados) {
 
 async function apagarTarefaCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection('tarefas').doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection('tarefas').doc(String(id)).delete();
 }
 
 /** Escuta tarefas em tempo real. Devolve função para cancelar a subscrição. */
@@ -1227,10 +1212,7 @@ async function atualizarPrazoCloud(id, dados) {
 
 async function apagarPrazoCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
-    await firestoreDb.collection('prazos').doc(String(id)).update({
-        deleted: true,
-        updatedAt: obterServerTimestamp()
-    });
+    await firestoreDb.collection('prazos').doc(String(id)).delete();
 }
 
 /** Escuta prazos em tempo real. */
@@ -1261,7 +1243,7 @@ async function criarNotificacaoCloud(notificacao) {
 
 async function apagarNotificacaoCloud(id) {
     if (!isCloudReady() || !id) return;
-    await firestoreDb.collection('notificacoes').doc(String(id)).update({ deleted: true, updatedAt: obterServerTimestamp() });
+    await firestoreDb.collection('notificacoes').doc(String(id)).delete();
 }
 
 function ouvirNotificacoes(callback) {
@@ -1286,7 +1268,7 @@ async function criarDocumentoCloud(documento) {
 
 async function apagarDocumentoCloud(id) {
     if (!isCloudReady() || !id) return;
-    await firestoreDb.collection('documentos').doc(String(id)).update({ deleted: true, updatedAt: obterServerTimestamp() });
+    await firestoreDb.collection('documentos').doc(String(id)).delete();
 }
 
 function ouvirDocumentos(callback) {
@@ -1311,8 +1293,7 @@ async function criarConvidadoCloud(convidado) {
 
 async function apagarConvidadoCloud(codigoOuId) {
     if (!isCloudReady() || !codigoOuId) return;
-    const docId = String(codigoOuId);
-    await firestoreDb.collection('convidados').doc(docId).update({ deleted: true, updatedAt: obterServerTimestamp() });
+    await firestoreDb.collection('convidados').doc(String(codigoOuId)).delete();
 }
 
 function ouvirConvidados(callback) {
@@ -1454,7 +1435,7 @@ async function atualizarIntegracaoCloud(id, dados) {
 }
 async function apagarIntegracaoCloud(id) {
     if (!isCloudReady()) return;
-    await firestoreDb.collection('integracoes_externas').doc(String(id)).update({ deleted: true, updatedAt: new Date().toISOString() });
+    await firestoreDb.collection('integracoes_externas').doc(String(id)).delete();
 }
 function ouvirIntegracoesExternas(callback) {
     if (!isCloudReady()) return () => {};
@@ -1791,21 +1772,9 @@ function obterTimestampItem(item) {
 }
 
 function mesclarListasPorId(entidade, local, cloud) {
-    const map = new Map();
-    // Firestore = fonte principal: cloud sempre ganha em conflitos; local só traz itens offline (não presentes na nuvem)
-    const idsCloud = new Set((cloud || []).map(i => String(obterIdEntidade(entidade, i))).filter(Boolean));
-    (local || []).forEach(item => {
-        const id = obterIdEntidade(entidade, item);
-        if (id === null || id === undefined) return;
-        if (idsCloud.has(String(id))) return; // já existe na nuvem → Firestore ganha
-        map.set(String(id), item); // item só local (criado offline)
-    });
-    (cloud || []).forEach(item => {
-        const id = obterIdEntidade(entidade, item);
-        if (id === null || id === undefined) return;
-        map.set(String(id), item); // Firestore é a fonte de verdade
-    });
-    return Array.from(map.values());
+    // Firestore = fonte absoluta. Usar APENAS cloud para evitar que dados apagados reapareçam do localStorage antigo.
+    if (Array.isArray(cloud)) return cloud;
+    return Array.isArray(local) ? local : [];
 }
 
 async function sincronizarEntidadeNuvem(entidade) {
