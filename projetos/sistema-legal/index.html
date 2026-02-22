@@ -20,6 +20,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
     <!-- Corrigir caminhos no GitHub Pages (project site em subpasta ex: user.github.io/repo/) -->
@@ -62,6 +63,14 @@
                 <a href="javascript:void(0)" onclick="carregarSecao('honorarios'); return false;" class="sidebar-item" id="nav-honorarios" aria-label="Gestão de honorários">
                     <i data-lucide="dollar-sign" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                     Honorários
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('pagamentos'); return false;" class="sidebar-item" id="nav-pagamentos" aria-label="Registo de pagamentos">
+                    <i data-lucide="credit-card" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Pagamentos
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('despesas'); return false;" class="sidebar-item" id="nav-despesas" aria-label="Gestão de despesas">
+                    <i data-lucide="receipt" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Despesas
                 </a>
                 <a href="javascript:void(0)" onclick="carregarSecao('contratos'); return false;" class="sidebar-item" id="nav-contratos" aria-label="Gestão de contratos">
                     <i data-lucide="file-text" class="w-5 h-5 mr-3" aria-hidden="true"></i>
@@ -200,12 +209,8 @@
     <!-- Modais (role e aria para acessibilidade) -->
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
-    <script src="./listenerManager.js"></script>
-    <script src="./logger.js"></script>
-    <script type="module" src="./backup/loader.js"></script>
-    <script defer src="./script.js?v=6" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, ana.jpg) para a raiz do repositório e faça push.</p></div>';}})();"></script>
-    <script src="./backupExport.js"></script>
-    <script src="./backupImport.js"></script>
+    <!-- listenerManager, logger, backupExport, backupImport: definidos/inline no script.js; sem ficheiros externos -->
+    <script defer src="./script.js?v=7" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, ana.jpg) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){

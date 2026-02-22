@@ -72,6 +72,15 @@ service cloud.firestore {
     match /documentos/{docId} {
       allow read, write: if true;
     }
+    match /herancas/{docId} {
+      allow read, write: if true;
+    }
+    match /migracoes/{docId} {
+      allow read, write: if true;
+    }
+    match /registos/{docId} {
+      allow read, write: if true;
+    }
     match /convidados/{docId} {
       allow read, write: if true;
     }
