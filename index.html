@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Legal - Gestão Jurídica</title>
+    <meta name="theme-color" content="#111827">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖</text></svg>" type="image/svg+xml">
+    
+    <!-- Meta Tags Básicas -->
+    <meta name="description" content="Sistema completo de gestão jurídica para Solicitadores">
+    <script>
+      // Silenciar aviso "cdn.tailwindcss.com should not be used in production"
+      (function(){var o=console.warn;console.warn=function(m){if(typeof m==='string'&&m.includes('cdn.tailwindcss.com'))return;o.apply(console,arguments)}})();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Corrigir caminhos no GitHub Pages (project site em subpasta ex: user.github.io/repo/) -->
+    <script>
+      (function(){
+        var p = location.pathname || '/';
+        var dir = p === '/' || p === '' ? '/' : (p.endsWith('/') ? p : (p.lastIndexOf('/') > 0 ? p.substring(0, p.lastIndexOf('/') + 1) : p + '/'));
+        var b = document.createElement('base');
+        b.href = location.origin + dir;
+        document.head.insertBefore(b, document.head.firstChild);
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css">
+
+</head>
+<body class="bg-gray-100">
+    <!-- Link de saltar para leitores de ecrã (acessibilidade) -->
+    <a href="#conteudoDinamico" class="skip-link">Saltar para conteúdo principal</a>
+    <!-- Sistema de Notificações: abaixo do header para não sobrepor o indicador laranja "A sincronizar..." -->
+    <div id="notificationsContainer" class="fixed top-20 right-6 z-[60] space-y-2" style="max-width: 380px;" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleSidebar()" aria-label="Abrir menu de navegação" aria-expanded="false">
+        <i data-lucide="menu" class="w-5 h-5" aria-hidden="true"></i>
+    </button>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="p-6">
+            <h2 class="text-white text-xl font-bold mb-6">Sistema Legal</h2>
+            <nav class="space-y-2" aria-label="Menu principal">
+                <a href="javascript:void(0)" onclick="carregarSecao('dashboard'); return false;" class="sidebar-item active" id="nav-dashboard" aria-label="Visão geral do sistema">
+                    <i data-lucide="home" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Visão Geral
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('clientes'); return false;" class="sidebar-item" id="nav-clientes" aria-label="Gestão de clientes">
+                    <i data-lucide="users" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Clientes
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('honorarios'); return false;" class="sidebar-item" id="nav-honorarios" aria-label="Gestão de honorários">
+                    <i data-lucide="dollar-sign" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Honorários
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('pagamentos'); return false;" class="sidebar-item" id="nav-pagamentos" aria-label="Registo de pagamentos">
+                    <i data-lucide="credit-card" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Pagamentos
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('despesas'); return false;" class="sidebar-item" id="nav-despesas" aria-label="Gestão de despesas">
+                    <i data-lucide="receipt" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Despesas
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('contratos'); return false;" class="sidebar-item" id="nav-contratos" aria-label="Gestão de contratos">
+                    <i data-lucide="file-text" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Contratos
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('herancas'); return false;" class="sidebar-item" id="nav-herancas" aria-label="Gestão de heranças">
+                    <i data-lucide="home" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Heranças
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('migracoes'); return false;" class="sidebar-item" id="nav-migracao" aria-label="Gestão de migrações">
+                    <i data-lucide="users-2" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Migração
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('registos'); return false;" class="sidebar-item" id="nav-registos" aria-label="Gestão de registos">
+                    <i data-lucide="book-open" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Registos
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('prazos'); return false;" class="sidebar-item" id="nav-prazos" aria-label="Gestão de prazos">
+                    <i data-lucide="clock" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Prazos
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('tarefas'); return false;" class="sidebar-item" id="nav-tarefas" aria-label="Gestão de tarefas">
+                    <i data-lucide="check-square" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Tarefas
+                </a>
+                <a href="javascript:void(0)" onclick="carregarSecao('calendario'); return false;" class="sidebar-item" id="nav-calendario" aria-label="Calendário">
+                    <i data-lucide="calendar-days" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                    Calendário
+                </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('documentos'); return false;" class="sidebar-item" id="nav-documentos" aria-label="Minutas e documentos">
+                <i data-lucide="folder" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Minutas
+                </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('integracoes'); return false;" class="sidebar-item" id="nav-integracoes" aria-label="Integrações externas">
+                <i data-lucide="building-2" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Integrações Externas
+            </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('relatorios'); return false;" class="sidebar-item" id="nav-relatorios" aria-label="Relatórios">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Relatórios
+            </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('backup'); return false;" class="sidebar-item" id="nav-backup" aria-label="Backup e restauro">
+                <i data-lucide="database" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Backup
+            </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('historico'); return false;" class="sidebar-item" id="nav-historico" aria-label="Histórico de alterações">
+                <i data-lucide="history" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Histórico
+            </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('convidados'); return false;" class="sidebar-item" id="nav-convidados" style="display: none;" aria-label="Gestão de convidados">
+                <i data-lucide="user-plus" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Gestão de Convidados
+            </a>
+            </nav>
+        </div>
+    </div>
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Menu Mobile -->
+    <button id="menuHamburguer" class="fixed top-4 left-4 z-50 lg:hidden bg-black text-white p-2 rounded" aria-label="Abrir menu" aria-expanded="false">
+        <i data-lucide="menu" class="w-6 h-6" aria-hidden="true"></i>
+    </button>
+
+    <!-- Conteúdo Principal -->
+    <div class="main-content min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div id="offlineBanner" class="offline-banner">
+                Está offline. As alterações ficam guardadas localmente. Verifique a internet — quando voltar, clique no indicador de sincronização (canto superior) para atualizar.
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold text-gray-800" id="pageTitle">Sistema Legal</h1>
+                        <span id="headerData" class="text-sm text-gray-500 hidden sm:inline" aria-label="Data atual"></span>
+                    </div>
+                        <div id="globalSearchContainer" class="relative w-full max-w-xl">
+                            <input id="globalSearchInput" type="text" placeholder="Pesquisa global: clientes, honorários, contratos, heranças, migrações, tarefas, prazos, minutas... (Ctrl+K)" class="form-control w-full pl-10" title="Pressione Ctrl+K (ou ⌘K no Mac) para focar rapidamente">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </span>
+                            <div id="globalSearchResults" class="hidden absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div id="syncStatusBadge" class="sync-status cursor-pointer" data-status="offline" title="Clique para forçar sincronização quando houver erro" role="button" aria-label="Estado da sincronização. Clique para tentar novamente em caso de erro." tabindex="0">
+                            <span class="sync-dot"></span>
+                            <span class="sync-text">Offline</span>
+                        </div>
+                        <button onclick="abrirModalAtalhos()" class="btn btn-secondary" title="Atalhos de teclado (Ctrl+/)">
+                            <i data-lucide="keyboard" class="w-4 h-4"></i>
+                            Atalhos
+                        </button>
+                        <button onclick="carregarSecao('notificacoes')" class="btn btn-secondary" title="Conversas, criar notificação, enviar para convidado, alertas automáticos">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            Central de Notificações
+                        </button>
+                        <button onclick="exportarDadosCompletos()" class="btn btn-primary">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            Exportar Base de Dados
+                        </button>
+                        <button onclick="importarDados()" class="btn btn-success">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Importar
+                        </button>
+                        <button id="btnAlterarSenhaHeader" onclick="abrirModalAlterarSenha()" class="btn btn-secondary hidden" title="Alterar senha do administrador">
+                            <i data-lucide="key" class="w-4 h-4"></i>
+                            Alterar senha
+                        </button>
+                        <button onclick="logout()" class="btn btn-danger">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                            Sair
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Dinâmico -->
+        <main id="main" class="p-6" role="main">
+            <div id="conteudoDinamico" tabindex="-1">
+                <div id="avisoCarregamento" class="p-8 text-center text-gray-600">
+                    <p class="animate-pulse">A carregar o Sistema Legal...</p>
+                    <p class="text-sm mt-2">Se demorar mais de 3 segundos, verifique o Console (F12) e a rede.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Botão flutuante Voltar ao topo -->
+    <button id="btnVoltarTopo" type="button" class="fixed bottom-6 right-6 z-40 p-3 rounded-full bg-gray-800 text-white shadow-lg hover:bg-gray-700 opacity-0 pointer-events-none transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Voltar ao topo da página" title="Voltar ao topo">
+        <i data-lucide="arrow-up" class="w-5 h-5" aria-hidden="true"></i>
+    </button>
+
+    <!-- Modais (role e aria para acessibilidade) -->
+    <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
+
+    <!-- listenerManager, logger, backupExport, backupImport: definidos/inline no script.js; sem ficheiros externos -->
+    <script defer src="./script.js?v=8" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, ana.jpg) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script>
+        // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
+        setTimeout(function(){
+            var el = document.getElementById('conteudoDinamico');
+            var preenchido = el && (el.innerText || el.textContent || '').trim().length > 80;
+            if (el && !preenchido && typeof carregarSecao !== 'function') {
+                el.innerHTML = '<div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 max-w-2xl"><p class="font-semibold mb-2">O conteúdo não carregou.</p><p class="text-sm mb-2">O script.js carregou mas há um erro. Abra F12 → Console para ver a mensagem de erro.</p><p class="text-xs">Possíveis causas: erro de JavaScript no script, Firebase não configurado, ou ficheiro incompleto.</p></div>';
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

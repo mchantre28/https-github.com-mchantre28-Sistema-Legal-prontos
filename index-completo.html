@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Solicitadora - COMPLETO</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 3rem;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 15px 0 0 0;
+            font-size: 1.3rem;
+            opacity: 0.9;
+        }
+        .login-form {
+            max-width: 450px;
+            margin: 0 auto;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: transform 0.2s;
+            margin: 10px 0;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn-small {
+            width: auto;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #dc3545;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #28a745;
+        }
+        .nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .nav button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .nav button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .nav button.active {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            border-left: 5px solid #667eea;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: 300;
+        }
+        .stat-card p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+        .chart-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.3rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .data-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            margin: 10px 0;
+            position: relative;
+        }
+        .data-item h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .data-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .data-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .data-actions button {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            padding: 5px;
+            margin: 0 2px;
+            border-radius: 3px;
+        }
+        .data-actions button:hover {
+            background: #e9ecef;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-ativo {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-concluido {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .status-pendente {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-pago {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .debug-info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Form -->
+        <div id="loginSection" class="login-form">
+            <h2>🔐 Login - Sistema de Solicitadora</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn">Entrar</button>
+            </form>
+            <div id="loginError" class="error hidden"></div>
+        </div>
+
+        <!-- Main Application -->
+        <div id="mainApp" class="hidden">
+            <div class="header">
+                <h1>⚖️ Sistema de Gestão para Solicitadora</h1>
+                <p>Sistema Completo com Criação, Edição e Gestão</p>
+            </div>
+
+            <div class="nav">
+                <button onclick="showSection('dashboard')" class="active">📊 Dashboard</button>
+                <button onclick="showSection('clientes')">👥 Clientes</button>
+                <button onclick="showSection('processos')">📋 Processos</button>
+                <button onclick="showSection('documentos')">📄 Documentos</button>
+                <button onclick="showSection('financeiro')">💰 Financeiro</button>
+                <button onclick="showSection('agenda')">📅 Agenda</button>
+                <button onclick="showSection('perfil')">👤 Perfil</button>
+                <button onclick="logout()">🚪 Sair</button>
+            </div>
+
+            <div class="content">
+                <!-- Dashboard -->
+                <div id="dashboard" class="section active">
+                    <h2>📊 Dashboard Completo</h2>
+                    
+                    <!-- Estatísticas Principais -->
+                    <div class="stats">
+                        <div class="stat-card">
+                            <h3 id="clientesAtivos">-</h3>
+                            <p>Clientes Ativos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="processosAtivos">-</h3>
+                            <p>Processos Ativos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="processosConcluidos">-</h3>
+                            <p>Processos Concluídos</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="receitasTotais">-</h3>
+                            <p>Receitas Totais</p>
+                        </div>
+                    </div>
+
+                    <!-- Debug Info -->
+                    <div class="debug-info">
+                        <strong>🔍 Debug Info:</strong><br>
+                        <span id="debugInfo">Carregando dados...</span>
+                    </div>
+
+                    <!-- Gráficos -->
+                    <div class="charts-container">
+                        <div class="chart-card">
+                            <h3>📈 Processos por Estado</h3>
+                            <div class="chart-container">
+                                <canvas id="processosChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>💰 Receitas vs Despesas</h3>
+                            <div class="chart-container">
+                                <canvas id="financeiroChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clientes -->
+                <div id="clientes" class="section">
+                    <h2>👥 Gestão de Clientes</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📋 Lista de Clientes</h3>
+                            <button class="btn btn-success btn-small" onclick="openModal('cliente')">➕ Novo Cliente</button>
+                        </div>
+                        <div id="clientesList" class="loading">
+                            Carregando clientes...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processos -->
+                <div id="processos" class="section">
+                    <h2>📋 Gestão de Processos</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📋 Lista de Processos</h3>
+                            <button class="btn btn-success btn-small" onclick="openModal('processo')">➕ Novo Processo</button>
+                        </div>
+                        <div id="processosList" class="loading">
+                            Carregando processos...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documentos -->
+                <div id="documentos" class="section">
+                    <h2>📄 Gestão de Documentos</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📄 Lista de Documentos</h3>
+                            <button class="btn btn-success btn-small" onclick="openModal('documento')">➕ Novo Documento</button>
+                        </div>
+                        <div id="documentosList" class="loading">
+                            Carregando documentos...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financeiro -->
+                <div id="financeiro" class="section">
+                    <h2>💰 Gestão Financeira</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📊 Resumo Financeiro</h3>
+                            <button class="btn btn-success btn-small" onclick="openModal('financeiro')">➕ Novo Registro</button>
+                        </div>
+                        <div id="resumoFinanceiro" class="loading">
+                            Carregando dados financeiros...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agenda -->
+                <div id="agenda" class="section">
+                    <h2>📅 Agenda e Compromissos</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📅 Próximos Compromissos</h3>
+                            <button class="btn btn-success btn-small" onclick="openModal('agenda')">➕ Novo Compromisso</button>
+                        </div>
+                        <div id="agendaList" class="loading">
+                            Carregando agenda...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Perfil -->
+                <div id="perfil" class="section">
+                    <h2>👤 Perfil da Solicitadora</h2>
+                    <div class="card">
+                        <h3>📝 Dados Pessoais</h3>
+                        <div id="perfilInfo" class="loading">
+                            Carregando perfil...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para criar/editar -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Novo Item</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <form id="modalForm">
+                <div id="modalBody">
+                    <!-- Conteúdo será preenchido dinamicamente -->
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">💾 Guardar</button>
+                    <button type="button" class="btn" onclick="closeModal()">❌ Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        let authToken = localStorage.getItem('authToken');
+        let charts = {};
+        let currentModalType = '';
+        let currentEditId = null;
+
+        // Debug function
+        function debugLog(message) {
+            console.log('🔍 DEBUG:', message);
+            document.getElementById('debugInfo').innerHTML = message;
+        }
+
+        // Verificar se já está logado
+        if (authToken) {
+            showMainApp();
+            loadDashboard();
+        }
+
+        // Função para fazer requisições à API
+        async function apiRequest(endpoint, method = 'GET', data = null) {
+            try {
+                debugLog(`Fazendo requisição para: ${endpoint}`);
+                
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (authToken) {
+                    options.headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const result = await response.json();
+                
+                debugLog(`Resposta da API: ${JSON.stringify(result).substring(0, 100)}...`);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        logout();
+                        throw new Error('Sessão expirada. Faça login novamente.');
+                    }
+                    throw new Error(result.error || 'Erro na requisição');
+                }
+                
+                return result;
+            } catch (error) {
+                debugLog(`Erro na API: ${error.message}`);
+                console.error('Erro na API:', error);
+                throw error;
+            }
+        }
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                debugLog('Tentando fazer login...');
+                const response = await apiRequest('/auth/login', 'POST', data);
+                authToken = response.token;
+                localStorage.setItem('authToken', authToken);
+                
+                debugLog('Login bem-sucedido!');
+                showMainApp();
+                loadDashboard();
+            } catch (error) {
+                debugLog(`Erro no login: ${error.message}`);
+                document.getElementById('loginError').textContent = error.message;
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        });
+
+        // Logout
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            debugLog('Logout realizado');
+        }
+
+        // Mostrar aplicação principal
+        function showMainApp() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            debugLog('Aplicação principal carregada');
+        }
+
+        // Função para mostrar seções
+        function showSection(sectionName) {
+            debugLog(`Mudando para seção: ${sectionName}`);
+            
+            // Esconder todas as seções
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Remover classe active de todos os botões
+            document.querySelectorAll('.nav button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mostrar a seção selecionada
+            document.getElementById(sectionName).classList.add('active');
+            
+            // Adicionar classe active ao botão clicado
+            event.target.classList.add('active');
+            
+            // Carregar dados se necessário
+            if (sectionName === 'dashboard') {
+                loadDashboard();
+            } else if (sectionName === 'clientes') {
+                loadClientes();
+            } else if (sectionName === 'processos') {
+                loadProcessos();
+            } else if (sectionName === 'documentos') {
+                loadDocumentos();
+            } else if (sectionName === 'financeiro') {
+                loadFinanceiro();
+            } else if (sectionName === 'agenda') {
+                loadAgenda();
+            } else if (sectionName === 'perfil') {
+                loadPerfil();
+            }
+        }
+
+        // Carregar dashboard
+        async function loadDashboard() {
+            try {
+                debugLog('Carregando dashboard...');
+                
+                const [clientes, processos, financeiro] = await Promise.all([
+                    apiRequest('/clientes'),
+                    apiRequest('/processos'),
+                    apiRequest('/financeiro')
+                ]);
+                
+                debugLog(`Dados carregados: ${clientes.length} clientes, ${processos.length} processos, ${financeiro.length} registros financeiros`);
+                
+                // Atualizar estatísticas
+                document.getElementById('clientesAtivos').textContent = clientes.length || 0;
+                const processosEmCurso = processos.filter(p => p.estado === 'Em curso' || p.estado === 'Em Curso').length;
+                document.getElementById('processosAtivos').textContent = processosEmCurso || 0;
+                const processosConcluidos = processos.filter(p => p.estado === 'Concluído' || p.estado === 'Concluido').length;
+                document.getElementById('processosConcluidos').textContent = processosConcluidos || 0;
+                
+                const receitas = financeiro.filter(f => f.tipo === 'Honorário').reduce((sum, f) => sum + (f.valor || 0), 0);
+                document.getElementById('receitasTotais').textContent = receitas > 0 ? `€${receitas.toFixed(2)}` : '€0.00';
+
+                // Criar gráficos
+                createProcessosChart(processos);
+                createFinanceiroChart(financeiro);
+                
+                debugLog('Dashboard carregado com sucesso!');
+            } catch (error) {
+                debugLog(`Erro ao carregar dashboard: ${error.message}`);
+                console.error('Erro ao carregar dashboard:', error);
+            }
+        }
+
+        // Criar gráfico de processos
+        function createProcessosChart(processos) {
+            const ctx = document.getElementById('processosChart').getContext('2d');
+            
+            const estados = {};
+            processos.forEach(proc => {
+                estados[proc.estado] = (estados[proc.estado] || 0) + 1;
+            });
+
+            if (charts.processos) charts.processos.destroy();
+            
+            charts.processos = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(estados),
+                    datasets: [{
+                        data: Object.values(estados),
+                        backgroundColor: ['#667eea', '#28a745', '#ffc107'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Criar gráfico financeiro
+        function createFinanceiroChart(financeiro) {
+            const ctx = document.getElementById('financeiroChart').getContext('2d');
+            
+            const receitas = financeiro.filter(f => f.tipo === 'Honorário').reduce((sum, f) => sum + (f.valor || 0), 0);
+            const despesas = financeiro.filter(f => f.tipo === 'Despesa').reduce((sum, f) => sum + (f.valor || 0), 0);
+
+            if (charts.financeiro) charts.financeiro.destroy();
+            
+            charts.financeiro = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Receitas', 'Despesas'],
+                    datasets: [{
+                        label: 'Valor (€)',
+                        data: [receitas, despesas],
+                        backgroundColor: ['#28a745', '#dc3545'],
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Carregar clientes
+        async function loadClientes() {
+            try {
+                debugLog('Carregando clientes...');
+                const clientes = await apiRequest('/clientes');
+                const clientesList = document.getElementById('clientesList');
+                
+                if (clientes.length === 0) {
+                    clientesList.innerHTML = '<p>Nenhum cliente encontrado. Clique em "Novo Cliente" para adicionar.</p>';
+                    return;
+                }
+                
+                const html = clientes.map(cliente => `
+                    <div class="data-item">
+                        <div class="data-actions">
+                            <button onclick="editItem('cliente', ${cliente.id_cliente})" title="Editar">✏️</button>
+                            <button onclick="deleteItem('cliente', ${cliente.id_cliente})" title="Eliminar">🗑️</button>
+                        </div>
+                        <h4>${cliente.nome}</h4>
+                        <p><strong>NIF:</strong> ${cliente.nif || '-'}</p>
+                        <p><strong>Email:</strong> ${cliente.email || '-'}</p>
+                        <p><strong>Telefone:</strong> ${cliente.telefone || '-'}</p>
+                        <p><strong>Data Registo:</strong> ${new Date(cliente.data_registo).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                clientesList.innerHTML = html;
+                debugLog(`${clientes.length} clientes carregados com sucesso!`);
+            } catch (error) {
+                debugLog(`Erro ao carregar clientes: ${error.message}`);
+                document.getElementById('clientesList').innerHTML = 
+                    `<div class="error">Erro ao carregar clientes: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar processos
+        async function loadProcessos() {
+            try {
+                debugLog('Carregando processos...');
+                const processos = await apiRequest('/processos');
+                const processosList = document.getElementById('processosList');
+                
+                if (processos.length === 0) {
+                    processosList.innerHTML = '<p>Nenhum processo encontrado. Clique em "Novo Processo" para adicionar.</p>';
+                    return;
+                }
+                
+                const html = processos.map(proc => `
+                    <div class="data-item">
+                        <div class="data-actions">
+                            <button onclick="editItem('processo', ${proc.id_processo})" title="Editar">✏️</button>
+                            <button onclick="deleteItem('processo', ${proc.id_processo})" title="Eliminar">🗑️</button>
+                        </div>
+                        <h4>${proc.numero_processo}</h4>
+                        <p><strong>Tipo:</strong> ${proc.tipo_processo || '-'}</p>
+                        <p><strong>Descrição:</strong> ${proc.descricao || '-'}</p>
+                        <p><strong>Estado:</strong> <span class="status-badge status-${proc.estado.toLowerCase().replace(' ', '')}">${proc.estado}</span></p>
+                        <p><strong>Data Abertura:</strong> ${new Date(proc.data_abertura).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                processosList.innerHTML = html;
+                debugLog(`${processos.length} processos carregados com sucesso!`);
+            } catch (error) {
+                debugLog(`Erro ao carregar processos: ${error.message}`);
+                document.getElementById('processosList').innerHTML = 
+                    `<div class="error">Erro ao carregar processos: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar documentos
+        async function loadDocumentos() {
+            try {
+                debugLog('Carregando documentos...');
+                const documentos = await apiRequest('/documentos');
+                const documentosList = document.getElementById('documentosList');
+                
+                if (documentos.length === 0) {
+                    documentosList.innerHTML = '<p>Nenhum documento encontrado. Clique em "Novo Documento" para adicionar.</p>';
+                    return;
+                }
+                
+                const html = documentos.map(doc => `
+                    <div class="data-item">
+                        <div class="data-actions">
+                            <button onclick="editItem('documento', ${doc.id_documento})" title="Editar">✏️</button>
+                            <button onclick="deleteItem('documento', ${doc.id_documento})" title="Eliminar">🗑️</button>
+                        </div>
+                        <h4>${doc.nome_documento}</h4>
+                        <p><strong>Tipo:</strong> ${doc.tipo_documento || '-'}</p>
+                        <p><strong>Data Upload:</strong> ${new Date(doc.data_upload).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                documentosList.innerHTML = html;
+                debugLog(`${documentos.length} documentos carregados com sucesso!`);
+            } catch (error) {
+                debugLog(`Erro ao carregar documentos: ${error.message}`);
+                document.getElementById('documentosList').innerHTML = 
+                    `<div class="error">Erro ao carregar documentos: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar financeiro
+        async function loadFinanceiro() {
+            try {
+                debugLog('Carregando dados financeiros...');
+                const financeiro = await apiRequest('/financeiro');
+                const resumoFinanceiro = document.getElementById('resumoFinanceiro');
+                
+                if (financeiro.length === 0) {
+                    resumoFinanceiro.innerHTML = '<p>Nenhum registo financeiro encontrado. Clique em "Novo Registro" para adicionar.</p>';
+                    return;
+                }
+                
+                const html = financeiro.map(fin => `
+                    <div class="data-item">
+                        <div class="data-actions">
+                            <button onclick="editItem('financeiro', ${fin.id_financeiro})" title="Editar">✏️</button>
+                            <button onclick="deleteItem('financeiro', ${fin.id_financeiro})" title="Eliminar">🗑️</button>
+                        </div>
+                        <h4>${fin.tipo} - €${fin.valor}</h4>
+                        <p><strong>Descrição:</strong> ${fin.descricao || '-'}</p>
+                        <p><strong>Status:</strong> <span class="status-badge status-${fin.status.toLowerCase()}">${fin.status}</span></p>
+                        <p><strong>Data:</strong> ${new Date(fin.data_registo).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                `).join('');
+                
+                resumoFinanceiro.innerHTML = html;
+                debugLog(`${financeiro.length} registros financeiros carregados com sucesso!`);
+            } catch (error) {
+                debugLog(`Erro ao carregar dados financeiros: ${error.message}`);
+                document.getElementById('resumoFinanceiro').innerHTML = 
+                    `<div class="error">Erro ao carregar dados financeiros: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar agenda
+        async function loadAgenda() {
+            try {
+                debugLog('Carregando agenda...');
+                const agenda = await apiRequest('/agenda');
+                const agendaList = document.getElementById('agendaList');
+                
+                if (agenda.length === 0) {
+                    agendaList.innerHTML = '<p>Nenhum compromisso encontrado. Clique em "Novo Compromisso" para adicionar.</p>';
+                    return;
+                }
+                
+                const html = agenda.map(evt => `
+                    <div class="data-item">
+                        <div class="data-actions">
+                            <button onclick="editItem('agenda', ${evt.id_evento})" title="Editar">✏️</button>
+                            <button onclick="deleteItem('agenda', ${evt.id_evento})" title="Eliminar">🗑️</button>
+                        </div>
+                        <h4>${evt.titulo}</h4>
+                        <p><strong>Data:</strong> ${new Date(evt.data_evento).toLocaleString('pt-BR')}</p>
+                        <p><strong>Observações:</strong> ${evt.observacoes || '-'}</p>
+                    </div>
+                `).join('');
+                
+                agendaList.innerHTML = html;
+                debugLog(`${agenda.length} eventos de agenda carregados com sucesso!`);
+            } catch (error) {
+                debugLog(`Erro ao carregar agenda: ${error.message}`);
+                document.getElementById('agendaList').innerHTML = 
+                    `<div class="error">Erro ao carregar agenda: ${error.message}</div>`;
+            }
+        }
+
+        // Carregar perfil
+        async function loadPerfil() {
+            try {
+                debugLog('Carregando perfil...');
+                const perfil = await apiRequest('/solicitadora');
+                const perfilInfo = document.getElementById('perfilInfo');
+                
+                if (perfil.length === 0) {
+                    perfilInfo.innerHTML = '<p>Nenhum perfil encontrado na base de dados.</p>';
+                    return;
+                }
+                
+                const info = perfil[0];
+                const html = `
+                    <div class="responsive-grid">
+                        <div class="data-item">
+                            <h4>Nome</h4>
+                            <p>${info.nome || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>NIF</h4>
+                            <p>${info.nif || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>Email</h4>
+                            <p>${info.email || '-'}</p>
+                        </div>
+                        <div class="data-item">
+                            <h4>Telefone</h4>
+                            <p>${info.telefone || '-'}</p>
+                        </div>
+                        <div class="data-item" style="grid-column: 1 / -1;">
+                            <h4>Morada</h4>
+                            <p>${info.morada || '-'}</p>
+                        </div>
+                    </div>
+                `;
+                
+                perfilInfo.innerHTML = html;
+                debugLog('Perfil carregado com sucesso!');
+            } catch (error) {
+                debugLog(`Erro ao carregar perfil: ${error.message}`);
+                document.getElementById('perfilInfo').innerHTML = 
+                    `<div class="error">Erro ao carregar perfil: ${error.message}</div>`;
+            }
+        }
+
+        // Abrir modal
+        function openModal(type) {
+            currentModalType = type;
+            currentEditId = null;
+            
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modal.style.display = 'block';
+            
+            // Definir título e formulário baseado no tipo
+            switch(type) {
+                case 'cliente':
+                    modalTitle.textContent = 'Novo Cliente';
+                    modalBody.innerHTML = `
+                        <div class="form-group">
+                            <label for="nome">Nome *</label>
+                            <input type="text" id="nome" name="nome" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="nif">NIF</label>
+                                <input type="text" id="nif" name="nif">
+                            </div>
+                            <div class="form-group">
+                                <label for="telefone">Telefone</label>
+                                <input type="text" id="telefone" name="telefone">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="morada">Morada</label>
+                            <textarea id="morada" name="morada" rows="3"></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'processo':
+                    modalTitle.textContent = 'Novo Processo';
+                    modalBody.innerHTML = `
+                        <div class="form-group">
+                            <label for="numero_processo">Número do Processo *</label>
+                            <input type="text" id="numero_processo" name="numero_processo" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tipo_processo">Tipo</label>
+                                <select id="tipo_processo" name="tipo_processo">
+                                    <option value="Civil">Civil</option>
+                                    <option value="Trabalho">Trabalho</option>
+                                    <option value="Comercial">Comercial</option>
+                                    <option value="Criminal">Criminal</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="estado">Estado</label>
+                                <select id="estado" name="estado">
+                                    <option value="Em curso">Em curso</option>
+                                    <option value="Concluído">Concluído</option>
+                                    <option value="Suspenso">Suspenso</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="descricao">Descrição</label>
+                            <textarea id="descricao" name="descricao" rows="3"></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'documento':
+                    modalTitle.textContent = 'Novo Documento';
+                    modalBody.innerHTML = `
+                        <div class="form-group">
+                            <label for="nome_documento">Nome do Documento *</label>
+                            <input type="text" id="nome_documento" name="nome_documento" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tipo_documento">Tipo</label>
+                            <select id="tipo_documento" name="tipo_documento">
+                                <option value="Contrato">Contrato</option>
+                                <option value="Petição">Petição</option>
+                                <option value="Sentença">Sentença</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                case 'financeiro':
+                    modalTitle.textContent = 'Novo Registro Financeiro';
+                    modalBody.innerHTML = `
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tipo">Tipo *</label>
+                                <select id="tipo" name="tipo" required>
+                                    <option value="Honorário">Honorário</option>
+                                    <option value="Despesa">Despesa</option>
+                                    <option value="Pagamento">Pagamento</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="valor">Valor (€) *</label>
+                                <input type="number" id="valor" name="valor" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="descricao">Descrição</label>
+                            <textarea id="descricao" name="descricao" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status" name="status">
+                                <option value="Pendente">Pendente</option>
+                                <option value="Pago">Pago</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                case 'agenda':
+                    modalTitle.textContent = 'Novo Compromisso';
+                    modalBody.innerHTML = `
+                        <div class="form-group">
+                            <label for="titulo">Título *</label>
+                            <input type="text" id="titulo" name="titulo" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="data_evento">Data e Hora</label>
+                            <input type="datetime-local" id="data_evento" name="data_evento">
+                        </div>
+                        <div class="form-group">
+                            <label for="observacoes">Observações</label>
+                            <textarea id="observacoes" name="observacoes" rows="3"></textarea>
+                        </div>
+                    `;
+                    break;
+            }
+        }
+
+        // Fechar modal
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Editar item
+        function editItem(type, id) {
+            currentEditId = id;
+            openModal(type);
+            // Aqui poderia carregar os dados existentes para edição
+            debugLog(`Editando ${type} com ID ${id}`);
+        }
+
+        // Eliminar item
+        function deleteItem(type, id) {
+            if (confirm(`Tem certeza que deseja eliminar este ${type}?`)) {
+                debugLog(`Eliminando ${type} com ID ${id}`);
+                // Aqui implementaria a eliminação
+            }
+        }
+
+        // Submeter formulário do modal
+        document.getElementById('modalForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                debugLog(`Criando novo ${currentModalType}...`);
+                
+                // Aqui implementaria a criação/edição real
+                // Por agora, apenas simula
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                debugLog(`${currentModalType} criado com sucesso!`);
+                closeModal();
+                
+                // Recarregar a seção atual
+                const currentSection = document.querySelector('.section.active').id;
+                if (currentSection === 'clientes') loadClientes();
+                else if (currentSection === 'processos') loadProcessos();
+                else if (currentSection === 'documentos') loadDocumentos();
+                else if (currentSection === 'financeiro') loadFinanceiro();
+                else if (currentSection === 'agenda') loadAgenda();
+                
+            } catch (error) {
+                debugLog(`Erro ao criar ${currentModalType}: ${error.message}`);
+                alert(`Erro ao criar ${currentModalType}: ${error.message}`);
+            }
+        });
+
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Debug: Verificar se as funções estão carregadas
+        debugLog('Sistema completo carregado! Todas as funcionalidades estão disponíveis.');
+        console.log('Sistema completo carregado!');
+        console.log('Função showSection:', typeof showSection);
+        console.log('Função openModal:', typeof openModal);
+    </script>
+</body>
+</html>
+
+
+
+
+

@@ -1,35 +1,22 @@
 {
-  "name": "novo-projeto-local",
+  "name": "sistema-legal",
   "version": "2.0.0",
-  "description": "Sistema de Gestão Empresarial Completo",
+  "description": "Sistema Legal - Gestão Jurídica e Faturação",
   "main": "backend/app.js",
+  "type": "module",
   "scripts": {
     "billing:example": "node node_modules/tsx/dist/cli.mjs billing/invoice.example.ts",
+    "billing:example-api": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-api.ts",
+    "billing:example-simple": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-simple.ts",
     "start": "node backend/app.js",
     "dev": "nodemon backend/app.js",
-    "start:prisma": "node backend/app-prisma.js",
-    "dev:prisma": "nodemon backend/app-prisma.js",
     "test": "jest",
-    "setup-db": "mysql -u root -p < database/schema.sql && mysql -u root -p < database/seed.sql",
-    "reset-db": "mysql -u root -p -e 'DROP DATABASE IF EXISTS novo_projeto_local; CREATE DATABASE novo_projeto_local;' && npm run setup-db",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "prisma:push": "prisma db push",
-    "billing:example-api": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-api.ts",
-    "billing:example-simple": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-simple.ts"
+    "reset-firestore": "node resetFirestore.js",
+    "test:playwright": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:install": "npx playwright install chromium"
   },
-  "keywords": [
-    "nodejs",
-    "express",
-    "mysql",
-    "api",
-    "crud",
-    "database",
-    "gestao",
-    "empresarial",
-    "juridico"
-  ],
+  "keywords": ["nodejs", "express", "mysql", "api", "gestao", "juridico", "billing"],
   "author": "Sistema de Gestão",
   "license": "MIT",
   "dependencies": {
@@ -52,6 +39,7 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.1",
     "prisma": "^5.22.0",
