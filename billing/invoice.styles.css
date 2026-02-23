@@ -1,0 +1,290 @@
+/**
+ * Módulo Billing - Estilos para Faturas e Recibos
+ * Layout profissional, tipografia limpa, espaçamentos consistentes
+ */
+
+/* Reset e variáveis */
+:root {
+  --color-text: #222;
+  --color-text-muted: #4a4a4a;
+  --color-border: #ccc;
+  --color-divider: #aaa;
+  --color-bg: #ffffff;
+  --font-sans: 'Arial', sans-serif;
+  --font-mono: 'Consolas', 'Monaco', monospace;
+  --spacing-xs: 4px;
+  --spacing-sm: 5px;
+  --spacing-md: 15px;
+  --spacing-lg: 20px;
+  --spacing-xl: 30px;
+}
+
+/* Base */
+.invoice-body {
+  margin: 0;
+  padding: 25px 35px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.invoice-container {
+  max-width: 210mm;
+  margin: 0 auto;
+}
+
+/* Header: Logotipo + Dados da Solicitadora */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.logo {
+  width: 150px;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.issuer-info {
+  flex: 1;
+}
+
+.issuer-info h2 {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.issuer-info p {
+  margin: var(--spacing-xs) 0;
+  font-size: 10pt;
+  color: var(--color-text-muted);
+}
+
+.issuer-info p.client-nif {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px dashed var(--color-border);
+}
+
+.invoice-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.doc-type {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 16pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.atcud,
+.invoice-number,
+.invoice-date,
+.invoice-due {
+  margin: var(--spacing-xs) 0;
+  font-size: 10pt;
+}
+
+/* Tipo de caso / Entidade / Área de atuação */
+.case-meta-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.case-meta-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md) var(--spacing-xl);
+  padding: var(--spacing-md);
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+}
+
+.case-meta-block p {
+  margin: 0;
+  font-size: 10pt;
+  color: var(--color-text);
+}
+
+/* Secção cliente */
+.client-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.section-title {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 10pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.client-block {
+  padding: var(--spacing-md);
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.client-name {
+  margin: 0 0 var(--spacing-xs) 0;
+  font-weight: 600;
+}
+
+.client-detail,
+.client-address,
+.client-contact {
+  margin: var(--spacing-xs) 0;
+  font-size: 10pt;
+}
+
+.item-ref {
+  font-size: 9pt;
+  color: var(--color-text-muted);
+}
+
+/* Tabela de itens */
+.items-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+}
+
+.items-table th,
+.items-table td {
+  padding: 5px;
+  border: 1px solid var(--color-border);
+}
+
+.items-table th {
+  background: #f2f2f2;
+  font-weight: 600;
+  text-align: left;
+}
+
+.items-table tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.items-table .center {
+  text-align: center;
+}
+
+.items-table .right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Totais alinhados à direita */
+.totals-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.totals {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.totals .totals-table {
+  min-width: 240px;
+}
+
+.totals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+}
+
+.totals-table td {
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+}
+
+.totals-table td:first-child {
+  background: #f2f2f2;
+}
+
+.totals-table .right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals-table .total-row td {
+  font-weight: 600;
+}
+
+.totals-table .amount-due-row td {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Recibo */
+.receipt-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.receipt-block {
+  padding: var(--spacing-md);
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 4px;
+}
+
+.receipt-block p {
+  margin: var(--spacing-xs) 0;
+}
+
+/* Observações */
+.notes-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.notes-block {
+  padding: var(--spacing-md);
+  background: #fefce8;
+  border: 1px solid #fde047;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+/* Footer com QR Code à direita */
+.footer {
+  text-align: right;
+  margin-top: 30px;
+}
+
+.qrcode {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+}
+
+/* Print */
+@media print {
+  .invoice-body {
+    padding: 25px 35px;
+  }
+
+  .invoice-container {
+    max-width: none;
+  }
+}

@@ -1,0 +1,116 @@
+<div class="invoice-body">
+  <div class="invoice-container">
+    <!-- Header: Logotipo + Emitente -->
+    <div class="header">
+      {{#if logo}}
+      <img src="{{logo}}" class="logo" alt="Logotipo" />
+      {{/if}}
+      <div class="issuer-info">
+        <h1>{{#if issuer.titulo}}{{issuer.titulo}} {{/if}}{{issuer.name}}</h1>
+        {{#if issuer.nif}}<p>NIF: {{issuer.nif}}</p>{{/if}}
+        {{#if issuer.phone}}<p>Tlm: {{issuer.phone}}</p>{{/if}}
+        {{#if issuer.email}}<p>Email: {{issuer.email}}</p>{{/if}}
+        {{#if issuer.iban}}<p>IBAN: {{issuer.iban}}</p>{{/if}}
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Info do documento -->
+    <div class="doc-info">
+      <h3>Fatura/Recibo {{numero}}</h3>
+      {{#if atcud}}<p>ATCUD: {{atcud}}</p>{{/if}}
+      <p>Data: {{formatDate dataEmissao}}</p>
+      {{#if dataVencimento}}<p>Vencimento: {{formatDate dataVencimento}}</p>{{/if}}
+    </div>
+
+    <!-- Cliente -->
+    <div class="client">
+      <h4>Cliente</h4>
+      <p>{{cliente.nome}}</p>
+      {{#if cliente.nif}}<p>NIF: {{formatNif cliente.nif}}</p>{{/if}}
+      <p>{{cliente.morada}}</p>
+      <p>{{cliente.codigoPostal}} {{cliente.localidade}}</p>
+    </div>
+
+    <!-- Tabela de itens -->
+    <table class="items">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th>Art.</th>
+          <th>Qtd</th>
+          <th>Incidência</th>
+          <th>Preço Unit.</th>
+          <th>IVA %</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each itens}}
+        <tr>
+          <td>{{descricao}}</td>
+          <td>{{artigo}}</td>
+          <td>{{quantidade}}</td>
+          <td>{{incidencia}}</td>
+          <td>{{formatCurrency precoUnitario}}</td>
+          <td>{{#if ivaPercent}}{{ivaPercent}}{{else}}0{{/if}}%</td>
+          <td>{{formatCurrency total}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <!-- Totais -->
+    <div class="totals">
+      <table>
+        <tr>
+          <td>Serviços/Produtos</td>
+          <td>{{formatCurrency totais.subtotal}}</td>
+        </tr>
+        <tr>
+          <td>IVA</td>
+          <td>{{formatCurrency totais.iva}}</td>
+        </tr>
+        <tr class="total-row">
+          <td>Total</td>
+          <td>{{formatCurrency totais.totalComIva}}</td>
+        </tr>
+        {{#if totais.retencao}}
+        <tr>
+          <td>Retenção na fonte ({{percentagemRetencao}}%)</td>
+          <td>- {{formatCurrency totais.retencao}}</td>
+        </tr>
+        {{/if}}
+        <tr class="pay-row">
+          <td>Valor a Pagar</td>
+          <td>{{formatCurrency totais.valorAPagar}}</td>
+        </tr>
+      </table>
+    </div>
+
+    {{#if recibo}}
+    <!-- Recibo -->
+    <div class="receipt">
+      <h4>Recibo</h4>
+      <p>Nº: {{recibo.numero}}</p>
+      <p>Data: {{formatDate recibo.data}}</p>
+      <p>Valor Recebido: {{formatCurrency recibo.valorRecebido}}</p>
+    </div>
+    {{/if}}
+
+    {{#if observacoes}}
+    <div class="observations">
+      <h4>Observações</h4>
+      <p>{{observacoes}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Footer com QR Code à direita -->
+    <div class="footer">
+      {{#if qrCodeBase64}}
+      <img src="data:image/png;base64,{{qrCodeBase64}}" class="qrcode" alt="QR Code" />
+      {{/if}}
+    </div>
+  </div>
+</div>
