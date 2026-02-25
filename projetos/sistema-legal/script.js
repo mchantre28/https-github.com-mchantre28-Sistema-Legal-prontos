@@ -49,6 +49,18 @@ function parseIdSafe(val) {
     return /^\d+$/.test(s) ? parseInt(s, 10) : s;
 }
 
+/** Parse JSON seguro - evita crash por dados corrompidos no storage. */
+function parseJsonSafe(raw, fallback = []) {
+    if (raw == null || raw === '') return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed;
+    } catch (e) {
+        console.warn('Dados corrompidos no storage, a usar fallback:', e?.message);
+        return fallback;
+    }
+}
+
 // SISTEMA DE LOGIN
 const USUARIO_PADRAO = 'admin';
 const SENHA_PADRAO = 'APM2024!';
@@ -334,15 +346,22 @@ window.startAllListeners = startAllListeners;
 
 /** Debounce para refresh dos listeners: evita que mÃºltiplos callbacks sobrescrevam a navegaÃ§Ã£o do utilizador (ex.: Central de NotificaÃ§Ãµes) */
 let __listenerRefreshTimer = null;
+const LISTENER_REFRESH_DEBOUNCE_MS = 150;
 function agendarRefreshListener() {
     if (__listenerRefreshTimer) clearTimeout(__listenerRefreshTimer);
     __listenerRefreshTimer = setTimeout(() => {
         __listenerRefreshTimer = null;
+        // Não re-renderizar se o utilizador estiver a escrever num input (evita perder foco e cursor)
+        const ativo = document.activeElement;
+        const conteudo = document.getElementById('conteudoDinamico');
+        if (ativo && conteudo && conteudo.contains(ativo) && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName)) {
+            return;
+        }
         if (typeof secaoAtiva === 'string') {
             carregarSecao(secaoAtiva);
             if (typeof atualizarInterface === 'function') atualizarInterface();
         }
-    }, 80);
+    }, LISTENER_REFRESH_DEBOUNCE_MS);
 }
 
 /** Cancela refresh pendente quando o utilizador navega explicitamente (evita race condition) */
@@ -356,6 +375,8 @@ function cancelarRefreshListener() {
 /** Inicia os listeners Firestore em tempo real (para retomar apÃ³s pause em import/backup) */
 function iniciarListenersFirestore() {
     if (!isCloudReady()) return;
+    // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
+    if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
         clientes = lista; window.clientes = clientes;
         agendarRefreshListener();
@@ -1713,6 +1734,55 @@ function lerConvidadoDoFirestore(data) {
     return { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
 }
 
+/** Gera hash dos dados da secção (para diff no visibilitychange — evitar re-render desnecessário) */
+function obterHashDadosSecao(secao) {
+    try {
+        const hashLista = (lista) => {
+            if (!Array.isArray(lista)) return '0';
+            const ids = lista.slice(0, 20).map(i => (i && (i.id != null ? i.id : i.codigo))).filter(Boolean);
+            return lista.length + '-' + ids.join(',');
+        };
+        const entidades = { clientes: 'clientes', honorarios: 'honorarios', contratos: 'contratos', prazos: 'prazos', notificacoes: 'notificacoes', documentos: 'documentos', tarefas: 'tarefas', herancas: 'herancas', migracoes: 'migracoes', registos: 'registos' };
+        if (entidades[secao]) return hashLista(obterListaGlobal(entidades[secao]));
+        if (secao === 'dashboard') return [ 'clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes' ].map(e => hashLista(obterListaGlobal(e))).join('|');
+        return hashLista(obterListaGlobal(secao)) || '';
+    } catch (e) { return ''; }
+}
+
+/** Hash simples dos dados da secção — usado em visibilitychange para evitar re-render desnecessário */
+function obterHashDadosSecao(secao) {
+    try {
+        const getLista = (ent) => {
+            const map = {
+                clientes: () => obterClientesAtual(),
+                honorarios: () => honorarios,
+                contratos: () => contratos,
+                prazos: () => prazos,
+                notificacoes: () => notificacoes,
+                tarefas: () => tarefas,
+                documentos: () => documentos,
+                herancas: () => herancas,
+                migracoes: () => migracoes,
+                registos: () => registos
+            };
+            return typeof map[ent] === 'function' ? map[ent]() : [];
+        };
+        if (secao === 'dashboard') {
+            const parts = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas'].map(ent => {
+                const arr = Array.isArray(getLista(ent)) ? getLista(ent) : [];
+                return `${ent}:${arr.length}`;
+            });
+            return 'dashboard:' + parts.join(';');
+        }
+        const lista = getLista(secao);
+        const arr = Array.isArray(lista) ? lista : [];
+        const ids = arr.slice(0, 10).map(i => (i && (i.id ?? i._id))).filter(Boolean);
+        return `${secao}:${arr.length}:${ids.join(',')}`;
+    } catch (e) {
+        return '';
+    }
+}
+
 function obterListaGlobal(entidade) {
     if (entidade === 'clientes') return obterClientesAtual();
     if (entidade === 'honorarios') return honorarios;
@@ -1733,8 +1803,9 @@ function obterListaGlobal(entidade) {
 
 function salvarEntidadeCloud(entidade, item) {
     if (!isCloudReady()) return Promise.resolve();
+    if (!item || typeof item !== 'object') return Promise.resolve();
     const id = obterIdEntidade(entidade, item);
-    if (id === null || id === undefined) return Promise.resolve();
+    if (id === null || id === undefined || String(id).trim() === '') return Promise.resolve();
     let payload = item;
     if (entidade === 'clientes') payload = prepararClienteParaFirestore(item);
     else if (PROCESSO_ENTIDADES.includes(entidade)) payload = prepararProcessoParaFirestore(entidade, item);
@@ -1748,7 +1819,15 @@ function salvarEntidadeCloud(entidade, item) {
     else if (entidade === 'entidades') payload = prepararEntidadeParaFirestore(item);
     else if (entidade === 'integracoes_externas') payload = prepararIntegracaoParaFirestore(item);
     else if (entidade === 'representantes') payload = prepararRepresentanteParaFirestore(item);
-    if (payload && typeof payload === 'object') payload = Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+    if (payload && typeof payload === 'object') {
+        payload = Object.fromEntries(
+            Object.entries(payload).filter(([, v]) => {
+                if (v === undefined) return false;
+                if (typeof v === 'number' && (Number.isNaN(v) || !Number.isFinite(v))) return false;
+                return true;
+            })
+        );
+    }
     return firestoreDb.collection(entidade).doc(String(id)).set(payload, { merge: true })
         .catch((error) => {
             console.warn(`Erro ao salvar ${entidade} na nuvem:`, error);
@@ -1758,7 +1837,7 @@ function salvarEntidadeCloud(entidade, item) {
 
 function excluirEntidadeCloud(entidade, id) {
     if (!isCloudReady()) return Promise.resolve();
-    if (id === null || id === undefined) return Promise.resolve();
+    if (id === null || id === undefined || String(id).trim() === '') return Promise.resolve();
     return firestoreDb.collection(entidade).doc(String(id)).delete()
         .catch((error) => {
             console.warn(`Erro ao excluir ${entidade} na nuvem:`, error);
@@ -1779,8 +1858,8 @@ function agendarSyncEntidade(entidade, lista, removidos = []) {
         iniciarSync();
         try {
             const promises = [];
-            (lista || []).forEach(item => promises.push(salvarEntidadeCloud(entidade, item)));
-            (removidos || []).forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
+            (lista || []).forEach(item => { if (item && typeof item === 'object') promises.push(salvarEntidadeCloud(entidade, item)); });
+            (removidos || []).filter(id => id != null && String(id).trim() !== '').forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
             await Promise.all(promises);
             try {
                 appStorage.setItem('cloudSyncUltimaEntidade', entidade);
@@ -1856,13 +1935,7 @@ async function sincronizarEntidadeNuvem(entidade) {
             appStorage.setItem('cloudSyncUltimaEntidade', entidade);
             appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
         } catch (error) {
-            console.warn('Erro ao guardar Ãºltima entidade sincronizada:', error);
-        }
-        try {
-            appStorage.setItem('cloudSyncUltimaEntidade', entidade);
-            appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
-        } catch (error) {
-            console.warn('Erro ao guardar Ãºltima entidade sincronizada:', error);
+            console.warn('Erro ao guardar última entidade sincronizada:', error);
         }
     } catch (error) {
         console.warn(`Erro ao sincronizar ${entidade}:`, error);
@@ -1941,7 +2014,9 @@ async function migrarHonorariosLocalParaFirestore() {
     if (appStorage.getItem(CHAVE_MIGRACAO_HONORARIOS) === 'true') return;
 
     const raw = localStorage.getItem('honorarios') || appStorage.getItem('honorarios');
-    const honorariosLocal = raw ? JSON.parse(raw) : [];
+    let honorariosLocal = [];
+    try { honorariosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em honorarios:', e?.message); }
+    if (!Array.isArray(honorariosLocal)) honorariosLocal = [];
     if (!Array.isArray(honorariosLocal) || honorariosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_HONORARIOS, 'true'); } catch (e) {}
         return;
@@ -1972,7 +2047,9 @@ async function migrarProcessosLocalParaFirestore(entidade) {
     if (appStorage.getItem(chave) === 'true') return;
 
     const raw = appStorage.getItem(entidade);
-    const lista = raw ? JSON.parse(raw) : [];
+    let lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em', entidade, '- a ignorar:', e?.message); }
+    if (!Array.isArray(lista)) lista = [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(chave, 'true'); } catch (e) {}
         return;
@@ -2000,7 +2077,9 @@ async function migrarContratosLocalParaFirestore() {
     if (appStorage.getItem(CHAVE_MIGRACAO_CONTRATOS) === 'true') return;
 
     const raw = appStorage.getItem('contratos');
-    const contratosLocal = raw ? JSON.parse(raw) : [];
+    let contratosLocal = [];
+    try { contratosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em contratos:', e?.message); }
+    if (!Array.isArray(contratosLocal)) contratosLocal = [];
     if (!Array.isArray(contratosLocal) || contratosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_CONTRATOS, 'true'); } catch (e) {}
         return;
@@ -2030,7 +2109,9 @@ async function migrarTarefasLocalParaFirestore() {
     if (appStorage.getItem(CHAVE_MIGRACAO_TAREFAS) === 'true') return;
 
     const raw = appStorage.getItem('tarefas');
-    const tarefasLocal = raw ? JSON.parse(raw) : [];
+    let tarefasLocal = [];
+    try { tarefasLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em tarefas:', e?.message); }
+    if (!Array.isArray(tarefasLocal)) tarefasLocal = [];
     if (!Array.isArray(tarefasLocal) || tarefasLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_TAREFAS, 'true'); } catch (e) {}
         return;
@@ -2060,7 +2141,9 @@ async function migrarNotificacoesLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_NOTIFICACOES) === 'true') return;
     const raw = appStorage.getItem('notificacoes');
-    const lista = raw ? JSON.parse(raw) : [];
+    let lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em notificacoes:', e?.message); }
+    if (!Array.isArray(lista)) lista = [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_NOTIFICACOES, 'true'); } catch (e) {}
         return;
@@ -2083,7 +2166,9 @@ async function migrarDocumentosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_DOCUMENTOS) === 'true') return;
     const raw = appStorage.getItem('documentos');
-    const lista = raw ? JSON.parse(raw) : [];
+    let lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em documentos:', e?.message); }
+    if (!Array.isArray(lista)) lista = [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_DOCUMENTOS, 'true'); } catch (e) {}
         return;
@@ -2106,7 +2191,9 @@ async function migrarFaturasLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_FATURAS) === 'true') return;
     const raw = appStorage.getItem('faturas');
-    const lista = raw ? JSON.parse(raw) : [];
+    let lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em faturas:', e?.message); }
+    if (!Array.isArray(lista)) lista = [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_FATURAS, 'true'); } catch (e) {}
         return;
@@ -2129,7 +2216,9 @@ async function migrarConvidadosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_CONVIDADOS) === 'true') return;
     const raw = appStorage.getItem('convidados');
-    const lista = raw ? JSON.parse(raw) : [];
+    let lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em convidados:', e?.message); }
+    if (!Array.isArray(lista)) lista = [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_CONVIDADOS, 'true'); } catch (e) {}
         return;
@@ -2152,7 +2241,9 @@ async function migrarPrazosLocalParaFirestore() {
     if (appStorage.getItem(CHAVE_MIGRACAO_PRAZOS) === 'true') return;
 
     const raw = appStorage.getItem('prazos');
-    const prazosLocal = raw ? JSON.parse(raw) : [];
+    let prazosLocal = [];
+    try { prazosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em prazos:', e?.message); }
+    if (!Array.isArray(prazosLocal)) prazosLocal = [];
     if (!Array.isArray(prazosLocal) || prazosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_PRAZOS, 'true'); } catch (e) {}
         return;
@@ -2632,6 +2723,8 @@ function mostrarLoginConvidado() {
 }
 
 function logout() {
+    // Pausar listeners antes do reload (defensivo: se remover reload no futuro, evita leaks)
+    if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     limparSessaoFirestore();
     appStorage.removeItem('usuarioLogado');
     appStorage.removeItem('usuarioNome');
@@ -3667,6 +3760,7 @@ function init() {
     window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
 
     // Sincronizar sempre ao carregar (apÃ³s zero absoluto o Firestore estÃ¡ vazio; cache Ã© limpo)
+    // Listeners iniciam APÃS a sync para evitar race e tremor na primeira carga
     sincronizarTodasEntidadesNuvem().then(() => {
         if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
         appStorage.removeItem('naoRestaurarDaNuvem');
@@ -3674,12 +3768,8 @@ function init() {
         carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
         atualizarInterface();
         atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+        if (isCloudReady()) iniciarListenersFirestore();
     });
-
-    // Escuta em tempo real - SEMPRE ativar para carregar clientes e resto (evita ter de forÃ§ar backup/F5)
-    if (isCloudReady()) {
-        iniciarListenersFirestore();
-    }
 
     // Sincronizar sessÃ£o para window (para listeners/prepararLista)
     try {
@@ -3723,9 +3813,12 @@ function init() {
         }, SYNC_PERIODICO_MS);
     }
 
-    // Ao voltar ao separador: reiniciar listeners (podem ter sido suspensos) e sincronizar
+    // Ao voltar ao separador: reiniciar listeners e sincronizar — só re-renderizar se os dados mudaram (diff)
+    let __visibilityHashAntes = '';
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && isCloudReady()) {
+        if (document.visibilityState === 'hidden') {
+            __visibilityHashAntes = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
+        } else if (document.visibilityState === 'visible' && isCloudReady()) {
             if (typeof listenerManager !== 'undefined' && listenerManager.pause && listenerManager.resume) {
                 listenerManager.pause();
                 listenerManager.resume(iniciarListenersFirestore);
@@ -3733,8 +3826,11 @@ function init() {
             sincronizarTodasEntidadesNuvem().then(() => {
                 if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
                 carregarDados();
-                carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                atualizarInterface();
+                const hashDepois = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
+                if (hashDepois !== __visibilityHashAntes) {
+                    carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
+                    atualizarInterface();
+                }
                 atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             });
         }
@@ -4788,16 +4884,14 @@ function configurarIntegracaoContabilidade(config) {
 
 
 function obterFaturas() {
-    // Firestore = fonte principal quando disponÃ­vel
     if (isCloudReady() && Array.isArray(window.faturas)) return window.faturas;
     const raw = appStorage.getItem('faturas');
-    return raw ? JSON.parse(raw) : [];
+    try { return raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em faturas:', e?.message); return []; }
 }
 
 function obterIntegracoes() {
     const integracoes = appStorage.getItem('integracoes');
-    const resultado = integracoes ? JSON.parse(integracoes) : [];
-    return resultado;
+    try { return integracoes ? JSON.parse(integracoes) : []; } catch (e) { console.warn('JSON inválido em integracoes:', e?.message); return []; }
 }
 
 function salvarIntegracoes(integracoes) {
@@ -5964,7 +6058,102 @@ function configurarEventos() {
         }
     }, true);
 
-    // Delegation: botÃµes Editar/Excluir de clientes (evita problemas com UUID em onclick)
+    // Delegation: botões Honorários (editar, duplicar, excluir) — lista e relatórios
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-honorario-acao][data-honorario-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-honorario-id');
+        const acao = btn.getAttribute('data-honorario-acao');
+        if (!id || !acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'editar') editarHonorarioDireto(id);
+            else if (acao === 'duplicar') duplicarHonorario(id);
+            else if (acao === 'excluir') excluirHonorarioDireto(id);
+        } catch (err) {
+            console.error('Erro acao honorario:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Contratos (editar, duplicar, anexos, excluir)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-contrato-acao][data-contrato-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-contrato-id');
+        const acao = btn.getAttribute('data-contrato-acao');
+        if (!id || !acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'editar') editarContratoDireto(id);
+            else if (acao === 'duplicar') duplicarContrato(id);
+            else if (acao === 'anexos') abrirAnexosContrato(id);
+            else if (acao === 'excluir') excluirContratoDireto(id);
+        } catch (err) {
+            console.error('Erro acao contrato:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Prazos (editar, anexos, excluir) — lista e calendário
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-prazo-acao][data-prazo-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-prazo-id');
+        const acao = btn.getAttribute('data-prazo-acao');
+        if (!id || !acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'editar') editarItem('prazo', id);
+            else if (acao === 'anexos') abrirAnexosPrazo(id);
+            else if (acao === 'excluir') excluirItem('prazo', id);
+        } catch (err) {
+            console.error('Erro acao prazo:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Notificações (marcar-lida, excluir)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-notificacao-acao][data-notificacao-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-notificacao-id');
+        const acao = btn.getAttribute('data-notificacao-acao');
+        if (!id || !acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'marcar-lida') marcarComoLida(id);
+            else if (acao === 'excluir') excluirNotificacao(id);
+        } catch (err) {
+            console.error('Erro acao notificacao:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Documentos (baixar, imprimir, excluir)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-documento-acao][data-documento-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-documento-id');
+        const acao = btn.getAttribute('data-documento-acao');
+        if (!id || !acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'baixar') baixarDocumento(id);
+            else if (acao === 'imprimir') imprimirDocumento(id);
+            else if (acao === 'excluir') excluirDocumento(id);
+        } catch (err) {
+            console.error('Erro acao documento:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Editar/Excluir de clientes (evita problemas com UUID em onclick)
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('[data-cliente-acao][data-cliente-id]');
         if (!btn) return;
@@ -5980,6 +6169,27 @@ function configurarEventos() {
         } catch (err) {
             console.error('Erro ao executar acao cliente:', acao, err);
             mostrarNotificacao('Erro ao executar. Veja a consola (F12).', 'error');
+        }
+    }, true);
+
+    // Delegation: botÃµes Alertas e NotificaÃ§Ãµes (PDF, Email, WhatsApp)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('button[data-acao]');
+        if (!btn || btn.disabled) return;
+        const acao = btn.getAttribute('data-acao');
+        if (!acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'baixarAlertasPDF' && typeof baixarAlertasPDF === 'function') baixarAlertasPDF();
+            else if (acao === 'enviarAlertasEmail' && typeof enviarAlertasEmail === 'function') enviarAlertasEmail();
+            else if (acao === 'enviarAlertasWhatsApp' && typeof enviarAlertasWhatsApp === 'function') enviarAlertasWhatsApp();
+            else if (acao === 'baixarNotificacoesPDF' && typeof baixarNotificacoesPDF === 'function') baixarNotificacoesPDF();
+            else if (acao === 'enviarNotificacoesEmail' && typeof enviarNotificacoesEmail === 'function') enviarNotificacoesEmail();
+            else if (acao === 'enviarNotificacoesWhatsApp' && typeof enviarNotificacoesWhatsApp === 'function') enviarNotificacoesWhatsApp();
+        } catch (err) {
+            console.error('Erro ao executar:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar. Verifique a consola (F12).', 'error');
         }
     }, true);
 
@@ -6018,6 +6228,9 @@ function configurarEventos() {
             }
         }, 60000);
     }
+
+    window.__sistemaLegalEventosConfigurados = true;
+    try { console.info('[Sistema Legal] Event delegation configurado (honorários, contratos, prazos, notificações, documentos, clientes, tarefas)'); } catch (e) {}
 
     document.getElementById('sidebarOverlay')?.addEventListener('click', () => {
         const sidebar = document.getElementById('sidebar');
@@ -10518,16 +10731,16 @@ function gerarContratos() {
                                         <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'ConcluÃ­do' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
                                         <td>${new Date(contrato.dataInicio).toLocaleDateString('pt-PT')}</td>
                                         <td>
-                                            <button onclick="editarContratoDireto(${JSON.stringify(contrato.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                            <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button onclick="duplicarContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
+                                            <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
                                                 <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button onclick="abrirAnexosContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                                            <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                                                 <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button onclick="excluirContratoDireto(${JSON.stringify(contrato.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
+                                            <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                                                 <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
                                         </td>
@@ -10744,13 +10957,13 @@ function gerarPrazos() {
                                         <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
                                         <td>${prazo.criadoPor || '-'}</td>
                                         <td>
-                                            <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800 mr-2">
+                                            <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button onclick="abrirAnexosPrazo(${JSON.stringify(prazo.id)})" class="text-green-600 hover:text-green-800 mr-2">
+                                            <button type="button" data-prazo-acao="anexos" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2">
                                                 <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800">
+                                            <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
                                                 <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
                                         </td>
@@ -10832,6 +11045,28 @@ function gerarNotificacoes() {
             ` : ''}
         </div>
     </div>
+    ${tipoUsuario === 'admin' ? `
+    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%); border: 3px solid #7c3aed; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <h3 class="text-lg font-bold" style="color: #4c1d95;">
+                    <i data-lucide="mail" class="w-5 h-5 inline mr-1"></i> Enviar Convite
+                </h3>
+                <p class="text-sm" style="color: #5b21b6;">Enviar código de acesso e instruções de login por Email ou WhatsApp.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <select id="conviteConvidadoNotificacoes" class="border-2 border-purple-300 rounded px-3 py-2 bg-white text-gray-800 min-w-[180px]">
+                    <option value="">Escolher convidado...</option>
+                    ${(() => { try { const lista = (typeof obterConvidadosAtual === 'function' ? obterConvidadosAtual() : window.convidados) || []; return lista.filter(c => c && c.ativo).map(c => `<option value="${String(c.codigo || c.id || '').replace(/"/g, '&quot;')}">${(c.nome || 'Convidado')} (${c.codigo || c.id || ''})</option>`).join(''); } catch (e) { return ''; } })()}
+                </select>
+                <button onclick="enviarConviteDoSeletor()" class="btn text-white" style="background-color: #7c3aed;">
+                    <i data-lucide="send" class="w-4 h-4"></i> Enviar Convite
+                </button>
+                <button onclick="carregarSecao('convidados')" class="btn btn-secondary">Ver Gestão de Convidados</button>
+            </div>
+        </div>
+    </div>
+    ` : ''}
     
     <div class="card p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -10840,11 +11075,15 @@ function gerarNotificacoes() {
                 <p class="text-sm text-gray-600">Enviar resumo de prazos e honorÃ¡rios por Email ou WhatsApp.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button onclick="enviarAlertasEmail()" class="btn btn-primary">
+                <button type="button" data-acao="baixarAlertasPDF" onclick="typeof baixarAlertasPDF==='function'&&baixarAlertasPDF();return false" class="btn btn-secondary">
+                    <i data-lucide="file-down" class="w-4 h-4"></i>
+                    Baixar PDF
+                </button>
+                <button type="button" data-acao="enviarAlertasEmail" onclick="typeof enviarAlertasEmail==='function'&&enviarAlertasEmail();return false" class="btn btn-primary">
                     <i data-lucide="mail" class="w-4 h-4"></i>
                     Enviar por Email
                 </button>
-                <button onclick="enviarAlertasWhatsApp()" class="btn btn-success">
+                <button type="button" data-acao="enviarAlertasWhatsApp" onclick="typeof enviarAlertasWhatsApp==='function'&&enviarAlertasWhatsApp();return false" class="btn btn-success">
                     <i data-lucide="message-circle" class="w-4 h-4"></i>
                     Enviar por WhatsApp
                 </button>
@@ -10861,7 +11100,42 @@ function gerarNotificacoes() {
             </div>
         </div>
         <div class="mt-3 text-xs text-gray-500">
-            Dica: o envio usa o seu cliente de email/WhatsApp Web (sem serviÃ§os externos).
+            Dica: Email e WhatsApp enviam o resumo em PDF. O PDF é guardado nas transferências para anexar.
+        </div>
+    </div>
+    
+    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%); border: 3px solid #0d9488; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <h3 class="text-lg font-bold" style="color: #0f766e;">
+                    <i data-lucide="file-text" class="w-5 h-5 inline mr-1"></i> Notificações em PDF
+                </h3>
+                <p class="text-sm" style="color: #0d9488;">Enviar a lista de notificações (conforme filtros) por Email ou WhatsApp em PDF.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
+                </button>
+                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
+                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
+                </button>
+                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
+                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
+                </button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
+                <input id="notificacoesEmailDestino" type="email" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: destinatario@email.com">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
+                <input id="notificacoesWhatsAppDestino" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 351912345678">
+            </div>
+        </div>
+        <div class="mt-3 text-xs text-gray-500">
+            O PDF é guardado nas transferências. Anexe-o ao abrir o email ou WhatsApp.
         </div>
     </div>
     
@@ -10935,6 +11209,21 @@ function gerarNotificacoes() {
             </button>
             <div class="text-sm text-gray-600">
                 <span id="contadorFiltros">${notificacoesFiltradas.length} notificaÃ§Ãµes encontradas</span>
+            </div>
+        </div>
+        <div class="mt-6 pt-6 border-t border-gray-200">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Exportar notificaÃ§Ãµes em PDF</h4>
+            <p class="text-xs text-gray-500 mb-3">As notificaÃ§Ãµes acima (conforme filtros) serÃ£o exportadas em PDF. Use os campos Email/WhatsApp do card Alertas AutomÃ¡ticos para o destino.</p>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
+                </button>
+                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
+                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
+                </button>
+                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
+                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
+                </button>
             </div>
         </div>
     </div>
@@ -11025,11 +11314,11 @@ function gerarNotificacoes() {
                             </div>
                             <div class="flex items-center space-x-2">
                                 ${!notificacao.lida ? `
-                                    <button onclick="marcarComoLida(${JSON.stringify(notificacao.id)})" class="text-blue-600 hover:text-blue-800">
+                                    <button type="button" data-notificacao-acao="marcar-lida" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
                                         <i data-lucide="check" class="w-4 h-4" style="pointer-events:none"></i>
                                     </button>
                                 ` : ''}
-                                <button onclick="excluirNotificacao(${JSON.stringify(notificacao.id)})" class="text-red-600 hover:text-red-800">
+                                <button type="button" data-notificacao-acao="excluir" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
                                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                 </button>
                             </div>
@@ -12292,7 +12581,7 @@ function gerarMesCalendario(ano, mes) {
                 <div class="text-xs font-semibold mb-1">${dataAtual.getDate()}</div>
                 <div class="space-y-1">
                     ${prazosDia.slice(0, 3).map(prazo => `
-                        <button type="button" onclick="event.stopPropagation(); editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
+                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                             <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                             ${prazo.descricao || prazo.tipo || 'Prazo'}
                         </button>
@@ -12321,7 +12610,7 @@ function gerarSemanaCalendario(inicioSemana) {
                 <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} â€¢ ${dataAtual.toLocaleDateString('pt-PT')}</div>
                 <div class="space-y-2">
                     ${prazosDia.length ? prazosDia.map(prazo => `
-                        <button type="button" onclick="event.stopPropagation(); editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
+                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                 <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
@@ -13726,14 +14015,14 @@ function renderizarListaDocumentos(lista) {
                     <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick='baixarDocumento(${JSON.stringify(doc.id)})' class="text-blue-600 hover:text-blue-800" title="Guardar ficheiro HTML no computador">
+                    <button type="button" data-documento-acao="baixar" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800" title="Guardar ficheiro HTML no computador">
                         <i data-lucide="download" class="w-4 h-4" style="pointer-events:none"></i>
                     </button>
-                    <button onclick='imprimirDocumento(${JSON.stringify(doc.id)})' class="text-gray-600 hover:text-gray-800" title="Abrir e imprimir (ou guardar PDF)">
+                    <button type="button" data-documento-acao="imprimir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-gray-600 hover:text-gray-800" title="Abrir e imprimir (ou guardar PDF)">
                         <i data-lucide="printer" class="w-4 h-4" style="pointer-events:none"></i>
                     </button>
                     ${isConvidado ? '' : `
-                        <button onclick='excluirDocumento(${JSON.stringify(doc.id)})' class="text-red-600 hover:text-red-800" title="Excluir">
+                        <button type="button" data-documento-acao="excluir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                             <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                         </button>
                     `}
@@ -14376,11 +14665,13 @@ function inicializarSecao(secao) {
         }, 100);
     }
     if (secao === 'notificacoes') {
-        setTimeout(() => {
+        function initNotif() {
             inicializarAlertasAutomaticos();
             aplicarFiltrosNotificacoes();
             if (typeof lucide !== 'undefined') lucide.createIcons?.();
-        }, 100);
+        }
+        setTimeout(initNotif, 50);
+        setTimeout(initNotif, 200);
     }
     if (secao === 'documentos') {
         setTimeout(() => {
@@ -16161,13 +16452,13 @@ function atualizarListaHonorarios(honorariosFiltrados) {
             <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
             <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
             <td>
-                <button class="btn-editar-honorario text-blue-600 hover:text-blue-800 mr-2" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Editar">
+                <button type="button" data-honorario-acao="editar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button class="btn-duplicar-honorario text-green-600 hover:text-green-800 mr-2" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Duplicar">
+                <button type="button" data-honorario-acao="duplicar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
                     <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button class="btn-excluir-honorario text-red-600 hover:text-red-800" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Excluir">
+                <button type="button" data-honorario-acao="excluir" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -16176,20 +16467,7 @@ function atualizarListaHonorarios(honorariosFiltrados) {
     const verMaisH = honorariosFiltrados.length > limitH ? `<tr><td colspan="6" class="text-center py-3 border-t"><button type="button" onclick="window.__honorariosLimit = (window.__honorariosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHonorarios();" class="btn btn-secondary text-sm">Ver mais (${honorariosFiltrados.length - limitH} restantes)</button></td></tr>` : '';
     tbody.innerHTML = rowsH + verMaisH;
     
-    // Adicionar event listeners
-    tbody.querySelectorAll('.btn-editar-honorario').forEach(btn => {
-        btn.addEventListener('click', function() { editarHonorarioDireto(this.getAttribute('data-id')); });
-    });
-    
-    tbody.querySelectorAll('.btn-duplicar-honorario').forEach(btn => {
-        btn.addEventListener('click', function(e) { e.stopPropagation(); duplicarHonorario(this.getAttribute('data-id')); });
-    });
-    
-    tbody.querySelectorAll('.btn-excluir-honorario').forEach(btn => {
-        btn.addEventListener('click', function() {
-            excluirHonorarioDireto(this.getAttribute('data-id'));
-        });
-    });
+    // Event delegation em document (data-honorario-acao) — evita listeners em elementos dinâmicos
     
     // Reinicializar Ã­cones Lucide
     setTimeout(() => {
@@ -16234,16 +16512,16 @@ function atualizarListaContratos(contratosFiltrados) {
             <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'ConcluÃ­do' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
             <td>${contrato.dataInicio ? new Date(contrato.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
             <td>
-                <button onclick="editarContratoDireto(${JSON.stringify(contrato.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="duplicarContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
+                <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
                     <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="abrirAnexosContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                     <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirContratoDireto(${JSON.stringify(contrato.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
+                <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -16291,8 +16569,7 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
     notification.textContent = mensagem;
     
     container.appendChild(notification);
-    
-    setTimeout(() => notification.classList.add('show'), 100);
+    notification.classList.add('show');
     
     setTimeout(() => {
         notification.classList.remove('show');
@@ -18136,17 +18413,46 @@ function iniciarSistemaNotificacoes() {
 function inicializarAlertasAutomaticos() {
     const emailInput = document.getElementById('alertasEmailDestino');
     const whatsappInput = document.getElementById('alertasWhatsAppDestino');
+    const notifEmail = document.getElementById('notificacoesEmailDestino');
+    const notifWhatsApp = document.getElementById('notificacoesWhatsAppDestino');
     if (emailInput) {
         emailInput.value = appStorage.getItem('alertasEmailDestino') || '';
+        emailInput.removeAttribute('disabled');
+        emailInput.removeAttribute('readonly');
         emailInput.addEventListener('change', () => {
+            appStorage.setItem('alertasEmailDestino', emailInput.value.trim());
+        });
+        emailInput.addEventListener('input', () => {
             appStorage.setItem('alertasEmailDestino', emailInput.value.trim());
         });
     }
     if (whatsappInput) {
         whatsappInput.value = appStorage.getItem('alertasWhatsAppDestino') || '';
+        whatsappInput.removeAttribute('disabled');
+        whatsappInput.removeAttribute('readonly');
         whatsappInput.addEventListener('change', () => {
             whatsappInput.value = whatsappInput.value.replace(/\D/g, '');
             appStorage.setItem('alertasWhatsAppDestino', whatsappInput.value.trim());
+        });
+        whatsappInput.addEventListener('input', () => {
+            appStorage.setItem('alertasWhatsAppDestino', whatsappInput.value.trim());
+        });
+    }
+    if (notifEmail) {
+        notifEmail.value = appStorage.getItem('notificacoesEmailDestino') || appStorage.getItem('alertasEmailDestino') || '';
+        notifEmail.removeAttribute('disabled');
+        notifEmail.removeAttribute('readonly');
+        notifEmail.addEventListener('input', () => {
+            appStorage.setItem('notificacoesEmailDestino', notifEmail.value.trim());
+        });
+    }
+    if (notifWhatsApp) {
+        notifWhatsApp.value = appStorage.getItem('notificacoesWhatsAppDestino') || appStorage.getItem('alertasWhatsAppDestino') || '';
+        notifWhatsApp.removeAttribute('disabled');
+        notifWhatsApp.removeAttribute('readonly');
+        notifWhatsApp.addEventListener('input', () => {
+            notifWhatsApp.value = notifWhatsApp.value.replace(/\D/g, '');
+            appStorage.setItem('notificacoesWhatsAppDestino', notifWhatsApp.value.trim());
         });
     }
 }
@@ -18201,29 +18507,220 @@ function gerarResumoAlertasAutomaticos() {
     return linhas.join('\n');
 }
 
-function enviarAlertasEmail() {
+/** Gera o resumo de alertas em PDF e guarda no disco. Retorna nome do ficheiro ou null. */
+async function gerarResumoAlertasPDF() {
+    try {
+        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
+        if (!jsPDF) {
+            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
+            return null;
+        }
+        const texto = gerarResumoAlertasAutomaticos();
+        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+        const margin = 15;
+        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
+        doc.setFont('times', 'normal');
+        doc.setFontSize(12);
+        doc.text('Alertas Automáticos - Resumo de Prazos e Honorários', margin, y);
+        y += 10;
+        doc.setFontSize(11);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const maxWidth = pageWidth - margin * 2;
+        const lineHeight = 6;
+        const textoComRodape = (texto || '') + '\n' + (typeof obterRodapeDocumento === 'function' ? obterRodapeDocumento() : '');
+        const blocos = textoComRodape.split('\n');
+        blocos.forEach(bloco => {
+            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
+            linhas.forEach(linha => {
+                if (y > 280) { doc.addPage(); y = margin; }
+                doc.text(linha, margin, y);
+                y += lineHeight;
+            });
+        });
+        const dataStr = new Date().toISOString().split('T')[0];
+        const nome = `Alertas_Automaticos_${dataStr}.pdf`;
+        doc.save(nome);
+        return nome;
+    } catch (e) {
+        console.error('Erro ao gerar PDF de alertas:', e);
+        mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
+        return null;
+    }
+}
+
+async function baixarAlertasPDF() {
+    const nome = await gerarResumoAlertasPDF();
+    if (nome) mostrarNotificacao('PDF guardado: ' + nome, 'success');
+}
+
+async function enviarAlertasEmail() {
     const destino = (document.getElementById('alertasEmailDestino')?.value || '').trim();
     if (!destino) {
         mostrarNotificacao('Informe o email de destino.', 'warning');
         return;
     }
-    const corpo = gerarResumoAlertasAutomaticos();
-    const assunto = `Alertas AutomÃ¡ticos - ${new Date().toLocaleDateString('pt-PT')}`;
+    const nome = await gerarResumoAlertasPDF();
+    if (!nome) return;
+    const assunto = `Alertas Automáticos - ${new Date().toLocaleDateString('pt-PT')} (PDF em anexo)`;
+    const corpo = 'Segue em anexo o resumo de prazos e honorários em PDF.\n\nAnexe o ficheiro das suas transferências.';
     const link = `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
     window.location.href = link;
+    mostrarNotificacao('PDF guardado. Anexe o ficheiro ao email.', 'info');
 }
 
-function enviarAlertasWhatsApp() {
+async function enviarAlertasWhatsApp() {
     const destino = (document.getElementById('alertasWhatsAppDestino')?.value || '').trim();
     if (!destino) {
-        mostrarNotificacao('Informe o nÃºmero de WhatsApp (com indicativo).', 'warning');
+        mostrarNotificacao('Informe o número de WhatsApp (com indicativo).', 'warning');
         return;
     }
-    const corpo = gerarResumoAlertasAutomaticos();
-    const link = `https://wa.me/${encodeURIComponent(destino)}?text=${encodeURIComponent(corpo)}`;
+    const nome = await gerarResumoAlertasPDF();
+    if (!nome) return;
+    const msg = `Segue em anexo o resumo de prazos e honorários (PDF). Anexe o ficheiro "${nome}" das suas transferências.`;
+    const link = `https://wa.me/${encodeURIComponent(destino)}?text=${encodeURIComponent(msg)}`;
     window.open(link, '_blank');
+    mostrarNotificacao('PDF guardado. Anexe o ficheiro no WhatsApp.', 'info');
 }
 
+/** Obtém notificações filtradas (mesma lógica dos filtros na página). */
+function obterNotificacoesFiltradasParaExport() {
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const convidadoId = appStorage.getItem('convidadoId');
+    const filtroPrioridade = document.getElementById('filtroPrioridade')?.value || '';
+    const filtroTipo = document.getElementById('filtroTipo')?.value || '';
+    const filtroStatus = document.getElementById('filtroStatus')?.value || '';
+    const filtroPeriodo = document.getElementById('filtroPeriodo')?.value || '';
+
+    let lista = Array.isArray(obterNotificacoesAtual()) ? obterNotificacoesAtual() : [];
+
+    if (tipoUsuario === 'convidado') {
+        const convidados = obterConvidados() || [];
+        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
+        lista = lista.filter(n =>
+            n.destinatarioId === 'todos' || String(n.destinatarioId) === String(convidadoId) ||
+            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
+            n.tipo === 'cliente_autorizado' || n.tipo === 'documento_anexado' || n.tipo === 'prazo_proximo'
+        );
+    }
+    if (filtroPrioridade) lista = lista.filter(n => n.prioridade === filtroPrioridade);
+    if (filtroTipo) lista = lista.filter(n => n.tipo === filtroTipo);
+    if (filtroStatus === 'nao_lida') lista = lista.filter(n => !n.lida);
+    if (filtroStatus === 'lida') lista = lista.filter(n => n.lida);
+    if (filtroPeriodo) {
+        const agora = new Date();
+        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+        const inicioSemana = new Date(hoje); inicioSemana.setDate(hoje.getDate() - hoje.getDay());
+        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+        lista = lista.filter(n => {
+            if (!n.dataCriacao) return false;
+            const d = new Date(n.dataCriacao);
+            if (filtroPeriodo === 'hoje') return d >= hoje;
+            if (filtroPeriodo === 'semana') return d >= inicioSemana;
+            if (filtroPeriodo === 'mes') return d >= inicioMes;
+            return true;
+        });
+    }
+    return lista;
+}
+
+/** Gera PDF das notificações filtradas e guarda. Retorna nome do ficheiro ou null. */
+async function gerarNotificacoesPDF() {
+    try {
+        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
+        if (!jsPDF) {
+            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
+            return null;
+        }
+        const lista = obterNotificacoesFiltradasParaExport();
+        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+        const margin = 15;
+        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(14);
+        doc.text('Notificações - Sistema Legal', margin, y);
+        y += 10;
+        doc.setFont('times', 'normal');
+        doc.setFontSize(10);
+        doc.text('Gerado em ' + new Date().toLocaleString('pt-PT') + ' | Total: ' + lista.length + ' notificação(ões)', margin, y);
+        y += 12;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const maxWidth = pageWidth - margin * 2;
+        const lineHeight = 5;
+
+        if (lista.length === 0) {
+            doc.setFontSize(11);
+            doc.text('Nenhuma notificação encontrada com os filtros atuais.', margin, y);
+        } else {
+            lista.forEach((n, i) => {
+                if (y > 275) { doc.addPage(); y = margin; }
+                doc.setFont('times', 'bold');
+                doc.setFontSize(10);
+                const titulo = (n.titulo || 'Sem título').substring(0, 60);
+                const linhasTitulo = doc.splitTextToSize(titulo, maxWidth);
+                linhasTitulo.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
+                doc.setFont('times', 'normal');
+                doc.setFontSize(9);
+                const tipo = n.tipo || '-';
+                const prioridade = n.prioridade ? ' [' + n.prioridade + ']' : '';
+                const dataStr = n.dataCriacao ? new Date(n.dataCriacao).toLocaleString('pt-PT') : '-';
+                doc.text(tipo + prioridade + ' | ' + dataStr + (n.lida ? ' [lida]' : ''), margin, y);
+                y += lineHeight + 2;
+                const msg = (n.mensagem || '').substring(0, 200);
+                if (msg) {
+                    const linhas = doc.splitTextToSize(msg, maxWidth);
+                    linhas.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
+                    y += 4;
+                }
+                y += 3;
+            });
+        }
+        y += 4;
+        if (typeof obterRodapeDocumento === 'function') {
+            const rodape = obterRodapeDocumento();
+            if (rodape) { doc.setFontSize(8); doc.text(rodape, margin, y); }
+        }
+        const dataStr = new Date().toISOString().split('T')[0];
+        const nome = 'Notificacoes_' + dataStr + '.pdf';
+        doc.save(nome);
+        return nome;
+    } catch (e) {
+        console.error('Erro ao gerar PDF de notificações:', e);
+        mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
+        return null;
+    }
+}
+
+async function baixarNotificacoesPDF() {
+    const nome = await gerarNotificacoesPDF();
+    if (nome) mostrarNotificacao('PDF guardado: ' + nome, 'success');
+}
+
+async function enviarNotificacoesEmail() {
+    const destino = (document.getElementById('notificacoesEmailDestino')?.value || document.getElementById('alertasEmailDestino')?.value || '').trim();
+    if (!destino) {
+        mostrarNotificacao('Informe o email de destino no card "Notificações em PDF".', 'warning');
+        return;
+    }
+    const nome = await gerarNotificacoesPDF();
+    if (!nome) return;
+    const assunto = 'Notificações - Sistema Legal (' + new Date().toLocaleDateString('pt-PT') + ')';
+    const corpo = 'Segue em anexo o relatório de notificações em PDF.\n\nAnexe o ficheiro das suas transferências.';
+    window.location.href = 'mailto:' + encodeURIComponent(destino) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+    mostrarNotificacao('PDF guardado. Anexe o ficheiro ao email.', 'info');
+}
+
+async function enviarNotificacoesWhatsApp() {
+    const destino = (document.getElementById('notificacoesWhatsAppDestino')?.value || document.getElementById('alertasWhatsAppDestino')?.value || '').trim();
+    if (!destino) {
+        mostrarNotificacao('Informe o número de WhatsApp no card "Notificações em PDF".', 'warning');
+        return;
+    }
+    const nome = await gerarNotificacoesPDF();
+    if (!nome) return;
+    const msg = 'Segue em anexo o relatório de notificações (PDF). Anexe o ficheiro "' + nome + '" das suas transferências.';
+    window.open('https://wa.me/' + destino.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg), '_blank');
+    mostrarNotificacao('PDF guardado. Anexe o ficheiro no WhatsApp.', 'info');
+}
 
 function verificarHonorariosVencidos() {
     const hoje = new Date();
@@ -18663,7 +19160,7 @@ function atualizarBadgeNotificacoes() {
 
 function marcarComoLida(notificacaoId) {
     const listaNotif = obterNotificacoesAtual();
-    const notificacao = listaNotif.find(n => n.id === notificacaoId);
+    const notificacao = listaNotif.find(n => String(n.id) === String(notificacaoId));
     if (notificacao) {
         notificacao.lida = true;
         salvarDados('notificacoes', listaNotif);
@@ -18680,7 +19177,7 @@ function marcarTodasComoLidas() {
 }
 
 function excluirNotificacao(notificacaoId) {
-    const listaNotif = obterNotificacoesAtual().filter(n => n.id !== notificacaoId);
+    const listaNotif = obterNotificacoesAtual().filter(n => String(n.id) !== String(notificacaoId));
     // NÃ£o atualizar notificacoes aqui - salvarDados precisa do estado anterior para calcular removidos e excluir do Firestore
     salvarDados('notificacoes', listaNotif);
     atualizarAposNotificacoes();
@@ -19205,10 +19702,10 @@ function atualizarListaPrazos(prazosFiltrados) {
             <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
             <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
             <td>
-                <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800">
+                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800 ml-2">
+                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -19473,8 +19970,11 @@ function gerarConvidados() {
                                             <button onclick="ativarDesativarConvidado('${convidado.codigo}', ${!convidado.ativo})" class="text-${convidado.ativo ? 'red' : 'green'}-600 hover:text-${convidado.ativo ? 'red' : 'green'}-900 mr-2" title="${convidado.ativo ? 'Desativar' : 'Ativar'}">
                                                 <i data-lucide="${convidado.ativo ? 'user-x' : 'user-check'}" class="w-4 h-4"></i>
                                             </button>
-                                            <button onclick="copiarCodigoConvidado('${convidado.codigo}')" class="text-gray-600 hover:text-gray-900" title="Copiar CÃ³digo">
+                                            <button onclick="copiarCodigoConvidado('${convidado.codigo}')" class="text-gray-600 hover:text-gray-900" title="Copiar Código">
                                                 <i data-lucide="copy" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="enviarConviteConvidado('${(convidado.codigo || '').replace(/'/g, "\\'")}', '${(convidado.nome || '').replace(/'/g, "\\'")}')" class="text-green-600 hover:text-green-900" title="Enviar Convite">
+                                                <i data-lucide="send" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="excluirConvidado('${convidado.codigo || convidado.id}')" class="text-red-600 hover:text-red-900 ml-2" title="Eliminar">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -19655,18 +20155,186 @@ function ativarDesativarConvidado(id, ativo) {
 
 function copiarCodigoConvidado(codigo) {
     navigator.clipboard.writeText(codigo).then(() => {
-        mostrarNotificacao('CÃ³digo copiado para a Ã¡rea de transferÃªncia!', 'success');
+        mostrarNotificacao('Código copiado para a área de transferência!', 'success');
     }).catch(() => {
-        // Fallback para navegadores mais antigos
         const textArea = document.createElement('textarea');
         textArea.value = codigo;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        mostrarNotificacao('CÃ³digo copiado para a Ã¡rea de transferÃªncia!', 'success');
+        mostrarNotificacao('Código copiado para a área de transferência!', 'success');
     });
 }
+
+/** Gera o texto do convite para um convidado. */
+function gerarTextoConvite(nome, codigo) {
+    const base = (document.querySelector('base')?.href || window.location.origin + '/').replace(/\/$/, '') + '/';
+    const url = base.replace(/\/$/, '');
+    return `Convite - Sistema Legal
+
+Olá ${nome || 'Convidado'},
+
+Foi convidado(a) a aceder ao Sistema Legal com acesso limitado aos seus processos.
+
+Código de acesso: ${codigo}
+
+Para entrar:
+1. Aceda a ${url}
+2. Clique em "Convidado"
+3. Introduza o seu nome e o código acima
+
+Qualquer dúvida, contacte o solicitador.
+
+— Sistema Legal`;
+}
+
+/** Gera o convite em PDF e guarda. Retorna nome do ficheiro ou null. */
+async function gerarConvitePDF(nome, codigo) {
+    try {
+        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
+        if (!jsPDF) {
+            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
+            return null;
+        }
+        const texto = gerarTextoConvite(nome, codigo);
+        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+        const margin = 15;
+        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
+        doc.setFont('times', 'normal');
+        doc.setFontSize(14);
+        doc.text('Convite - Sistema Legal', margin, y);
+        y += 12;
+        doc.setFontSize(11);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const maxWidth = pageWidth - margin * 2;
+        const lineHeight = 6;
+        const blocos = texto.split('\n');
+        blocos.forEach(bloco => {
+            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
+            linhas.forEach(linha => {
+                if (y > 280) { doc.addPage(); y = margin; }
+                doc.text(linha, margin, y);
+                y += lineHeight;
+            });
+        });
+        const dataStr = new Date().toISOString().split('T')[0];
+        const nomeFicheiro = `Convite_Sistema_Legal_${(nome || 'convidado').replace(/\s+/g, '_')}_${dataStr}.pdf`;
+        doc.save(nomeFicheiro);
+        return nomeFicheiro;
+    } catch (e) {
+        console.error('Erro ao gerar PDF do convite:', e);
+        mostrarNotificacao('Erro ao gerar PDF.', 'error');
+        return null;
+    }
+}
+
+function enviarConviteConvidado(codigo, nome) {
+    const convidados = obterConvidados();
+    const conv = convidados.find(c => String(c.codigo) === String(codigo) || String(c.id) === String(codigo));
+    const nomeConvidado = nome || conv?.nome || 'Convidado';
+
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Enviar Convite</h3>
+                    <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">Enviar convite com código de acesso para <strong>${nomeConvidado}</strong></p>
+                <form id="formEnviarConvite" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Enviar por</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center"><input type="radio" name="canalConvite" value="email" checked class="mr-2"> Email</label>
+                            <label class="flex items-center"><input type="radio" name="canalConvite" value="whatsapp" class="mr-2"> WhatsApp</label>
+                        </div>
+                    </div>
+                    <div id="destinoConviteEmail">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
+                        <input type="email" id="conviteEmailDestino" class="w-full px-3 py-2 border rounded-md" placeholder="ex: convidado@email.com">
+                    </div>
+                    <div id="destinoConviteWhatsApp" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
+                        <input type="text" id="conviteWhatsAppDestino" class="w-full px-3 py-2 border rounded-md" placeholder="ex: 351912345678">
+                    </div>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="conviteIncluirPDF" class="mr-2"> Gerar e baixar PDF do convite
+                    </label>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" onclick="fecharModalRobusto()" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                            <i data-lucide="send" class="w-4 h-4 inline mr-1"></i> Enviar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+
+    document.querySelectorAll('input[name="canalConvite"]').forEach(r => {
+        r.addEventListener('change', () => {
+            const isEmail = document.querySelector('input[name="canalConvite"]:checked')?.value === 'email';
+            document.getElementById('destinoConviteEmail').classList.toggle('hidden', !isEmail);
+            document.getElementById('destinoConviteWhatsApp').classList.toggle('hidden', isEmail);
+        });
+    });
+    document.getElementById('destinoConviteWhatsApp').classList.add('hidden');
+
+    document.getElementById('formEnviarConvite').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const canal = document.querySelector('input[name="canalConvite"]:checked')?.value || 'email';
+        const incluirPDF = document.getElementById('conviteIncluirPDF')?.checked || false;
+        const texto = gerarTextoConvite(nomeConvidado, codigo);
+
+        if (incluirPDF) {
+            await gerarConvitePDF(nomeConvidado, codigo);
+            mostrarNotificacao('PDF guardado. Anexe-o ao email ou WhatsApp.', 'success');
+        }
+
+        if (canal === 'email') {
+            const destino = (document.getElementById('conviteEmailDestino')?.value || '').trim();
+            if (!destino) {
+                mostrarNotificacao('Informe o email de destino.', 'warning');
+                return;
+            }
+            const assunto = `Convite - Sistema Legal - ${nomeConvidado}`;
+            const corpo = texto + (incluirPDF ? '\n\n(Ver anexo PDF nas suas transferências para partilhar.)' : '');
+            const link = `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+            window.location.href = link;
+        } else {
+            const destino = (document.getElementById('conviteWhatsAppDestino')?.value || '').trim();
+            if (!destino) {
+                mostrarNotificacao('Informe o número de WhatsApp (com indicativo).', 'warning');
+                return;
+            }
+            const msg = texto + (incluirPDF ? '\n\n(PDF guardado nas transferências para anexar.)' : '');
+            const link = `https://wa.me/${destino.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+            window.open(link, '_blank');
+        }
+        fecharModalRobusto();
+    });
+}
+window.enviarConviteConvidado = enviarConviteConvidado;
+
+function enviarConviteDoSeletor() {
+    const sel = document.getElementById('conviteConvidadoNotificacoes');
+    if (!sel || !sel.value) {
+        mostrarNotificacao('Escolha um convidado na lista.', 'warning');
+        return;
+    }
+    const codigo = sel.value;
+    const conv = obterConvidados().find(c => String(c.codigo || c.id) === String(codigo));
+    const nome = conv?.nome || 'Convidado';
+    enviarConviteConvidado(codigo, nome);
+}
+window.enviarConviteDoSeletor = enviarConviteDoSeletor;
 
 function gerarMigracao() {
     
@@ -20278,10 +20946,10 @@ function atualizarListaPrazos(prazosFiltrados, total, limit) {
             <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
             <td><span class="status-badge status-${prazo.status}">${prazo.status === 'concluido' ? 'ConcluÃ­do' : prazo.status === 'vencido' ? 'Vencido' : prazo.status === 'cancelado' ? 'Cancelado' : 'Ativo'}</span></td>
             <td>
-                <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800">
+                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800 ml-2">
+                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
