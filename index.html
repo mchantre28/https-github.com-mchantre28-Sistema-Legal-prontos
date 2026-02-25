@@ -18,6 +18,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@gh-pages/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
@@ -33,14 +34,15 @@
         document.head.insertBefore(b, document.head.firstChild);
       })();
     </script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=4">
+    <script src="logo-data.js"></script>
 
 </head>
 <body class="bg-gray-100">
     <!-- Link de saltar para leitores de ecrã (acessibilidade) -->
     <a href="#conteudoDinamico" class="skip-link">Saltar para conteúdo principal</a>
     <!-- Sistema de Notificações: abaixo do header para não sobrepor o indicador laranja "A sincronizar..." -->
-    <div id="notificationsContainer" class="fixed top-20 right-6 z-[60] space-y-2" style="max-width: 380px;" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="notificationsContainer" class="fixed top-20 right-6 z-[60] space-y-2" style="max-width: 380px; pointer-events: none;" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Mobile Menu Button -->
     <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleSidebar()" aria-label="Abrir menu de navegação" aria-expanded="false">
@@ -104,6 +106,14 @@
                 <i data-lucide="folder" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                 Minutas
                 </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('notificacoes'); return false;" class="sidebar-item" id="nav-notificacoes" aria-label="Central de Notificações">
+                <i data-lucide="bell" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Central de Notificações
+            </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('convidados'); return false;" class="sidebar-item" id="nav-convidados" aria-label="Gestão de convidados">
+                <i data-lucide="user-plus" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Gestão de Convidados
+            </a>
             <a href="javascript:void(0)" onclick="carregarSecao('integracoes'); return false;" class="sidebar-item" id="nav-integracoes" aria-label="Integrações externas">
                 <i data-lucide="building-2" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                 Integrações Externas
@@ -119,10 +129,6 @@
             <a href="javascript:void(0)" onclick="carregarSecao('historico'); return false;" class="sidebar-item" id="nav-historico" aria-label="Histórico de alterações">
                 <i data-lucide="history" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                 Histórico
-            </a>
-            <a href="javascript:void(0)" onclick="carregarSecao('convidados'); return false;" class="sidebar-item" id="nav-convidados" style="display: none;" aria-label="Gestão de convidados">
-                <i data-lucide="user-plus" class="w-5 h-5 mr-3" aria-hidden="true"></i>
-                Gestão de Convidados
             </a>
             </nav>
         </div>
@@ -210,7 +216,7 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- listenerManager, logger, backupExport, backupImport: definidos/inline no script.js; sem ficheiros externos -->
-    <script defer src="./script.js?v=8" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, ana.jpg) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=34" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, logo.png) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){
