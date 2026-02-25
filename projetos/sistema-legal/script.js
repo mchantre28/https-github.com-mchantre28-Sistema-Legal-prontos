@@ -3631,8 +3631,7 @@ function editarContratoDireto(id) {
     const listaContratos = Array.isArray(contratos) ? contratos : (obterContratosAtual?.() || []);
     const contrato = listaContratos.find(c => String(c.id) === String(id));
     if (contrato) {
-        fecharModalRobusto();
-        setTimeout(() => abrirModalEdicaoContrato(contrato), 200);
+        abrirModalAposFechar(() => abrirModalEdicaoContrato(contrato), 150);
     } else {
         mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
     }
@@ -3641,8 +3640,7 @@ function editarContratoDireto(id) {
 function editarHonorarioDireto(id) {
     const honorario = obterHonorariosAtual().find(h => String(h.id) === String(id));
     if (honorario) {
-        fecharModalRobusto();
-        setTimeout(() => abrirModalEdicaoHonorario(honorario), 200);
+        abrirModalAposFechar(() => abrirModalEdicaoHonorario(honorario), 150);
     } else {
         mostrarNotificacao('HonorÃ¡rio nÃ£o encontrado!', 'error');
     }
@@ -3655,8 +3653,7 @@ function duplicarHonorario(id) {
         return;
     }
     if (!exigirPermissaoAcao('criar', 'honorario')) return;
-    fecharModalRobusto();
-    abrirModal('honorario');
+    abrirModalAposFechar(() => abrirModal('honorario'), 100);
     setTimeout(() => {
         const set = (idEl, val) => { const el = document.getElementById(idEl); if (el && val != null) el.value = String(val); };
         set('honorarioCliente', honorario.cliente || honorario.clienteNome || '');
@@ -3702,8 +3699,7 @@ async function excluirHonorarioDireto(id) {
 function editarClienteDireto(id) {
     const cliente = obterClientesAtual().find(c => String(c.id) === String(id));
     if (cliente) {
-        fecharModal();
-        setTimeout(() => abrirModalEdicaoCliente(cliente), 100);
+        abrirModalAposFechar(() => abrirModalEdicaoCliente(cliente), 100);
     } else {
         mostrarNotificacao('Cliente nÃ£o encontrado!', 'error');
     }
@@ -3717,8 +3713,7 @@ function duplicarCliente(id) {
         return;
     }
     if (!exigirPermissaoAcaoItem('criar', 'cliente', cliente)) return;
-    fecharModal();
-    abrirModal('cliente');
+    abrirModalAposFechar(() => abrirModal('cliente'), 100);
     setTimeout(() => {
         const set = (idEl, val) => { const el = document.getElementById(idEl); if (el && val != null) el.value = String(val); };
         set('clienteNome', (cliente.nome || '') + ' (cÃ³pia)');
@@ -4217,41 +4212,11 @@ function executarPesquisaGlobal(termo) {
 // FunÃ§Ã£o robusta para fechar modais
 function fecharModalRobusto() {
     try {
-        const modalsFixedInset = document.querySelectorAll('.fixed.inset-0');
-        modalsFixedInset.forEach((modal) => { if (modal.parentNode) modal.remove(); });
-        
-        const todosModais = document.querySelectorAll('.modal');
-        todosModais.forEach((modal) => { if (modal.parentNode) modal.remove(); });
-        
-        let count = 0;
-        document.querySelectorAll('div').forEach(div => {
-            const computedStyle = getComputedStyle(div);
-            if ((computedStyle.position === 'fixed' || div.style.position === 'fixed') &&
-                div.id !== 'sidebar' && !div.classList.contains('sidebar') &&
-                !div.id.includes('header') && !div.id.includes('nav')) {
-                if (div.classList.contains('modal') || div.classList.contains('backdrop') ||
-                    div.classList.contains('bg-black') || div.classList.contains('bg-opacity') ||
-                    div.getAttribute('onclick')?.includes('fecharModal')) {
-                    count++;
-                    if (div.parentNode) div.remove();
-                }
-            }
+        const toRemove = [];
+        document.querySelectorAll('body > .fixed.inset-0, body > .modal, #modalContainer .modal, #modalContainer .fixed.inset-0, #modalContainer > *').forEach(el => {
+            if (el.id !== 'sidebar' && el.id !== 'sidebarOverlay' && !el.classList.contains('sidebar')) toRemove.push(el);
         });
-        
-        let zIndexCount = 0;
-        document.querySelectorAll('*').forEach(el => {
-            const style = getComputedStyle(el);
-            if (parseInt(style.zIndex) >= 50 && el.id !== 'sidebar' && el.id !== 'mobileMenuBtn' &&
-                el.id !== 'menuHamburguer' && !el.classList.contains('sidebar') &&
-                !el.classList.contains('header') && el.tagName !== 'BUTTON') {
-                if (el.classList.contains('modal') || el.classList.contains('backdrop') ||
-                    el.classList.contains('bg-black') || el.classList.contains('bg-opacity') ||
-                    (el.classList.contains('fixed') && el.classList.contains('inset-0'))) {
-                    zIndexCount++;
-                    if (el.parentNode) el.remove();
-                }
-            }
-        });
+        toRemove.forEach(el => { if (el.parentNode) el.remove(); });
         
         const modalContainer = document.getElementById('modalContainer');
         if (modalContainer) {
@@ -4277,6 +4242,21 @@ function fecharModalSimples() {
     if (modal) modal.remove();
 }
 
+/** Abre modal apÃ³s garantir que modais anteriores foram fechados (evita race condition) */
+function abrirModalAposFechar(fn, delay) {
+    fecharModalRobusto();
+    const d = typeof delay === 'number' ? delay : 120;
+    const check = () => {
+        const aberto = document.querySelector('.modal.show, #modalContainer .modal, body > .fixed.inset-0:not(#sidebarOverlay)');
+        if (!aberto) {
+            if (typeof fn === 'function') fn();
+        } else {
+            requestAnimationFrame(check);
+        }
+    };
+    setTimeout(check, d);
+}
+
 // FunÃ§Ã£o de teste para modal
 function testarModal() {
     fecharModalRobusto();
@@ -4294,9 +4274,7 @@ function testarModal() {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        z-index: 50 !important;
     `;
     
     modal.innerHTML = `
@@ -6007,6 +5985,9 @@ function validarNIF(nif) {
 }
 
 function configurarEventos() {
+    if (window.__sistemaLegalEventosConfigurados) return;
+    window.__sistemaLegalEventosConfigurados = true;
+
     document.getElementById('menuHamburguer')?.addEventListener('click', () => {
         toggleSidebar();
     });
@@ -6229,7 +6210,6 @@ function configurarEventos() {
         }, 60000);
     }
 
-    window.__sistemaLegalEventosConfigurados = true;
     try { console.info('[Sistema Legal] Event delegation configurado (honorários, contratos, prazos, notificações, documentos, clientes, tarefas)'); } catch (e) {}
 
     document.getElementById('sidebarOverlay')?.addEventListener('click', () => {
@@ -6852,9 +6832,7 @@ function gerarRelatorioCliente() {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        z-index: 50 !important;
     `;
     modal.innerHTML = `
         <div class="modal-content" style="
@@ -7004,18 +6982,9 @@ function gerarRelatorioCliente() {
     `;
     
     document.body.appendChild(modal);
-    
-    // Verificar se o modal foi criado corretamente
-    setTimeout(() => {
-        const modalTeste = document.querySelector('.modal');
-        if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
-            modalTeste.style.display = 'flex';
-            modalTeste.style.visibility = 'visible';
-            modalTeste.style.opacity = '1';
-        } else {
-        }
-    }, 100);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => modal.classList.add('show'));
+    });
     
     // Event listener para perÃ­odo personalizado
     setTimeout(() => {
@@ -7234,9 +7203,7 @@ function gerarRelatorioFinanceiroCliente() {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        z-index: 50 !important;
     `;
     modal.innerHTML = `
         <div class="modal-content" style="
@@ -7386,18 +7353,9 @@ function gerarRelatorioFinanceiroCliente() {
     `;
     
     document.body.appendChild(modal);
-    
-    // Verificar se o modal foi criado corretamente
-    setTimeout(() => {
-        const modalTeste = document.querySelector('.modal');
-        if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
-            modalTeste.style.display = 'flex';
-            modalTeste.style.visibility = 'visible';
-            modalTeste.style.opacity = '1';
-        } else {
-        }
-    }, 100);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => modal.classList.add('show'));
+    });
     
     // Event listener para perÃ­odo personalizado
     setTimeout(() => {
@@ -7643,9 +7601,7 @@ function gerarRelatorioGeralCliente() {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        z-index: 50 !important;
     `;
     modal.innerHTML = `
         <div class="modal-content" style="
@@ -7797,18 +7753,9 @@ function gerarRelatorioGeralCliente() {
     `;
     
     document.body.appendChild(modal);
-    
-    // Verificar se o modal foi criado corretamente
-    setTimeout(() => {
-        const modalTeste = document.querySelector('.modal');
-        if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
-            modalTeste.style.display = 'flex';
-            modalTeste.style.visibility = 'visible';
-            modalTeste.style.opacity = '1';
-        } else {
-        }
-    }, 100);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => modal.classList.add('show'));
+    });
     
     // Event listener para perÃ­odo personalizado
     setTimeout(() => {
@@ -8082,9 +8029,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        z-index: 50 !important;
     `;
     modal.innerHTML = `
         <div class="modal-content" style="
@@ -8548,17 +8493,9 @@ function mostrarInformacoesCompletasCliente(cliente) {
     carregarFiltrosDocumentosClienteModal();
     renderDocumentosClienteModal(dadosCliente.documentos || [], '');
     
-    // Verificar se o modal foi criado corretamente
-    setTimeout(() => {
-        const modalTeste = document.querySelector('.modal');
-        if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
-            modalTeste.style.display = 'flex';
-            modalTeste.style.visibility = 'visible';
-            modalTeste.style.opacity = '1';
-        } else {
-        }
-    }, 200);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => modal.classList.add('show'));
+    });
 }
 
 function obterDataDocumento(doc) {
@@ -12988,9 +12925,11 @@ function gerarHtmlFaturaBilling(dados) {
         }).join('')
         : `<tr><td>${numero}</td><td>${fmtDate(dataEmissao)}</td><td>${fmt(valorAPagar)}</td><td>0,00 â‚¬</td></tr>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-body,.invoice-body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:25px 35px}
-.invoice-container{max-width:210mm;margin:0 auto}
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><style>
+html,body,.invoice-body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:25px 35px;background:#fff!important}
+.invoice-container{max-width:210mm;margin:0 auto;background:#fff}
+.action-bar{margin-top:20px;padding:12px 0;border-top:1px solid #ddd;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;background:#f8fafc}
+@media print{.action-bar{display:none!important}}
 .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:15px}
 .logo{width:100px;height:auto}
 .issuer-info{text-align:right}
@@ -13041,10 +12980,10 @@ ${despesas.length ? `<tr><td>Despesas</td><td>${fmt(subtotalDespesas)}</td></tr>
 <div class="observacoes-section"><h4>ObservaÃ§Ãµes</h4><hr class="obs-line"/><p class="obs-text">${observacoes}</p><hr class="obs-line"/></div>
 ${incluirRecibo ? `<h4 class="section-title">Recibos</h4><table class="items"><thead><tr><th>N.Âº</th><th>Data</th><th>Valor Recebido</th><th>IVA Liquidado</th></tr></thead><tbody>${rowsRecibos}</tbody></table>` : ''}
 <div class="footer"><img src="${qrSrc}" class="qrcode" alt="QR Code"/></div>
-<div style="margin-top:20px;padding:12px;border-top:1px solid #ddd;display:flex;gap:10px;align-items:center;font-size:11px">
-<button onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Imprimir / Guardar PDF</button>
-<button onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Fechar</button>
-<span style="color:#6b7280">Ou use Ctrl+P para imprimir. Feche esta janela quando terminar.</span>
+<div class="action-bar">
+<button type="button" onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">Imprimir / Guardar PDF</button>
+<button type="button" onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Fechar</button>
+<span style="color:#6b7280;margin-left:8px">Ou use Ctrl+P para imprimir. Feche esta janela quando terminar.</span>
 </div></div></body></html>`;
 }
 
@@ -16569,7 +16508,9 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
     notification.textContent = mensagem;
     
     container.appendChild(notification);
-    notification.classList.add('show');
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => notification.classList.add('show'));
+    });
     
     setTimeout(() => {
         notification.classList.remove('show');

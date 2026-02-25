@@ -5,6 +5,13 @@
     --warning-color: #f59e0b;
     --error-color: #ef4444;
     --info-color: #3b82f6;
+    /* Escala de z-index (evita conflitos entre overlay, modal, toast) */
+    --z-dropdown: 40;
+    --z-sticky: 50;
+    --z-modal-backdrop: 100;
+    --z-modal: 110;
+    --z-toast: 200;
+    --z-overlay-fatura: 300;
 }
 
 /* Link saltar para conteúdo (acessibilidade) */
@@ -23,6 +30,72 @@
     top: 1rem;
     outline: 2px solid #3b82f6;
     outline-offset: 2px;
+}
+
+/* Container de notificações: deixar cliques passarem quando vazio; filhos recebem cliques */
+#notificationsContainer {
+    pointer-events: none;
+    width: max-content;
+    min-width: 0;
+}
+#notificationsContainer > * {
+    pointer-events: auto;
+}
+
+/* Reduzir layout shift: altura mínima durante loader e transições */
+#conteudoDinamico {
+    min-height: 420px;
+}
+
+/* Garantir que inputs e botões na Central de Notificações são clicáveis */
+#conteudoDinamico input,
+#conteudoDinamico select,
+#conteudoDinamico button {
+    pointer-events: auto !important;
+}
+#conteudoDinamico input,
+#conteudoDinamico select {
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+#conteudoDinamico input[type="email"],
+#conteudoDinamico input[type="text"],
+#conteudoDinamico textarea {
+    caret-color: #1f2937;
+}
+/* Ícones dentro de botões: cliques chegam ao botão (evita cliques perdidos) */
+#conteudoDinamico button svg,
+#conteudoDinamico button i,
+#conteudoDinamico button [data-lucide],
+button[data-acao] svg,
+button[data-acao] i,
+button[data-acao] [data-lucide],
+button[data-cliente-acao] svg,
+button[data-cliente-acao] i,
+button[data-cliente-acao] [data-lucide],
+button[data-tarefa-acao] svg,
+button[data-tarefa-acao] i,
+button[data-tarefa-acao] [data-lucide],
+button[data-honorario-acao] svg,
+button[data-honorario-acao] i,
+button[data-honorario-acao] [data-lucide],
+button[data-contrato-acao] svg,
+button[data-contrato-acao] i,
+button[data-contrato-acao] [data-lucide],
+button[data-prazo-acao] svg,
+button[data-prazo-acao] i,
+button[data-prazo-acao] [data-lucide],
+[data-notificacao-acao] svg,
+[data-notificacao-acao] i,
+[data-notificacao-acao] [data-lucide],
+[data-documento-acao] svg,
+[data-documento-acao] i,
+[data-documento-acao] [data-lucide],
+[data-copiar] svg,
+[data-copiar] i,
+[data-copiar] [data-lucide] {
+    pointer-events: none !important;
 }
 
 /* Modo Escuro */
@@ -122,7 +195,7 @@ svg.lucide-paperclip {
     min-width: 280px !important;
     max-width: 280px !important;
     z-index: 1000 !important;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, width 0.3s ease;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -204,7 +277,7 @@ body.sidebar-open {
 
 .sidebar-item { 
     color: #ffffff !important; 
-    transition: all 0.2s ease;
+    transition: background 0.2s ease;
     padding: 12px 16px;
     border-radius: 8px;
     margin: 4px 8px;
@@ -245,8 +318,7 @@ body.sidebar-open {
 }
 
 .sidebar-item:hover { 
-    background: rgba(255, 255, 255, 0.1); 
-    transform: translateX(4px);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .sidebar-item.active { 
@@ -383,11 +455,18 @@ body.sidebar-open {
     }
 }
 
+/* Garantir que o conteúdo principal é clicável (evita overlays bloquearem botões/inputs) */
+#main #conteudoDinamico {
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+}
+
 .card {
     background: white;
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
     border: 1px solid #e5e7eb;
 }
 
@@ -400,7 +479,7 @@ body.sidebar-open {
     padding: 12px 24px;
     border-radius: 8px;
     font-weight: 600;
-    transition: all 0.2s ease;
+    transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
     cursor: pointer;
     border: none;
     display: inline-flex;
@@ -467,10 +546,12 @@ body.sidebar-open {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    z-index: var(--z-modal-backdrop);
     opacity: 0;
     visibility: hidden;
-    transition: all 0.3s ease;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    will-change: opacity;
+    contain: layout style paint;
 }
 
 .modal.show {
@@ -485,8 +566,11 @@ body.sidebar-open {
     max-width: 90vw;
     max-height: 90vh;
     overflow-y: auto;
-    transform: scale(0.9);
-    transition: transform 0.3s ease;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    transform: scale(0.98);
+    transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1);
+    will-change: transform;
 }
 
 .modal.show .modal-content {
@@ -494,14 +578,15 @@ body.sidebar-open {
 }
 
 .notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
+    position: relative;
+    pointer-events: none !important;
+    top: auto;
+    right: auto;
     padding: 16px 24px;
     border-radius: 8px;
     color: white;
     font-weight: 600;
-    z-index: 1000;
+    z-index: var(--z-toast);
     transform: translateX(100%);
     transition: transform 0.3s ease;
     max-width: 400px;

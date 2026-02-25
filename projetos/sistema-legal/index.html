@@ -34,7 +34,7 @@
         document.head.insertBefore(b, document.head.firstChild);
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=6">
     <script src="logo-data.js"></script>
 
 </head>
@@ -133,7 +133,7 @@
             </nav>
         </div>
     </div>
-    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
 
     <!-- Menu Mobile -->
     <button id="menuHamburguer" class="fixed top-4 left-4 z-50 lg:hidden bg-black text-white p-2 rounded" aria-label="Abrir menu" aria-expanded="false">
@@ -216,7 +216,7 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- listenerManager, logger, backupExport, backupImport: definidos/inline no script.js; sem ficheiros externos -->
-    <script defer src="./script.js?v=32" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, logo.png) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=36" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, logo.png) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){
