@@ -1,5 +1,7 @@
 // === SISTEMA LEGAL ===
 // v2026-02-19: filtro clientes Ativo por defeito, restaurarFiltros com fallback
+const EURO = '\u20AC'; // Símbolo euro (evita mojibake no browser)
+const EURO_HTML = '&#8364;'; // Entidade HTML para uso em innerHTML (evita problemas de encoding no GitHub Pages)
 // ÃNDICE DE SECÃ‡Ã•ES (para navegaÃ§Ã£o):
 // 1-230: Login, auth, utilitÃ¡rios
 // 230-400: Firestore sync, listeners, indicador
@@ -4577,7 +4579,7 @@ function calcularJurosAutomaticos_REMOVED() {
             // Criar notificaÃ§Ã£o de juros
             criarNotificacao({
                 titulo: `Juros calculados - ${honorario.clienteNome}`,
-                descricao: `Juros de â‚¬${juros.toFixed(2)} calculados (${diasAtraso} dias de atraso)`,
+                descricao: `Juros de ${EURO}${juros.toFixed(2)} calculados (${diasAtraso} dias de atraso)`,
                 tipo: 'warning',
                 categoria: 'juros_calculados',
                 referenciaId: honorario.clienteId
@@ -4703,7 +4705,7 @@ function sincronizarComCalendario_REMOVED() {
                 tipo: 'vencimento',
                 cliente: honorario.clienteNome,
                 valor: honorario.valor,
-                descricao: `HonorÃ¡rio de â‚¬${parseFloat(honorario.valor).toFixed(2)}`
+                descricao: `HonorÃ¡rio de ${EURO}${parseFloat(honorario.valor).toFixed(2)}`
             });
         }
     });
@@ -4784,7 +4786,7 @@ X-WR-TIMEZONE:Europe/Lisbon`;
         
         // Escapar textos
         const summary = escaparTextoICS(evento.titulo);
-        const description = escaparTextoICS(`Cliente: ${evento.cliente}${evento.valor ? `\\nValor: â‚¬${evento.valor}` : ''}\\n\\nSistema Legal - ANA PAULA MEDINA`);
+        const description = escaparTextoICS(`Cliente: ${evento.cliente}${evento.valor ? `\\nValor: ${EURO}${evento.valor}` : ''}\\n\\nSistema Legal - ANA PAULA MEDINA`);
         const location = escaparTextoICS('Sistema Legal');
         
         icsContent += `
@@ -6617,12 +6619,12 @@ Total de Registos: ${registosParaMostrar.length}
 Total de Contratos: ${contratosParaMostrar.length}
 
 === RESUMO FINANCEIRO ===
-Valor Total HonorÃ¡rios: â‚¬${(Math.round(valorTotalHonorarios * 100) / 100).toFixed(2)}
-Valor Total HeranÃ§as: â‚¬${(Math.round(valorTotalHerancas * 100) / 100).toFixed(2)}
-Valor Total MigraÃ§Ãµes: â‚¬${(Math.round(valorTotalMigracoes * 100) / 100).toFixed(2)}
-Valor Total Registos: â‚¬${(Math.round(valorTotalRegistos * 100) / 100).toFixed(2)}
-Valor Total Contratos: â‚¬${(Math.round(valorTotalContratos * 100) / 100).toFixed(2)}
-VALOR TOTAL GERAL: â‚¬${(Math.round(valorTotalGeral * 100) / 100).toFixed(2)}
+Valor Total HonorÃ¡rios: ${EURO}${(Math.round(valorTotalHonorarios * 100) / 100).toFixed(2)}
+Valor Total HeranÃ§as: ${EURO}${(Math.round(valorTotalHerancas * 100) / 100).toFixed(2)}
+Valor Total MigraÃ§Ãµes: ${EURO}${(Math.round(valorTotalMigracoes * 100) / 100).toFixed(2)}
+Valor Total Registos: ${EURO}${(Math.round(valorTotalRegistos * 100) / 100).toFixed(2)}
+Valor Total Contratos: ${EURO}${(Math.round(valorTotalContratos * 100) / 100).toFixed(2)}
+VALOR TOTAL GERAL: ${EURO}${(Math.round(valorTotalGeral * 100) / 100).toFixed(2)}
 
 === STATUS DOS HONORÃRIOS ===
 Pagos: ${honorariosParaMostrar.filter(h => h.status === 'pago').length}
@@ -6650,7 +6652,7 @@ ${clientesParaMostrar.map(cliente => {
             .reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
         return { ...cliente, valorTotal: valorCliente };
     }).sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 5).map((cliente, index) => 
-        `${index + 1}. ${cliente.nome} - â‚¬${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}`
+        `${index + 1}. ${cliente.nome} - ${EURO}${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}`
     ).join('\n')}
 
 === RELATÃ“RIO GERADO AUTOMATICAMENTE ===
@@ -6728,15 +6730,15 @@ function gerarHtmlRelatorioCompleto(d) {
         const dias = Math.ceil((new Date(p.dataLimite) - new Date()) / (1000 * 60 * 60 * 24));
         return `<li>${p.descricao} (${p.clienteNome}) - ${p.tipo} - ${dias} dias</li>`;
     }).join('') || '<li>Nenhum prazo prÃ³ximo</li>';
-    const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - â‚¬${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
+    const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - ${EURO}${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>RelatÃ³rio Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px}th{background:#f3f4f6}ul{margin:4px 0;padding-left:20px}</style></head><body>
 <h1 class="h1">RELATÃ“RIO COMPLETO - SISTEMA LEGAL</h1>
 <p>Data: ${dataStr}</p>
 <h2>Resumo Geral</h2>
 <p>Clientes: ${d.clientesParaMostrar.length} | HonorÃ¡rios: ${d.honorariosParaMostrar.length} | HeranÃ§as: ${d.clientesParaMostrar.length} | MigraÃ§Ãµes: ${d.clientesParaMostrar.length} | Registos: ${d.clientesParaMostrar.length} | Contratos: ${d.clientesParaMostrar.length}</p>
 <h2>Resumo Financeiro</h2>
-<p>HonorÃ¡rios: â‚¬${d.valorTotalH.toFixed(2)} | HeranÃ§as: â‚¬${d.valorTotalHer.toFixed(2)} | MigraÃ§Ãµes: â‚¬${d.valorTotalMig.toFixed(2)} | Registos: â‚¬${d.valorTotalReg.toFixed(2)} | Contratos: â‚¬${d.valorTotalCont.toFixed(2)}</p>
-<p><strong>VALOR TOTAL: â‚¬${total.toFixed(2)}</strong></p>
+<p>HonorÃ¡rios: ${EURO}${d.valorTotalH.toFixed(2)} | HeranÃ§as: ${EURO}${d.valorTotalHer.toFixed(2)} | MigraÃ§Ãµes: ${EURO}${d.valorTotalMig.toFixed(2)} | Registos: ${EURO}${d.valorTotalReg.toFixed(2)} | Contratos: ${EURO}${d.valorTotalCont.toFixed(2)}</p>
+<p><strong>VALOR TOTAL: ${EURO}${total.toFixed(2)}</strong></p>
 <h2>Prazos PrÃ³ximos (7 dias)</h2><ul>${prazosHtml}</ul>
 <h2>Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
 <p><em>Sistema Legal - RelatÃ³rio gerado automaticamente</em></p>
@@ -7084,12 +7086,12 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
             let totalHonorarios = 0;
             dadosCliente.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: ${EURO}${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n\n`;
                 totalHonorarios += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorarios.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÃRIOS: ${EURO}${totalHonorarios.toFixed(2)}\n\n`;
         } else {
             relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
         }
@@ -7101,7 +7103,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.contratos.length > 0) {
             dadosCliente.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: ${EURO}${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
@@ -7116,7 +7118,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.herancas.length > 0) {
             dadosCliente.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: ${EURO}${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
@@ -7131,7 +7133,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.migracoes.length > 0) {
             dadosCliente.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: ${EURO}${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
@@ -7146,7 +7148,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.registos.length > 0) {
             dadosCliente.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: ${EURO}${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
@@ -7464,12 +7466,12 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
     // Resumo financeiro
     relatorio += 'RESUMO FINANCEIRO:\n';
     relatorio += '==================\n';
-    relatorio += `Total Geral: â‚¬${totalGeral.toFixed(2)}\n`;
-    relatorio += `HonorÃ¡rios: â‚¬${totalHonorarios.toFixed(2)}\n`;
-    relatorio += `Contratos: â‚¬${totalContratos.toFixed(2)}\n`;
-    relatorio += `HeranÃ§as: â‚¬${totalHerancas.toFixed(2)}\n`;
-    relatorio += `MigraÃ§Ãµes: â‚¬${totalMigracoes.toFixed(2)}\n`;
-    relatorio += `Registos: â‚¬${totalRegistos.toFixed(2)}\n\n`;
+    relatorio += `Total Geral: ${EURO}${totalGeral.toFixed(2)}\n`;
+    relatorio += `HonorÃ¡rios: ${EURO}${totalHonorarios.toFixed(2)}\n`;
+    relatorio += `Contratos: ${EURO}${totalContratos.toFixed(2)}\n`;
+    relatorio += `HeranÃ§as: ${EURO}${totalHerancas.toFixed(2)}\n`;
+    relatorio += `MigraÃ§Ãµes: ${EURO}${totalMigracoes.toFixed(2)}\n`;
+    relatorio += `Registos: ${EURO}${totalRegistos.toFixed(2)}\n\n`;
     
     // Adicionar seÃ§Ãµes baseadas no tipo de relatÃ³rio
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'honorarios') {
@@ -7479,7 +7481,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             let totalHonorariosCliente = 0;
             dadosFinanceiros.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: ${EURO}${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n`;
                 if (honorario.vencimento) {
@@ -7488,7 +7490,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
                 relatorio += `\n`;
                 totalHonorariosCliente += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorariosCliente.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÃRIOS: ${EURO}${totalHonorariosCliente.toFixed(2)}\n\n`;
         } else {
             relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
         }
@@ -7502,7 +7504,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             relatorio += 'CONTRATOS:\n';
             dadosFinanceiros.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: ${EURO}${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
@@ -7512,7 +7514,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             relatorio += 'HERANÃ‡AS:\n';
             dadosFinanceiros.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: ${EURO}${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
@@ -7522,7 +7524,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             relatorio += 'MIGRAÃ‡Ã•ES:\n';
             dadosFinanceiros.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: ${EURO}${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
@@ -7532,7 +7534,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             relatorio += 'REGISTOS:\n';
             dadosFinanceiros.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: ${EURO}${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
@@ -7548,9 +7550,9 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
         const honorariosPagos = dadosFinanceiros.honorarios.filter(h => h.status === 'pago');
         const honorariosVencidos = dadosFinanceiros.honorarios.filter(h => h.status === 'vencido');
         
-        relatorio += `HonorÃ¡rios Pendentes: ${honorariosPendentes.length} (â‚¬${honorariosPendentes.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
-        relatorio += `HonorÃ¡rios Pagos: ${honorariosPagos.length} (â‚¬${honorariosPagos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
-        relatorio += `HonorÃ¡rios Vencidos: ${honorariosVencidos.length} (â‚¬${honorariosVencidos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n\n`;
+        relatorio += `HonorÃ¡rios Pendentes: ${honorariosPendentes.length} (${EURO}${honorariosPendentes.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
+        relatorio += `HonorÃ¡rios Pagos: ${honorariosPagos.length} (${EURO}${honorariosPagos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
+        relatorio += `HonorÃ¡rios Vencidos: ${honorariosVencidos.length} (${EURO}${honorariosVencidos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n\n`;
     }
     
     relatorio += '==================================================\n';
@@ -7878,7 +7880,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
             let totalHonorarios = 0;
             dadosGeral.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: ${EURO}${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n`;
                 if (honorario.vencimento) {
@@ -7887,7 +7889,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
                 relatorio += `\n`;
                 totalHonorarios += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorarios.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÃRIOS: ${EURO}${totalHonorarios.toFixed(2)}\n\n`;
         } else {
             relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
         }
@@ -7900,7 +7902,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.contratos.length > 0) {
             dadosGeral.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: ${EURO}${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
@@ -7916,7 +7918,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.herancas.length > 0) {
             dadosGeral.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: ${EURO}${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
@@ -7932,7 +7934,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.migracoes.length > 0) {
             dadosGeral.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: ${EURO}${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
@@ -7948,7 +7950,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.registos.length > 0) {
             dadosGeral.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: ${EURO}${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
@@ -8156,7 +8158,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${honorario.descricao || honorario.servico}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO}${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${honorario.data}</span>
                                         </div>
                                     </div>
@@ -8180,7 +8182,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                         display: block; width: 100%; text-align: left; background: transparent; border: none; cursor: pointer; padding: 0; font-family: inherit;
                                     ">
                                         <strong style="color: #0d9488; font-size: 15px;">${numero}</strong><br>
-                                        <span style="color: #6b7280; font-size: 14px;">â‚¬${valor.toFixed(2)} | ${fatura.estado || fatura.status || 'pendente'}</span><br>
+                                        <span style="color: #6b7280; font-size: 14px;">${EURO}${valor.toFixed(2)} | ${fatura.estado || fatura.status || 'pendente'}</span><br>
                                         <span style="color: #6b7280; font-size: 12px;">Data: ${(fatura.dataEmissao || fatura.data || '').toString().split('T')[0] || 'N/D'}</span><br>
                                         <span style="color: #2563eb; font-size: 12px; text-decoration: underline;">Clique para ver a fatura</span>
                                     </button>
@@ -8200,7 +8202,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${contrato.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${contrato.valor} | Status: ${contrato.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO}${contrato.valor} | Status: ${contrato.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${contrato.data}</span>
                                         </div>
                                     </div>
@@ -8220,7 +8222,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${heranca.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${heranca.valor} | Status: ${heranca.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO}${heranca.valor} | Status: ${heranca.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${heranca.data}</span>
                                         </div>
                                     </div>
@@ -8240,7 +8242,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${migracao.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${migracao.valor} | Status: ${migracao.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO}${migracao.valor} | Status: ${migracao.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${migracao.data}</span>
                                         </div>
                                     </div>
@@ -8260,7 +8262,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${registo.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${registo.valor} | Status: ${registo.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO}${registo.valor} | Status: ${registo.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${registo.data}</span>
                                         </div>
                                     </div>
@@ -8959,7 +8961,7 @@ function gerarDashboard() {
         ivaAcumuladoTrimestral += (valor * iva / 100);
     });
     
-    const nomeTrimestre = ['1Âº Trimestre', '2Âº Trimestre', '3Âº Trimestre', '4Âº Trimestre'][trimestreAtual];
+    const nomeTrimestre = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'][trimestreAtual];
     const prazosHoje = prazosParaMostrar.filter(p => {
         if (!p.dataLimite) return false;
         return new Date(p.dataLimite).toDateString() === hoje.toDateString() && p.status === 'ativo';
@@ -9199,7 +9201,7 @@ function gerarDashboard() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">&#8364;${(Math.abs(valorTotal) < 0.01 ? 0 : Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -9211,7 +9213,7 @@ function gerarDashboard() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">IVA Acumulado ${nomeTrimestre}</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(ivaAcumuladoTrimestral).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">&#8364;${(Math.abs(ivaAcumuladoTrimestral) < 0.01 ? 0 : Number(ivaAcumuladoTrimestral)).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -9237,8 +9239,8 @@ function gerarDashboard() {
                             <i data-lucide="calculator" class="w-6 h-6 text-teal-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">MÃ©dia por Cliente</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${totalClientes > 0 ? (Math.round((valorTotal / totalClientes) * 100) / 100).toFixed(2) : '0.00'}</p>
+                            <p class="text-sm font-medium text-gray-600">Média por Cliente</p>
+                            <p class="text-2xl font-bold text-gray-900">&#8364;${totalClientes > 0 ? (() => { const v = Math.round((valorTotal / totalClientes) * 100) / 100; return (Math.abs(v) < 0.01 ? 0 : v).toFixed(2); })() : '0.00'}</p>
                         </div>
                     </div>
                 </div>
@@ -9289,7 +9291,7 @@ function gerarDashboard() {
                                     <p class="text-sm font-medium text-red-800">${honorario.cliente}</p>
                                     <p class="text-xs text-red-600">Vencido em ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</p>
                                 </div>
-                                <span class="text-red-600 font-bold">â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                <span class="text-red-600 font-bold">${EURO_HTML}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${honorariosParaMostrar.filter(h => {
@@ -9357,15 +9359,15 @@ function gerarDashboard() {
                         </div>
                         <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                             <span class="text-blue-800 font-medium">Valor Total</span>
-                            <span class="text-blue-600 font-bold">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</span>
+                            <span class="text-blue-600 font-bold">${EURO}${(Math.round(valorTotal * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
                             <span class="text-indigo-800 font-medium">Entradas do MÃªs</span>
-                            <span class="text-indigo-600 font-bold">â‚¬${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
+                            <span class="text-indigo-600 font-bold">${EURO}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
                             <span class="text-emerald-800 font-medium">IVA do MÃªs</span>
-                            <span class="text-emerald-600 font-bold">â‚¬${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
+                            <span class="text-emerald-600 font-bold">${EURO}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
                             <span class="text-purple-800 font-medium">Taxa de ConversÃ£o</span>
@@ -9380,10 +9382,10 @@ function gerarDashboard() {
                         <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
                             <div>
                                 <span class="text-indigo-800 font-medium">Entradas do MÃªs</span>
-                                <p class="text-xs text-indigo-600">MÃªs anterior: â‚¬${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
+                                <p class="text-xs text-indigo-600">MÃªs anterior: ${EURO}${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
                             </div>
                             <div class="text-right">
-                                <span class="text-indigo-600 font-bold">â‚¬${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
+                                <span class="text-indigo-600 font-bold">${EURO}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
                                 <div class="flex items-center justify-end gap-1 text-xs ${variacaoEntradas.classe}">
                                     <i data-lucide="${variacaoEntradas.icone}" class="w-3 h-3"></i>
                                     <span>${variacaoEntradas.texto}</span>
@@ -9393,10 +9395,10 @@ function gerarDashboard() {
                         <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
                             <div>
                                 <span class="text-emerald-800 font-medium">IVA do MÃªs</span>
-                                <p class="text-xs text-emerald-600">MÃªs anterior: â‚¬${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
+                                <p class="text-xs text-emerald-600">MÃªs anterior: ${EURO}${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
                             </div>
                             <div class="text-right">
-                                <span class="text-emerald-600 font-bold">â‚¬${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
+                                <span class="text-emerald-600 font-bold">${EURO}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
                                 <div class="flex items-center justify-end gap-1 text-xs ${variacaoIva.classe}">
                                     <i data-lucide="${variacaoIva.icone}" class="w-3 h-3"></i>
                                     <span>${variacaoIva.texto}</span>
@@ -9449,7 +9451,7 @@ function gerarDashboard() {
                                         <p class="text-xs text-gray-600">${cliente.email}</p>
                                     </div>
                                 </div>
-                                <span class="text-blue-600 font-bold">â‚¬${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
+                                <span class="text-blue-600 font-bold">${EURO}${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${clientesParaMostrar.length === 0 ? `
@@ -9491,7 +9493,7 @@ function gerarDashboard() {
                             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                 <div>
                                     <p class="font-medium">${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}</p>
-                                    <p class="text-sm text-gray-600">â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
+                                    <p class="text-sm text-gray-600">${EURO}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
                                 </div>
                                 <span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span>
                             </div>
@@ -9514,7 +9516,7 @@ function gerarDashboard() {
                                     <p class="font-medium">${movimento.tipo} - ${renderClienteLink(movimento.clienteId, movimento.cliente)}</p>
                                     <p class="text-xs text-gray-600">${new Date(movimento.data).toLocaleDateString('pt-PT')}</p>
                                 </div>
-                                <span class="text-blue-600 font-bold">â‚¬${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                <span class="text-blue-600 font-bold">${EURO}${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${movimentosRecentes.length === 0 ? `
@@ -9649,7 +9651,7 @@ function criarGraficosAvancados() {
             data: {
                 labels: dadosEvolucaoTemporal.labels,
                 datasets: [{
-                    label: 'HonorÃ¡rios (â‚¬)',
+                    label: 'HonorÃ¡rios (${EURO})',
                     data: dadosEvolucaoTemporal.valores,
                     borderColor: 'rgb(59, 130, 246)',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -9670,7 +9672,7 @@ function criarGraficosAvancados() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return 'â‚¬' + value.toFixed(2);
+                                return '${EURO}' + value.toFixed(2);
                             }
                         }
                     }
@@ -9715,7 +9717,7 @@ function criarGraficosAvancados() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return 'â‚¬' + value.toFixed(2);
+                                return '${EURO}' + value.toFixed(2);
                             }
                         }
                     }
@@ -10031,7 +10033,7 @@ function gerarPagamentos() {
 
     const obterFaturaInfo = (fid) => {
         const f = faturasLista.find(x => String(x.id) === String(fid));
-        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
+        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (${EURO}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
     };
 
     return `
@@ -10050,7 +10052,7 @@ function gerarPagamentos() {
                 </div>
                 <div class="card p-4">
                     <p class="text-sm text-gray-600">Valor total recebido</p>
-                    <p class="text-2xl font-bold text-green-700">â‚¬${valorTotal.toFixed(2)}</p>
+                    <p class="text-2xl font-bold text-green-700">${EURO}${valorTotal.toFixed(2)}</p>
                 </div>
             </div>
             <div class="card p-6">
@@ -10069,7 +10071,7 @@ function gerarPagamentos() {
                             ${lista.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-500">Nenhum pagamento registado. Clique em "Novo Pagamento" para registar.</td></tr>' : lista.map(p => `
                                 <tr>
                                     <td class="py-2">${obterFaturaInfo(p.faturaId)}</td>
-                                    <td class="py-2 font-medium">â‚¬${(parseFloat(p.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2 font-medium">${EURO}${(parseFloat(p.valor) || 0).toFixed(2)}</td>
                                     <td class="py-2">${(p.dataPagamento || p.data || '').toString().split('T')[0]}</td>
                                     <td class="py-2">${p.metodoPagamento || p.metodo || '-'}</td>
                                     <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
@@ -10127,7 +10129,7 @@ function gerarDespesas() {
                 </div>
                 <div class="card p-4">
                     <p class="text-sm text-gray-600">Valor total</p>
-                    <p class="text-2xl font-bold text-red-700">â‚¬${valorTotal.toFixed(2)}</p>
+                    <p class="text-2xl font-bold text-red-700">${EURO}${valorTotal.toFixed(2)}</p>
                 </div>
             </div>
             <div class="card p-6">
@@ -10149,7 +10151,7 @@ function gerarDespesas() {
                                     <td class="py-2">${obterProcessoInfo(d.processoTipo, d.processoId)}</td>
                                     <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
                                     <td class="py-2">${d.tipo || 'outro'}</td>
-                                    <td class="py-2 font-medium">â‚¬${(parseFloat(d.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2 font-medium">${EURO}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
                                     <td class="py-2">${(d.data || '').toString().split('T')[0]}</td>
                                     <td class="py-2">
                                         <button onclick="anularDespesaUi(${JSON.stringify(d.id)})" class="text-red-600 hover:text-red-800 text-sm" title="Anular">Anular</button>
@@ -10193,7 +10195,7 @@ function abrirModalNovaDespesa() {
                     <select name="tipo" class="w-full p-2 border rounded-lg">${tipoOpts}</select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Valor (â‚¬) *</label>
+                    <label class="block text-sm font-medium mb-1">Valor (${EURO}) *</label>
                     <input type="number" name="valor" step="0.01" min="0" required class="w-full p-2 border rounded-lg" placeholder="0.00">
                 </div>
                 <div>
@@ -10252,7 +10254,7 @@ function abrirModalNovoPagamento() {
         mostrarNotificacao('NÃ£o hÃ¡ faturas pendentes para registar pagamento.', 'info');
         return;
     }
-    const opcoes = faturas.map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
+    const opcoes = faturas.map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
     const hoje = new Date().toISOString().split('T')[0];
     const html = `
         <div class="p-6">
@@ -10266,7 +10268,7 @@ function abrirModalNovoPagamento() {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Valor (â‚¬) *</label>
+                    <label class="block text-sm font-medium mb-1">Valor (${EURO}) *</label>
                     <input type="number" name="valor" step="0.01" min="0.01" required class="w-full p-2 border rounded-lg" placeholder="0.00">
                 </div>
                 <div>
@@ -10405,7 +10407,7 @@ function gerarHonorarios() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">${EURO}${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -10490,7 +10492,7 @@ function gerarHonorarios() {
                                             ${renderMetaAuditoria('honorario', honorario)}
                                         </td>
                                         <td>${honorario.servico}</td>
-                                        <td>â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
+                                        <td>${EURO}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
                                         <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
                                         <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
                                         <td>
@@ -10577,7 +10579,7 @@ function gerarContratos() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Math.round(valorTotalContratos * 100) / 100}</p>
+                            <p class="text-2xl font-bold text-gray-900">${EURO}${Math.round(valorTotalContratos * 100) / 100}</p>
                         </div>
                     </div>
                 </div>
@@ -10658,10 +10660,10 @@ function gerarContratos() {
                                         <td>${contrato.descricao}</td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <div class="text-sm font-medium text-gray-900">â‚¬${(Math.round((parseFloat(contrato.valor) || 0) * 100) / 100).toFixed(2)}</div>
+                                                <div class="text-sm font-medium text-gray-900">${EURO}${(Math.round((parseFloat(contrato.valor) || 0) * 100) / 100).toFixed(2)}</div>
                                                 <div class="text-xs text-gray-500">
                                                     <span class="text-gray-400">+ ${contrato.iva || 0}% IVA:</span>
-                                                    <span class="font-medium text-gray-700">â‚¬${(Math.round((parseFloat(contrato.valorTotal || contrato.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                                    <span class="font-medium text-gray-700">${EURO}${(Math.round((parseFloat(contrato.valorTotal || contrato.valor) || 0) * 100) / 100).toFixed(2)}</span>
                                                 </div>
                                             </div>
                                         </td>
@@ -12843,12 +12845,12 @@ function gerarConteudoFaturaRecibo(dados) {
         cliente.nome || '[Nome do Cliente]',
         moradaCliente,
         '',
-        'DescriÃ§Ã£o                                    | Art. | Qt    | IncidÃªncia | IVA% | Total (â‚¬)',
+        'DescriÃ§Ã£o                                    | Art. | Qt    | IncidÃªncia | IVA% | Total (${EURO})',
         `Acto #1 ${descricaoServico.substring(0, 35).padEnd(35)} | 7    | 1,00  | isento      | 0%   | ${valorBase.toFixed(2)}`,
         `Taxa de IVA Base de IncidÃªncia 0,00%                                              | 0,00`,
         '',
         `ServiÃ§os/Produtos: ${valorBase.toFixed(2)}  |  IVA: ${iva.toFixed(2)}  |  TOTAL: ${valorTotal.toFixed(2)}`,
-        `Valor a Pagar: â‚¬${valorPagar.toFixed(2)}`,
+        `Valor a Pagar: ${EURO}${valorPagar.toFixed(2)}`,
         '',
         `Recebemos por este documento ${valorPorExtenso(valorRecebido).replace(/^./, c => c.toUpperCase())}.`,
         '',
@@ -12921,9 +12923,9 @@ function gerarHtmlFaturaBilling(dados) {
             const n = `REC ${ano}REC${String(i + 1).padStart(3, '0')}/1`;
             const d = fmtDate(p.dataPagamento || p.data || dataEmissao);
             const v = fmt(parseFloat(p.valor || 0));
-            return `<tr><td>${n}</td><td>${d}</td><td>${v}</td><td>0,00 â‚¬</td></tr>`;
+            return `<tr><td>${n}</td><td>${d}</td><td>${v}</td><td>0,00 ${EURO}</td></tr>`;
         }).join('')
-        : `<tr><td>${numero}</td><td>${fmtDate(dataEmissao)}</td><td>${fmt(valorAPagar)}</td><td>0,00 â‚¬</td></tr>`;
+        : `<tr><td>${numero}</td><td>${fmtDate(dataEmissao)}</td><td>${fmt(valorAPagar)}</td><td>0,00 ${EURO}</td></tr>`;
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><style>
 html,body,.invoice-body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:25px 35px;background:#fff!important}
@@ -12974,7 +12976,7 @@ ${despesas.length ? `<h4 class="despesas-title">Despesas</h4><table class="items
 <div class="totals-wrap"><table class="totals">
 <tr><td>ServiÃ§os/Produtos</td><td>${fmt(subtotalServicos)}</td></tr>
 ${despesas.length ? `<tr><td>Despesas</td><td>${fmt(subtotalDespesas)}</td></tr>` : ''}
-<tr><td>IVA</td><td>0,00 â‚¬</td></tr>
+<tr><td>IVA</td><td>0,00 ${EURO}</td></tr>
 <tr class="total-row"><td>Total</td><td>${fmt(totalComIva)}</td></tr>
 <tr class="pay-row"><td>Valor a Pagar</td><td>${fmt(valorAPagar)}</td></tr></table></div>
 <div class="observacoes-section"><h4>ObservaÃ§Ãµes</h4><hr class="obs-line"/><p class="obs-text">${observacoes}</p><hr class="obs-line"/></div>
@@ -13049,7 +13051,7 @@ function toggleCamposProcuracaoAima() {
     if (isFaturaRecibo && selectFatura) {
         const valorSel = selectFatura.value;
         selectFatura.innerHTML = '<option value="">Selecione a fatura</option>' + faturas.map(f => 
-            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
+            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
         ).join('');
         if (valorSel && faturas.some(f => String(f.id) === String(valorSel))) selectFatura.value = valorSel;
     }
@@ -13248,7 +13250,7 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             return [
                 'RECIBO DE HONORÃRIOS',
                 '',
-                `Recebi de ${nomeCliente}, NIF ${nif}, a quantia de â‚¬__________`,
+                `Recebi de ${nomeCliente}, NIF ${nif}, a quantia de ${EURO}__________`,
                 'referente a honorÃ¡rios profissionais.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
@@ -13293,7 +13295,7 @@ async function guardarFaturaComoDocumentoCliente() {
         processoTipo: 'fatura_recibo',
         tipoArquivo: 'text/html',
         nomeArquivo: `Fatura ${numero}.html`,
-        descricao: `Fatura ${numero} - ${fatura.clienteNome || cliente.nome || ''} - â‚¬${(parseFloat(fatura.valorTotal || fatura.valor) || 0).toFixed(2)}`,
+        descricao: `Fatura ${numero} - ${fatura.clienteNome || cliente.nome || ''} - ${EURO}${(parseFloat(fatura.valorTotal || fatura.valor) || 0).toFixed(2)}`,
         dataCriacao: new Date().toISOString()
     };
     try {
@@ -13765,7 +13767,7 @@ function gerarDocumentos() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fatura *</label>
                             <select id="templateFatura" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="">Selecione a fatura</option>
-                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
+                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
                             </select>
                             <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? VÃ¡ a <strong>HonorÃ¡rios</strong> e clique em <strong>Gerar faturas</strong>.</p>
                         </div>
@@ -14457,7 +14459,7 @@ function aplicarFiltrosRelatorioAvancado() {
                 ${renderMetaAuditoria(item.tipo, item)}
             </td>
             <td class="py-2 pr-4">${item.descricao}</td>
-            <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `â‚¬${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
+            <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `${EURO}${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
             <td class="py-2 pr-4">${item.status}</td>
             <td class="py-2">${item.data}</td>
         </tr>
@@ -14542,7 +14544,7 @@ function exportarRelatorioAvancadoPdf() {
                 ${renderMetaAuditoria(item.tipo, item)}
             </td>
             <td>${item.descricao}</td>
-            <td>${item.valor !== undefined && item.valor !== '' ? `â‚¬${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
+            <td>${item.valor !== undefined && item.valor !== '' ? `${EURO}${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
             <td>${item.status}</td>
             <td>${item.data}</td>
         </tr>
@@ -16387,7 +16389,7 @@ function atualizarListaHonorarios(honorariosFiltrados) {
                 ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
             </td>
             <td>${honorario.servico}</td>
-            <td>â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
+            <td>${EURO}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
             <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
             <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
             <td>
@@ -16443,8 +16445,8 @@ function atualizarListaContratos(contratosFiltrados) {
                     const valorFormatado = Math.round(valor * 100) / 100;
                     const valorComIVAFormatado = Math.round(valorComIVA * 100) / 100;
                     return `
-                        <div class="text-sm font-bold text-black">â‚¬${valorFormatado.toFixed(2)}</div>
-                        <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${valorComIVAFormatado.toFixed(2)}</div>
+                        <div class="text-sm font-bold text-black">${EURO}${valorFormatado.toFixed(2)}</div>
+                        <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${valorComIVAFormatado.toFixed(2)}</div>
                     `;
                 })()}
             </td>
@@ -16921,9 +16923,9 @@ Data: ${new Date().toLocaleDateString('pt-PT')}
 
 RESUMO FINANCEIRO:
 - Total de HonorÃ¡rios: ${honorarios.length}
-- Valor Total: â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}
-- Valor Pago: â‚¬${Number(valorPago).toFixed(2)}
-- Valor Pendente: â‚¬${Number(valorTotal - valorPago).toFixed(2)}
+- Valor Total: ${EURO}${(Math.round(valorTotal * 100) / 100).toFixed(2)}
+- Valor Pago: ${EURO}${Number(valorPago).toFixed(2)}
+- Valor Pendente: ${EURO}${Number(valorTotal - valorPago).toFixed(2)}
 
 HONORÃRIOS POR STATUS:
 - Pagos: ${honorarios.filter(h => h.status === 'pago').length}
@@ -16933,7 +16935,7 @@ HONORÃRIOS POR STATUS:
 DETALHES DOS HONORÃRIOS:
 ${honorarios.map((honorario, index) => `
 ${index + 1}. ${honorario.cliente} - ${honorario.servico}
-   Valor: â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}
+   Valor: ${EURO}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}
    Status: ${formatarStatusHonorario(honorario.status)}
    Vencimento: ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}
 `).join('')}
@@ -18428,7 +18430,7 @@ function gerarResumoAlertasAutomaticos() {
     linhas.push(`HonorÃ¡rios vencidos: ${honorariosVencidos.length}`);
     honorariosVencidos.slice(0, 10).forEach(h => {
         const data = new Date(h.vencimento);
-        linhas.push(`- ${h.cliente} | â‚¬${(parseFloat(h.valor) || 0).toFixed(2)} | venc. ${data.toLocaleDateString('pt-PT')}`);
+        linhas.push(`- ${h.cliente} | ${EURO}${(parseFloat(h.valor) || 0).toFixed(2)} | venc. ${data.toLocaleDateString('pt-PT')}`);
     });
     linhas.push('');
     linhas.push(`Prazos vencidos: ${prazosVencidos.length}`);
@@ -18698,7 +18700,7 @@ function verificarHonorariosVencidos() {
             criarNotificacao({
                 tipo: 'honorario',
                 titulo: 'HonorÃ¡rio Vencido',
-                mensagem: `O honorÃ¡rio de â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} do cliente ${honorario.cliente} estÃ¡ vencido desde ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}`,
+                mensagem: `O honorÃ¡rio de ${EURO}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} do cliente ${honorario.cliente} estÃ¡ vencido desde ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}`,
                 prioridade: 'alta',
                 referenciaId: honorario.id,
                 acao: 'ver_honorario'
@@ -18898,7 +18900,7 @@ function criarNotificacaoTeste() {
     ];
     const mensagens = [
         'O prazo para entrega de documentos vence hoje!',
-        'O honorÃ¡rio de â‚¬500 estÃ¡ vencido hÃ¡ 3 dias',
+        'O honorÃ¡rio de ${EURO}500 estÃ¡ vencido hÃ¡ 3 dias',
         'O contrato precisa ser assinado atÃ© amanhÃ£',
         'A heranÃ§a estÃ¡ aguardando documentaÃ§Ã£o',
         'O processo de migraÃ§Ã£o estÃ¡ atrasado',
@@ -19722,7 +19724,7 @@ function gerarHerancas() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalHerancas).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">${EURO}${Number(valorTotalHerancas).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -20350,7 +20352,7 @@ function gerarMigracao() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalMigracoes).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">${EURO}${Number(valorTotalMigracoes).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -20434,8 +20436,8 @@ function gerarMigracao() {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                                     <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                                        <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                                        <div class="text-sm font-bold text-black">${EURO}${(migracao.valor || 0).toFixed(2)}</div>
+                                        <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
@@ -20533,7 +20535,7 @@ function gerarRegistos() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalRegistos).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">${EURO}${Number(valorTotalRegistos).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -20919,8 +20921,8 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.tipo || 'N/A'}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${heranca.descricao || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${Number(heranca.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">${EURO}${Number(heranca.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${heranca.status || 'pendente'}">${heranca.status || 'Pendente'}</span>
@@ -20973,8 +20975,8 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">${EURO}${(migracao.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
@@ -21018,8 +21020,8 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.tipo || 'N/A'}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${registo.descricao || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${Number(registo.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">${EURO}${Number(registo.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${registo.status || 'pendente'}">${registo.status || 'Pendente'}</span>
@@ -21231,7 +21233,7 @@ function criarModalMigracao() {
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (â‚¬) *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (${EURO}) *</label>
                                 <input type="number" name="valor" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="0.00">
                             </div>
                             
@@ -21328,7 +21330,7 @@ function abrirModalMigracaoDireto() {
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (â‚¬) *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (${EURO}) *</label>
                                 <input type="number" name="valor" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="0.00">
                             </div>
                             
@@ -22347,10 +22349,10 @@ function formatarValorComIva(valor, iva, valorComIva) {
     
     return `
         <div class="flex flex-col">
-            <div class="text-sm font-medium text-gray-900">â‚¬${valorFormatado}</div>
+            <div class="text-sm font-medium text-gray-900">${EURO}${valorFormatado}</div>
             <div class="text-xs text-gray-500">
                 <span class="text-gray-400">+ ${ivaNum}% IVA:</span>
-                <span class="font-medium text-gray-700">â‚¬${valorComIvaFormatado}</span>
+                <span class="font-medium text-gray-700">${EURO}${valorComIvaFormatado}</span>
             </div>
         </div>
     `;
@@ -24649,8 +24651,8 @@ function aplicarFiltrosMigracoes() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                 <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                    <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                    <div class="text-sm font-bold text-black">${EURO}${(migracao.valor || 0).toFixed(2)}</div>
+                    <div class="text-xs font-bold text-red-600">+ IVA: ${EURO}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
@@ -25563,32 +25565,32 @@ function obterTrimestreAtual() {
     const agora = new Date();
     const mes = agora.getMonth() + 1; // Janeiro = 1, Dezembro = 12
     
-    if (mes >= 1 && mes <= 3) return 1; // 1Âº Trimestre (Jan-Mar)
-    if (mes >= 4 && mes <= 6) return 2; // 2Âº Trimestre (Abr-Jun)
-    if (mes >= 7 && mes <= 9) return 3; // 3Âº Trimestre (Jul-Set)
-    if (mes >= 10 && mes <= 12) return 4; // 4Âº Trimestre (Out-Dez)
+    if (mes >= 1 && mes <= 3) return 1; // 1º Trimestre (Jan-Mar)
+    if (mes >= 4 && mes <= 6) return 2; // 2º Trimestre (Abr-Jun)
+    if (mes >= 7 && mes <= 9) return 3; // 3º Trimestre (Jul-Set)
+    if (mes >= 10 && mes <= 12) return 4; // 4º Trimestre (Out-Dez)
 }
 
 // FunÃ§Ã£o para obter datas de prazo do IVA
 function obterPrazosIVA(trimestre) {
     const ano = new Date().getFullYear();
     const prazos = {
-        1: { // 1Âº Trimestre
+        1: { // 1º Trimestre
             entrega: `${ano}-05-20`,
             pagamento: `${ano}-05-25`,
             periodo: 'Janeiro a MarÃ§o'
         },
-        2: { // 2Âº Trimestre
+        2: { // 2º Trimestre
             entrega: `${ano}-07-20`,
             pagamento: `${ano}-07-25`,
             periodo: 'Abril a Junho'
         },
-        3: { // 3Âº Trimestre
+        3: { // 3º Trimestre
             entrega: `${ano}-11-20`,
             pagamento: `${ano}-11-25`,
             periodo: 'Julho a Setembro'
         },
-        4: { // 4Âº Trimestre
+        4: { // 4º Trimestre
             entrega: `${ano + 1}-02-20`,
             pagamento: `${ano + 1}-02-25`,
             periodo: 'Outubro a Dezembro'
@@ -25813,7 +25815,7 @@ function criarPrazosIVA() {
         clienteNome: 'Autoridade TributÃ¡ria',
         tipo: 'iva_trimestral',
         trimestre: trimestreAtual,
-        descricao: `Pagamento do IVA - ${prazosIVA.periodo} (â‚¬${ivaPorTrimestre[trimestreAtual].valor.toFixed(2)})`,
+        descricao: `Pagamento do IVA - ${prazosIVA.periodo} (${EURO}${ivaPorTrimestre[trimestreAtual].valor.toFixed(2)})`,
         dataLimite: prazosIVA.pagamento.split('T')[0],
         status: 'ativo',
         prioridade: 'alta',
