@@ -2512,7 +2512,7 @@ function mostrarTelaLogin() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:190px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
+                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -2550,7 +2550,7 @@ function mostrarLoginAdmin() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:190px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
+                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -2615,7 +2615,7 @@ function mostrarLoginConvidado() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:190px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
+                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -3395,12 +3395,6 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
-    // Logo na sidebar (usa logo-data.js / getBrandedLogoHTML; sem fetch para evitar CORS em file://)
-    var sidebarLogo = document.getElementById('sidebar-logo');
-    if (sidebarLogo && typeof getBrandedLogoHTML === 'function') {
-        var logoHtml = getBrandedLogoHTML();
-        if (logoHtml) sidebarLogo.innerHTML = logoHtml;
-    }
     // PWA: registar Service Worker para instalação e uso offline básico
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
         navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -8042,23 +8036,24 @@ function mostrarInformacoesCompletasCliente(cliente) {
     modal.innerHTML = `
         <div class="modal-content" style="
             background: white;
-            padding: 20px;
+            padding: 14px 16px;
             border-radius: 8px;
-            max-width: 90%;
-            width: 90%;
-            max-height: 90vh;
+            max-width: min(92vw, 560px);
+            width: auto;
+            max-height: 85vh;
             overflow-y: auto;
+            overflow-x: hidden;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         ">
             <div class="modal-header" style="
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
+                margin-bottom: 12px;
+                padding-bottom: 8px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ‘¤ ${cliente.nome} - Informações Completas</h3>
+                <h3 style="margin: 0; font-size: 16px; color: #1f2937;">ðŸ‘¤ ${cliente.nome} - Informações Completas</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -8069,30 +8064,30 @@ function mostrarInformacoesCompletasCliente(cliente) {
             </div>
             <div class="modal-body" style="margin-bottom: 20px;">
                 <!-- Dados Pessoais -->
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ“‹ Dados Pessoais</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                <div style="margin-bottom: 18px;">
+                    <h4 style="color: #1f2937; font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ“‹ Dados Pessoais</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #3b82f6; font-size: 13px;">
                             <strong>Nome:</strong> ${cliente.nome}
                         </div>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 13px;">
                             <strong>Email:</strong> ${cliente.email}
                         </div>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #f59e0b; font-size: 13px;">
                             <strong>Telefone:</strong> ${cliente.telefone}
                         </div>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 13px;">
                             <strong>NIF:</strong> ${cliente.nif}
                         </div>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #06b6d4;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #06b6d4; font-size: 13px;">
                             <strong>Status:</strong> ${cliente.status}
                         </div>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #8b5cf6; font-size: 13px;">
                             <strong>Criado por:</strong> ${obterRotuloCriadorCliente(cliente)}
                         </div>
                     </div>
                     ${cliente.endereco ? `
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #6366f1; margin-top: 15px;">
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #6366f1; margin-top: 8px; font-size: 13px; word-break: break-word;">
                             <strong>Endereço:</strong> ${cliente.endereco}
                         </div>
                     ` : ''}
@@ -8101,34 +8096,34 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Resumo Estatístico (Honorários, Faturas, Notificações, Contratos, Heranças, Migrações, Registos) -->
                 <div style="margin-bottom: 30px;">
                     <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“Š Resumo Estatístico</h4>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-                        <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
-                            <div style="font-size: 13px;">Honorários</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                        <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
+                            <div style="font-size: 11px;">Honorários</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #0d9488, #0f766e); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${(dadosCliente.faturas && dadosCliente.faturas.length) || 0}</div>
-                            <div style="font-size: 13px;">Faturas</div>
+                        <div style="background: linear-gradient(135deg, #0d9488, #0f766e); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${(dadosCliente.faturas && dadosCliente.faturas.length) || 0}</div>
+                            <div style="font-size: 11px;">Faturas</div>
                         </div>
-                        <div id="card-notificacoes-cliente" style="background: linear-gradient(135deg, #ea580c, #c2410c); color: white; padding: 16px; border-radius: 8px; text-align: center; border: 2px solid #9a3412;">
-                            <div style="font-size: 22px; font-weight: bold;">${(dadosCliente.notificacoes && dadosCliente.notificacoes.length) || 0}</div>
-                            <div style="font-size: 13px;">ðŸ”” Notificações</div>
+                        <div id="card-notificacoes-cliente" style="background: linear-gradient(135deg, #ea580c, #c2410c); color: white; padding: 10px; border-radius: 6px; text-align: center; border: 2px solid #9a3412;">
+                            <div style="font-size: 18px; font-weight: bold;">${(dadosCliente.notificacoes && dadosCliente.notificacoes.length) || 0}</div>
+                            <div style="font-size: 11px;">Notificações</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${dadosCliente.contratos.length}</div>
-                            <div style="font-size: 13px;">Contratos</div>
+                        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.contratos.length}</div>
+                            <div style="font-size: 11px;">Contratos</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${dadosCliente.herancas.length}</div>
-                            <div style="font-size: 13px;">Heranças</div>
+                        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.herancas.length}</div>
+                            <div style="font-size: 11px;">Heranças</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
-                            <div style="font-size: 13px;">Migrações</div>
+                        <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
+                            <div style="font-size: 11px;">Migrações</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${dadosCliente.registos.length}</div>
-                            <div style="font-size: 13px;">Registos</div>
+                        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.registos.length}</div>
+                            <div style="font-size: 11px;">Registos</div>
                         </div>
                     </div>
                 </div>
@@ -9642,6 +9637,7 @@ function gerarDashboard() {
 }
 
 function criarGraficosAvancados() {
+    if (typeof Chart === 'undefined') return; // Chart.js não carregou (CDN falhou); evita ReferenceError
     // Dados para os gráficos
     const dadosEvolucaoTemporal = calcularEvolucaoTemporal();
     const dadosComparacaoMensal = calcularComparacaoMensal();
@@ -12931,7 +12927,7 @@ function gerarHtmlFaturaBilling(dados) {
     const qrSrc = dados.qrBase64 ? `data:image/png;base64,${dados.qrBase64}` : `https://api.qrserver.com/v1/create-qrcode/?size=150x150&data=${encodeURIComponent(qrData)}`;
 
     // Fatura com logotipo em imagem (getBrandedLogoHTML / logo-data.js).
-    const logoHtml = (typeof getBrandedLogoHTML === 'function' ? getBrandedLogoHTML() : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? '<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="branding-logo" style="width:190px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">' : '<div class="branding-logo-placeholder" style="width:190px;font-size:14px;font-weight:600">ANA PAULA MEDINA<br/><span style="font-size:10px;font-weight:500">SOLICITADORA</span></div>'));
+    const logoHtml = (typeof getBrandedLogoHTML === 'function' ? getBrandedLogoHTML() : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? '<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="branding-logo" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">' : '<div class="branding-logo-placeholder" style="width:220px;font-size:14px;font-weight:600">ANA PAULA MEDINA<br/><span style="font-size:10px;font-weight:500">SOLICITADORA</span></div>'));
 
     const rowsServicos = servicos.map(i => {
         const q = parseFloat(i.quantidade || 1);
@@ -12969,45 +12965,46 @@ function gerarHtmlFaturaBilling(dados) {
     // Estilo de referência: cabeçalhos cinza claro, logo AP nítida (130px), sem Desconto/Und.medida, IVA sempre 0,00 €, Valor a Pagar em cinza (#374151). Não alterar estrutura.
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Fatura/Recibo ${numero}</title><style>
 ${docStyles ? docStyles + '\n' : ''}
-html,body,.invoice-body{font-family:${fontStack};font-size:11px;color:#1a1a1a;margin:0;padding:${padPx};background:#fff!important;line-height:${lineH}}
+html,body,.invoice-body{font-family:${fontStack};font-size:12px;color:#1a1a1a;margin:0;padding:${padPx};background:#fff!important;line-height:${lineH}}
 .invoice-container{max-width:210mm;margin:0 auto;background:#fff}
 .action-bar{margin-top:24px;padding:14px 0;border-top:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:11px;background:#f8fafc;border-radius:6px;padding-left:12px}
-@media print{.action-bar{display:none!important}; body{padding:${padPx}!important}}
+@media print{.action-bar{display:none!important}.invoice-container{page-break-inside:avoid;max-height:none}body,.invoice-body{padding:15px 20px!important;margin:0!important}html,body{height:auto;overflow:visible}.header{margin-bottom:10px;padding-bottom:8px}.client-section,.doc-info{margin-bottom:12px}.items{margin-bottom:10px}.totals-wrap,.recibo-block,.observacoes-section{margin-bottom:12px}.footer{margin-top:14px;padding-top:8px}}
 .header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:15px;padding-bottom:10px;border-bottom:1px solid #aaa;box-sizing:border-box}
 .header-left{flex-shrink:0}
-.branding-logo,.logo{width:190px;max-width:190px;min-width:190px;height:auto;flex-shrink:0;display:block;object-fit:contain}
+.branding-logo,.logo{width:220px;max-width:220px;min-width:220px;height:auto;flex-shrink:0;display:block;object-fit:contain}
 .issuer-info{text-align:right;min-width:180px}
-.issuer-info .firma,.issuer-info h1{font-size:14px;font-weight:600;margin:0 0 6px;color:#222}
+.issuer-info .firma,.issuer-info h1{font-size:16px;font-weight:600;margin:0 0 6px;color:#222}
 .issuer-info .titulo{display:none}
-.issuer-info p{margin:2px 0;font-size:10px;color:#222}
+.issuer-info p{margin:2px 0;font-size:11px;color:#222}
 .divider{margin:12px 0;border:none;border-top:1px solid #aaa}
-.doc-info{margin-bottom:18px;text-align:center}
-.doc-info h3{margin:0 0 4px;font-size:13px;font-weight:600;color:#222}
-.doc-info .doc-meta{font-size:10px;color:#222;margin:0}
+.doc-info{margin-bottom:18px;text-align:left}
+.doc-info h3{margin:0 0 4px;font-size:15px;font-weight:600;color:#222}
+.doc-info .doc-meta{font-size:11px;color:#222;margin:0}
 .totals .total-row td,.totals .pay-row td{background:#e5e7eb;font-weight:700}
 .client-section{margin-bottom:18px}
-.client-section h4{margin:0 0 6px;font-size:11px;font-weight:600;color:#222}
-.client-section p{margin:2px 0;font-size:10px}
+.client-section h4{margin:0 0 6px;font-size:12px;font-weight:600;color:#222}
+.client-section p{margin:2px 0;font-size:11px}
 .client-section p.client-name{font-size:inherit;font-weight:600;color:#222}
-.items{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}
+.items{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:15px}
 .items th{background:#f5f5f5;color:#222;border:1px solid #ccc;padding:6px 8px;text-align:left}
 .items td{border:1px solid #ccc;padding:6px 8px}
 .items tbody tr:nth-child(even){background:#fafafa}
-.despesas-title,.section-title{margin:12px 0 6px;font-size:11px;font-weight:600;color:#222}
+.despesas-title,.section-title{margin:12px 0 6px;font-size:12px;font-weight:600;color:#222}
 .totals-wrap{display:flex;justify-content:flex-end;margin-bottom:18px}
-.totals{min-width:220px;border-collapse:collapse;font-size:10px}
+.totals{min-width:220px;border-collapse:collapse;font-size:11px}
 .totals td{padding:5px 12px;border:1px solid #ccc}
 .totals td:first-child{background:#f8f8f8}
 .totals .total-row td{font-weight:bold}
-.totals .pay-row td{font-size:12px;font-weight:bold;background:#f0f0f0;color:#222}
+.totals .pay-row td{font-size:13px;font-weight:bold;background:#f0f0f0;color:#222}
 .recibo-block{margin-bottom:18px}
-.recibo-block h4{margin:0 0 6px;font-size:11px;font-weight:600}
-.recibo-block p{margin:2px 0;font-size:10px}
+.recibo-block h4{margin:0 0 6px;font-size:12px;font-weight:600}
+.recibo-block p{margin:2px 0;font-size:11px}
 .observacoes-section{margin-bottom:20px}
-.observacoes-section h4{margin:0 0 6px;font-size:11px;font-weight:600}
-.observacoes-section .obs-text{margin:6px 0;font-size:10px;color:#374151}
+.observacoes-section h4{margin:0 0 6px;font-size:12px;font-weight:600}
+.observacoes-section .obs-text{margin:6px 0;font-size:11px;color:#374151}
 .footer{text-align:right;margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb}
 .qrcode{width:90px;height:90px;border:1px solid #e5e7eb;border-radius:4px}
+@media print{.client-section,.doc-info,.items,.totals-wrap,.recibo-block,.observacoes-section{page-break-inside:avoid}}
 </style></head><body class="invoice-body"><div class="invoice-container">
 <div class="header">
 <div class="header-left">${logoHtml}
@@ -13016,7 +13013,6 @@ html,body,.invoice-body{font-family:${fontStack};font-size:11px;color:#1a1a1a;ma
 <div class="firma">${(sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina')}</div>
 ${sol.nif ? `<p>NIF: ${fmtNif(sol.nif)}</p>` : ''}<p>Tlm: ${sol.contacto || ''}</p><p>Email: ${sol.email || ''}</p><p>IBAN: ${sol.iban || ''}</p><p>Sede: ${sol.sede || ''}</p>
 </div></div>
-<hr class="divider"/>
 <div class="doc-info"><h3>Fatura/Recibo ${numero}</h3><p class="doc-meta">Data: ${fmtDate(dataEmissao)}</p></div>
 <div class="client-section"><h4>Cliente</h4><p class="client-name nome-fatura">${cliente.nome || ''}</p>
 ${cliente.nif || cliente.documento ? `<p>NIF: ${fmtNif(cliente.nif || cliente.documento)}</p>` : ''}
@@ -13055,16 +13051,17 @@ function obterRodapeDocumento() {
 }
 
 function obterModelosDocumentos() {
+    // Unicode escapes (\u00e7=ç \u00e3=ã \u00ea=ê) para evitar mojibake com encoding errado
     return [
-        { id: 'procuracao_simples', nome: 'Procuração Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
-        { id: 'procuracao_aima', nome: 'Procuração para AIMA / Residência', arquivo: 'procuracao_aima', tipo: 'procuracao' },
-        { id: 'procuracao_irn', nome: 'Procuração para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
-        { id: 'procuracao_financas', nome: 'Procuração para Finanças', arquivo: 'procuracao_financas', tipo: 'procuracao' },
-        { id: 'procuracao_geral', nome: 'Procuração Geral', arquivo: 'procuracao_geral', tipo: 'procuracao' },
-        { id: 'declaracao_comparecimento', nome: 'Declaração de Comparecimento', arquivo: 'declaracao_comparecimento', tipo: 'outro' },
-        { id: 'declaracao_residencia', nome: 'Declaração de Residência', arquivo: 'declaracao_residencia', tipo: 'outro' },
-        { id: 'declaracao_conhecimento', nome: 'Declaração de Conhecimento', arquivo: 'declaracao_conhecimento', tipo: 'outro' },
-        { id: 'recibo_honorarios', nome: 'Recibo de Honorários', arquivo: 'recibo_honorarios', tipo: 'outro' },
+        { id: 'procuracao_simples', nome: 'Procura\u00e7\u00e3o Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
+        { id: 'procuracao_aima', nome: 'Procura\u00e7\u00e3o para AIMA / Resid\u00eancia', arquivo: 'procuracao_aima', tipo: 'procuracao' },
+        { id: 'procuracao_irn', nome: 'Procura\u00e7\u00e3o para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
+        { id: 'procuracao_financas', nome: 'Procura\u00e7\u00e3o para Finan\u00e7as', arquivo: 'procuracao_financas', tipo: 'procuracao' },
+        { id: 'procuracao_geral', nome: 'Procura\u00e7\u00e3o Geral', arquivo: 'procuracao_geral', tipo: 'procuracao' },
+        { id: 'declaracao_comparecimento', nome: 'Declara\u00e7\u00e3o de Comparecimento', arquivo: 'declaracao_comparecimento', tipo: 'outro' },
+        { id: 'declaracao_residencia', nome: 'Declara\u00e7\u00e3o de Resid\u00eancia', arquivo: 'declaracao_residencia', tipo: 'outro' },
+        { id: 'declaracao_conhecimento', nome: 'Declara\u00e7\u00e3o de Conhecimento', arquivo: 'declaracao_conhecimento', tipo: 'outro' },
+        { id: 'recibo_honorarios', nome: 'Recibo de Honor\u00e1rios', arquivo: 'recibo_honorarios', tipo: 'outro' },
         { id: 'fatura_recibo', nome: 'Fatura/Recibo (Profissional)', arquivo: 'fatura_recibo', tipo: 'fatura' }
     ];
 }
@@ -13415,11 +13412,13 @@ async function gerarTemplateDocumento(acao) {
                 if (janela) {
                     mostrarNotificacao('Fatura aberta noutra janela. Use Ctrl+P para imprimir/guardar PDF.', 'success');
                 } else {
-                    mostrarNotificacao('Bloqueador de janelas impediu a abertura. Permita janelas para este site e tente novamente.', 'warning');
+                    mostrarNotificacao('Permita abrir janelas (pop-up) para este site e tente novamente. A fatura só pode ser impressa no formato correto numa nova janela.', 'warning');
                 }
-                return;
+                return; // Nunca usar fallback PDF (FAC/texto) para fatura — manter sempre layout HTML com logo nítida
             } catch (e) {
-                console.warn('Fatura HTML falhou, a usar formato texto:', e);
+                console.warn('Fatura HTML falhou:', e);
+                mostrarNotificacao('Erro ao gerar a fatura. Tente recarregar a página (Ctrl+F5).', 'error');
+                return;
             }
         }
         try {
