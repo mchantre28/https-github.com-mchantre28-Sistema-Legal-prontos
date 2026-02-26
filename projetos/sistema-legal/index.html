@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Legal - Gestão Jurídica</title>
     <meta name="theme-color" content="#111827">
-    <link rel="manifest" href="manifest.json">
+    <!-- Manifest só em http(s) para evitar CORS ao abrir por file:// -->
+    <script>
+      (function(){if(location.protocol==='http:'||location.protocol==='https:'){var l=document.createElement('link');l.rel='manifest';l.href='manifest.json';document.head.appendChild(l);}})();
+    </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖</text></svg>" type="image/svg+xml">
     
     <!-- Meta Tags Básicas -->
@@ -35,6 +38,7 @@
       })();
     </script>
     <link rel="stylesheet" href="styles.css?v=6">
+    <script src="branding/injectBranding.js"></script>
     <script src="logo-data.js"></script>
 
 </head>
@@ -52,6 +56,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="p-6">
+            <div id="sidebar-logo" class="mb-4 flex justify-center [&_.branding-logo]:max-h-16 [&_img]:max-h-16 [&_img]:brightness-0 [&_img]:invert"></div>
             <h2 class="text-white text-xl font-bold mb-6">Sistema Legal</h2>
             <nav class="space-y-2" aria-label="Menu principal">
                 <a href="javascript:void(0)" onclick="carregarSecao('dashboard'); return false;" class="sidebar-item active" id="nav-dashboard" aria-label="Visão geral do sistema">
@@ -216,7 +221,7 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- listenerManager, logger, backupExport, backupImport: definidos/inline no script.js; sem ficheiros externos -->
-    <script defer src="./script.js?v=39" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os 4 ficheiros (index.html, script.js, styles.css, logo.png) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=39" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){

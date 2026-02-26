@@ -2,7 +2,7 @@
  * Módulo Billing - Serviço principal de faturas
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
@@ -47,6 +47,8 @@ export interface CreateInvoiceInput {
   logoPath?: string;
   cliente: Invoice['cliente'];
   itens: InvoiceItem[];
+  /** Despesas (emolumentos, certidões, deslocações, etc.) — tabela separada no PDF */
+  despesas?: InvoiceItem[];
   percentagemRetencao?: number;
   atcud?: string;
   numero?: string;
@@ -69,6 +71,8 @@ export interface CreateInvoiceInput {
   termoPagamento?: string;
   /** Local de emissão */
   localEmissao?: string;
+  /** Menções legais (Art.53 CIVA, retenção CIRS). Se omitido, pode ser inferido de observacoes */
+  mencoesLegais?: string;
   /** ID honorário/processo (integração) */
   honorarioId?: string;
   processoId?: string;
@@ -94,7 +98,9 @@ export interface CreateInvoiceResult {
 function validateInvoiceData(data: CreateInvoiceInput): void {
   if (!data.emitente?.nome) throw new Error('Emitente nome é obrigatório');
   if (!data.cliente?.nome) throw new Error('Cliente nome é obrigatório');
-  if (!data.itens?.length) throw new Error('Pelo menos um item é obrigatório');
+  if (!data.itens?.length && !data.despesas?.length) {
+    throw new Error('Pelo menos um item (serviço ou despesa) é obrigatório');
+  }
 
   for (const item of data.itens) {
     if (!item.descricao) throw new Error('Item sem descrição');
@@ -198,9 +204,13 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<CreateInv
     ? generateReceiptNumber(data.numeroPrefix ?? 'REC', numOpts)
     : undefined;
 
-  const itensPreparados = prepareItemsForTemplate(data.itens);
+  const itensPreparados = prepareItemsForTemplate(data.itens ?? []);
+  const despesasPreparadas = prepareItemsForTemplate(data.despesas ?? []);
 
   const emitente = { ...data.emitente };
+
+  const subtotalServicos = itensPreparados.reduce((s, i) => s + (i.total ?? 0), 0);
+  const subtotalDespesas = despesasPreparadas.reduce((s, i) => s + (i.total ?? 0), 0);
 
   const invoice: Invoice = {
     atcud: data.atcud,
@@ -225,7 +235,25 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<CreateInv
     moeda: 'EUR',
   };
 
-  invoice.totais = calculateTotals(invoice);
+  const totaisServicos = calculateTotals(invoice);
+  if (despesasPreparadas.length > 0) {
+    const ivaDespesas = despesasPreparadas.reduce((acc, d) => {
+      const total = d.total ?? 0;
+      const ivaPct = typeof d.ivaPercent === 'number' ? d.ivaPercent : 0;
+      return acc + total * (ivaPct / 100);
+    }, 0);
+    invoice.totais = {
+      subtotal: totaisServicos.subtotal + subtotalDespesas,
+      iva: totaisServicos.iva + Math.round(ivaDespesas * 100) / 100,
+      totalComIva: 0,
+      retencao: totaisServicos.retencao,
+      valorAPagar: 0,
+    };
+    invoice.totais.totalComIva = Math.round((invoice.totais.subtotal + invoice.totais.iva) * 100) / 100;
+    invoice.totais.valorAPagar = Math.max(0, invoice.totais.totalComIva - invoice.totais.retencao);
+  } else {
+    invoice.totais = totaisServicos;
+  }
 
   if (data.incluirRecibo && invoice.totais) {
     invoice.recibo = {
@@ -241,14 +269,8 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<CreateInv
 
   invoice.qrCodeBase64 = await generateInvoiceQRCode(invoice);
 
-  const logo = loadLogoBase64() || (data.logoPath && existsSync(data.logoPath)
-    ? (() => {
-        const buf = readFileSync(data.logoPath!);
-        const ext = data.logoPath!.toLowerCase();
-        const mime = ext.endsWith('.svg') ? 'image/svg+xml' : ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
-        return `data:${mime};base64,${buf.toString('base64')}`;
-      })()
-    : '');
+  // Fatura com logotipo: ana.png (em assets/) ou fallback logo-solicitadora.
+  const logo = loadLogoBase64();
 
   const issuer = {
     name: emitente.nome,
@@ -273,12 +295,26 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<CreateInv
   );
   const hasUnidade = itensPreparados.some((i) => i.unidade);
   const hasDesconto = itensPreparados.some((i) => i.descontoPercent || i.descontoValor);
+  const hasDespesas = despesasPreparadas.length > 0;
 
   const templateVariant = data.template ?? 'default';
 
   registerHandlebarsHelpers();
   const template = loadAndCompileTemplate(templateVariant);
-  const templateData = { ...invoice, logo, issuer, hasCaseMeta, hasUnidade, hasDesconto };
+  const templateData = {
+    ...invoice,
+    itens: itensPreparados,
+    despesas: despesasPreparadas,
+    hasDespesas,
+    subtotalServicos,
+    subtotalDespesas,
+    logo,
+    issuer,
+    hasCaseMeta,
+    hasUnidade,
+    hasDesconto,
+    mencoesLegais: data.mencoesLegais,
+  };
   const htmlContent = template(templateData);
 
   const cssContent = loadStyles(templateVariant);

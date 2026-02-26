@@ -13,8 +13,8 @@ $prontos = Join-Path $expRoot "prontos-temp"
 $ficheiros = @(
     "index.html",
     "script.js",
+    "logo-data.js",
     "styles.css",
-    "ana.jpg",
     "logo.png",
     "firebase.js",
     "manifest.json",

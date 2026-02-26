@@ -1,7 +1,7 @@
 /**
  * Módulo Billing - Carregamento do logotipo da solicitadora
- * Suporta /assets/logo-solicitadora.png ou .svg
- * Cache em memória para evitar leituras repetidas
+ * Coloque a nova logo em: assets/logo-solicitadora.png (ou .svg).
+ * Cache em memória para evitar leituras repetidas.
  */
 
 import fs from 'fs';
@@ -9,12 +9,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.resolve(__dirname, '..');
 
 let cachedLogo: string | null = null;
 
+// Fatura: ana.png; outros usos: logo-solicitadora.
 const LOGO_CANDIDATES = [
-  path.resolve(__dirname, '..', 'assets', 'logo-solicitadora.png'),
-  path.resolve(__dirname, '..', 'assets', 'logo-solicitadora.svg'),
+  path.resolve(rootDir, 'assets', 'ana.png'),
+  path.resolve(rootDir, 'assets', 'logo-solicitadora.png'),
+  path.resolve(rootDir, 'assets', 'logo-solicitadora.svg'),
 ];
 
 /**

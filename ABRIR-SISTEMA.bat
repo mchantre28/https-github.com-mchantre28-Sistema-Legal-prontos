@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0projetos\sistema-legal"
 title Sistema Legal - Servidor Local
 echo.
 echo ============================================

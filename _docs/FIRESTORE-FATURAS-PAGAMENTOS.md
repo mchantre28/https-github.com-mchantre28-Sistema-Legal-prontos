@@ -4,6 +4,18 @@
 
 ---
 
+## Como funciona (resumo)
+
+**Faturas** são os documentos de cobrança emitidos aos clientes. São criadas a partir dos honorários ("Gerar faturas") ou manualmente. Cada fatura tem número, valor total, cliente e estado (pendente, paga, cancelada). O campo `somaPagamentos` é atualizado automaticamente quando se registam pagamentos — quando a soma atinge o valor total, a fatura passa a "paga".
+
+**Pagamentos** são os valores recebidos dos clientes, ligados a uma fatura. Cada pagamento tem valor, data e método (transferência, MB Way, etc.). Podem ser parciais — vários pagamentos até completar o total da fatura.
+
+**Despesas** são gastos internos por processo (taxas, certidões, deslocações). Servem para relatórios de rentabilidade.
+
+**Logs financeiros** guardam auditoria de todas as ações (criar fatura, registar pagamento, anular, etc.).
+
+---
+
 ## 1. COLEÇÃO: `faturas`
 
 Cada documento representa uma fatura emitida ao cliente. Suporta itens detalhados, IVA e pagamentos parciais.

@@ -27,6 +27,8 @@ export {
   prepareInvoiceItems,
   getItemIvaPercent,
 } from './invoice.calculations.js';
+export { calculateInvoiceTotals } from './utils/calculateInvoiceTotals.js';
+export { domainInvoiceToCreateInput } from './invoice.domain-adapter.js';
 
 // Serviço principal
 export {
@@ -37,6 +39,22 @@ export {
   type CreateInvoiceResult,
   type CreateSignAndSendInvoiceOptions,
 } from './invoice.service.js';
+
+// Modelos (Client, Invoice)
+export type {
+  Client,
+  ClientAddress,
+  ClientType,
+} from './models/client.js';
+export type {
+  Invoice as InvoiceModel,
+  InvoiceDraft,
+  InvoiceService,
+  InvoiceExpense,
+  InvoiceTotals as InvoiceTotalsModel,
+  IvaType,
+  ExpenseIvaType,
+} from './models/invoice.js';
 
 // API Types (schema inglês)
 export type {

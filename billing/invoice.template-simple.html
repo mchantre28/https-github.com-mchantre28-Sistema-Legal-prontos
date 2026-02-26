@@ -1,39 +1,40 @@
 <div class="invoice-body">
   <div class="invoice-container">
-    <!-- Header: Logotipo + Emitente -->
+    <!-- Header: Logo (esquerda) + Dados da solicitadora (direita) -->
     <div class="header">
       {{#if logo}}
-      <img src="{{logo}}" class="logo" alt="Logotipo" />
+      <img src="{{logo}}" class="logo" alt="Logotipo da Solicitadora" loading="eager" decoding="sync" />
       {{/if}}
       <div class="issuer-info">
         <h1>{{#if issuer.titulo}}{{issuer.titulo}} {{/if}}{{issuer.name}}</h1>
-        {{#if issuer.nif}}<p>NIF: {{issuer.nif}}</p>{{/if}}
+        {{#if issuer.nif}}<p>NIF: {{formatNif issuer.nif}}</p>{{/if}}
         {{#if issuer.phone}}<p>Tlm: {{issuer.phone}}</p>{{/if}}
         {{#if issuer.email}}<p>Email: {{issuer.email}}</p>{{/if}}
         {{#if issuer.iban}}<p>IBAN: {{issuer.iban}}</p>{{/if}}
+        <p>Sede: {{issuer.sede}}</p>
       </div>
     </div>
 
+
     <hr class="divider" />
 
-    <!-- Info do documento -->
+    <!-- Fatura/Recibo + Data -->
     <div class="doc-info">
-      <h3>Fatura/Recibo {{numero}}</h3>
-      {{#if atcud}}<p>ATCUD: {{atcud}}</p>{{/if}}
+      <h3>{{#if recibo}}Fatura/Recibo{{else}}Fatura{{/if}} {{numero}}</h3>
       <p>Data: {{formatDate dataEmissao}}</p>
-      {{#if dataVencimento}}<p>Vencimento: {{formatDate dataVencimento}}</p>{{/if}}
     </div>
 
     <!-- Cliente -->
-    <div class="client">
+    <div class="client-section">
       <h4>Cliente</h4>
-      <p>{{cliente.nome}}</p>
+      <p class="client-name">{{cliente.nome}}</p>
       {{#if cliente.nif}}<p>NIF: {{formatNif cliente.nif}}</p>{{/if}}
       <p>{{cliente.morada}}</p>
       <p>{{cliente.codigoPostal}} {{cliente.localidade}}</p>
     </div>
 
-    <!-- Tabela de itens -->
+    {{#if itens.length}}
+    <!-- Tabela de serviços -->
     <table class="items">
       <thead>
         <tr>
@@ -60,14 +61,46 @@
         {{/each}}
       </tbody>
     </table>
+    {{/if}}
 
-    <!-- Totais -->
-    <div class="totals">
-      <table>
+    {{#if hasDespesas}}
+    <!-- Tabela de despesas -->
+    <h4 class="despesas-title">Despesas</h4>
+    <table class="items despesas-table">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th>Valor</th>
+          <th>IVA %</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each despesas}}
+        <tr>
+          <td>{{descricao}}</td>
+          <td>{{formatCurrency precoUnitario}}</td>
+          <td>{{#if ivaPercent}}{{ivaPercent}}{{else}}0{{/if}}%</td>
+          <td>{{formatCurrency total}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+
+    <!-- Totais (alinhados à direita) -->
+    <div class="totals-wrap">
+      <table class="totals">
         <tr>
           <td>Serviços/Produtos</td>
-          <td>{{formatCurrency totais.subtotal}}</td>
+          <td>{{formatCurrency subtotalServicos}}</td>
         </tr>
+        {{#if hasDespesas}}
+        <tr>
+          <td>Despesas</td>
+          <td>{{formatCurrency subtotalDespesas}}</td>
+        </tr>
+        {{/if}}
         <tr>
           <td>IVA</td>
           <td>{{formatCurrency totais.iva}}</td>
@@ -76,12 +109,6 @@
           <td>Total</td>
           <td>{{formatCurrency totais.totalComIva}}</td>
         </tr>
-        {{#if totais.retencao}}
-        <tr>
-          <td>Retenção na fonte ({{percentagemRetencao}}%)</td>
-          <td>- {{formatCurrency totais.retencao}}</td>
-        </tr>
-        {{/if}}
         <tr class="pay-row">
           <td>Valor a Pagar</td>
           <td>{{formatCurrency totais.valorAPagar}}</td>
@@ -91,7 +118,7 @@
 
     {{#if recibo}}
     <!-- Recibo -->
-    <div class="receipt">
+    <div class="receipt-section">
       <h4>Recibo</h4>
       <p>Nº: {{recibo.numero}}</p>
       <p>Data: {{formatDate recibo.data}}</p>
@@ -100,13 +127,19 @@
     {{/if}}
 
     {{#if observacoes}}
+    <!-- Observações -->
     <div class="observations">
       <h4>Observações</h4>
       <p>{{observacoes}}</p>
     </div>
     {{/if}}
+    {{#if mencoesLegais}}
+    <div class="observations">
+      <p>{{mencoesLegais}}</p>
+    </div>
+    {{/if}}
 
-    <!-- Footer com QR Code à direita -->
+    <!-- QR Code (canto inferior direito) -->
     <div class="footer">
       {{#if qrCodeBase64}}
       <img src="data:image/png;base64,{{qrCodeBase64}}" class="qrcode" alt="QR Code" />

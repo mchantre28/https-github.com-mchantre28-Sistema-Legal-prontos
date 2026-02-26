@@ -1,19 +1,19 @@
 // === SISTEMA LEGAL ===
 // v2026-02-19: filtro clientes Ativo por defeito, restaurarFiltros com fallback
-// ÃNDICE DE SECÃ‡Ã•ES (para navegaÃ§Ã£o):
-// 1-230: Login, auth, utilitÃ¡rios
+// ÍNDICE DE SECÇÕES (para navegação):
+// 1-230: Login, auth, utilitários
 // 230-400: Firestore sync, listeners, indicador
 // 400-500: configurarEventos, modais base
-// 500-2900: carregarSecao, gerarConteudoSecao (dashboard, clientes, honorÃ¡rios, etc.)
+// 500-2900: carregarSecao, gerarConteudoSecao (dashboard, clientes, honorários, etc.)
 // 2900-3100: fecharModalRobusto, modais
-// 3100-4900: Filtros, migraÃ§Ãµes, heranÃ§as, registos, documentos
+// 3100-4900: Filtros, migrações, heranças, registos, documentos
 // 4900-5100: Tarefas
-// 5100-10900: Prazos, calendÃ¡rio, notificaÃ§Ãµes, relatÃ³rios
+// 5100-10900: Prazos, calendário, notificações, relatórios
 // 10900-12000: Documentos, convidados
-// 12000-14500: Modais ediÃ§Ã£o (cliente, contrato, honorÃ¡rio, etc.)
-// 14500-22300: Backup, histÃ³rico, misc
+// 12000-14500: Modais edição (cliente, contrato, honorário, etc.)
+// 14500-22300: Backup, histórico, misc
 
-// Debug: em true permite logs na consola; em false silencia (produÃ§Ã£o)
+// Debug: em true permite logs na consola; em false silencia (produção)
 const DEBUG_LOG = false;
 (function() {
     const orig = console.log;
@@ -27,38 +27,26 @@ const DEBUG_LOG = false;
         orig.apply(console, arguments);
     };
 })();
-// Stub para compatibilidade (evita "inicializarPWA is not defined" em versÃµes antigas/cache)
+// Stub para compatibilidade (evita "inicializarPWA is not defined" em versões antigas/cache)
 function inicializarPWA() {}
 if (typeof window !== 'undefined') window.inicializarPWA = inicializarPWA;
 
-// Armazenamento: sessÃ£o e config vÃ£o para Firestore (sistema/sessao, sistema/config)
+// Armazenamento: sessão e config vão para Firestore (sistema/sessao, sistema/config)
 // appStorage mantido como fallback para migration flags e outros (usa sessionStorage)
 const appStorage = typeof sessionStorage !== 'undefined' ? sessionStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, get length() { return 0; }, key: () => null };
 
-// IDs imutÃ¡veis (crypto.randomUUID) - evita mistura de registos entre dispositivos/sessÃµes
+// IDs imutáveis (crypto.randomUUID) - evita mistura de registos entre dispositivos/sessões
 function gerarIdImutavel() {
     return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
 }
 
-/** Normaliza id de formulÃ¡rio/URL: devolve nÃºmero se for sÃ³ dÃ­gitos (compat. antiga), senÃ£o string (UUID). */
+/** Normaliza id de formulário/URL: devolve número se for só dígitos (compat. antiga), senão string (UUID). */
 function parseIdSafe(val) {
     if (val == null || val === '') return null;
     const s = String(val).trim();
     return /^\d+$/.test(s) ? parseInt(s, 10) : s;
-}
-
-/** Parse JSON seguro - evita crash por dados corrompidos no storage. */
-function parseJsonSafe(raw, fallback = []) {
-    if (raw == null || raw === '') return fallback;
-    try {
-        const parsed = JSON.parse(raw);
-        return parsed;
-    } catch (e) {
-        console.warn('Dados corrompidos no storage, a usar fallback:', e?.message);
-        return fallback;
-    }
 }
 
 // SISTEMA DE LOGIN
@@ -77,7 +65,7 @@ async function hashSenha(senha) {
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** LÃª o hash da senha admin do Firestore. */
+/** Lê o hash da senha admin do Firestore. */
 async function lerHashAdminFirestore() {
     if (!firestoreDb) return null;
     try {
@@ -94,7 +82,7 @@ async function guardarHashAdminFirestore(hash) {
     } catch (e) { console.warn('guardarHashAdminFirestore:', e); }
 }
 
-/** Verifica se a senha do admin estÃ¡ correta. Hash no Firestore ou fallback appStorage. */
+/** Verifica se a senha do admin está correta. Hash no Firestore ou fallback appStorage. */
 async function verificarSenhaAdmin(senha) {
     const h = await hashSenha(senha);
     let stored = null;
@@ -110,7 +98,7 @@ async function verificarSenhaAdmin(senha) {
     return h === stored;
 }
 
-/** Abre modal para o admin alterar a senha (sÃ³ visÃ­vel para admin). */
+/** Abre modal para o admin alterar a senha (só visível para admin). */
 function abrirModalAlterarSenha() {
     if (appStorage.getItem('tipoUsuario') !== 'admin') return;
     const html = `
@@ -147,7 +135,7 @@ function abrirModalAlterarSenha() {
         const nova = document.getElementById('alterarSenhaNova').value;
         const conf = document.getElementById('alterarSenhaConfirmar').value;
         if (nova !== conf) {
-            alert('A nova senha e a confirmaÃ§Ã£o nÃ£o coincidem.');
+            alert('A nova senha e a confirmação não coincidem.');
             return;
         }
         if (nova.length < 6) {
@@ -176,7 +164,7 @@ function fecharModalAlterarSenha() {
     if (el) el.remove();
 }
 
-/** Abre modal com atalhos de teclado disponÃ­veis. */
+/** Abre modal com atalhos de teclado disponíveis. */
 function abrirModalAtalhos() {
     const existente = document.getElementById('modalAtalhos');
     if (existente) { existente.remove(); return; }
@@ -187,16 +175,16 @@ function abrirModalAtalhos() {
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center p-4 border-b">
                 <h3 class="text-lg font-semibold">Atalhos de teclado</h3>
-                <button type="button" onclick="fecharModalAtalhos()" class="text-gray-500 hover:text-gray-700 p-1">Ã—</button>
+                <button type="button" onclick="fecharModalAtalhos()" class="text-gray-500 hover:text-gray-700 p-1">×</button>
             </div>
             <div class="p-4 overflow-y-auto">
                 <table class="w-full text-sm">
                     <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">Ctrl+K</td><td class="py-2 pl-3">Focar pesquisa global</td></tr>
-                    <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">Ctrl+S</td><td class="py-2 pl-3">Guardar formulÃ¡rio em foco</td></tr>
+                    <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">Ctrl+S</td><td class="py-2 pl-3">Guardar formulário em foco</td></tr>
                     <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">Esc</td><td class="py-2 pl-3">Fechar modal</td></tr>
                     <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">?</td><td class="py-2 pl-3">Abrir este painel</td></tr>
                 </table>
-                <p class="text-xs text-gray-500 mt-4">No Mac use âŒ˜ em vez de Ctrl.</p>
+                <p class="text-xs text-gray-500 mt-4">No Mac use ⌘ em vez de Ctrl.</p>
             </div>
         </div>
     `;
@@ -232,7 +220,7 @@ function initFirebase() {
             firebase.initializeApp(firebaseConfig);
         }
         firestoreDb = firebase.firestore();
-        // App Check (opcional): ativa em background para nÃ£o bloquear init; se falhar, Firestore pode ainda funcionar se "Enforce" estiver desativado no Console
+        // App Check (opcional): ativa em background para não bloquear init; se falhar, Firestore pode ainda funcionar se "Enforce" estiver desativado no Console
         if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
             setTimeout(() => {
                 try {
@@ -240,7 +228,7 @@ function initFirebase() {
                         ? new firebase.appCheck.ReCaptchaV3Provider(APP_CHECK_SITE_KEY)
                         : APP_CHECK_SITE_KEY;
                     firebase.appCheck().activate(provider, true);
-                } catch (e) { console.warn('App Check nÃ£o ativado:', e?.message || e); }
+                } catch (e) { console.warn('App Check não ativado:', e?.message || e); }
             }, 0);
         }
         const deveLimparCache = (typeof sessionStorage !== 'undefined' ? sessionStorage : {}).getItem?.('limparCacheFirestoreNaProximaCarga') === 'true';
@@ -278,14 +266,14 @@ function initFirebase() {
             try { firestoreDb.enablePersistence().catch(() => {}); } catch (e) {}
         }
     } catch (error) {
-        console.warn('Firebase nÃ£o inicializado:', error);
+        console.warn('Firebase não inicializado:', error);
     }
 }
 
 initFirebase();
 
 // Firestore = fonte principal dos dados (cache offline via IndexedDB)
-// Entidades de negÃ³cio que vÃ£o para Firestore:
+// Entidades de negócio que vão para Firestore:
 // - clientes | processos (herancas, migracoes, registos) | tarefas | honorarios | contratos | logs (auditoria)
 // Corrigir user-dollar inexistente no Lucide
 (function(){var m={'user-dollar':'circle-dollar-sign'};var f=function(){for(var i in m)document.querySelectorAll('[data-lucide="'+i+'"]').forEach(function(el){el.setAttribute('data-lucide',m[i])})};if(typeof lucide!=='undefined'&&lucide.createIcons){var o=lucide.createIcons.bind(lucide);lucide.createIcons=function(){f();return o()}};document.readyState==='loading'?document.addEventListener('DOMContentLoaded',f):f()})();
@@ -305,24 +293,24 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
-/** Entidades portuguesas â€” Ãºtil para a solicitadora associar processos, tarefas e documentos Ã s instituiÃ§Ãµes corretas */
+/** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
 const ENTIDADES_PORTUGAL = [
-    { id: '', nome: 'â€” Nenhuma / Outra â€”' },
-    { id: 'financas_at', nome: 'FinanÃ§as (AT)' },
-    { id: 'conservatorias_irn', nome: 'ConservatÃ³rias (IRN)' },
+    { id: '', nome: '— Nenhuma / Outra —' },
+    { id: 'financas_at', nome: 'Finanças (AT)' },
+    { id: 'conservatorias_irn', nome: 'Conservatórias (IRN)' },
     { id: 'imt', nome: 'IMT' },
-    { id: 'camaras_municipais', nome: 'CÃ¢maras Municipais' },
-    { id: 'seguranca_social', nome: 'SeguranÃ§a Social' },
+    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
+    { id: 'seguranca_social', nome: 'Segurança Social' },
     { id: 'bancos', nome: 'Bancos' },
     { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
     { id: 'registo_predial', nome: 'Registo Predial (Online)' },
     { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
-    { id: 'registo_automovel', nome: 'Registo AutomÃ³vel (Online)' }
+    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
 ];
-const CLOUD_DEBOUNCE_MS = 100; // Firestore = fonte principal; sync rÃ¡pido para enviar dados Ã  nuvem
+const CLOUD_DEBOUNCE_MS = 100; // Firestore = fonte principal; sync rápido para enviar dados à nuvem
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
 
-// Gestor de listeners Firestore â€” pausa e retoma para evitar conflitos durante backup/importaÃ§Ã£o
+// Gestor de listeners Firestore — pausa e retoma para evitar conflitos durante backup/importação
 const listenerManager = {
     activeListeners: [],
     add(unsubscribeFn) {
@@ -344,52 +332,26 @@ function startAllListeners() {
 }
 window.startAllListeners = startAllListeners;
 
-/** Debounce para refresh dos listeners: evita que mÃºltiplos callbacks sobrescrevam a navegaÃ§Ã£o do utilizador (ex.: Central de NotificaÃ§Ãµes) */
-let __listenerRefreshTimer = null;
-const LISTENER_REFRESH_DEBOUNCE_MS = 150;
-function agendarRefreshListener() {
-    if (__listenerRefreshTimer) clearTimeout(__listenerRefreshTimer);
-    __listenerRefreshTimer = setTimeout(() => {
-        __listenerRefreshTimer = null;
-        // Não re-renderizar se o utilizador estiver a escrever num input (evita perder foco e cursor)
-        const ativo = document.activeElement;
-        const conteudo = document.getElementById('conteudoDinamico');
-        if (ativo && conteudo && conteudo.contains(ativo) && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName)) {
-            return;
-        }
+/** Inicia os listeners Firestore em tempo real (para retomar após pause em import/backup) */
+function iniciarListenersFirestore() {
+    if (!isCloudReady()) return;
+    window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
+        clientes = lista; window.clientes = clientes;
+        // Atualizar sempre a secao visivel quando clientes chegam (evita F5 apos login)
         if (typeof secaoAtiva === 'string') {
             carregarSecao(secaoAtiva);
             if (typeof atualizarInterface === 'function') atualizarInterface();
         }
-    }, LISTENER_REFRESH_DEBOUNCE_MS);
-}
-
-/** Cancela refresh pendente quando o utilizador navega explicitamente (evita race condition) */
-function cancelarRefreshListener() {
-    if (__listenerRefreshTimer) {
-        clearTimeout(__listenerRefreshTimer);
-        __listenerRefreshTimer = null;
-    }
-}
-
-/** Inicia os listeners Firestore em tempo real (para retomar apÃ³s pause em import/backup) */
-function iniciarListenersFirestore() {
-    if (!isCloudReady()) return;
-    // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
-    if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
-    window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
-        clientes = lista; window.clientes = clientes;
-        agendarRefreshListener();
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
         contratos = lista; window.contratos = contratos;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirContratosUnsubscribe);
     window.__ouvirHonorariosUnsubscribe = ouvirHonorarios((lista) => {
         honorarios = lista; window.honorarios = honorarios;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirHonorariosUnsubscribe);
     for (const entidade of PROCESSO_ENTIDADES) {
@@ -398,33 +360,33 @@ function iniciarListenersFirestore() {
             if (entidade === 'herancas') { herancas = lista; window.herancas = herancas; }
             else if (entidade === 'migracoes') { migracoes = lista; window.migracoes = migracoes; }
             else if (entidade === 'registos') { registos = lista; window.registos = registos; }
-            agendarRefreshListener();
+            if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
         });
     }
     PROCESSO_ENTIDADES.forEach(ent => { const k = '__ouvir' + ent.charAt(0).toUpperCase() + ent.slice(1).replace(/s$/, '') + 'sUnsubscribe'; if (window[k]) (window.addListener || listenerManager.add.bind(listenerManager))(window[k]); });
     window.__ouvirTarefasUnsubscribe = ouvirTarefas((lista) => {
         tarefas = lista; window.tarefas = tarefas;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirTarefasUnsubscribe);
     window.__ouvirPrazosUnsubscribe = ouvirPrazos((lista) => {
         prazos = lista; window.prazos = prazos;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPrazosUnsubscribe);
     window.__ouvirNotificacoesUnsubscribe = ouvirNotificacoes((lista) => {
         notificacoes = lista; window.notificacoes = notificacoes;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirNotificacoesUnsubscribe);
     window.__ouvirDocumentosUnsubscribe = ouvirDocumentos((lista) => {
         documentos = lista; window.documentos = documentos;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDocumentosUnsubscribe);
     window.__ouvirConvidadosUnsubscribe = ouvirConvidados((lista) => {
         convidados = lista; window.convidados = convidados;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirConvidadosUnsubscribe);
     window.__ouvirEntidadesUnsubscribe = ouvirEntidades((lista) => {
@@ -433,34 +395,34 @@ function iniciarListenersFirestore() {
             window.__entidadesSeedTentado = true;
             seedEntidadesSeVazio();
         }
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirEntidadesUnsubscribe);
     window.__ouvirIntegracoesExternasUnsubscribe = ouvirIntegracoesExternas((lista) => {
         integracoesExternas = lista; window.integracoesExternas = integracoesExternas;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirIntegracoesExternasUnsubscribe);
     window.__ouvirRepresentantesUnsubscribe = ouvirRepresentantes((lista) => {
         representantes = lista; window.representantes = representantes;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirRepresentantesUnsubscribe);
     window.__ouvirFaturasUnsubscribe = ouvirFaturas((lista) => {
         window.faturas = lista;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirFaturasUnsubscribe);
     window.__ouvirPagamentosUnsubscribe = ouvirPagamentos((lista) => {
         pagamentos = lista;
         window.pagamentos = pagamentos;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPagamentosUnsubscribe);
     window.__ouvirDespesasUnsubscribe = ouvirDespesas((lista) => {
         despesas = lista;
         window.despesas = despesas;
-        agendarRefreshListener();
+        if (typeof secaoAtiva === 'string') { carregarSecao(secaoAtiva); if (typeof atualizarInterface === 'function') atualizarInterface(); }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDespesasUnsubscribe);
 }
@@ -471,23 +433,23 @@ function isCloudReady() {
     return !!firestoreDb;
 }
 
-/** Formata tempo relativo: "agora", "hÃ¡ 1 min", "hÃ¡ 5 min", "hÃ¡ 1 h", etc. */
+/** Formata tempo relativo: "agora", "há 1 min", "há 5 min", "há 1 h", etc. */
 function formatarTempoRelativo(isoString) {
     if (!isoString) return 'agora';
     const d = new Date(isoString);
     const agora = new Date();
     const seg = Math.floor((agora - d) / 1000);
     if (seg < 15) return 'agora';
-    if (seg < 60) return `hÃ¡ ${seg} s`;
+    if (seg < 60) return `há ${seg} s`;
     const min = Math.floor(seg / 60);
-    if (min < 60) return `hÃ¡ ${min} min`;
+    if (min < 60) return `há ${min} min`;
     const h = Math.floor(min / 60);
-    if (h < 24) return `hÃ¡ ${h} h`;
+    if (h < 24) return `há ${h} h`;
     const dias = Math.floor(h / 24);
-    return `hÃ¡ ${dias} d`;
+    return `há ${dias} d`;
 }
 
-/** Devolve o texto "Sincronizado hÃ¡ X" para o badge. */
+/** Devolve o texto "Sincronizado há X" para o badge. */
 function obterTextoUltimaSincronizacao() {
     try {
         const iso = appStorage.getItem('cloudSyncUltimoSucesso');
@@ -505,8 +467,8 @@ function atualizarIndicadorSync(status, mensagem) {
     const labels = {
         ok: mensagem || obterTextoUltimaSincronizacao(),
         syncing: mensagem || 'A sincronizar...',
-        offline: mensagem || 'Offline â€” dados locais, sincroniza ao reconectar',
-        error: mensagem || 'Erro â€” alteraÃ§Ãµes por sincronizar, clique para tentar'
+        offline: mensagem || 'Offline — dados locais, sincroniza ao reconectar',
+        error: mensagem || 'Erro — alterações por sincronizar, clique para tentar'
     };
     const colors = {
         ok: '#10b981',
@@ -517,13 +479,13 @@ function atualizarIndicadorSync(status, mensagem) {
     if (text) text.textContent = labels[status] || labels.ok;
     if (dot) dot.style.background = colors[status] || colors.ok;
     badge.setAttribute('data-status', status);
-    if (status === 'ok') badge.title = `Ãšltima sincronizaÃ§Ã£o: ${formatarTempoRelativo(appStorage.getItem('cloudSyncUltimoSucesso') || '')}`;
-    else if (status === 'error') badge.title = 'HÃ¡ alteraÃ§Ãµes por sincronizar. Clique para tentar novamente.';
-    else if (status === 'offline') badge.title = 'Sem ligaÃ§Ã£o. Os dados estÃ£o guardados localmente e serÃ£o sincronizados quando reconectar.';
+    if (status === 'ok') badge.title = `Última sincronização: ${formatarTempoRelativo(appStorage.getItem('cloudSyncUltimoSucesso') || '')}`;
+    else if (status === 'error') badge.title = 'Há alterações por sincronizar. Clique para tentar novamente.';
+    else if (status === 'offline') badge.title = 'Sem ligação. Os dados estão guardados localmente e serão sincronizados quando reconectar.';
     else if (status === 'syncing') badge.title = 'A sincronizar com a nuvem...';
     else badge.title = '';
     badge.style.cursor = (status === 'error' || status === 'offline') ? 'pointer' : '';
-    // Mostrar o banner amarelo "EstÃ¡ offline" sÃ³ quando o browser estÃ¡ realmente sem internet
+    // Mostrar o banner amarelo "Está offline" só quando o browser está realmente sem internet
     if (banner) {
         const semInternet = typeof navigator !== 'undefined' && navigator.onLine === false;
         banner.classList.toggle('show', status === 'offline' && semInternet);
@@ -542,15 +504,15 @@ function finalizarSync(erro) {
     }
     if (window.__cloudSyncPending === 0) {
         if (window.__cloudSyncError) {
-            atualizarIndicadorSync('error', 'Erro â€” clique para tentar');
+            atualizarIndicadorSync('error', 'Erro — clique para tentar');
             const msg = navigator.onLine
-                ? 'Erro de sincronizaÃ§Ã£o. 1) Verifique a internet. 2) Clique no indicador vermelho (canto superior direito) para tentar novamente. Os dados locais estÃ£o guardados.'
-                : 'Sem ligaÃ§Ã£o Ã  internet. Verifique a Wi-Fi ou dados mÃ³veis. Clique no indicador vermelho para sincronizar quando voltar a ter conexÃ£o.';
+                ? 'Erro de sincronização. 1) Verifique a internet. 2) Clique no indicador vermelho (canto superior direito) para tentar novamente. Os dados locais estão guardados.'
+                : 'Sem ligação à internet. Verifique a Wi-Fi ou dados móveis. Clique no indicador vermelho para sincronizar quando voltar a ter conexão.';
             mostrarNotificacao(msg, 'error');
             try {
                 appStorage.setItem('cloudSyncUltimoErro', new Date().toISOString());
             } catch (error) {
-                console.warn('Erro ao guardar Ãºltimo erro de sync:', error);
+                console.warn('Erro ao guardar último erro de sync:', error);
             }
         } else {
             atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
@@ -558,7 +520,7 @@ function finalizarSync(erro) {
                 try {
                     appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString());
                 } catch (error) {
-                    console.warn('Erro ao guardar Ãºltimo sync:', error);
+                    console.warn('Erro ao guardar último sync:', error);
                 }
             }
         }
@@ -706,7 +668,6 @@ function prepararFaturaParaFirestore(item) {
         valorIva: parseFloat(item.valorIva ?? item.juros ?? 0),
         estado: item.estado ?? item.status ?? 'pendente',
         itens: item.itens ?? [],
-        despesas: item.despesas ?? [],
         metodoPagamento: item.metodoPagamento ?? '',
         notas: item.notas ?? item.observacoes ?? '',
         createdAt: item.createdAt ?? agora,
@@ -788,7 +749,7 @@ function obterServerTimestamp() {
 }
 
 async function criarClienteCloud(cliente) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = cliente.id || gerarIdImutavel();
     const prep = prepararClienteParaFirestore({ ...cliente, id });
     const payload = Object.fromEntries(
@@ -812,7 +773,7 @@ async function obterClienteCloud(id) {
 }
 
 async function atualizarClienteCloud(id, dados) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     const prep = prepararClienteParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -822,7 +783,7 @@ async function atualizarClienteCloud(id, dados) {
 }
 
 async function excluirClienteCloud(id, softDelete = false) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     if (softDelete) {
         await apagarClienteCloud(id);
     } else {
@@ -830,17 +791,17 @@ async function excluirClienteCloud(id, softDelete = false) {
     }
 }
 
-/** EliminaÃ§Ã£o definitiva: remove o cliente do Firestore (nÃ£o volta a aparecer). */
+/** Eliminação definitiva: remove o cliente do Firestore (não volta a aparecer). */
 async function apagarClienteCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('clientes').doc(String(id)).delete();
 }
 
 // === CRUD Contratos (Firestore como fonte principal) ===
-// UI integrada: salvarContrato â†’ criarContratoCloud (setDoc) | excluirContrato â†’ apagarContratoCloud (updateDoc deleted: true)
+// UI integrada: salvarContrato → criarContratoCloud (setDoc) | excluirContrato → apagarContratoCloud (updateDoc deleted: true)
 // Leitura: ouvirContratos atualiza global contratos em tempo real; obterContratosAtual() prioriza essa fonte
 async function criarContratoCloud(contrato) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = contrato.id || gerarIdImutavel();
     const payload = {
         ...prepararContratoParaFirestore({ ...contrato, id }),
@@ -861,7 +822,7 @@ async function obterContratoCloud(id) {
 }
 
 async function atualizarContratoCloud(id, dados) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     const prep = prepararContratoParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -871,13 +832,13 @@ async function atualizarContratoCloud(id, dados) {
 }
 
 async function apagarContratoCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('contratos').doc(String(id)).delete();
 }
 
-// === CRUD HonorÃ¡rios (Firestore como fonte principal) ===
+// === CRUD Honorários (Firestore como fonte principal) ===
 async function criarHonorarioCloud(honorario) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = honorario.id || gerarIdImutavel();
     const payload = {
         ...prepararHonorarioParaFirestore({ ...honorario, id }),
@@ -898,7 +859,7 @@ async function obterHonorarioCloud(id) {
 }
 
 async function atualizarHonorarioCloud(id, dados) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     const prep = prepararHonorarioParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -908,15 +869,15 @@ async function atualizarHonorarioCloud(id, dados) {
 }
 
 async function apagarHonorarioCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('honorarios').doc(String(id)).delete();
 }
 
 /** Criar pagamento no Firestore e atualizar fatura (somaPagamentos, estado). */
 async function criarPagamentoCloud(pagamento) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const faturaId = pagamento.faturaId;
-    if (!faturaId) throw new Error('faturaId obrigatÃ³rio');
+    if (!faturaId) throw new Error('faturaId obrigatório');
     const id = pagamento.id || gerarIdImutavel();
     const prep = prepararPagamentoParaFirestore({ ...pagamento, id });
     const payload = { ...prep, id, anulado: false, deleted: false };
@@ -945,7 +906,7 @@ async function atualizarFaturaAposPagamento(faturaId) {
 
 /** Criar/atualizar fatura no Firestore. */
 async function criarFaturaCloud(fatura) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = fatura.id || gerarIdImutavel();
     const prep = prepararFaturaParaFirestore({ ...fatura, id });
     const payload = {
@@ -959,7 +920,7 @@ async function criarFaturaCloud(fatura) {
     return { ...fatura, id };
 }
 
-/** Escuta honorÃ¡rios em tempo real. Devolve funÃ§Ã£o para cancelar a subscriÃ§Ã£o. */
+/** Escuta honorários em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirHonorarios(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('honorarios').onSnapshot((snapshot) => {
@@ -969,11 +930,11 @@ function ouvirHonorarios(callback) {
             .map(lerHonorarioDoFirestore);
         if (typeof callback === 'function') callback(lista);
     }, (err) => {
-        console.warn('Erro na escuta em tempo real de honorÃ¡rios:', err);
+        console.warn('Erro na escuta em tempo real de honorários:', err);
     });
 }
 
-/** Escuta contratos em tempo real. Devolve funÃ§Ã£o para cancelar a subscriÃ§Ã£o. */
+/** Escuta contratos em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirContratos(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('contratos').onSnapshot((snapshot) => {
@@ -1044,12 +1005,12 @@ function ouvirDespesas(callback) {
 }
 
 async function criarDespesaCloud(despesa) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const processoTipo = despesa.processoTipo || 'herancas';
     const processoId = despesa.processoId;
-    if (!processoId) throw new Error('Processo obrigatÃ³rio');
+    if (!processoId) throw new Error('Processo obrigatório');
     const valor = parseFloat(despesa.valor ?? 0);
-    if (valor < 0) throw new Error('Valor invÃ¡lido');
+    if (valor < 0) throw new Error('Valor inválido');
 
     const id = despesa.id || gerarIdImutavel();
     const prep = prepararDespesaParaFirestore({ ...despesa, id });
@@ -1059,15 +1020,15 @@ async function criarDespesaCloud(despesa) {
 }
 
 async function anularDespesaCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('despesas').doc(String(id)).update({ anulado: true, updatedAt: obterServerTimestamp() });
 }
 
 /** Criar pagamento e atualizar somaPagamentos na fatura. */
 async function criarPagamentoCloud(pagamento) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const faturaId = pagamento.faturaId;
-    if (!faturaId) throw new Error('Fatura obrigatÃ³ria');
+    if (!faturaId) throw new Error('Fatura obrigatória');
     const valor = parseFloat(pagamento.valor ?? 0);
     if (valor <= 0) throw new Error('Valor deve ser maior que zero');
 
@@ -1101,7 +1062,7 @@ async function criarPagamentoCloud(pagamento) {
     return { ...pagamento, id };
 }
 
-/** Escuta clientes em tempo real. Devolve funÃ§Ã£o para cancelar a subscriÃ§Ã£o. */
+/** Escuta clientes em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirClientes(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('clientes').onSnapshot((snapshot) => {
@@ -1115,9 +1076,9 @@ function ouvirClientes(callback) {
     });
 }
 
-// === CRUD Processos (heranÃ§as, migraÃ§Ãµes, registos) ===
+// === CRUD Processos (heranças, migrações, registos) ===
 async function criarProcessoCloud(entidade, item) {
-    if (!isCloudReady() || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou entidade invÃ¡lida');
+    if (!isCloudReady() || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou entidade inválida');
     const id = item.id || gerarIdImutavel();
     const payload = {
         ...prepararProcessoParaFirestore(entidade, { ...item, id }),
@@ -1138,7 +1099,7 @@ async function obterProcessoCloud(entidade, id) {
 }
 
 async function atualizarProcessoCloud(entidade, id, dados) {
-    if (!isCloudReady() || !id || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou id inválido');
     const prep = prepararProcessoParaFirestore(entidade, { ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -1148,7 +1109,7 @@ async function atualizarProcessoCloud(entidade, id, dados) {
 }
 
 async function apagarProcessoCloud(entidade, id) {
-    if (!isCloudReady() || !id || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id || !PROCESSO_ENTIDADES.includes(entidade)) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection(entidade).doc(String(id)).delete();
 }
 
@@ -1168,7 +1129,7 @@ function ouvirProcessos(entidade, callback) {
 
 // === CRUD Tarefas ===
 async function criarTarefaCloud(tarefa) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = tarefa.id || gerarIdImutavel();
     const payload = {
         ...prepararTarefaParaFirestore({ ...tarefa, id }),
@@ -1189,7 +1150,7 @@ async function obterTarefaCloud(id) {
 }
 
 async function atualizarTarefaCloud(id, dados) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     const prep = prepararTarefaParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -1199,11 +1160,11 @@ async function atualizarTarefaCloud(id, dados) {
 }
 
 async function apagarTarefaCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('tarefas').doc(String(id)).delete();
 }
 
-/** Escuta tarefas em tempo real. Devolve funÃ§Ã£o para cancelar a subscriÃ§Ã£o. */
+/** Escuta tarefas em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirTarefas(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('tarefas').onSnapshot((snapshot) => {
@@ -1219,7 +1180,7 @@ function ouvirTarefas(callback) {
 
 // === CRUD Prazos ===
 async function criarPrazoCloud(prazo) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = prazo.id || gerarIdImutavel();
     const payload = {
         ...prepararPrazoParaFirestore({ ...prazo, id }),
@@ -1240,7 +1201,7 @@ async function obterPrazoCloud(id) {
 }
 
 async function atualizarPrazoCloud(id, dados) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     const prep = prepararPrazoParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -1250,7 +1211,7 @@ async function atualizarPrazoCloud(id, dados) {
 }
 
 async function apagarPrazoCloud(id) {
-    if (!isCloudReady() || !id) throw new Error('Firestore ou id invÃ¡lido');
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('prazos').doc(String(id)).delete();
 }
 
@@ -1268,9 +1229,9 @@ function ouvirPrazos(callback) {
     });
 }
 
-// === CRUD NotificaÃ§Ãµes ===
+// === CRUD Notificações ===
 async function criarNotificacaoCloud(notificacao) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = notificacao.id || gerarIdImutavel();
     const payload = {
         ...prepararNotificacaoParaFirestore({ ...notificacao, id }),
@@ -1290,12 +1251,12 @@ function ouvirNotificacoes(callback) {
     return firestoreDb.collection('notificacoes').onSnapshot((snapshot) => {
         const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(n => !n.deleted).map(lerNotificacaoDoFirestore);
         if (typeof callback === 'function') callback(lista);
-    }, (err) => console.warn('Erro na escuta de notificaÃ§Ãµes:', err));
+    }, (err) => console.warn('Erro na escuta de notificações:', err));
 }
 
 // === CRUD Documentos ===
 async function criarDocumentoCloud(documento) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = documento.id || gerarIdImutavel();
     const payload = {
         ...prepararDocumentoParaFirestore({ ...documento, id }),
@@ -1320,7 +1281,7 @@ function ouvirDocumentos(callback) {
 
 // === CRUD Convidados ===
 async function criarConvidadoCloud(convidado) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const codigo = convidado.codigo || gerarCodigoAcesso();
     const payload = {
         ...prepararConvidadoParaFirestore({ ...convidado, codigo }),
@@ -1343,7 +1304,7 @@ function ouvirConvidados(callback) {
     }, (err) => console.warn('Erro na escuta de convidados:', err));
 }
 
-// === ENTIDADES (IntegraÃ§Ãµes Externas - catÃ¡logo) ===
+// === ENTIDADES (Integrações Externas - catálogo) ===
 function prepararEntidadeParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
@@ -1368,14 +1329,14 @@ function lerEntidadeDoFirestore(data) {
     return { ...data };
 }
 async function criarEntidadeCloud(item) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = item.id || gerarIdImutavel();
     const payload = prepararEntidadeParaFirestore({ ...item, id });
     await firestoreDb.collection('entidades').doc(String(id)).set(payload, { merge: true });
     return { ...item, id, ...payload };
 }
 async function atualizarEntidadeCloud(id, dados) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const payload = { ...prepararEntidadeParaFirestore({ ...dados, id }), updatedAt: new Date().toISOString() };
     await firestoreDb.collection('entidades').doc(String(id)).update(payload);
     return { ...dados, id, ...payload };
@@ -1391,7 +1352,7 @@ function ouvirEntidades(callback) {
         if (typeof callback === 'function') callback(lista);
     }, (err) => console.warn('Erro na escuta de entidades:', err));
 }
-/** Seed inicial: popula coleÃ§Ã£o entidades a partir de ENTIDADES_PORTUGAL se estiver vazia. */
+/** Seed inicial: popula coleção entidades a partir de ENTIDADES_PORTUGAL se estiver vazia. */
 async function seedEntidadesSeVazio() {
     if (!isCloudReady()) return;
     try {
@@ -1412,16 +1373,16 @@ async function seedEntidadesSeVazio() {
     } catch (err) { console.warn('Seed entidades:', err); }
 }
 
-/** Retorna ENTIDADES_PORTUGAL da coleÃ§Ã£o Firestore ou fallback para constante. */
+/** Retorna ENTIDADES_PORTUGAL da coleção Firestore ou fallback para constante. */
 function obterEntidadesParaSelect() {
     const lista = Array.isArray(entidades) ? entidades.filter(e => e.ativo !== false) : [];
     if (lista.length > 0) {
-        return [{ id: '', nome: 'â€” Nenhuma / Outra â€”' }, ...lista.map(e => ({ id: e.id, nome: e.nome }))];
+        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome }))];
     }
-    return typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: 'â€” Nenhuma / Outra â€”' }];
+    return typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
 }
 
-// === INTEGRAÃ‡Ã•ES EXTERNAS ===
+// === INTEGRAÇÕES EXTERNAS ===
 function prepararIntegracaoParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
@@ -1458,7 +1419,7 @@ function lerIntegracaoDoFirestore(data) {
     return { ...data };
 }
 async function criarIntegracaoCloud(item) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const id = item.id || gerarIdImutavel();
     const payload = prepararIntegracaoParaFirestore({ ...item, id });
     await firestoreDb.collection('integracoes_externas').doc(String(id)).set(payload, { merge: true });
@@ -1466,7 +1427,7 @@ async function criarIntegracaoCloud(item) {
     return { ...item, id, ...payload };
 }
 async function atualizarIntegracaoCloud(id, dados) {
-    if (!isCloudReady()) throw new Error('Firestore nÃ£o disponÃ­vel');
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
     const payload = { ...prepararIntegracaoParaFirestore({ ...dados, id }), updatedAt: new Date().toISOString() };
     await firestoreDb.collection('integracoes_externas').doc(String(id)).update(payload);
     await criarLogIntegracaoCloud({ integracaoId: id, acao: 'atualizar', detalhes: {} });
@@ -1478,12 +1439,12 @@ async function apagarIntegracaoCloud(id) {
 }
 async function excluirIntegracao(id) {
     if (!id) return;
-    if (!confirm('Eliminar esta integraÃ§Ã£o?')) return;
+    if (!confirm('Eliminar esta integração?')) return;
     try {
         await apagarIntegracaoCloud(id);
         integracoesExternas = (integracoesExternas || []).filter(x => String(x.id) !== String(id));
         window.integracoesExternas = integracoesExternas;
-        mostrarNotificacao('IntegraÃ§Ã£o eliminada.', 'success');
+        mostrarNotificacao('Integração eliminada.', 'success');
         aplicarFiltrosIntegracoes();
     } catch (e) {
         mostrarNotificacao('Erro ao eliminar: ' + (e?.message || e), 'error');
@@ -1497,7 +1458,7 @@ function ouvirIntegracoesExternas(callback) {
     }, (err) => console.warn('Erro na escuta de integracoes_externas:', err));
 }
 
-// === LOGS INTEGRAÃ‡Ã•ES (auditoria) ===
+// === LOGS INTEGRAÇÕES (auditoria) ===
 async function criarLogIntegracaoCloud(item) {
     if (!isCloudReady()) return;
     const id = gerarIdImutavel();
@@ -1701,7 +1662,6 @@ function prepararDocumentoParaFirestore(item) {
     return {
         ...item,
         clienteId: item.clienteId ?? null,
-        faturaId: item.faturaId ?? null,
         nomeArquivo: item.nomeArquivo ?? '',
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
@@ -1734,55 +1694,6 @@ function lerConvidadoDoFirestore(data) {
     return { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
 }
 
-/** Gera hash dos dados da secção (para diff no visibilitychange — evitar re-render desnecessário) */
-function obterHashDadosSecao(secao) {
-    try {
-        const hashLista = (lista) => {
-            if (!Array.isArray(lista)) return '0';
-            const ids = lista.slice(0, 20).map(i => (i && (i.id != null ? i.id : i.codigo))).filter(Boolean);
-            return lista.length + '-' + ids.join(',');
-        };
-        const entidades = { clientes: 'clientes', honorarios: 'honorarios', contratos: 'contratos', prazos: 'prazos', notificacoes: 'notificacoes', documentos: 'documentos', tarefas: 'tarefas', herancas: 'herancas', migracoes: 'migracoes', registos: 'registos' };
-        if (entidades[secao]) return hashLista(obterListaGlobal(entidades[secao]));
-        if (secao === 'dashboard') return [ 'clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes' ].map(e => hashLista(obterListaGlobal(e))).join('|');
-        return hashLista(obterListaGlobal(secao)) || '';
-    } catch (e) { return ''; }
-}
-
-/** Hash simples dos dados da secção — usado em visibilitychange para evitar re-render desnecessário */
-function obterHashDadosSecao(secao) {
-    try {
-        const getLista = (ent) => {
-            const map = {
-                clientes: () => obterClientesAtual(),
-                honorarios: () => honorarios,
-                contratos: () => contratos,
-                prazos: () => prazos,
-                notificacoes: () => notificacoes,
-                tarefas: () => tarefas,
-                documentos: () => documentos,
-                herancas: () => herancas,
-                migracoes: () => migracoes,
-                registos: () => registos
-            };
-            return typeof map[ent] === 'function' ? map[ent]() : [];
-        };
-        if (secao === 'dashboard') {
-            const parts = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas'].map(ent => {
-                const arr = Array.isArray(getLista(ent)) ? getLista(ent) : [];
-                return `${ent}:${arr.length}`;
-            });
-            return 'dashboard:' + parts.join(';');
-        }
-        const lista = getLista(secao);
-        const arr = Array.isArray(lista) ? lista : [];
-        const ids = arr.slice(0, 10).map(i => (i && (i.id ?? i._id))).filter(Boolean);
-        return `${secao}:${arr.length}:${ids.join(',')}`;
-    } catch (e) {
-        return '';
-    }
-}
-
 function obterListaGlobal(entidade) {
     if (entidade === 'clientes') return obterClientesAtual();
     if (entidade === 'honorarios') return honorarios;
@@ -1803,9 +1714,8 @@ function obterListaGlobal(entidade) {
 
 function salvarEntidadeCloud(entidade, item) {
     if (!isCloudReady()) return Promise.resolve();
-    if (!item || typeof item !== 'object') return Promise.resolve();
     const id = obterIdEntidade(entidade, item);
-    if (id === null || id === undefined || String(id).trim() === '') return Promise.resolve();
+    if (id === null || id === undefined) return Promise.resolve();
     let payload = item;
     if (entidade === 'clientes') payload = prepararClienteParaFirestore(item);
     else if (PROCESSO_ENTIDADES.includes(entidade)) payload = prepararProcessoParaFirestore(entidade, item);
@@ -1819,15 +1729,7 @@ function salvarEntidadeCloud(entidade, item) {
     else if (entidade === 'entidades') payload = prepararEntidadeParaFirestore(item);
     else if (entidade === 'integracoes_externas') payload = prepararIntegracaoParaFirestore(item);
     else if (entidade === 'representantes') payload = prepararRepresentanteParaFirestore(item);
-    if (payload && typeof payload === 'object') {
-        payload = Object.fromEntries(
-            Object.entries(payload).filter(([, v]) => {
-                if (v === undefined) return false;
-                if (typeof v === 'number' && (Number.isNaN(v) || !Number.isFinite(v))) return false;
-                return true;
-            })
-        );
-    }
+    if (payload && typeof payload === 'object') payload = Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
     return firestoreDb.collection(entidade).doc(String(id)).set(payload, { merge: true })
         .catch((error) => {
             console.warn(`Erro ao salvar ${entidade} na nuvem:`, error);
@@ -1837,7 +1739,7 @@ function salvarEntidadeCloud(entidade, item) {
 
 function excluirEntidadeCloud(entidade, id) {
     if (!isCloudReady()) return Promise.resolve();
-    if (id === null || id === undefined || String(id).trim() === '') return Promise.resolve();
+    if (id === null || id === undefined) return Promise.resolve();
     return firestoreDb.collection(entidade).doc(String(id)).delete()
         .catch((error) => {
             console.warn(`Erro ao excluir ${entidade} na nuvem:`, error);
@@ -1858,14 +1760,14 @@ function agendarSyncEntidade(entidade, lista, removidos = []) {
         iniciarSync();
         try {
             const promises = [];
-            (lista || []).forEach(item => { if (item && typeof item === 'object') promises.push(salvarEntidadeCloud(entidade, item)); });
-            (removidos || []).filter(id => id != null && String(id).trim() !== '').forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
+            (lista || []).forEach(item => promises.push(salvarEntidadeCloud(entidade, item)));
+            (removidos || []).forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
             await Promise.all(promises);
             try {
                 appStorage.setItem('cloudSyncUltimaEntidade', entidade);
                 appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
             } catch (error) {
-                console.warn('Erro ao guardar Ãºltima entidade sincronizada:', error);
+                console.warn('Erro ao guardar última entidade sincronizada:', error);
             }
         } catch (error) {
             console.warn(`Erro no sync de ${entidade}:`, error);
@@ -1883,7 +1785,7 @@ function obterTimestampItem(item) {
 }
 
 function mesclarListasPorId(entidade, local, cloud) {
-    // Firestore = fonte absoluta. Usar APENAS cloud para evitar que dados apagados reapareÃ§am do localStorage antigo.
+    // Firestore = fonte absoluta. Usar APENAS cloud para evitar que dados apagados reapareçam do localStorage antigo.
     if (Array.isArray(cloud)) return cloud;
     return Array.isArray(local) ? local : [];
 }
@@ -1894,7 +1796,7 @@ async function sincronizarEntidadeNuvem(entidade) {
     iniciarSync();
     try {
         const local = Array.isArray(obterListaGlobal(entidade)) ? obterListaGlobal(entidade) : [];
-        // Se o utilizador fez "Limpar todos os dados", nÃ£o trazer dados da nuvem (mantÃ©m local vazio)
+        // Se o utilizador fez "Limpar todos os dados", não trazer dados da nuvem (mantém local vazio)
         const naoRestaurar = appStorage.getItem('naoRestaurarDaNuvem') === 'true';
         let merged;
         if (naoRestaurar) {
@@ -1937,6 +1839,12 @@ async function sincronizarEntidadeNuvem(entidade) {
         } catch (error) {
             console.warn('Erro ao guardar última entidade sincronizada:', error);
         }
+        try {
+            appStorage.setItem('cloudSyncUltimaEntidade', entidade);
+            appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
+        } catch (error) {
+            console.warn('Erro ao guardar última entidade sincronizada:', error);
+        }
     } catch (error) {
         console.warn(`Erro ao sincronizar ${entidade}:`, error);
         window.__cloudSyncError = error;
@@ -1947,13 +1855,13 @@ async function sincronizarEntidadeNuvem(entidade) {
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
 
-/** MigraÃ§Ã£o clientes: desativada. Clientes apenas do Firestore. */
+/** Migração clientes: desativada. Clientes apenas do Firestore. */
 async function migrarClientesLocalParaFirestore() {
     if (!isCloudReady()) return;
     try { appStorage.setItem(CHAVE_MIGRACAO_CLIENTES, 'true'); } catch (e) {}
 }
 
-/** MigraÃ§Ã£o: envia dados do localStorage (e sessionStorage) para Firestore e limpa o storage. Executa uma vez. */
+/** Migração: envia dados do localStorage (e sessionStorage) para Firestore e limpa o storage. Executa uma vez. */
 const CHAVE_LOCALSTORAGE_MIGRADO = 'localStorageMigradoParaFirebase';
 async function migrarLocalStorageParaFirestore(forcar = false) {
     if (!isCloudReady() || !window.localStorage) return;
@@ -1984,13 +1892,13 @@ async function migrarLocalStorageParaFirestore(forcar = false) {
     } catch (err) { console.warn('migrarLocalStorageParaFirestore:', err); }
 }
 
-/** MigraÃ§Ã£o manual: envia dados de localStorage/sessionStorage para Firebase e limpa o storage. Chamado pelo botÃ£o em Backup. */
+/** Migração manual: envia dados de localStorage/sessionStorage para Firebase e limpa o storage. Chamado pelo botão em Backup. */
 async function executarMigracaoLocalParaFirebase() {
     if (!isCloudReady()) {
-        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Firebase nÃ£o configurado. Configure o firebaseConfig em script.js.', 'error');
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Firebase não configurado. Configure o firebaseConfig em script.js.', 'error');
         return;
     }
-    if (!confirm('Migrar todos os dados em localStorage/sessionStorage para o Firebase? Os dados locais serÃ£o eliminados apÃ³s a migraÃ§Ã£o.')) return;
+    if (!confirm('Migrar todos os dados em localStorage/sessionStorage para o Firebase? Os dados locais serão eliminados após a migração.')) return;
     try {
         appStorage.removeItem(CHAVE_LOCALSTORAGE_MIGRADO);
         await migrarLocalStorageParaFirestore(true);
@@ -1999,24 +1907,22 @@ async function executarMigracaoLocalParaFirebase() {
             entidades.forEach(e => { try { localStorage.removeItem(e); } catch (x) {} });
         }
         entidades.forEach(e => { try { appStorage.removeItem(e); } catch (x) {} });
-        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('MigraÃ§Ã£o concluÃ­da. Dados agora apenas no Firebase.', 'success');
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Migração concluída. Dados agora apenas no Firebase.', 'success');
         if (typeof carregarSecao === 'function') carregarSecao(secaoAtiva || 'backup');
     } catch (err) {
-        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro na migraÃ§Ã£o: ' + (err?.message || err), 'error');
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro na migração: ' + (err?.message || err), 'error');
     }
 }
 
 const CHAVE_MIGRACAO_HONORARIOS = 'honorariosMigrados';
 
-/** MigraÃ§Ã£o Ãºnica: envia honorÃ¡rios do appStorage (sessionStorage) para o Firestore. Executa uma vez. */
+/** Migração única: envia honorários do appStorage (sessionStorage) para o Firestore. Executa uma vez. */
 async function migrarHonorariosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_HONORARIOS) === 'true') return;
 
     const raw = localStorage.getItem('honorarios') || appStorage.getItem('honorarios');
-    let honorariosLocal = [];
-    try { honorariosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em honorarios:', e?.message); }
-    if (!Array.isArray(honorariosLocal)) honorariosLocal = [];
+    const honorariosLocal = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(honorariosLocal) || honorariosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_HONORARIOS, 'true'); } catch (e) {}
         return;
@@ -2031,25 +1937,23 @@ async function migrarHonorariosLocalParaFirestore() {
         appStorage.removeItem('honorarios');
         appStorage.setItem(CHAVE_MIGRACAO_HONORARIOS, 'true');
         if (typeof mostrarNotificacao === 'function') {
-            mostrarNotificacao('HonorÃ¡rios migrados para a nuvem.', 'success');
+            mostrarNotificacao('Honorários migrados para a nuvem.', 'success');
         }
     } catch (err) {
-        console.warn('Erro na migraÃ§Ã£o de honorÃ¡rios:', err);
+        console.warn('Erro na migração de honorários:', err);
     }
 }
 
 const CHAVE_MIGRACAO_CONTRATOS = 'contratosMigrados';
 
-/** MigraÃ§Ã£o Ãºnica: envia processos (heranÃ§as/migraÃ§Ãµes/registos) do appStorage para Firestore. */
+/** Migração única: envia processos (heranças/migrações/registos) do appStorage para Firestore. */
 async function migrarProcessosLocalParaFirestore(entidade) {
     if (!isCloudReady() || !PROCESSO_ENTIDADES.includes(entidade)) return;
     const chave = entidade + 'Migrados';
     if (appStorage.getItem(chave) === 'true') return;
 
     const raw = appStorage.getItem(entidade);
-    let lista = [];
-    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em', entidade, '- a ignorar:', e?.message); }
-    if (!Array.isArray(lista)) lista = [];
+    const lista = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(chave, 'true'); } catch (e) {}
         return;
@@ -2067,19 +1971,17 @@ async function migrarProcessosLocalParaFirestore(entidade) {
             mostrarNotificacao(entidade + ' migrados para a nuvem.', 'success');
         }
     } catch (err) {
-        console.warn('Erro na migraÃ§Ã£o de', entidade, ':', err);
+        console.warn('Erro na migração de', entidade, ':', err);
     }
 }
 
-/** MigraÃ§Ã£o Ãºnica: envia contratos do appStorage para o Firestore. Executa uma vez. */
+/** Migração única: envia contratos do appStorage para o Firestore. Executa uma vez. */
 async function migrarContratosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_CONTRATOS) === 'true') return;
 
     const raw = appStorage.getItem('contratos');
-    let contratosLocal = [];
-    try { contratosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em contratos:', e?.message); }
-    if (!Array.isArray(contratosLocal)) contratosLocal = [];
+    const contratosLocal = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(contratosLocal) || contratosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_CONTRATOS, 'true'); } catch (e) {}
         return;
@@ -2097,21 +1999,19 @@ async function migrarContratosLocalParaFirestore() {
             mostrarNotificacao('Contratos migrados para a nuvem.', 'success');
         }
     } catch (err) {
-        console.warn('Erro na migraÃ§Ã£o de contratos:', err);
+        console.warn('Erro na migração de contratos:', err);
     }
 }
 
 const CHAVE_MIGRACAO_TAREFAS = 'tarefasMigrados';
 
-/** MigraÃ§Ã£o Ãºnica: envia tarefas do appStorage para o Firestore. */
+/** Migração única: envia tarefas do appStorage para o Firestore. */
 async function migrarTarefasLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_TAREFAS) === 'true') return;
 
     const raw = appStorage.getItem('tarefas');
-    let tarefasLocal = [];
-    try { tarefasLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em tarefas:', e?.message); }
-    if (!Array.isArray(tarefasLocal)) tarefasLocal = [];
+    const tarefasLocal = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(tarefasLocal) || tarefasLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_TAREFAS, 'true'); } catch (e) {}
         return;
@@ -2129,21 +2029,19 @@ async function migrarTarefasLocalParaFirestore() {
             mostrarNotificacao('Tarefas migradas para a nuvem.', 'success');
         }
     } catch (err) {
-        console.warn('Erro na migraÃ§Ã£o de tarefas:', err);
+        console.warn('Erro na migração de tarefas:', err);
     }
 }
 
 const CHAVE_MIGRACAO_PRAZOS = 'prazosMigrados';
 
 const CHAVE_MIGRACAO_NOTIFICACOES = 'notificacoesMigrados';
-/** MigraÃ§Ã£o Ãºnica: envia notificaÃ§Ãµes do appStorage para o Firestore. */
+/** Migração única: envia notificações do appStorage para o Firestore. */
 async function migrarNotificacoesLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_NOTIFICACOES) === 'true') return;
     const raw = appStorage.getItem('notificacoes');
-    let lista = [];
-    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em notificacoes:', e?.message); }
-    if (!Array.isArray(lista)) lista = [];
+    const lista = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_NOTIFICACOES, 'true'); } catch (e) {}
         return;
@@ -2156,19 +2054,17 @@ async function migrarNotificacoesLocalParaFirestore() {
         }
         appStorage.removeItem('notificacoes');
         appStorage.setItem(CHAVE_MIGRACAO_NOTIFICACOES, 'true');
-        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('NotificaÃ§Ãµes migradas para a nuvem.', 'success');
-    } catch (err) { console.warn('Erro na migraÃ§Ã£o de notificaÃ§Ãµes:', err); }
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Notificações migradas para a nuvem.', 'success');
+    } catch (err) { console.warn('Erro na migração de notificações:', err); }
 }
 
 const CHAVE_MIGRACAO_DOCUMENTOS = 'documentosMigrados';
-/** MigraÃ§Ã£o Ãºnica: envia documentos do appStorage para o Firestore. */
+/** Migração única: envia documentos do appStorage para o Firestore. */
 async function migrarDocumentosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_DOCUMENTOS) === 'true') return;
     const raw = appStorage.getItem('documentos');
-    let lista = [];
-    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em documentos:', e?.message); }
-    if (!Array.isArray(lista)) lista = [];
+    const lista = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_DOCUMENTOS, 'true'); } catch (e) {}
         return;
@@ -2182,18 +2078,16 @@ async function migrarDocumentosLocalParaFirestore() {
         appStorage.removeItem('documentos');
         appStorage.setItem(CHAVE_MIGRACAO_DOCUMENTOS, 'true');
         if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Documentos migrados para a nuvem.', 'success');
-    } catch (err) { console.warn('Erro na migraÃ§Ã£o de documentos:', err); }
+    } catch (err) { console.warn('Erro na migração de documentos:', err); }
 }
 
 const CHAVE_MIGRACAO_FATURAS = 'faturasMigrados';
-/** MigraÃ§Ã£o Ãºnica: envia faturas do appStorage para o Firestore. */
+/** Migração única: envia faturas do appStorage para o Firestore. */
 async function migrarFaturasLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_FATURAS) === 'true') return;
     const raw = appStorage.getItem('faturas');
-    let lista = [];
-    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em faturas:', e?.message); }
-    if (!Array.isArray(lista)) lista = [];
+    const lista = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_FATURAS, 'true'); } catch (e) {}
         return;
@@ -2207,18 +2101,16 @@ async function migrarFaturasLocalParaFirestore() {
         appStorage.removeItem('faturas');
         appStorage.setItem(CHAVE_MIGRACAO_FATURAS, 'true');
         if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Faturas migradas para a nuvem.', 'success');
-    } catch (err) { console.warn('Erro na migraÃ§Ã£o de faturas:', err); }
+    } catch (err) { console.warn('Erro na migração de faturas:', err); }
 }
 
 const CHAVE_MIGRACAO_CONVIDADOS = 'convidadosMigrados';
-/** MigraÃ§Ã£o Ãºnica: envia convidados do appStorage para o Firestore. */
+/** Migração única: envia convidados do appStorage para o Firestore. */
 async function migrarConvidadosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_CONVIDADOS) === 'true') return;
     const raw = appStorage.getItem('convidados');
-    let lista = [];
-    try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em convidados:', e?.message); }
-    if (!Array.isArray(lista)) lista = [];
+    const lista = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(lista) || lista.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_CONVIDADOS, 'true'); } catch (e) {}
         return;
@@ -2232,18 +2124,16 @@ async function migrarConvidadosLocalParaFirestore() {
         appStorage.removeItem('convidados');
         appStorage.setItem(CHAVE_MIGRACAO_CONVIDADOS, 'true');
         if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Convidados migrados para a nuvem.', 'success');
-    } catch (err) { console.warn('Erro na migraÃ§Ã£o de convidados:', err); }
+    } catch (err) { console.warn('Erro na migração de convidados:', err); }
 }
 
-/** MigraÃ§Ã£o Ãºnica: envia prazos do appStorage para o Firestore. */
+/** Migração única: envia prazos do appStorage para o Firestore. */
 async function migrarPrazosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_PRAZOS) === 'true') return;
 
     const raw = appStorage.getItem('prazos');
-    let prazosLocal = [];
-    try { prazosLocal = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em prazos:', e?.message); }
-    if (!Array.isArray(prazosLocal)) prazosLocal = [];
+    const prazosLocal = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(prazosLocal) || prazosLocal.length === 0) {
         try { appStorage.setItem(CHAVE_MIGRACAO_PRAZOS, 'true'); } catch (e) {}
         return;
@@ -2261,7 +2151,7 @@ async function migrarPrazosLocalParaFirestore() {
             mostrarNotificacao('Prazos migrados para a nuvem.', 'success');
         }
     } catch (err) {
-        console.warn('Erro na migraÃ§Ã£o de prazos:', err);
+        console.warn('Erro na migração de prazos:', err);
     }
 }
 
@@ -2288,7 +2178,7 @@ async function sincronizarTodasEntidadesNuvem() {
     }
 }
 
-/** ApÃ³s sincronizaÃ§Ã£o com a nuvem, atualiza dados locais e refresca a interface (para ver dados vindos da nuvem). */
+/** Após sincronização com a nuvem, atualiza dados locais e refresca a interface (para ver dados vindos da nuvem). */
 function refrescarInterfaceAposSync() {
     carregarDados();
     if (typeof secaoAtiva === 'string') carregarSecao(secaoAtiva);
@@ -2298,13 +2188,13 @@ function refrescarInterfaceAposSync() {
 function forcarSincronizacaoNuvem() {
     if (!isCloudReady()) {
         atualizarIndicadorSync('offline', 'Offline');
-        mostrarNotificacao('ServiÃ§o indisponÃ­vel. Verifique a internet e se o Firebase estÃ¡ configurado. Os dados locais estÃ£o guardados.', 'warning');
+        mostrarNotificacao('Serviço indisponível. Verifique a internet e se o Firebase está configurado. Os dados locais estão guardados.', 'warning');
         return;
     }
     appStorage.removeItem('naoRestaurarDaNuvem');
     window.__cloudSyncError = null;
     atualizarIndicadorSync('syncing', 'A sincronizar...');
-    mostrarNotificacao('A sincronizarâ€¦ Aguarde um momento.', 'info');
+    mostrarNotificacao('A sincronizar… Aguarde um momento.', 'info');
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     iniciarListenersFirestore();
     sincronizarTodasEntidadesNuvem().then(() => {
@@ -2314,11 +2204,11 @@ function forcarSincronizacaoNuvem() {
         if (typeof atualizarInterface === 'function') atualizarInterface();
         atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
     }).catch((err) => {
-        console.warn('Erro ao forÃ§ar sincronizaÃ§Ã£o:', err);
-        atualizarIndicadorSync('error', 'Erro â€” clique para tentar');
+        console.warn('Erro ao forçar sincronização:', err);
+        atualizarIndicadorSync('error', 'Erro — clique para tentar');
         const msg = !navigator.onLine
-            ? 'Sem internet. Verifique a Wiâ€‘Fi ou dados mÃ³veis e tente novamente.'
-            : 'A sincronizaÃ§Ã£o falhou. Verifique a internet e clique no indicador vermelho para tentar novamente. Se persistir, faÃ§a Ctrl+Shift+R.';
+            ? 'Sem internet. Verifique a Wi‑Fi ou dados móveis e tente novamente.'
+            : 'A sincronização falhou. Verifique a internet e clique no indicador vermelho para tentar novamente. Se persistir, faça Ctrl+Shift+R.';
         mostrarNotificacao(msg, 'error');
     });
 }
@@ -2335,7 +2225,7 @@ async function obterConvidadoPorCodigoCloud(codigo) {
         const data = snap.data();
         const codigoDoc = snap.id;
         const clientesAuth = Array.isArray(data?.clientesAutorizados) ? data.clientesAutorizados : [];
-        // Estrutura completa para convidado noutro dispositivo: codigo, id e clientesAutorizados obrigatÃ³rios
+        // Estrutura completa para convidado noutro dispositivo: codigo, id e clientesAutorizados obrigatórios
         return lerConvidadoDoFirestore({
             ...data,
             codigo: codigoDoc,
@@ -2348,7 +2238,7 @@ async function obterConvidadoPorCodigoCloud(codigo) {
     }
 }
 
-/** LÃª sessÃ£o do Firestore (sistema/sessao). Retorna { tipoUsuario, usuarioNome, convidadoId } ou null. */
+/** Lê sessão do Firestore (sistema/sessao). Retorna { tipoUsuario, usuarioNome, convidadoId } ou null. */
 async function lerSessaoFirestore() {
     if (!firestoreDb) return null;
     try {
@@ -2362,7 +2252,7 @@ async function lerSessaoFirestore() {
     } catch (e) { console.warn('lerSessaoFirestore:', e); return null; }
 }
 
-/** Guarda sessÃ£o no Firestore. */
+/** Guarda sessão no Firestore. */
 async function guardarSessaoFirestore(tipoUsuario, usuarioNome, convidadoId) {
     if (!firestoreDb) return;
     try {
@@ -2375,7 +2265,7 @@ async function guardarSessaoFirestore(tipoUsuario, usuarioNome, convidadoId) {
     } catch (e) { console.warn('guardarSessaoFirestore:', e); }
 }
 
-/** Remove sessÃ£o do Firestore. */
+/** Remove sessão do Firestore. */
 async function limparSessaoFirestore() {
     if (!firestoreDb) return;
     try {
@@ -2395,7 +2285,7 @@ async function firestoreLogBackup(message) {
     } catch (e) { console.warn('firestoreLogBackup:', e); }
 }
 
-/** LÃª logs de backup do Firestore. */
+/** Lê logs de backup do Firestore. */
 async function firestoreGetBackupLogs() {
     if (!firestoreDb) return [];
     try {
@@ -2412,14 +2302,14 @@ async function firestoreClearBackupLogs() {
     } catch (e) { console.warn('firestoreClearBackupLogs:', e); }
 }
 
-/** getBackupLogs, logBackup, clearBackupLogs â€” base para secÃ§Ã£o Backup (Firestore) */
+/** getBackupLogs, logBackup, clearBackupLogs — base para secção Backup (Firestore) */
 function getBackupLogs() { return Array.isArray(window.__backupLogsCache) ? window.__backupLogsCache : []; }
 function logBackup(msg) { try { console.log('Backup:', msg); } catch (e) {} }
 function clearBackupLogs() { window.__backupLogsCache = []; }
 
 /** Exporta todos os dados do Firestore para JSON (download). */
 async function exportarBackupFirestore() {
-    if (!isCloudReady()) { mostrarNotificacao('Firestore nÃ£o disponÃ­vel.', 'error'); return; }
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
     const lerPorColecao = {
         clientes: lerClienteDoFirestore,
         honorarios: lerHonorarioDoFirestore,
@@ -2458,7 +2348,7 @@ async function exportarBackupFirestore() {
         a.click();
         URL.revokeObjectURL(a.href);
         try { appStorage.setItem('backupExportUltimo', new Date().toISOString()); } catch (e) {}
-        if (typeof logBackup === 'function') logBackup('ExportaÃ§Ã£o Firestore concluÃ­da');
+        if (typeof logBackup === 'function') logBackup('Exportação Firestore concluída');
         mostrarNotificacao('Backup exportado com sucesso.', 'success');
     } catch (e) {
         console.warn('exportarBackupFirestore:', e);
@@ -2510,7 +2400,7 @@ function mostrarTelaLogin() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                <img src="${typeof LOGO_DATA_URI!=='undefined'?LOGO_DATA_URI:'logo.png'}" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -2548,7 +2438,7 @@ function mostrarLoginAdmin() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                <img src="${typeof LOGO_DATA_URI!=='undefined'?LOGO_DATA_URI:'logo.png'}" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -2559,8 +2449,8 @@ function mostrarLoginAdmin() {
                 
                 <form id="formLoginAdmin" class="space-y-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">UsuÃ¡rio</label>
-                        <input type="text" id="usuario" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite seu usuÃ¡rio" required>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
+                        <input type="text" id="usuario" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite seu usuário" required>
                     </div>
                     
                     <div>
@@ -2579,7 +2469,7 @@ function mostrarLoginAdmin() {
                 </form>
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
-                    <p><strong>ðŸ”’ Acesso Restrito</strong></p>
+                    <p><strong>🔒 Acesso Restrito</strong></p>
                     <p>Entre em contato com o administrador para obter as credenciais</p>
                 </div>
             </div>
@@ -2591,7 +2481,7 @@ function mostrarLoginAdmin() {
         const usuario = document.getElementById('usuario').value;
         const senha = document.getElementById('senha').value;
         if (usuario !== USUARIO_PADRAO) {
-            alert('UsuÃ¡rio ou senha incorretos!');
+            alert('Usuário ou senha incorretos!');
             return;
         }
         const ok = await verificarSenhaAdmin(senha);
@@ -2604,7 +2494,7 @@ function mostrarLoginAdmin() {
             window.__usuarioNome = usuario || 'Admin';
             location.reload();
         } else {
-            alert('UsuÃ¡rio ou senha incorretos!');
+            alert('Usuário ou senha incorretos!');
         }
     });
 }
@@ -2613,7 +2503,7 @@ function mostrarLoginConvidado() {
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
             <div class="mb-6">
-                <img src="${typeof LOGO_DATA_URI!=='undefined'?LOGO_DATA_URI:'logo.png'}" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
+                <img src="ana.jpg" alt="Ana Paula Medina Solicitadora" class="mx-auto w-24 h-24 object-contain">
             </div>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <div class="text-center mb-8">
@@ -2629,8 +2519,8 @@ function mostrarLoginConvidado() {
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">CÃ³digo de Acesso</label>
-                        <input type="text" id="codigoAcesso" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="8 letras/nÃºmeros (ex: A1B2C3D4)" required maxlength="8" pattern="[A-Za-z0-9]{8}" inputmode="text" autocomplete="one-time-code" title="O cÃ³digo deve ter exatamente 8 caracteres (letras e nÃºmeros)">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Código de Acesso</label>
+                        <input type="text" id="codigoAcesso" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="8 letras/números (ex: A1B2C3D4)" required maxlength="8" pattern="[A-Za-z0-9]{8}" inputmode="text" autocomplete="one-time-code" title="O código deve ter exatamente 8 caracteres (letras e números)">
                     </div>
                     
                     <div class="flex space-x-4">
@@ -2644,13 +2534,13 @@ function mostrarLoginConvidado() {
                 </form>
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
-                    <p>PeÃ§a o cÃ³digo de acesso ao administrador</p>
+                    <p>Peça o código de acesso ao administrador</p>
                 </div>
             </div>
         </div>
     `;
     
-    // Restringir o campo cÃ³digo a aceitar apenas letras e nÃºmeros (mÃ¡x. 8)
+    // Restringir o campo código a aceitar apenas letras e números (máx. 8)
     const inputCodigo = document.getElementById('codigoAcesso');
     inputCodigo.addEventListener('input', function() {
         this.value = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
@@ -2661,39 +2551,39 @@ function mostrarLoginConvidado() {
         const nome = document.getElementById('nomeConvidado').value.trim();
         const codigo = (document.getElementById('codigoAcesso').value || '').trim().toUpperCase();
         
-        // Validar formato do cÃ³digo: exatamente 8 caracteres, apenas A-Z e 0-9
+        // Validar formato do código: exatamente 8 caracteres, apenas A-Z e 0-9
         const formatoValido = /^[A-Z0-9]{8}$/.test(codigo);
         if (!formatoValido) {
-            alert('O cÃ³digo de acesso deve ter exatamente 8 caracteres (letras e nÃºmeros). Exemplo: A1B2C3D4');
+            alert('O código de acesso deve ter exatamente 8 caracteres (letras e números). Exemplo: A1B2C3D4');
             return;
         }
         
-        // Verificar se o cÃ³digo existe e estÃ¡ ativo (Firestore/convidados em memÃ³ria)
+        // Verificar se o código existe e está ativo (Firestore/convidados em memória)
         let convidado = await obterConvidadoPorCodigoCloud(codigo);
         if (!convidado && Array.isArray(convidados)) {
             convidado = convidados.find(c => (c.codigo || c.id) === codigo && c.ativo !== false);
         }
         
         if (convidado && convidado.ativo) {
-            // Verificar se o nome Ã© vÃ¡lido e corresponde ao convidado registado
+            // Verificar se o nome é válido e corresponde ao convidado registado
             const normalizar = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const nomeRegistado = normalizar(convidado.nome);
             const nomeInserido = normalizar(nome);
             // Sempre exigir que o nome tenha pelo menos 2 caracteres
             if (nomeInserido.length < 2) {
-                alert('Introduza o seu nome (mÃ­nimo 2 caracteres).');
+                alert('Introduza o seu nome (mínimo 2 caracteres).');
                 return;
             }
             // Quando o convidado tem nome registado, o inserido deve corresponder
             if (nomeRegistado && nomeInserido !== nomeRegistado) {
-                alert('O nome nÃ£o corresponde ao convidado associado a este cÃ³digo.');
+                alert('O nome não corresponde ao convidado associado a este código.');
                 return;
             }
             if (!nomeRegistado) {
-                // Convidado sem nome registado: rejeitar texto que pareÃ§a aleatÃ³rio (ex: sem vogais)
-                const temVogal = /[aeiouÃ¡Ã©Ã­Ã³ÃºÃ Ã¨Ã¬Ã²Ã¹Ã£ÃµÃ¢ÃªÃ®Ã´Ã»]/i.test(nomeInserido);
+                // Convidado sem nome registado: rejeitar texto que pareça aleatório (ex: sem vogais)
+                const temVogal = /[aeiouáéíóúàèìòùãõâêîôû]/i.test(nomeInserido);
                 if (!temVogal) {
-                    alert('Introduza um nome vÃ¡lido (o nome deve conter letras).');
+                    alert('Introduza um nome válido (o nome deve conter letras).');
                     return;
                 }
             }
@@ -2717,14 +2607,12 @@ function mostrarLoginConvidado() {
             appStorage.setItem('convidadoId', convidado.id || codigo);
             location.reload();
         } else {
-            alert('CÃ³digo de acesso invÃ¡lido ou inativo!');
+            alert('Código de acesso inválido ou inativo!');
         }
     });
 }
 
 function logout() {
-    // Pausar listeners antes do reload (defensivo: se remover reload no futuro, evita leaks)
-    if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     limparSessaoFirestore();
     appStorage.removeItem('usuarioLogado');
     appStorage.removeItem('usuarioNome');
@@ -2733,7 +2621,7 @@ function logout() {
     location.reload();
 }
 
-// FUNÃ‡ÃƒO PARA GERAR CÃ“DIGOS DE ACESSO SEGUROS
+// FUNÇÃO PARA GERAR CÓDIGOS DE ACESSO SEGUROS
 function gerarCodigoAcesso() {
     const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let codigo = '';
@@ -2746,11 +2634,11 @@ function gerarCodigoAcesso() {
 /** Remove definitivamente do Firestore apenas documentos com deleted: true (purga lixo). */
 async function purgarDocumentosEliminadosFirestore() {
     if (!isCloudReady() || !firestoreDb) {
-        mostrarNotificacao('Firestore nÃ£o disponÃ­vel.', 'error');
+        mostrarNotificacao('Firestore não disponível.', 'error');
         return;
     }
     if (!exigirAdmin('purga de dados eliminados')) return;
-    if (!confirm('Remover da base de dados todos os itens que jÃ¡ foram "eliminados" (clientes, convidados, documentos, etc.)?\n\nIsto nÃ£o afeta dados ativos. Ã‰ irreversÃ­vel.')) return;
+    if (!confirm('Remover da base de dados todos os itens que já foram "eliminados" (clientes, convidados, documentos, etc.)?\n\nIsto não afeta dados ativos. É irreversível.')) return;
     if (!confirm('Confirma a purga?')) return;
     const colecoes = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'representantes'];
     let total = 0;
@@ -2774,7 +2662,7 @@ async function purgarDocumentosEliminadosFirestore() {
             mostrarNotificacao(`${total} documento(s) eliminado(s) removido(s) da base de dados.`, 'success');
             if (typeof carregarSecao === 'function') carregarSecao('backup');
         } else {
-            mostrarNotificacao('Nenhum documento eliminado encontrado. Base jÃ¡ estÃ¡ limpa.', 'info');
+            mostrarNotificacao('Nenhum documento eliminado encontrado. Base já está limpa.', 'info');
         }
     } catch (err) {
         console.error('Erro na purga:', err);
@@ -2783,52 +2671,7 @@ async function purgarDocumentosEliminadosFirestore() {
 }
 window.purgarDocumentosEliminadosFirestore = purgarDocumentosEliminadosFirestore;
 
-/** Remove honorÃ¡rios e tarefas do armazenamento local e marca migraÃ§Ãµes como concluÃ­das â€” impede reaparecimento futuro */
-function limparDadosLocaisHonorariosTarefas() {
-    if (!exigirAdmin('limpar dados locais')) return;
-    if (!confirm('Limpar do navegador todos os dados locais de honorÃ¡rios e tarefas?\n\nIsto impede que, ao abrir noutro dispositivo ou apÃ³s limpar cache, dados antigos sejam novamente enviados para a nuvem. Os dados no Firestore nÃ£o sÃ£o alterados.')) return;
-    try {
-        ['honorarios', 'tarefas', 'tarefasBackup'].forEach(chave => {
-            try { if (typeof localStorage !== 'undefined') localStorage.removeItem(chave); } catch (e) {}
-            try { if (typeof appStorage !== 'undefined' && appStorage.removeItem) appStorage.removeItem(chave); } catch (e) {}
-        });
-        try {
-            appStorage.setItem(CHAVE_MIGRACAO_HONORARIOS, 'true');
-            appStorage.setItem(CHAVE_MIGRACAO_TAREFAS, 'true');
-        } catch (e) {}
-        mostrarNotificacao('Dados locais de honorÃ¡rios e tarefas removidos. MigraÃ§Ãµes marcadas como concluÃ­das.', 'success');
-        if (typeof carregarSecao === 'function') carregarSecao('backup');
-    } catch (err) {
-        console.error('Erro ao limpar dados locais:', err);
-        mostrarNotificacao('Erro: ' + (err.message || err), 'error');
-    }
-}
-window.limparDadosLocaisHonorariosTarefas = limparDadosLocaisHonorariosTarefas;
-
-/** Remove todos os honorÃ¡rios e tarefas do Firestore â€” para eliminar definitivamente itens antigos que reaparecem */
-async function purgarHonorariosTarefasFirestore() {
-    if (!isCloudReady() || !firestoreDb) {
-        mostrarNotificacao('Firestore nÃ£o disponÃ­vel.', 'error');
-        return;
-    }
-    if (!exigirAdmin('remover honorÃ¡rios e tarefas')) return;
-    if (!confirm('Remover TODOS os honorÃ¡rios e TODAS as tarefas do Firestore?\n\nIsto Ã© irreversÃ­vel. Use apenas se honorÃ¡rios/tarefas antigos reaparecerem.')) return;
-    if (!confirm('Confirma a remoÃ§Ã£o? Todos os honorÃ¡rios e tarefas serÃ£o apagados da nuvem.')) return;
-    try {
-        mostrarNotificacao('A remover honorÃ¡rios e tarefas...', 'info');
-        const h = await apagarColecaoFirestore('honorarios');
-        const t = await apagarColecaoFirestore('tarefas');
-        if (typeof honorarios !== 'undefined') honorarios.length = 0;
-        if (typeof tarefas !== 'undefined') tarefas.length = 0;
-        mostrarNotificacao(`${h} honorÃ¡rio(s) e ${t} tarefa(s) removidos da nuvem.`, 'success');
-    } catch (err) {
-        console.error('Erro ao purgar honorÃ¡rios/tarefas:', err);
-        mostrarNotificacao('Erro: ' + (err.message || err), 'error');
-    }
-}
-window.purgarHonorariosTarefasFirestore = purgarHonorariosTarefasFirestore;
-
-/** Apaga todos os documentos de uma coleÃ§Ã£o Firestore (em lotes de 500). */
+/** Apaga todos os documentos de uma coleção Firestore (em lotes de 500). */
 async function apagarColecaoFirestore(nomeColecao) {
     if (!firestoreDb) return;
     const col = firestoreDb.collection(nomeColecao);
@@ -2844,7 +2687,7 @@ async function apagarColecaoFirestore(nomeColecao) {
     return apagados;
 }
 
-/** UtilitÃ¡rios Firestore: leitura, escrita e limpeza de coleÃ§Ãµes */
+/** Utilitários Firestore: leitura, escrita e limpeza de coleções */
 async function readCollectionFirestore(nome) {
     if (!firestoreDb) return [];
     const snapshot = await firestoreDb.collection(nome).get();
@@ -2865,9 +2708,9 @@ window.readCollectionFirestore = readCollectionFirestore;
 window.writeCollectionFirestore = writeCollectionFirestore;
 window.clearCollectionFirestore = clearCollectionFirestore;
 
-/** Modal de confirmaÃ§Ã£o com digitaÃ§Ã£o obrigatÃ³ria â€” evita limpezas acidentais */
+/** Modal de confirmação com digitação obrigatória — evita limpezas acidentais */
 function mostrarModalConfirmarApagar(opcoes) {
-    const { titulo = 'Confirmar eliminaÃ§Ã£o', mensagem = 'Para confirmar, escreva exatamente o texto abaixo:', textoConfirmar = 'APAGAR', aoConfirmar } = opcoes || {};
+    const { titulo = 'Confirmar eliminação', mensagem = 'Para confirmar, escreva exatamente o texto abaixo:', textoConfirmar = 'APAGAR', aoConfirmar } = opcoes || {};
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer || typeof aoConfirmar !== 'function') return;
 
@@ -2909,7 +2752,7 @@ function mostrarModalConfirmarApagar(opcoes) {
     modal.querySelector('#btnCancelarApagar').onclick = fechar;
     btnConfirmar.onclick = () => {
         if (input.value.trim().toUpperCase() !== textoConfirmar.toUpperCase()) {
-            erro.textContent = 'O texto nÃ£o coincide. Escreva exatamente: ' + textoConfirmar;
+            erro.textContent = 'O texto não coincide. Escreva exatamente: ' + textoConfirmar;
             erro.classList.remove('hidden');
             return;
         }
@@ -2924,15 +2767,15 @@ function mostrarModalConfirmarApagar(opcoes) {
 }
 window.mostrarModalConfirmarApagar = mostrarModalConfirmarApagar;
 
-/** ComeÃ§ar do ZERO ABSOLUTO: apaga tudo (local + Firestore). IrreversÃ­vel. */
+/** Começar do ZERO ABSOLUTO: apaga tudo (local + Firestore). Irreversível. */
 async function comecarDoZeroAbsoluto() {
-    if (!exigirAdmin('comeÃ§ar do zero absoluto')) return;
-    if (!confirm('âš ï¸ ZERO ABSOLUTO\n\nIsto vai APAGAR TUDO:\nâ€¢ Clientes, honorÃ¡rios, contratos\nâ€¢ HeranÃ§as, migraÃ§Ãµes, registos\nâ€¢ Tarefas, prazos, notificaÃ§Ãµes\nâ€¢ Documentos\nâ€¢ TODOS os convidados\nâ€¢ Firestore e memÃ³ria local\n\nÃ‰ IRREVERSÃVEL. Tem certeza?')) return;
-    if (!confirm('ðŸš¨ CONFIRMAÃ‡ÃƒO FINAL\n\nVai comeÃ§ar do zero absoluto. Todos os dados serÃ£o eliminados permanentemente.\n\nContinuar?')) return;
+    if (!exigirAdmin('começar do zero absoluto')) return;
+    if (!confirm('⚠️ ZERO ABSOLUTO\n\nIsto vai APAGAR TUDO:\n• Clientes, honorários, contratos\n• Heranças, migrações, registos\n• Tarefas, prazos, notificações\n• Documentos\n• TODOS os convidados\n• Firestore e memória local\n\nÉ IRREVERSÍVEL. Tem certeza?')) return;
+    if (!confirm('🚨 CONFIRMAÇÃO FINAL\n\nVai começar do zero absoluto. Todos os dados serão eliminados permanentemente.\n\nContinuar?')) return;
 
     mostrarModalConfirmarApagar({
         titulo: 'Confirmar Zero Absoluto',
-        mensagem: 'Para confirmar a eliminaÃ§Ã£o de todos os dados, escreva exatamente:',
+        mensagem: 'Para confirmar a eliminação de todos os dados, escreva exatamente:',
         textoConfirmar: 'APAGAR',
         aoConfirmar: executarZeroAbsoluto
     });
@@ -2967,7 +2810,7 @@ async function executarZeroAbsoluto() {
         appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
         // NAO setar naoRestaurarDaNuvem - permite que listeners carreguem dados ao voltar
 
-        mostrarNotificacao('âœ… Zero absoluto concluÃ­do! A recarregar...', 'success');
+        mostrarNotificacao('✅ Zero absoluto concluído! A recarregar...', 'success');
         setTimeout(() => location.reload(), 1500);
     } catch (err) {
         console.error(err);
@@ -2979,21 +2822,21 @@ window.comecarDoZeroAbsoluto = comecarDoZeroAbsoluto;
 /** Limpa TUDO exceto o cliente DACIANA e o convidado WILSON. Elimina dados fantasmas que reaparecem. */
 async function limparBaseManterApenasDacianaWilson() {
     if (!exigirAdmin('esta limpeza')) return;
-    if (!isCloudReady()) { mostrarNotificacao('Firestore nÃ£o disponÃ­vel.', 'error'); return; }
-    if (!confirm('Esta aÃ§Ã£o vai:\n\nâ€¢ Apagar TODOS honorÃ¡rios, contratos, heranÃ§as, migraÃ§Ãµes, registos, prazos, tarefas, notificaÃ§Ãµes, documentos\nâ€¢ Manter APENAS o cliente "DACIANA" e o convidado "WILSON"\nâ€¢ Apagar todos os outros clientes e convidados\n\nÃ‰ irreversÃ­vel. Continuar?')) return;
-    if (!confirm('Confirma? O cliente DACIANA e o convidado WILSON serÃ£o os Ãºnicos a ficar.')) return;
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
+    if (!confirm('Esta ação vai:\n\n• Apagar TODOS honorários, contratos, heranças, migrações, registos, prazos, tarefas, notificações, documentos\n• Manter APENAS o cliente "DACIANA" e o convidado "WILSON"\n• Apagar todos os outros clientes e convidados\n\nÉ irreversível. Continuar?')) return;
+    if (!confirm('Confirma? O cliente DACIANA e o convidado WILSON serão os únicos a ficar.')) return;
 
     try {
         mostrarNotificacao('A limpar...', 'info');
         if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
 
-        // Apagar coleÃ§Ãµes inteiras
+        // Apagar coleções inteiras
         const colecoesCompletas = ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'notificacoes', 'documentos', 'tarefas', 'entidades', 'integracoes_externas', 'representantes', 'faturas', 'pagamentos', 'despesas'];
         for (const col of colecoesCompletas) {
             try { await apagarColecaoFirestore(col); } catch (e) { console.warn('Erro ao apagar', col, e); }
         }
 
-        // Clientes: apagar todos exceto DACIANA (nome contÃ©m "daciana", insensÃ­vel a maiÃºsculas)
+        // Clientes: apagar todos exceto DACIANA (nome contém "daciana", insensível a maiúsculas)
         const snapClientes = await firestoreDb.collection('clientes').get();
         const aApagarClientes = snapClientes.docs.filter(d => {
             const txt = (d.data().nome || '').toLowerCase();
@@ -3005,7 +2848,7 @@ async function limparBaseManterApenasDacianaWilson() {
             await batchC.commit();
         }
 
-        // Convidados: apagar todos exceto WILSON (nome ou codigo contÃ©m "wilson", insensÃ­vel a maiÃºsculas)
+        // Convidados: apagar todos exceto WILSON (nome ou codigo contém "wilson", insensível a maiúsculas)
         const snapConvidados = await firestoreDb.collection('convidados').get();
         const aApagarConvidados = snapConvidados.docs.filter(d => {
             const data = d.data();
@@ -3024,7 +2867,7 @@ async function limparBaseManterApenasDacianaWilson() {
         ['honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'faturasMigrados', 'localStorageMigradoParaFirebase', 'clientesMigradosParaFirestore'].forEach(k => { try { appStorage.setItem(k, 'true'); localStorage.setItem(k, 'true'); sessionStorage.setItem(k, 'true'); } catch (e) {} });
 
         appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
-        mostrarNotificacao('âœ… Base limpa. Mantidos apenas DACIANA e WILSON. A recarregar...', 'success');
+        mostrarNotificacao('✅ Base limpa. Mantidos apenas DACIANA e WILSON. A recarregar...', 'success');
         setTimeout(() => location.reload(), 2000);
     } catch (err) {
         console.error(err);
@@ -3033,12 +2876,12 @@ async function limparBaseManterApenasDacianaWilson() {
 }
 window.limparBaseManterApenasDacianaWilson = limparBaseManterApenasDacianaWilson;
 
-/** Limpa cache do Firestore (IndexedDB) e recarrega â€“ Ãºtil quando dados antigos reaparecem */
+/** Limpa cache do Firestore (IndexedDB) e recarrega – útil quando dados antigos reaparecem */
 function limparCacheFirestoreERecarregar() {
     try {
         sessionStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
         localStorage.removeItem('naoRestaurarDaNuvem');
-        mostrarNotificacao('Cache serÃ¡ limpo. A recarregar...', 'info');
+        mostrarNotificacao('Cache será limpo. A recarregar...', 'info');
         setTimeout(() => location.reload(), 500);
     } catch (e) {
         mostrarNotificacao('Erro ao limpar cache. Tente recarregar manualmente (Ctrl+F5).', 'warning');
@@ -3046,14 +2889,14 @@ function limparCacheFirestoreERecarregar() {
 }
 window.limparCacheFirestoreERecarregar = limparCacheFirestoreERecarregar;
 
-// FUNÃ‡ÃƒO PARA LIMPEZA PROFISSIONAL (sÃ³ local â€“ mantÃ©m opÃ§Ã£o antiga)
+// FUNÇÃO PARA LIMPEZA PROFISSIONAL (só local – mantém opção antiga)
 function limparDadosParaUsoProfissional() {
     if (!exigirAdmin('limpeza profissional')) return;
-    if (confirm('âš ï¸ Esta aÃ§Ã£o apaga os dados LOCAIS. Para apagar TUDO (Firestore incluÃ­do), use "ComeÃ§ar do zero absoluto" na secÃ§Ã£o Backup.\n\nContinuar com limpeza local apenas?')) {
-        if (confirm('ðŸš¨ Confirma?')) {
+    if (confirm('⚠️ Esta ação apaga os dados LOCAIS. Para apagar TUDO (Firestore incluído), use "Começar do zero absoluto" na secção Backup.\n\nContinuar com limpeza local apenas?')) {
+        if (confirm('🚨 Confirma?')) {
             mostrarModalConfirmarApagar({
                 titulo: 'Confirmar limpeza local',
-                mensagem: 'Para confirmar a eliminaÃ§Ã£o dos dados locais, escreva exatamente:',
+                mensagem: 'Para confirmar a eliminação dos dados locais, escreva exatamente:',
                 textoConfirmar: 'APAGAR',
                 aoConfirmar: () => {
                     ['honorarios', 'contratos', 'herancas', 'migracoes', 'registos', 'convidados', 'prazos', 'notificacoes', 'tarefas', 'documentos'].forEach(k => appStorage.removeItem(k));
@@ -3061,7 +2904,7 @@ function limparDadosParaUsoProfissional() {
                     Object.assign(window, { clientes, honorarios, contratos, herancas, migracoes, registos, prazos, notificacoes, tarefas, documentos, convidados });
                     appStorage.setItem('dadosLimpos', 'true');
                     appStorage.setItem('naoRestaurarDaNuvem', 'true');
-                    mostrarNotificacao('âœ… Dados locais limpos.', 'success');
+                    mostrarNotificacao('✅ Dados locais limpos.', 'success');
                     setTimeout(() => location.reload(), 2000);
                 }
             });
@@ -3092,8 +2935,8 @@ function executarLimpezaIgualAdmin(lastClearedAt) {
 }
 
 function limparDadosLocaisERecarregar() {
-    if (!confirm('âš ï¸ Limpar dados locais\n\nIsto vai apagar todos os dados guardados neste navegador (sessÃ£o local). SerÃ¡ necessÃ¡rio fazer login novamente.\n\nContinuar?')) return;
-    if (!confirm('ðŸš¨ ConfirmaÃ§Ã£o: Tem certeza que deseja limpar os dados locais?')) return;
+    if (!confirm('⚠️ Limpar dados locais\n\nIsto vai apagar todos os dados guardados neste navegador (sessão local). Será necessário fazer login novamente.\n\nContinuar?')) return;
+    if (!confirm('🚨 Confirmação: Tem certeza que deseja limpar os dados locais?')) return;
 
     mostrarModalConfirmarApagar({
         titulo: 'Confirmar limpeza de dados locais',
@@ -3103,10 +2946,10 @@ function limparDadosLocaisERecarregar() {
     });
 }
 
-// SISTEMA DE GESTÃƒO DE CONVIDADOS
+// SISTEMA DE GESTÃO DE CONVIDADOS
 async function criarConvidado(nome, clientesAutorizados) {
     const convidados = JSON.parse(appStorage.getItem('convidados') || '[]');
-    const codigo = gerarCodigoAcesso(); // Usar funÃ§Ã£o de cÃ³digo seguro
+    const codigo = gerarCodigoAcesso(); // Usar função de código seguro
     
     const novoConvidado = {
         id: gerarIdImutavel(),
@@ -3128,7 +2971,7 @@ async function criarConvidado(nome, clientesAutorizados) {
         .then(() => sincronizarConvidadosDaNuvem())
         .catch((error) => {
             console.warn('Erro ao sincronizar convidado:', error);
-            mostrarNotificacao('Convidado criado localmente. Nuvem indisponÃ­vel.', 'warning');
+            mostrarNotificacao('Convidado criado localmente. Nuvem indisponível.', 'warning');
         });
     
     return novoConvidado;
@@ -3138,7 +2981,7 @@ function obterConvidados() {
     return obterConvidadosAtual();
 }
 
-/** Devolve o rÃ³tulo "Para: Admin", "Para: Todos" ou "Para: [Nome do convidado]" */
+/** Devolve o rótulo "Para: Admin", "Para: Todos" ou "Para: [Nome do convidado]" */
 function obterRotuloDestinatarioNotificacao(destinatarioId) {
     if (!destinatarioId || destinatarioId === 'todos') return 'Para: Todos';
     if (destinatarioId === 'admin') return 'Para: Admin';
@@ -3176,7 +3019,7 @@ function excluirConvidado(idOuCodigo) {
         String(c.id) === String(idOuCodigo) || String(c.codigo) === String(idOuCodigo)
     );
     if (!convidado) {
-        mostrarNotificacao('Convidado nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Convidado não encontrado.', 'error');
         return;
     }
     const novos = convidados.filter(c =>
@@ -3191,7 +3034,7 @@ function excluirConvidado(idOuCodigo) {
 }
 
 function limparConvidadosInativosConfirmado() {
-    if (!confirm('Eliminar convidados inativos hÃ¡ mais de 7 dias?')) return;
+    if (!confirm('Eliminar convidados inativos há mais de 7 dias?')) return;
     limparConvidadosInativos();
     carregarSecao('convidados');
     mostrarNotificacao('Convidados inativos eliminados.', 'success');
@@ -3214,23 +3057,23 @@ function limparConvidadosInativos() {
     return restantes;
 }
 
-// FUNÃ‡ÃƒO RECRIADA PARA CORRIGIR PROBLEMA
+// FUNÇÃO RECRIADA PARA CORRIGIR PROBLEMA
 function editarPermissoesConvidado(idOuCodigo, clientesAutorizados) {
     const convidados = obterConvidadosAtual();
     const convidado = convidados.find(c => String(c.id) === String(idOuCodigo) || String(c.codigo) === String(idOuCodigo));
     
     if (convidado) {
         
-        // Verificar se hÃ¡ novos clientes autorizados
+        // Verificar se há novos clientes autorizados
         const clientesAntigosNorm = (convidado.clientesAutorizados || []).map(a => String(a));
         const novosClientes = clientesAutorizados.filter(id => !clientesAntigosNorm.includes(String(id)));
         
-        // Atualizar permissÃµes
+        // Atualizar permissões
         convidado.clientesAutorizados = clientesAutorizados;
         salvarDados('convidados', convidados);
         salvarConvidadoCloud(convidado);
         
-        // Criar notificaÃ§Ãµes automÃ¡ticas para novos clientes
+        // Criar notificações automáticas para novos clientes
         if (novosClientes.length > 0) {
             const listaClientes = obterClientesAtual();
             novosClientes.forEach(clienteId => {
@@ -3239,12 +3082,12 @@ function editarPermissoesConvidado(idOuCodigo, clientesAutorizados) {
                     criarNotificacao({
                         tipo: 'cliente_autorizado',
                         titulo: 'Novo Cliente Autorizado',
-                        mensagem: `O cliente "${cliente.nome}" foi autorizado para vocÃª.`,
+                        mensagem: `O cliente "${cliente.nome}" foi autorizado para você.`,
                         prioridade: 'media',
                         referenciaId: clienteId,
                         destinatarioId: idOuCodigo,
                         acao: 'ver_cliente',
-                        suprimirToast: true  // Admin jÃ¡ vÃª "PermissÃµes atualizadas com sucesso!"
+                        suprimirToast: true  // Admin já vê "Permissões atualizadas com sucesso!"
                     });
                 }
             });
@@ -3252,12 +3095,12 @@ function editarPermissoesConvidado(idOuCodigo, clientesAutorizados) {
         
         setTimeout(() => carregarSecao('convidados'), 100);
     } else {
-        mostrarNotificacao('Convidado nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Convidado não encontrado.', 'error');
     }
 }
 
-// VERIFICAÃ‡ÃƒO DE PERMISSÃ•ES
-/** Verifica se uma tarefa estÃ¡ atribuÃ­da ao convidado. */
+// VERIFICAÇÃO DE PERMISSÕES
+/** Verifica se uma tarefa está atribuída ao convidado. */
 function tarefaAtribuidaAoConvidado(tarefa, convidado, convidadoAtualRaw) {
     if (!tarefa || tarefa.responsavelTipo !== 'convidado') return false;
     const convidadoId = parseInt(convidadoAtualRaw);
@@ -3271,7 +3114,7 @@ function tarefaAtribuidaAoConvidado(tarefa, convidado, convidadoAtualRaw) {
     );
 }
 
-/** Devolve IDs de clientes que o convidado pode ver: clientesAutorizados + clientes de tarefas atribuÃ­das. */
+/** Devolve IDs de clientes que o convidado pode ver: clientesAutorizados + clientes de tarefas atribuídas. */
 function obterIdsClientesVisiveisParaConvidado(convidado) {
     if (!convidado || !convidado.ativo) return [];
     const ids = new Set((convidado.clientesAutorizados || []).map(a => String(a)));
@@ -3308,7 +3151,7 @@ function verificarPermissaoCliente(clienteId) {
     return false;
 }
 
-function exigirAdmin(acao = 'esta operaÃ§Ã£o') {
+function exigirAdmin(acao = 'esta operação') {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     if (tipoUsuario !== 'admin') {
         mostrarNotificacao(`Acesso restrito: somente administrador pode executar ${acao}.`, 'error');
@@ -3320,10 +3163,10 @@ function exigirAdmin(acao = 'esta operaÃ§Ã£o') {
 function obterNomeEntidade(tipo) {
     const nomes = {
         cliente: 'cliente',
-        honorario: 'honorÃ¡rio',
+        honorario: 'honorário',
         contrato: 'contrato',
-        heranca: 'heranÃ§a',
-        migracao: 'migraÃ§Ã£o',
+        heranca: 'herança',
+        migracao: 'migração',
         registo: 'registo',
         prazo: 'prazo',
         documento: 'documento'
@@ -3342,7 +3185,7 @@ function exigirPermissaoAcao(acao, entidade) {
     if (appStorage.getItem('convidadoId')) {
         return true;
     }
-    mostrarNotificacao(`Acesso restrito: perfil nÃ£o pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
+    mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
     return false;
 }
 
@@ -3354,7 +3197,7 @@ function exigirPermissaoAcaoItem(acao, entidade, item) {
     if (tipoUsuario === 'convidado' && acao === 'editar') {
         return true;
     }
-    mostrarNotificacao(`Acesso restrito: perfil nÃ£o pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
+    mostrarNotificacao(`Acesso restrito: perfil não pode ${acao} ${obterNomeEntidade(entidade)}.`, 'error');
     return false;
 }
 
@@ -3385,19 +3228,19 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
     mostrarNotificacao('A abrir cliente...', 'info');
     const cliente = obterClientePorIdOuNome(clienteId, clienteNome);
     if (!cliente) {
-        mostrarNotificacao('Cliente nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Cliente não encontrado.', 'error');
         return;
     }
     mostrarInformacoesCompletasCliente(cliente);
 }
 
-// Verificar login apÃ³s o DOM estar carregado
+// Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
-    // PWA: registar Service Worker para instalaÃ§Ã£o e uso offline bÃ¡sico
+    // PWA: registar Service Worker para instalação e uso offline básico
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
-    // Aguardar limpeza do cache Firestore (apÃ³s zero absoluto) antes de iniciar listeners
+    // Aguardar limpeza do cache Firestore (após zero absoluto) antes de iniciar listeners
     if (window.__promiseCacheFirestoreLimpo) {
         await window.__promiseCacheFirestoreLimpo;
     }
@@ -3405,11 +3248,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (!logado) {
         return;
     }
-    // Se login OK, configurar interface baseada no tipo de usuÃ¡rio
+    // Se login OK, configurar interface baseada no tipo de usuário
     configurarInterfaceUsuario();
-    // ForÃ§ar largura do sidebar
+    // Forçar largura do sidebar
     forcarLarguraSidebar();
-    // Aplicar novamente apÃ³s um delay
+    // Aplicar novamente após um delay
     setTimeout(forcarLarguraSidebar, 1000);
     setTimeout(forcarLarguraSidebar, 2000);
     // Inicializar sistema normalmente
@@ -3417,7 +3260,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 function forcarLarguraSidebar() {
-    // Tentar mÃºltiplas formas de encontrar o sidebar
+    // Tentar múltiplas formas de encontrar o sidebar
     const sidebar = document.getElementById('sidebar');
     const sidebarClass = document.querySelector('.sidebar');
     
@@ -3439,7 +3282,7 @@ function forcarLarguraSidebar() {
         sidebarClass.style.setProperty('max-width', '300px', 'important');
     }
     
-    // Aplicar tambÃ©m no conteÃºdo principal
+    // Aplicar também no conteúdo principal
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
         mainContent.style.marginLeft = '300px';
@@ -3463,7 +3306,7 @@ function configurarInterfaceUsuario() {
         btnAlterarSenha.classList.toggle('hidden', tipoUsuario !== 'admin');
     }
     
-    // Ocultar seÃ§Ãµes administrativas para convidados
+    // Ocultar seções administrativas para convidados
     if (tipoUsuario === 'convidado') {
         ocultarSecoesConvidado();
     } else {
@@ -3472,7 +3315,7 @@ function configurarInterfaceUsuario() {
 }
 
 function ocultarSecoesConvidado() {
-    // Ocultar apenas seÃ§Ãµes administrativas
+    // Ocultar apenas seções administrativas
     const secoesParaOcultar = [
         'nav-relatorios',
         'nav-backup',
@@ -3488,7 +3331,7 @@ function ocultarSecoesConvidado() {
         }
     });
     
-    // Garantir que as seÃ§Ãµes permitidas ficam visÃ­veis
+    // Garantir que as seções permitidas ficam visíveis
     const secoesPermitidas = [
         'nav-dashboard',
         'nav-clientes',
@@ -3502,8 +3345,7 @@ function ocultarSecoesConvidado() {
         'nav-prazos',
         'nav-tarefas',
         'nav-calendario',
-        'nav-documentos',
-        'nav-notificacoes'
+        'nav-documentos'
     ];
     secoesPermitidas.forEach(id => {
         const elemento = document.getElementById(id);
@@ -3514,7 +3356,7 @@ function ocultarSecoesConvidado() {
 }
 
 function mostrarTodasSecoes() {
-    // Mostrar todas as seÃ§Ãµes para administradores
+    // Mostrar todas as seções para administradores
     const todasSecoes = [
         'nav-dashboard',
         'nav-clientes',
@@ -3570,7 +3412,7 @@ let calendarioFiltroPrioridade = '';
 let secaoAtiva = 'dashboard';
 let relatorioAvancadoUltimosResultados = [];
 
-// Garantir que as variÃ¡veis estÃ£o definidas globalmente
+// Garantir que as variáveis estão definidas globalmente
 window.clientes = clientes;
 window.honorarios = honorarios;
 window.contratos = contratos;
@@ -3590,17 +3432,17 @@ window.calendarioFiltroTipo = calendarioFiltroTipo;
 window.calendarioFiltroPrioridade = calendarioFiltroPrioridade;
 window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
-// === FUNÃ‡ÃƒO DE TESTE ===
+// === FUNÇÃO DE TESTE ===
 function testarBotao() {
-    alert('BOTÃƒO FUNCIONANDO!');
+    alert('BOTÃO FUNCIONANDO!');
 }
 
-// === FUNÃ‡Ã•ES DE EDIÃ‡ÃƒO DIRETA ===
+// === FUNÇÕES DE EDIÇÃO DIRETA ===
 function duplicarContrato(id) {
     const listaContratos = obterContratosAtual();
     const contrato = listaContratos.find(c => String(c.id) === String(id));
     if (!contrato) {
-        mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Contrato não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('criar', 'contrato')) return;
@@ -3634,7 +3476,7 @@ function editarContratoDireto(id) {
         fecharModalRobusto();
         setTimeout(() => abrirModalEdicaoContrato(contrato), 200);
     } else {
-        mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Contrato não encontrado!', 'error');
     }
 }
 
@@ -3644,14 +3486,14 @@ function editarHonorarioDireto(id) {
         fecharModalRobusto();
         setTimeout(() => abrirModalEdicaoHonorario(honorario), 200);
     } else {
-        mostrarNotificacao('HonorÃ¡rio nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Honorário não encontrado!', 'error');
     }
 }
 
 function duplicarHonorario(id) {
     const honorario = obterHonorariosAtual().find(h => String(h.id) === String(id));
     if (!honorario) {
-        mostrarNotificacao('HonorÃ¡rio nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Honorário não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('criar', 'honorario')) return;
@@ -3660,19 +3502,19 @@ function duplicarHonorario(id) {
     setTimeout(() => {
         const set = (idEl, val) => { const el = document.getElementById(idEl); if (el && val != null) el.value = String(val); };
         set('honorarioCliente', honorario.cliente || honorario.clienteNome || '');
-        set('honorarioServico', (honorario.servico || '') + ' (cÃ³pia)');
+        set('honorarioServico', (honorario.servico || '') + ' (cópia)');
         set('honorarioValor', honorario.valor ?? '');
         set('honorarioStatus', 'pendente');
         set('honorarioVencimento', honorario.vencimento || '');
         const titulo = document.querySelector('#modalContainer .modal-content h3');
-        if (titulo) titulo.textContent = 'Duplicar HonorÃ¡rio';
+        if (titulo) titulo.textContent = 'Duplicar Honorário';
         lucide.createIcons();
     }, 150);
 }
 
 async function excluirHonorarioDireto(id) {
     if (!exigirPermissaoAcao('apagar', 'honorario')) return;
-    if (!confirm('Tem certeza que deseja excluir este honorÃ¡rio? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir este honorário? Esta ação não pode ser desfeita.')) return;
 
     let honorariosAtual = obterHonorariosAtual();
     const honorariosAtualizados = honorariosAtual.filter(h => String(h.id) !== String(id));
@@ -3686,15 +3528,15 @@ async function excluirHonorarioDireto(id) {
         } else {
             salvarDados('honorarios', honorariosAtualizados);
         }
-        mostrarNotificacao('HonorÃ¡rio excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Honorário excluído com sucesso!', 'success');
         setTimeout(() => {
             carregarSecao('honorarios');
             if (typeof atualizarListaHonorarios === 'function') atualizarListaHonorarios(honorariosAtualizados);
         }, 100);
     } catch (err) {
-        console.warn('Erro ao apagar honorÃ¡rio na nuvem, a guardar localmente:', err);
+        console.warn('Erro ao apagar honorário na nuvem, a guardar localmente:', err);
         salvarDados('honorarios', honorariosAtualizados);
-        mostrarNotificacao('HonorÃ¡rio excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Honorário excluído com sucesso!', 'success');
         setTimeout(() => carregarSecao('honorarios'), 100);
     }
 }
@@ -3705,7 +3547,7 @@ function editarClienteDireto(id) {
         fecharModal();
         setTimeout(() => abrirModalEdicaoCliente(cliente), 100);
     } else {
-        mostrarNotificacao('Cliente nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Cliente não encontrado!', 'error');
     }
 }
 
@@ -3713,7 +3555,7 @@ function editarClienteDireto(id) {
 function duplicarCliente(id) {
     const cliente = obterClientesAtual().find(c => String(c.id) === String(id));
     if (!cliente) {
-        mostrarNotificacao('Cliente nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Cliente não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcaoItem('criar', 'cliente', cliente)) return;
@@ -3721,7 +3563,7 @@ function duplicarCliente(id) {
     abrirModal('cliente');
     setTimeout(() => {
         const set = (idEl, val) => { const el = document.getElementById(idEl); if (el && val != null) el.value = String(val); };
-        set('clienteNome', (cliente.nome || '') + ' (cÃ³pia)');
+        set('clienteNome', (cliente.nome || '') + ' (cópia)');
         set('clienteEmail', cliente.email || '');
         set('clienteTelefone', cliente.telefone || '');
         set('clienteNIF', ''); // NIF em branco - cada cliente deve ter o seu
@@ -3733,10 +3575,10 @@ function duplicarCliente(id) {
     }, 150);
 }
 
-// InicializaÃ§Ã£o
+// Inicialização
 function init() {
     
-    // getBackupLogs lÃª de Firestore quando hÃ¡ cache (preenchido ao abrir secÃ§Ã£o Backup)
+    // getBackupLogs lê de Firestore quando há cache (preenchido ao abrir secção Backup)
     if (typeof window.getBackupLogs === 'function') {
         const _origGet = window.getBackupLogs;
         window.getBackupLogs = function() {
@@ -3748,19 +3590,18 @@ function init() {
     // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
     carregarDados();
     carregarDadosExemplo();
-    // Indicador de sync: mostrar Ãºltimo estado conhecido (erro se Ãºltimo evento foi erro)
+    // Indicador de sync: mostrar último estado conhecido (erro se último evento foi erro)
     const ultimoErro = appStorage.getItem('cloudSyncUltimoErro');
     const ultimoOk = appStorage.getItem('cloudSyncUltimoSucesso');
     if (ultimoErro && (!ultimoOk || new Date(ultimoErro).getTime() > new Date(ultimoOk).getTime())) {
-        atualizarIndicadorSync('error', 'Erro â€” clique para tentar novamente');
+        atualizarIndicadorSync('error', 'Erro — clique para tentar novamente');
     } else {
         atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
     }
     window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
     window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
 
-    // Sincronizar sempre ao carregar (apÃ³s zero absoluto o Firestore estÃ¡ vazio; cache Ã© limpo)
-    // Listeners iniciam APÃS a sync para evitar race e tremor na primeira carga
+    // Sincronizar sempre ao carregar (após zero absoluto o Firestore está vazio; cache é limpo)
     sincronizarTodasEntidadesNuvem().then(() => {
         if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
         appStorage.removeItem('naoRestaurarDaNuvem');
@@ -3768,10 +3609,14 @@ function init() {
         carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
         atualizarInterface();
         atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
-        if (isCloudReady()) iniciarListenersFirestore();
     });
 
-    // Sincronizar sessÃ£o para window (para listeners/prepararLista)
+    // Escuta em tempo real - SEMPRE ativar para carregar clientes e resto (evita ter de forçar backup/F5)
+    if (isCloudReady()) {
+        iniciarListenersFirestore();
+    }
+
+    // Sincronizar sessão para window (para listeners/prepararLista)
     try {
         window.__tipoUsuario = appStorage.getItem('tipoUsuario') || '';
         window.__usuarioNome = appStorage.getItem('usuarioNome') || 'Sistema';
@@ -3783,21 +3628,21 @@ function init() {
         carregarSecao('dashboard');
     }
 
-    // Se a Ã¡rea de conteÃºdo continuar vazia (ex.: script.js nÃ£o carregou no GitHub Pages), mostrar aviso
+    // Se a área de conteúdo continuar vazia (ex.: script.js não carregou no GitHub Pages), mostrar aviso
     setTimeout(() => {
         const el = document.getElementById('conteudoDinamico');
         if (el && el.textContent.trim().length < 50) {
             el.innerHTML = `
                 <div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
-                    <p class="font-semibold mb-2">A Ã¡rea de conteÃºdo nÃ£o carregou.</p>
-                    <p class="text-sm mb-2">Se publicou em GitHub Pages, verifique que <strong>index.html</strong>, <strong>script.js</strong> e <strong>styles.css</strong> estÃ£o na mesma pasta no repositÃ³rio.</p>
-                    <p class="text-sm">Abra as ferramentas do programador (F12) â†’ separador Rede/Network e confirme que script.js Ã© carregado sem erro 404.</p>
+                    <p class="font-semibold mb-2">A área de conteúdo não carregou.</p>
+                    <p class="text-sm mb-2">Se publicou em GitHub Pages, verifique que <strong>index.html</strong>, <strong>script.js</strong> e <strong>styles.css</strong> estão na mesma pasta no repositório.</p>
+                    <p class="text-sm">Abra as ferramentas do programador (F12) → separador Rede/Network e confirme que script.js é carregado sem erro 404.</p>
                 </div>
             `;
         }
     }, 500);
 
-    // SincronizaÃ§Ã£o periÃ³dica em background (a cada 5 min)
+    // Sincronização periódica em background (a cada 5 min)
     const SYNC_PERIODICO_MS = 5 * 60 * 1000;
     if (isCloudReady()) {
         window.__syncPeriodico = setInterval(() => {
@@ -3813,12 +3658,9 @@ function init() {
         }, SYNC_PERIODICO_MS);
     }
 
-    // Ao voltar ao separador: reiniciar listeners e sincronizar — só re-renderizar se os dados mudaram (diff)
-    let __visibilityHashAntes = '';
+    // Ao voltar ao separador: reiniciar listeners (podem ter sido suspensos) e sincronizar
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            __visibilityHashAntes = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-        } else if (document.visibilityState === 'visible' && isCloudReady()) {
+        if (document.visibilityState === 'visible' && isCloudReady()) {
             if (typeof listenerManager !== 'undefined' && listenerManager.pause && listenerManager.resume) {
                 listenerManager.pause();
                 listenerManager.resume(iniciarListenersFirestore);
@@ -3826,11 +3668,8 @@ function init() {
             sincronizarTodasEntidadesNuvem().then(() => {
                 if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
                 carregarDados();
-                const hashDepois = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                if (hashDepois !== __visibilityHashAntes) {
-                    carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                    atualizarInterface();
-                }
+                carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
+                atualizarInterface();
                 atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             });
         }
@@ -3848,11 +3687,11 @@ function init() {
     setTimeout(function() { if (typeof mostrarGuiaPrimeiroUso === 'function') mostrarGuiaPrimeiroUso(); }, 2000);
     inicializarAcessibilidadeModais();
     
-    // Inicializar funcionalidades mobile (PWA via Service Worker jÃ¡ registado em DOMContentLoaded)
+    // Inicializar funcionalidades mobile (PWA via Service Worker já registado em DOMContentLoaded)
     if (typeof inicializarGestosTouch === 'function') inicializarGestosTouch();
     
     
-    // Calcular juros automÃ¡ticos na inicializaÃ§Ã£o
+    // Calcular juros automáticos na inicialização
     // calcularJurosAutomaticos(); // REMOVIDO
 }
 
@@ -3899,7 +3738,7 @@ function inicializarPesquisaGlobal() {
         
         results.innerHTML = `
             <div class="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
-                Resultados: ${resultados.length} (â†‘â†“ navegar, Enter selecionar)
+                Resultados: ${resultados.length} (↑↓ navegar, Enter selecionar)
             </div>
             <div class="max-h-80 overflow-y-auto pesquisa-result-list">${itens}</div>
         `;
@@ -3980,7 +3819,7 @@ function inicializarPesquisaGlobal() {
             }
             return;
         }
-        // NavegaÃ§Ã£o por teclado nos resultados (quando input focado e resultados visÃ­veis)
+        // Navegação por teclado nos resultados (quando input focado e resultados visíveis)
         if (document.activeElement === input && !results.classList.contains('hidden')) {
             const list = results.querySelector('.pesquisa-result-list');
             const total = list ? list.querySelectorAll('.pesquisa-result-item').length : 0;
@@ -4030,7 +3869,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Cliente',
                 titulo: cliente.nome,
-                subtitulo: [cliente.email, cliente.telefone].filter(Boolean).join(' â€¢ '),
+                subtitulo: [cliente.email, cliente.telefone].filter(Boolean).join(' • '),
                 secao: 'clientes',
                 clienteId: cliente.id,
                 clienteNome: cliente.nome
@@ -4051,9 +3890,9 @@ function executarPesquisaGlobal(termo) {
         ].filter(Boolean).join(' ').toLowerCase();
         if (haystack.includes(termoLower)) {
             resultados.push({
-                tipo: 'HonorÃ¡rio',
-                titulo: honorario.descricao || 'HonorÃ¡rio',
-                subtitulo: [clienteNome, honorario.valor, honorario.estado].filter(Boolean).join(' â€¢ '),
+                tipo: 'Honorário',
+                titulo: honorario.descricao || 'Honorário',
+                subtitulo: [clienteNome, honorario.valor, honorario.estado].filter(Boolean).join(' • '),
                 secao: 'honorarios'
             });
         }
@@ -4074,7 +3913,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Contrato',
                 titulo: contrato.tipo || contrato.descricao || 'Contrato',
-                subtitulo: [clienteNome, contrato.status].filter(Boolean).join(' â€¢ '),
+                subtitulo: [clienteNome, contrato.status].filter(Boolean).join(' • '),
                 secao: 'contratos'
             });
         }
@@ -4095,7 +3934,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Processo',
                 titulo: registo.tipo || registo.descricao || 'Processo',
-                subtitulo: [clienteNome, registo.status].filter(Boolean).join(' â€¢ '),
+                subtitulo: [clienteNome, registo.status].filter(Boolean).join(' • '),
                 secao: 'registos'
             });
         }
@@ -4117,7 +3956,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Prazo',
                 titulo: prazo.descricao || prazo.tipo || 'Prazo',
-                subtitulo: [clienteNome, data ? formatarDataRelatorio(data) : null].filter(Boolean).join(' â€¢ '),
+                subtitulo: [clienteNome, data ? formatarDataRelatorio(data) : null].filter(Boolean).join(' • '),
                 secao: 'prazos'
             });
         }
@@ -4136,9 +3975,9 @@ function executarPesquisaGlobal(termo) {
         ].filter(Boolean).join(' ').toLowerCase();
         if (haystack.includes(termoLower)) {
             resultados.push({
-                tipo: 'HeranÃ§a',
-                titulo: heranca.tipo || heranca.descricao || 'HeranÃ§a',
-                subtitulo: [clienteNome, heranca.status].filter(Boolean).join(' â€¢ '),
+                tipo: 'Herança',
+                titulo: heranca.tipo || heranca.descricao || 'Herança',
+                subtitulo: [clienteNome, heranca.status].filter(Boolean).join(' • '),
                 secao: 'herancas'
             });
         }
@@ -4157,9 +3996,9 @@ function executarPesquisaGlobal(termo) {
         ].filter(Boolean).join(' ').toLowerCase();
         if (haystack.includes(termoLower)) {
             resultados.push({
-                tipo: 'MigraÃ§Ã£o',
-                titulo: migracao.tipo || migracao.descricao || 'MigraÃ§Ã£o',
-                subtitulo: [clienteNome, migracao.status].filter(Boolean).join(' â€¢ '),
+                tipo: 'Migração',
+                titulo: migracao.tipo || migracao.descricao || 'Migração',
+                subtitulo: [clienteNome, migracao.status].filter(Boolean).join(' • '),
                 secao: 'migracoes'
             });
         }
@@ -4180,7 +4019,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Tarefa',
                 titulo: tarefa.titulo || 'Tarefa',
-                subtitulo: [clienteNome, tarefa.descricao].filter(Boolean).join(' â€¢ '),
+                subtitulo: [clienteNome, tarefa.descricao].filter(Boolean).join(' • '),
                 secao: 'tarefas'
             });
         }
@@ -4203,7 +4042,7 @@ function executarPesquisaGlobal(termo) {
             resultados.push({
                 tipo: 'Minuta',
                 titulo: doc.nomeArquivo || 'Documento',
-                subtitulo: [clienteNome, doc.processoTipo || doc.tipo].filter(Boolean).join(' â€¢ '),
+                subtitulo: [clienteNome, doc.processoTipo || doc.tipo].filter(Boolean).join(' • '),
                 secao: 'documentos'
             });
         }
@@ -4214,7 +4053,7 @@ function executarPesquisaGlobal(termo) {
 
 
 
-// FunÃ§Ã£o robusta para fechar modais
+// Função robusta para fechar modais
 function fecharModalRobusto() {
     try {
         const modalsFixedInset = document.querySelectorAll('.fixed.inset-0');
@@ -4267,17 +4106,17 @@ function fecharModalRobusto() {
         }
         
     } catch (e) {
-        console.warn('âŒ Erro na soluÃ§Ã£o definitiva final:', e);
+        console.warn('❌ Erro na solução definitiva final:', e);
     }
 }
 
-// FunÃ§Ã£o simples para fechar modal (backup)
+// Função simples para fechar modal (backup)
 function fecharModalSimples() {
     const modal = document.querySelector('.modal');
     if (modal) modal.remove();
 }
 
-// FunÃ§Ã£o de teste para modal
+// Função de teste para modal
 function testarModal() {
     fecharModalRobusto();
     
@@ -4309,8 +4148,8 @@ function testarModal() {
             text-align: center;
             box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         ">
-            <h2 style="color: #1f2937; margin-bottom: 20px;">ðŸ§ª TESTE DE MODAL</h2>
-            <p style="color: #6b7280; margin-bottom: 20px;">Se vÃªs esta mensagem, o modal estÃ¡ a funcionar!</p>
+            <h2 style="color: #1f2937; margin-bottom: 20px;">🧪 TESTE DE MODAL</h2>
+            <p style="color: #6b7280; margin-bottom: 20px;">Se vês esta mensagem, o modal está a funcionar!</p>
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button onclick="fecharModalRobusto()" style="
                     background: #3b82f6;
@@ -4337,7 +4176,7 @@ function testarModal() {
     document.body.appendChild(modal);
 }
 
-// FunÃ§Ã£o ultra-simples para modal
+// Função ultra-simples para modal
 function modalUltraSimples() {
     
     // Criar div simples
@@ -4364,8 +4203,8 @@ function modalUltraSimples() {
             max-width: 300px;
             text-align: center;
         ">
-            <h3>ðŸŽ¯ MODAL ULTRA-SIMPLES</h3>
-            <p>Se vÃªs isto, o modal funciona!</p>
+            <h3>🎯 MODAL ULTRA-SIMPLES</h3>
+            <p>Se vês isto, o modal funciona!</p>
             <button onclick="document.getElementById('modal-teste').remove()" style="
                 background: #ef4444;
                 color: white;
@@ -4412,7 +4251,7 @@ function ativarModoEscuro() {
     if (icon) icon.setAttribute('data-lucide', 'sun');
     if (text) text.textContent = 'Modo Claro';
     
-    // Re-renderizar Ã­cones
+    // Re-renderizar ícones
     if (typeof lucide !== 'undefined' && lucide.createIcons) {
         lucide.createIcons();
     }
@@ -4428,7 +4267,7 @@ function desativarModoEscuro() {
     if (icon) icon.setAttribute('data-lucide', 'moon');
     if (text) text.textContent = 'Modo Escuro';
     
-    // Re-renderizar Ã­cones
+    // Re-renderizar ícones
     if (typeof lucide !== 'undefined' && lucide.createIcons) {
         lucide.createIcons();
     }
@@ -4450,13 +4289,13 @@ function inicializarGestosTouch() {
         const deltaX = endX - startX;
         const deltaY = endY - startY;
         
-        // Swipe horizontal (mudanÃ§a de seÃ§Ã£o)
+        // Swipe horizontal (mudança de seção)
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
             if (deltaX > 0) {
-                // Swipe direita - seÃ§Ã£o anterior
+                // Swipe direita - seção anterior
                 navegarSecaoAnterior();
             } else {
-                // Swipe esquerda - prÃ³xima seÃ§Ã£o
+                // Swipe esquerda - próxima seção
                 navegarProximaSecao();
             }
         }
@@ -4509,23 +4348,23 @@ function navegarProximaSecao() {
     }
 }
 
-// NotificaÃ§Ãµes Push (Web Notifications API)
-/** Envia notificaÃ§Ã£o nativa do browser se a permissÃ£o estiver concedida. */
+// Notificações Push (Web Notifications API)
+/** Envia notificação nativa do browser se a permissão estiver concedida. */
 function enviarNotificacaoBrowserSafe(titulo, corpo, tag) {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     try {
         const notif = new Notification(titulo, {
             body: corpo,
             tag: tag || 'sistema-legal',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">âš–</text></svg>'
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖</text></svg>'
         });
         notif.onclick = () => { window.focus(); notif.close(); if (typeof carregarSecao === 'function') carregarSecao('dashboard'); };
-    } catch (e) { console.warn('NotificaÃ§Ã£o browser:', e); }
+    } catch (e) { console.warn('Notificação browser:', e); }
 }
 window.enviarNotificacaoBrowserSafe = enviarNotificacaoBrowserSafe;
 
-/** Sugere ativar notificaÃ§Ãµes do browser uma vez por sessÃ£o. */
-/** Rola atÃ© o guia de primeiro uso no dashboard (se existir) e adiciona destaque. */
+/** Sugere ativar notificações do browser uma vez por sessão. */
+/** Rola até o guia de primeiro uso no dashboard (se existir) e adiciona destaque. */
 function mostrarGuiaPrimeiroUso() {
     const el = document.getElementById('guiaPrimeiroUso');
     if (!el) return;
@@ -4541,8 +4380,8 @@ function sugerirPermissaoNotificacoes() {
     try {
         if (appStorage.getItem('notificacoesSugeridas') === '1') return;
         appStorage.setItem('notificacoesSugeridas', '1');
-        mostrarNotificacao('Quer receber alertas de prazos e tarefas com o site em segundo plano? O sistema pedirÃ¡ permissÃ£o quando houver alertas.', 'info');
-    } catch (e) { console.warn('Sugerir notificaÃ§Ãµes:', e); }
+        mostrarNotificacao('Quer receber alertas de prazos e tarefas com o site em segundo plano? O sistema pedirá permissão quando houver alertas.', 'info');
+    } catch (e) { console.warn('Sugerir notificações:', e); }
 }
 
 function solicitarPermissaoNotificacoes() {
@@ -4550,7 +4389,7 @@ function solicitarPermissaoNotificacoes() {
         if (Notification.permission === 'default') {
             Notification.requestPermission().then((permission) => {
                 if (permission === 'granted') {
-                    mostrarNotificacao('NotificaÃ§Ãµes ativadas!', 'success');
+                    mostrarNotificacao('Notificações ativadas!', 'success');
                 }
             });
         }
@@ -4596,10 +4435,10 @@ function calcularJurosAutomaticos_REMOVED() {
             honorario.diasAtraso = diasAtraso;
             honorario.valorComJuros = parseFloat(honorario.valor) + juros;
             
-            // Criar notificaÃ§Ã£o de juros
+            // Criar notificação de juros
             criarNotificacao({
                 titulo: `Juros calculados - ${honorario.clienteNome}`,
-                descricao: `Juros de â‚¬${juros.toFixed(2)} calculados (${diasAtraso} dias de atraso)`,
+                descricao: `Juros de €${juros.toFixed(2)} calculados (${diasAtraso} dias de atraso)`,
                 tipo: 'warning',
                 categoria: 'juros_calculados',
                 referenciaId: honorario.clienteId
@@ -4607,21 +4446,21 @@ function calcularJurosAutomaticos_REMOVED() {
         }
     });
     
-    // Verificar se a funÃ§Ã£o existe antes de chamar
+    // Verificar se a função existe antes de chamar
     if (typeof salvarHonorarios === 'function') {
         salvarHonorarios();
     } else {
-        console.error('âŒ FunÃ§Ã£o salvarHonorarios nÃ£o encontrada!');
+        console.error('❌ Função salvarHonorarios não encontrada!');
         // Fallback: salvar diretamente
         try {
             salvarDados('honorarios', honorarios);
         } catch (error) {
-            console.error('âŒ Erro no fallback:', error);
+            console.error('❌ Erro no fallback:', error);
         }
     }
 }
 
-// 3. GERAÃ‡ÃƒO AUTOMÃTICA DE FATURAS
+// 3. GERAÇÃO AUTOMÁTICA DE FATURAS
 async function gerarFaturaAutomatica(honorarioId) {
     const honorario = honorarios.find(h => h.id === honorarioId);
     if (!honorario) return;
@@ -4630,43 +4469,26 @@ async function gerarFaturaAutomatica(honorarioId) {
     if (!cliente) return;
     
     const valorBase = parseFloat(honorario.valorComJuros || honorario.valor || 0);
-    const descricaoServico = honorario.descricao || honorario.servico || 'Assessoria JurÃ­dica';
-    const processoTipo = honorario.processoTipo || 'migracoes';
-    const processoId = honorario.processoId || honorario.referenciaId;
-
-    const despesasProcesso = processoId && Array.isArray(window.despesas) ? (window.despesas || []).filter(d => !d.anulado && !d.deleted && String(d.processoId) === String(processoId) && (d.processoTipo || 'herancas') === processoTipo) : [];
-    const despesasPadrao = (DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao) ? DADOS_SOLICITADORA.despesasPadrao : [];
-    const despesasArray = [
-        ...(Array.isArray(despesasPadrao) ? despesasPadrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valor: parseFloat(d.valor || 0) })) : []),
-        ...despesasProcesso.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valor: parseFloat(d.valor || 0) }))
-    ];
-    const totalDespesas = despesasArray.reduce((s, d) => s + (d.valor || 0), 0);
-    const valorTotal = valorBase + totalDespesas;
-
-    const itensFatura = [{ descricao: descricaoServico, quantidade: 1, precoUnitario: valorBase, taxaIva: 0, valorIva: 0, valorTotal: valorBase }];
-
+    const descricaoServico = honorario.descricao || honorario.servico || 'Assessoria Jurídica';
     const fatura = {
         id: gerarIdImutavel(),
         numero: `FAT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
         clienteId: cliente.id,
         clienteNome: cliente.nome || honorario.clienteNome || honorario.cliente || '[Cliente]',
         honorarioId: honorarioId,
-        processoTipo,
-        processoId: processoId || '',
         data: new Date().toISOString().split('T')[0],
         dataEmissao: new Date().toISOString().split('T')[0],
-        valor: valorTotal,
-        valorTotal,
-        valorBase,
+        valor: valorBase,
+        valorTotal: valorBase,
+        valorBase: valorBase,
         valorIva: 0,
         juros: honorario.jurosCalculados || 0,
         status: 'pendente',
         estado: 'pendente',
         somaPagamentos: 0,
-        itens: itensFatura,
-        despesas: despesasArray,
+        itens: [{ descricao: descricaoServico, quantidade: 1, precoUnitario: valorBase, taxaIva: 0, valorIva: 0, valorTotal: valorBase }],
         observacoes: descricaoServico,
-        notas: 'Artigo n.Âº 53 CIVA'
+        notas: 'Artigo n.º 53'
     };
     
     // Guardar fatura (Firestore ou localStorage)
@@ -4686,7 +4508,7 @@ async function gerarFaturaAutomatica(honorarioId) {
         appStorage.setItem('faturas', JSON.stringify(faturas));
     }
     
-    // Criar notificaÃ§Ã£o
+    // Criar notificação
     criarNotificacao({
         titulo: `Fatura gerada - ${cliente.nome}`,
         descricao: `Fatura ${fatura.numero} gerada automaticamente`,
@@ -4698,7 +4520,7 @@ async function gerarFaturaAutomatica(honorarioId) {
     return fatura;
 }
 
-// 4. SINCRONIZAÃ‡ÃƒO COM CALENDÃRIO
+// 4. SINCRONIZAÇÃO COM CALENDÁRIO
 function sincronizarComCalendario_REMOVED() {
     
     const eventos = [];
@@ -4707,7 +4529,7 @@ function sincronizarComCalendario_REMOVED() {
     prazos.forEach(prazo => {
         if (prazo.status === 'ativo' && prazo.dataLimite) {
             eventos.push({
-                titulo: `ðŸ“‹ Prazo: ${prazo.descricao}`,
+                titulo: `📋 Prazo: ${prazo.descricao}`,
                 data: prazo.dataLimite,
                 tipo: 'prazo',
                 cliente: prazo.clienteNome,
@@ -4716,16 +4538,16 @@ function sincronizarComCalendario_REMOVED() {
         }
     });
     
-    // Adicionar vencimentos de honorÃ¡rios
+    // Adicionar vencimentos de honorários
     honorarios.forEach(honorario => {
         if (isHonorarioEmAberto(honorario) && honorario.vencimento) {
             eventos.push({
-                titulo: `ðŸ’° Vencimento: ${honorario.descricao}`,
+                titulo: `💰 Vencimento: ${honorario.descricao}`,
                 data: honorario.vencimento,
                 tipo: 'vencimento',
                 cliente: honorario.clienteNome,
                 valor: honorario.valor,
-                descricao: `HonorÃ¡rio de â‚¬${parseFloat(honorario.valor).toFixed(2)}`
+                descricao: `Honorário de €${parseFloat(honorario.valor).toFixed(2)}`
             });
         }
     });
@@ -4734,7 +4556,7 @@ function sincronizarComCalendario_REMOVED() {
     contratos.forEach(contrato => {
         if (contrato.vencimento) {
             eventos.push({
-                titulo: `ðŸ“„ Contrato: ${contrato.descricao}`,
+                titulo: `📄 Contrato: ${contrato.descricao}`,
                 data: contrato.vencimento,
                 tipo: 'contrato',
                 cliente: contrato.clienteNome,
@@ -4743,15 +4565,15 @@ function sincronizarComCalendario_REMOVED() {
         }
     });
     
-    // Adicionar heranÃ§as com prazo
+    // Adicionar heranças com prazo
     herancas.forEach(heranca => {
         if (heranca.prazo) {
             eventos.push({
-                titulo: `âš–ï¸ HeranÃ§a: ${heranca.descricao}`,
+                titulo: `⚖️ Herança: ${heranca.descricao}`,
                 data: heranca.prazo,
                 tipo: 'heranca',
                 cliente: heranca.clienteNome,
-                descricao: `Processo de heranÃ§a - ${heranca.tipo}`
+                descricao: `Processo de herança - ${heranca.tipo}`
             });
         }
     });
@@ -4762,18 +4584,18 @@ function sincronizarComCalendario_REMOVED() {
         return;
     }
     
-    // Gerar arquivo ICS para importar no calendÃ¡rio
+    // Gerar arquivo ICS para importar no calendário
     gerarArquivoICS(eventos);
 }
 
 function gerarArquivoICS(eventos) {
     
-    // FunÃ§Ã£o para formatar data no formato ICS
+    // Função para formatar data no formato ICS
     function formatarDataICS(data) {
         return data.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     }
     
-    // FunÃ§Ã£o para escapar texto para ICS
+    // Função para escapar texto para ICS
     function escaparTextoICS(texto) {
         return texto
             .replace(/\\/g, '\\\\')
@@ -4789,14 +4611,14 @@ PRODID:-//Sistema Legal//Sistema Legal//PT
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 X-WR-CALNAME:Sistema Legal - Prazos e Vencimentos
-X-WR-CALDESC:CalendÃ¡rio do Sistema Legal com prazos e vencimentos
+X-WR-CALDESC:Calendário do Sistema Legal com prazos e vencimentos
 X-WR-TIMEZONE:Europe/Lisbon`;
 
     eventos.forEach((evento, index) => {
         const dataInicio = new Date(evento.data);
         const dataFim = new Date(dataInicio.getTime() + (24 * 60 * 60 * 1000)); // +1 dia
         
-        // Gerar UID Ãºnico
+        // Gerar UID único
         const uid = `sistema-legal-${Date.now()}-${index}@sistemalegal.com`;
         
         // Formatar datas
@@ -4806,7 +4628,7 @@ X-WR-TIMEZONE:Europe/Lisbon`;
         
         // Escapar textos
         const summary = escaparTextoICS(evento.titulo);
-        const description = escaparTextoICS(`Cliente: ${evento.cliente}${evento.valor ? `\\nValor: â‚¬${evento.valor}` : ''}\\n\\nSistema Legal - ANA PAULA MEDINA`);
+        const description = escaparTextoICS(`Cliente: ${evento.cliente}${evento.valor ? `\\nValor: €${evento.valor}` : ''}\\n\\nSistema Legal - ANA PAULA MEDINA`);
         const location = escaparTextoICS('Sistema Legal');
         
         icsContent += `
@@ -4844,12 +4666,12 @@ END:VCALENDAR`;
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    mostrarNotificacao(`Arquivo de calendÃ¡rio gerado com sucesso! (${eventos.length} eventos)`, 'success');
+    mostrarNotificacao(`Arquivo de calendário gerado com sucesso! (${eventos.length} eventos)`, 'success');
 }
 
-// 5. INTEGRAÃ‡ÃƒO COM SISTEMAS EXTERNOS
+// 5. INTEGRAÇÃO COM SISTEMAS EXTERNOS
 function inicializarIntegracoes() {
-    // Verificar se hÃ¡ integraÃ§Ãµes configuradas
+    // Verificar se há integrações configuradas
     const integracoes = obterIntegracoes();
     
     integracoes.forEach(integracao => {
@@ -4870,41 +4692,43 @@ function inicializarIntegracoes() {
 }
 
 function configurarIntegracaoEmail(config) {
-    // Aqui vocÃª integraria com Gmail API, Outlook API, etc.
+    // Aqui você integraria com Gmail API, Outlook API, etc.
 }
 
 function configurarIntegracaoCalendario(config) {
-    // Aqui vocÃª integraria com Google Calendar, Outlook Calendar, etc.
+    // Aqui você integraria com Google Calendar, Outlook Calendar, etc.
 }
 
 function configurarIntegracaoContabilidade(config) {
-    // Aqui vocÃª integraria com sistemas de contabilidade
+    // Aqui você integraria com sistemas de contabilidade
 }
 
 
 
 function obterFaturas() {
+    // Firestore = fonte principal quando disponível
     if (isCloudReady() && Array.isArray(window.faturas)) return window.faturas;
     const raw = appStorage.getItem('faturas');
-    try { return raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em faturas:', e?.message); return []; }
+    return raw ? JSON.parse(raw) : [];
 }
 
 function obterIntegracoes() {
     const integracoes = appStorage.getItem('integracoes');
-    try { return integracoes ? JSON.parse(integracoes) : []; } catch (e) { console.warn('JSON inválido em integracoes:', e?.message); return []; }
+    const resultado = integracoes ? JSON.parse(integracoes) : [];
+    return resultado;
 }
 
 function salvarIntegracoes(integracoes) {
     appStorage.setItem('integracoes', JSON.stringify(integracoes));
 }
 
-// FunÃ§Ã£o para salvar honorÃ¡rios (CORRIGIDA - v2.0)
+// Função para salvar honorários (CORRIGIDA - v2.0)
 function salvarHonorarios() {
     try {
         salvarDados('honorarios', honorarios);
     } catch (error) {
-        console.error('âŒ Erro ao salvar honorÃ¡rios:', error);
-        mostrarNotificacao('Erro ao salvar honorÃ¡rios!', 'error');
+        console.error('❌ Erro ao salvar honorários:', error);
+        mostrarNotificacao('Erro ao salvar honorários!', 'error');
     }
 }
 
@@ -4913,14 +4737,14 @@ function salvarHonorarios() {
 
 
 async function gerarFaturasAutomaticas() {
-    // Inclui TODOS os honorÃ¡rios com valor que ainda nÃ£o tÃªm fatura (com ou sem juros)
+    // Inclui TODOS os honorários com valor que ainda não têm fatura (com ou sem juros)
     const honorariosElegiveis = (honorarios || []).filter(h => {
         if (h.deleted) return false;
         const valor = parseFloat(h.valor) || 0;
         return valor > 0 && !obterFaturas().find(f => String(f.honorarioId) === String(h.id));
     });
     if (honorariosElegiveis.length === 0) {
-        mostrarNotificacao('Nenhum honorÃ¡rio elegÃ­vel! Crie um honorÃ¡rio com valor e que ainda nÃ£o tenha fatura.', 'info');
+        mostrarNotificacao('Nenhum honorário elegível! Crie um honorário com valor e que ainda não tenha fatura.', 'info');
         return;
     }
     let faturasGeradas = 0;
@@ -4938,13 +4762,13 @@ async function gerarFaturasAutomaticas() {
     }, 400);
 }
 
-// FunÃ§Ãµes para gerenciar lembretes
+// Funções para gerenciar lembretes
 function editarLembrete(lembreteId) {
     const lembretes = obterLembretes();
     const lembrete = lembretes.find(l => l.id === lembreteId);
     
     if (!lembrete) {
-        mostrarNotificacao('Lembrete nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Lembrete não encontrado!', 'error');
         return;
     }
     
@@ -4968,9 +4792,9 @@ function editarLembrete(lembreteId) {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2">TÃ­tulo</label>
+                        <label class="block text-sm font-medium mb-2">Título</label>
                         <input type="text" name="titulo" required class="w-full p-2 border rounded-lg" 
-                               value="${lembrete.titulo}" placeholder="TÃ­tulo do lembrete">
+                               value="${lembrete.titulo}" placeholder="Título do lembrete">
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">Data/Hora</label>
@@ -4978,9 +4802,9 @@ function editarLembrete(lembreteId) {
                                value="${lembrete.data}">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2">DescriÃ§Ã£o</label>
+                        <label class="block text-sm font-medium mb-2">Descrição</label>
                         <textarea name="descricao" class="w-full p-2 border rounded-lg" rows="3" 
-                                  placeholder="DescriÃ§Ã£o do lembrete">${lembrete.descricao}</textarea>
+                                  placeholder="Descrição do lembrete">${lembrete.descricao}</textarea>
                     </div>
                     <div class="flex space-x-3">
                         <button type="submit" class="btn btn-primary">Atualizar Lembrete</button>
@@ -5001,7 +4825,7 @@ function atualizarLembrete(event, lembreteId) {
     const lembreteIndex = lembretes.findIndex(l => l.id === lembreteId);
     
     if (lembreteIndex === -1) {
-        mostrarNotificacao('Lembrete nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Lembrete não encontrado!', 'error');
         return;
     }
     
@@ -5030,7 +4854,7 @@ function desativarLembrete(lembreteId) {
     const lembreteIndex = lembretes.findIndex(l => l.id === lembreteId);
     
     if (lembreteIndex === -1) {
-        mostrarNotificacao('Lembrete nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Lembrete não encontrado!', 'error');
         return;
     }
     
@@ -5043,23 +4867,23 @@ function desativarLembrete(lembreteId) {
     carregarSecao('dashboard');
 }
 
-// FunÃ§Ã£o para configurar integraÃ§Ãµes
+// Função para configurar integrações
 function configurarIntegracoes() {
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 600px;">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Configurar IntegraÃ§Ãµes</h3>
+                <h3 class="text-lg font-semibold">Configurar Integrações</h3>
                 <button onclick="fecharModalRobusto()" class="btn btn-sm btn-secondary">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
             
             <div class="space-y-6">
-                <!-- IntegraÃ§Ã£o de Email -->
+                <!-- Integração de Email -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ“§ IntegraÃ§Ã£o de Email</h4>
+                    <h4 class="font-semibold mb-3">📧 Integração de Email</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium mb-2">Servidor SMTP</label>
@@ -5083,17 +4907,17 @@ function configurarIntegracoes() {
                         </div>
                         <button onclick="salvarIntegracaoEmail()" class="btn btn-primary">
                             <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                            Salvar ConfiguraÃ§Ã£o
+                            Salvar Configuração
                         </button>
                     </div>
                 </div>
 
-                <!-- IntegraÃ§Ã£o de CalendÃ¡rio -->
+                <!-- Integração de Calendário -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ“… IntegraÃ§Ã£o de CalendÃ¡rio</h4>
+                    <h4 class="font-semibold mb-3">📅 Integração de Calendário</h4>
                     <div class="space-y-3">
                         <div>
-                            <label class="block text-sm font-medium mb-2">Tipo de CalendÃ¡rio</label>
+                            <label class="block text-sm font-medium mb-2">Tipo de Calendário</label>
                             <select id="calendarioTipo" class="w-full p-2 border rounded-lg">
                                 <option value="google">Google Calendar</option>
                                 <option value="outlook">Outlook Calendar</option>
@@ -5107,14 +4931,14 @@ function configurarIntegracoes() {
                         </div>
                         <button onclick="salvarIntegracaoCalendario()" class="btn btn-primary">
                             <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                            Salvar ConfiguraÃ§Ã£o
+                            Salvar Configuração
                         </button>
                     </div>
                 </div>
 
-                <!-- IntegraÃ§Ã£o de Contabilidade -->
+                <!-- Integração de Contabilidade -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ’° IntegraÃ§Ã£o de Contabilidade</h4>
+                    <h4 class="font-semibold mb-3">💰 Integração de Contabilidade</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium mb-2">Sistema</label>
@@ -5132,11 +4956,11 @@ function configurarIntegracoes() {
                         <div>
                             <label class="block text-sm font-medium mb-2">Token de Acesso</label>
                             <input type="text" id="contabilidadeToken" class="w-full p-2 border rounded-lg" 
-                                   placeholder="Token de autenticaÃ§Ã£o">
+                                   placeholder="Token de autenticação">
                         </div>
                         <button onclick="salvarIntegracaoContabilidade()" class="btn btn-primary">
                             <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                            Salvar ConfiguraÃ§Ã£o
+                            Salvar Configuração
                         </button>
                     </div>
                 </div>
@@ -5171,7 +4995,7 @@ function salvarIntegracaoEmail() {
     }
     
     salvarIntegracoes(integracoes);
-    mostrarNotificacao('ConfiguraÃ§Ã£o de email salva com sucesso!', 'success');
+    mostrarNotificacao('Configuração de email salva com sucesso!', 'success');
 }
 
 function salvarIntegracaoCalendario() {
@@ -5193,7 +5017,7 @@ function salvarIntegracaoCalendario() {
     }
     
     salvarIntegracoes(integracoes);
-    mostrarNotificacao('ConfiguraÃ§Ã£o de calendÃ¡rio salva com sucesso!', 'success');
+    mostrarNotificacao('Configuração de calendário salva com sucesso!', 'success');
 }
 
 function salvarIntegracaoContabilidade() {
@@ -5216,12 +5040,12 @@ function salvarIntegracaoContabilidade() {
     }
     
     salvarIntegracoes(integracoes);
-    mostrarNotificacao('ConfiguraÃ§Ã£o de contabilidade salva com sucesso!', 'success');
+    mostrarNotificacao('Configuração de contabilidade salva com sucesso!', 'success');
 }
 
 function carregarDados() {
     try {
-        // Firestore = fonte principal. Dados vÃªm apenas da nuvem.
+        // Firestore = fonte principal. Dados vêm apenas da nuvem.
         clientes = Array.isArray(clientes) ? clientes : [];
         window.clientes = clientes;
         honorarios = Array.isArray(honorarios) ? honorarios : [];
@@ -5249,19 +5073,19 @@ function carregarDados() {
         despesas = Array.isArray(despesas) ? despesas : [];
         window.despesas = despesas;
 
-        // Dados vÃªm apenas do Firestore (cache IndexedDB quando offline)
+        // Dados vêm apenas do Firestore (cache IndexedDB quando offline)
     } catch (error) {
-        console.error('âŒ Erro ao carregar dados:', error);
+        console.error('❌ Erro ao carregar dados:', error);
         mostrarNotificacao('Erro ao carregar dados salvos', 'error');
     }
 }
 
 function carregarDadosExemplo() {
-    // Com Firestore ativo: nunca criar dados de exemplo (dados vÃªm da nuvem)
+    // Com Firestore ativo: nunca criar dados de exemplo (dados vêm da nuvem)
     if (isCloudReady()) {
         return;
     }
-    // Verificar se os dados foram limpos - se sim, nÃ£o recriar dados de exemplo
+    // Verificar se os dados foram limpos - se sim, não recriar dados de exemplo
     const dadosLimpos = appStorage.getItem('dadosLimpos');
     if (dadosLimpos === 'true') {
         return;
@@ -5271,7 +5095,7 @@ function carregarDadosExemplo() {
         clientes = [
             {
                 id: 1,
-                nome: 'JoÃ£o Silva',
+                nome: 'João Silva',
                 email: 'joao@email.com',
                 telefone: '123456789',
                 nif: '123456789',
@@ -5297,8 +5121,8 @@ function carregarDadosExemplo() {
         honorarios = [
             {
                 id: 1,
-                cliente: 'JoÃ£o Silva',
-                servico: 'Consulta JurÃ­dica',
+                cliente: 'João Silva',
+                servico: 'Consulta Jurídica',
                 valor: 150.00,
                 status: 'pago',
                 vencimento: new Date().toISOString().split('T')[0],
@@ -5307,7 +5131,7 @@ function carregarDadosExemplo() {
             {
                 id: 2,
                 cliente: 'Maria Santos',
-                servico: 'ElaboraÃ§Ã£o de Contrato',
+                servico: 'Elaboração de Contrato',
                 valor: 300.00,
                 status: 'pendente',
                 vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -5322,9 +5146,9 @@ function carregarDadosExemplo() {
             {
                 id: 1,
                 clienteId: 1,
-                clienteNome: 'JoÃ£o Silva',
-                tipo: 'PrestaÃ§Ã£o de ServiÃ§os',
-                descricao: 'Assessoria jurÃ­dica empresarial',
+                clienteNome: 'João Silva',
+                tipo: 'Prestação de Serviços',
+                descricao: 'Assessoria jurídica empresarial',
                 valor: 5000.00,
                 iva: 23,
                 valorIVA: 1150.00,
@@ -5332,7 +5156,7 @@ function carregarDadosExemplo() {
                 dataInicio: new Date().toISOString().split('T')[0],
                 dataFim: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'ativo',
-                observacoes: 'Contrato de assessoria jurÃ­dica anual',
+                observacoes: 'Contrato de assessoria jurídica anual',
                 dataCriacao: new Date().toISOString()
             },
             {
@@ -5348,7 +5172,7 @@ function carregarDadosExemplo() {
                 dataInicio: new Date().toISOString().split('T')[0],
                 dataFim: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'ativo',
-                observacoes: 'Consultoria especÃ­fica para questÃµes trabalhistas',
+                observacoes: 'Consultoria específica para questões trabalhistas',
                 dataCriacao: new Date().toISOString()
             }
         ];
@@ -5361,9 +5185,9 @@ function carregarDadosExemplo() {
                 id: 1,
                 honorarioId: 1,
                 clienteId: 1,
-                clienteNome: 'JoÃ£o Silva',
+                clienteNome: 'João Silva',
                 tipo: 'Vencimento',
-                descricao: 'Vencimento de honorÃ¡rio - Consultoria jurÃ­dica',
+                descricao: 'Vencimento de honorário - Consultoria jurídica',
                 dataLimite: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
                 status: 'ativo',
                 prioridade: 'alta',
@@ -5376,7 +5200,7 @@ function carregarDadosExemplo() {
                 clienteId: 2,
                 clienteNome: 'Maria Santos',
                 tipo: 'Lembrete',
-                descricao: 'Lembrete de pagamento - ElaboraÃ§Ã£o de contrato',
+                descricao: 'Lembrete de pagamento - Elaboração de contrato',
                 dataLimite: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
                 status: 'ativo',
                 prioridade: 'media',
@@ -5392,21 +5216,21 @@ function carregarDadosExemplo() {
         salvarDados('notificacoes', notificacoes);
     }
 
-    // HeranÃ§as, MigraÃ§Ãµes e Registos sem dados de teste (uso profissional)
+    // Heranças, Migrações e Registos sem dados de teste (uso profissional)
 
 }
 
 function salvarDados(chave, dados, opcoes = {}) {
     try {
-        // clientes: APENAS memÃ³ria (Firestore via ouvirClientes + CRUD). NUNCA appStorage.
+        // clientes: APENAS memória (Firestore via ouvirClientes + CRUD). NUNCA appStorage.
         if (chave === 'clientes') {
             if (Array.isArray(dados)) atualizarClientesEmMemoria(dados);
             return;
         }
-        // Verificar se os dados sÃ£o vÃ¡lidos
+        // Verificar se os dados são válidos
         if (!dados || !Array.isArray(dados)) {
-            console.error('âŒ Dados invÃ¡lidos para salvar:', dados);
-            mostrarNotificacao('Erro: Dados invÃ¡lidos', 'error');
+            console.error('❌ Dados inválidos para salvar:', dados);
+            mostrarNotificacao('Erro: Dados inválidos', 'error');
             return;
         }
         const { skipCloudSync } = opcoes || {};
@@ -5447,7 +5271,7 @@ function salvarDados(chave, dados, opcoes = {}) {
             }
         };
 
-        // Dados sÃ³ no Firestore (persistÃªncia offline via IndexedDB)
+        // Dados só no Firestore (persistência offline via IndexedDB)
         let armazenamentoOk = true;
         const usarLocalStorage = false;
         if (usarLocalStorage) {
@@ -5461,12 +5285,12 @@ function salvarDados(chave, dados, opcoes = {}) {
                     appStorage.setItem(chave, JSON.stringify(reduzirPayloadLocal(chave, dadosParaSalvar)));
                 } catch (e) {
                     armazenamentoOk = false;
-                    mostrarNotificacao('Sem espaÃ§o local. Dados mantidos e sincronizados na nuvem.', 'warning');
+                    mostrarNotificacao('Sem espaço local. Dados mantidos e sincronizados na nuvem.', 'warning');
                 }
             }
         }
         
-        // Atualizar variÃ¡veis globais
+        // Atualizar variáveis globais
         if (chave === 'clientes') {
             clientes = dadosParaSalvar;
             window.clientes = clientes;
@@ -5516,7 +5340,7 @@ function salvarDados(chave, dados, opcoes = {}) {
         }
         
     } catch (error) {
-        console.error('âŒ Erro ao salvar dados:', error);
+        console.error('❌ Erro ao salvar dados:', error);
         mostrarNotificacao('Erro ao salvar dados: ' + error.message, 'error');
     }
 }
@@ -5528,7 +5352,7 @@ window.__auditoriaCloudSyncing = window.__auditoriaCloudSyncing || false;
 
 function combinarAuditorias(local, cloud) {
     const map = new Map();
-    // logs (auditoria): Firestore = fonte principal; cloud sobrepÃµe local
+    // logs (auditoria): Firestore = fonte principal; cloud sobrepõe local
     [...(local || []), ...(cloud || [])].forEach(item => {
         const chave = [
             item.id || '',
@@ -5538,7 +5362,7 @@ function combinarAuditorias(local, cloud) {
             item.acao || '',
             item.entidade || ''
         ].join('|');
-        map.set(chave, item); // Ãºltimo (cloud) ganha
+        map.set(chave, item); // último (cloud) ganha
     });
     return Array.from(map.values()).sort((a, b) => {
         const dataA = a.tsMs || Date.parse(a.timestamp) || 0;
@@ -5553,7 +5377,7 @@ function obterAuditoriaSemFiltro() {
         const cloud = Array.isArray(window.auditoriaCloud) ? window.auditoriaCloud : [];
         return combinarAuditorias(local, cloud);
     } catch (error) {
-        console.error('âŒ Erro ao carregar auditoria completa:', error);
+        console.error('❌ Erro ao carregar auditoria completa:', error);
         return [];
     }
 }
@@ -5568,7 +5392,7 @@ function obterAuditoria() {
         }
         return combinado;
     } catch (error) {
-        console.error('âŒ Erro ao carregar auditoria:', error);
+        console.error('❌ Erro ao carregar auditoria:', error);
         return [];
     }
 }
@@ -5594,7 +5418,7 @@ function registrarAuditoria(acao, entidade, descricao, dadosAntes = null, dadosD
         appStorage.setItem('auditoria', JSON.stringify(auditoria.slice(0, 200)));
         salvarAuditoriaCloud(item);
     } catch (error) {
-        console.error('âŒ Erro ao registrar auditoria:', error);
+        console.error('❌ Erro ao registrar auditoria:', error);
     }
 }
 
@@ -5648,7 +5472,7 @@ function renderMetaAuditoria(entidade, item) {
     const meta = obterMetaAuditoriaItem(entidade, item);
     if (!meta) return '';
     const dataAtualizado = meta.atualizadoEm ? new Date(meta.atualizadoEm).toLocaleString('pt-PT') : '';
-    return `<div class="text-[11px] text-gray-500">Criado por ${meta.criadoPor} â€¢ Atualizado por ${meta.atualizadoPor}${dataAtualizado ? ` â€¢ ${dataAtualizado}` : ''}</div>`;
+    return `<div class="text-[11px] text-gray-500">Criado por ${meta.criadoPor} • Atualizado por ${meta.atualizadoPor}${dataAtualizado ? ` • ${dataAtualizado}` : ''}</div>`;
 }
 
 function exportarAuditoria() {
@@ -5666,7 +5490,7 @@ function exportarAuditoria() {
 }
 
 function limparAuditoria() {
-    if (!confirm('Deseja limpar o histÃ³rico de auditoria?')) return;
+    if (!confirm('Deseja limpar o histórico de auditoria?')) return;
     appStorage.removeItem('auditoria');
     mostrarNotificacao('Auditoria limpa com sucesso!', 'success');
 }
@@ -5701,7 +5525,7 @@ function abrirDocumentoAuditoria(auditoriaId) {
     const item = auditoria.find(a => String(a.id) === String(auditoriaId));
     const doc = obterDocumentoAuditoria(item);
     if (!doc) {
-        mostrarNotificacao('Documento nÃ£o encontrado no histÃ³rico.', 'warning');
+        mostrarNotificacao('Documento não encontrado no histórico.', 'warning');
         return;
     }
     abrirDocumentoEmNovaAba(doc);
@@ -5742,10 +5566,10 @@ function gerarHistoricoDetalhado() {
         }, {});
         const cards = Object.entries(porUsuario).map(([usuario, info]) => `
             <div class="card p-4">
-                <div class="text-sm text-gray-500">UsuÃ¡rio</div>
+                <div class="text-sm text-gray-500">Usuário</div>
                 <div class="text-lg font-semibold text-gray-900">${usuario}</div>
-                <div class="text-xs text-gray-600 mt-2">AÃ§Ãµes: ${info.total}</div>
-                <div class="text-xs text-gray-400">Ãšltima: ${info.ultima ? new Date(info.ultima).toLocaleString('pt-PT') : 'N/D'}</div>
+                <div class="text-xs text-gray-600 mt-2">Ações: ${info.total}</div>
+                <div class="text-xs text-gray-400">Última: ${info.ultima ? new Date(info.ultima).toLocaleString('pt-PT') : 'N/D'}</div>
             </div>
         `).join('');
         return `
@@ -5762,8 +5586,8 @@ function gerarHistoricoDetalhado() {
         <div class="space-y-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold">HistÃ³rico de AlteraÃ§Ãµes</h2>
-                    <p class="text-sm text-gray-600">Quem mudou o quÃª, quando e em qual secÃ§Ã£o.</p>
+                    <h2 class="text-2xl font-bold">Histórico de Alterações</h2>
+                    <p class="text-sm text-gray-600">Quem mudou o quê, quando e em qual secção.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <button onclick="exportarAuditoria()" class="btn btn-secondary">
@@ -5786,21 +5610,21 @@ function gerarHistoricoDetalhado() {
                         <input id="filtroHistoricoTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: cliente, contrato, prazo...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">UsuÃ¡rio</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
                         <select id="filtroHistoricoUsuario" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="">Todos</option>
                             ${usuarios.map(u => `<option value="${u}">${u}</option>`).join('')}
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo usuÃ¡rio</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo usuário</label>
                         <select id="filtroHistoricoTipoUsuario" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="">Todos</option>
                             ${tiposUsuario.map(t => `<option value="${t}">${t}</option>`).join('')}
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">AÃ§Ã£o</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Ação</label>
                         <select id="filtroHistoricoAcao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="">Todas</option>
                             ${acoes.map(a => `<option value="${a}">${a}</option>`).join('')}
@@ -5816,12 +5640,12 @@ function gerarHistoricoDetalhado() {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">PerÃ­odo</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Período</label>
                         <select id="filtroHistoricoPeriodo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="">Todos</option>
                             <option value="hoje">Hoje</option>
                             <option value="semana">Esta semana</option>
-                            <option value="mes">Este mÃªs</option>
+                            <option value="mes">Este mês</option>
                         </select>
                     </div>
                     <div class="flex items-end gap-2">
@@ -5860,7 +5684,6 @@ function limparFiltrosHistorico() {
 }
 
 function aplicarFiltrosHistorico() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'historico') return;
     const auditoria = obterAuditoria();
     const texto = (document.getElementById('filtroHistoricoTexto')?.value || '').toLowerCase();
     const usuario = document.getElementById('filtroHistoricoUsuario')?.value || '';
@@ -5913,7 +5736,7 @@ function renderizarHistoricoDetalhado(itens) {
     }
     if (!container) return;
     if (itens.length === 0) {
-        container.innerHTML = '<div class="text-sm text-gray-500">Nenhuma alteraÃ§Ã£o encontrada.</div>';
+        container.innerHTML = '<div class="text-sm text-gray-500">Nenhuma alteração encontrada.</div>';
         return;
     }
     
@@ -5960,7 +5783,7 @@ function registrarErro(contexto, erro, detalhe = null) {
         });
         appStorage.setItem('errosSistema', JSON.stringify(erros.slice(0, 200)));
     } catch (error) {
-        console.error('âŒ Erro ao registrar erro do sistema:', error);
+        console.error('❌ Erro ao registrar erro do sistema:', error);
     }
 }
 
@@ -5977,7 +5800,7 @@ function configurarMonitorizacaoErros() {
     });
 }
 
-// === VALIDAÃ‡Ã•ES ===
+// === VALIDAÇÕES ===
 function validarEmail(email) {
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return regex.test(email);
@@ -6011,7 +5834,7 @@ function configurarEventos() {
         toggleSidebar();
     });
 
-    // BotÃ£o Voltar ao topo: mostrar ao rolar, esconder no topo
+    // Botão Voltar ao topo: mostrar ao rolar, esconder no topo
     const btnVoltarTopo = document.getElementById('btnVoltarTopo');
     if (btnVoltarTopo) {
         const limiar = 300;
@@ -6027,7 +5850,7 @@ function configurarEventos() {
         });
     }
 
-    // Atalho N: novo cliente (quando na secÃ§Ã£o clientes e nÃ£o estÃ¡ a escrever num campo)
+    // Atalho N: novo cliente (quando na secção clientes e não está a escrever num campo)
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'n' && e.key !== 'N') return;
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
@@ -6038,7 +5861,7 @@ function configurarEventos() {
         if (typeof abrirModal === 'function') abrirModal('cliente');
     });
 
-    // Delegation: botÃµes Editar/Concluir/Excluir de tarefas
+    // Delegation: botões Editar/Concluir/Excluir de tarefas
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('[data-tarefa-acao][data-tarefa-id]');
         if (!btn || btn.disabled) return;
@@ -6055,101 +5878,6 @@ function configurarEventos() {
         } catch (err) {
             console.error('Erro ao executar acao tarefa:', acao, err);
             mostrarNotificacao('Erro ao executar. Veja a consola (F12).', 'error');
-        }
-    }, true);
-
-    // Delegation: botões Honorários (editar, duplicar, excluir) — lista e relatórios
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-honorario-acao][data-honorario-id]');
-        if (!btn || btn.disabled) return;
-        const id = btn.getAttribute('data-honorario-id');
-        const acao = btn.getAttribute('data-honorario-acao');
-        if (!id || !acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'editar') editarHonorarioDireto(id);
-            else if (acao === 'duplicar') duplicarHonorario(id);
-            else if (acao === 'excluir') excluirHonorarioDireto(id);
-        } catch (err) {
-            console.error('Erro acao honorario:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
-        }
-    }, true);
-
-    // Delegation: botões Contratos (editar, duplicar, anexos, excluir)
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-contrato-acao][data-contrato-id]');
-        if (!btn || btn.disabled) return;
-        const id = btn.getAttribute('data-contrato-id');
-        const acao = btn.getAttribute('data-contrato-acao');
-        if (!id || !acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'editar') editarContratoDireto(id);
-            else if (acao === 'duplicar') duplicarContrato(id);
-            else if (acao === 'anexos') abrirAnexosContrato(id);
-            else if (acao === 'excluir') excluirContratoDireto(id);
-        } catch (err) {
-            console.error('Erro acao contrato:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
-        }
-    }, true);
-
-    // Delegation: botões Prazos (editar, anexos, excluir) — lista e calendário
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-prazo-acao][data-prazo-id]');
-        if (!btn || btn.disabled) return;
-        const id = btn.getAttribute('data-prazo-id');
-        const acao = btn.getAttribute('data-prazo-acao');
-        if (!id || !acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'editar') editarItem('prazo', id);
-            else if (acao === 'anexos') abrirAnexosPrazo(id);
-            else if (acao === 'excluir') excluirItem('prazo', id);
-        } catch (err) {
-            console.error('Erro acao prazo:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
-        }
-    }, true);
-
-    // Delegation: botões Notificações (marcar-lida, excluir)
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-notificacao-acao][data-notificacao-id]');
-        if (!btn || btn.disabled) return;
-        const id = btn.getAttribute('data-notificacao-id');
-        const acao = btn.getAttribute('data-notificacao-acao');
-        if (!id || !acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'marcar-lida') marcarComoLida(id);
-            else if (acao === 'excluir') excluirNotificacao(id);
-        } catch (err) {
-            console.error('Erro acao notificacao:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
-        }
-    }, true);
-
-    // Delegation: botões Documentos (baixar, imprimir, excluir)
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-documento-acao][data-documento-id]');
-        if (!btn || btn.disabled) return;
-        const id = btn.getAttribute('data-documento-id');
-        const acao = btn.getAttribute('data-documento-acao');
-        if (!id || !acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'baixar') baixarDocumento(id);
-            else if (acao === 'imprimir') imprimirDocumento(id);
-            else if (acao === 'excluir') excluirDocumento(id);
-        } catch (err) {
-            console.error('Erro acao documento:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar.', 'error');
         }
     }, true);
 
@@ -6172,28 +5900,7 @@ function configurarEventos() {
         }
     }, true);
 
-    // Delegation: botÃµes Alertas e NotificaÃ§Ãµes (PDF, Email, WhatsApp)
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('button[data-acao]');
-        if (!btn || btn.disabled) return;
-        const acao = btn.getAttribute('data-acao');
-        if (!acao) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-            if (acao === 'baixarAlertasPDF' && typeof baixarAlertasPDF === 'function') baixarAlertasPDF();
-            else if (acao === 'enviarAlertasEmail' && typeof enviarAlertasEmail === 'function') enviarAlertasEmail();
-            else if (acao === 'enviarAlertasWhatsApp' && typeof enviarAlertasWhatsApp === 'function') enviarAlertasWhatsApp();
-            else if (acao === 'baixarNotificacoesPDF' && typeof baixarNotificacoesPDF === 'function') baixarNotificacoesPDF();
-            else if (acao === 'enviarNotificacoesEmail' && typeof enviarNotificacoesEmail === 'function') enviarNotificacoesEmail();
-            else if (acao === 'enviarNotificacoesWhatsApp' && typeof enviarNotificacoesWhatsApp === 'function') enviarNotificacoesWhatsApp();
-        } catch (err) {
-            console.error('Erro ao executar:', acao, err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar. Verifique a consola (F12).', 'error');
-        }
-    }, true);
-
-    // Delegation: botÃ£o copiar (email, telefone, etc.)
+    // Delegation: botão copiar (email, telefone, etc.)
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('[data-copiar]');
         if (!btn) return;
@@ -6202,7 +5909,7 @@ function configurarEventos() {
         e.preventDefault();
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(valor).then(() => {
-                if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Copiado para a Ã¡rea de transferÃªncia', 'success');
+                if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Copiado para a área de transferência', 'success');
             }).catch(() => {});
         }
     }, true);
@@ -6221,16 +5928,13 @@ function configurarEventos() {
                 if (typeof forcarSincronizacaoNuvem === 'function') forcarSincronizacaoNuvem();
             }
         });
-        // Atualizar "hÃ¡ X min" no badge a cada minuto
+        // Atualizar "há X min" no badge a cada minuto
         setInterval(() => {
             if (syncBadge.getAttribute('data-status') === 'ok' && syncBadge.querySelector('.sync-text')) {
                 syncBadge.querySelector('.sync-text').textContent = obterTextoUltimaSincronizacao();
             }
         }, 60000);
     }
-
-    window.__sistemaLegalEventosConfigurados = true;
-    try { console.info('[Sistema Legal] Event delegation configurado (honorários, contratos, prazos, notificações, documentos, clientes, tarefas)'); } catch (e) {}
 
     document.getElementById('sidebarOverlay')?.addEventListener('click', () => {
         const sidebar = document.getElementById('sidebar');
@@ -6240,7 +5944,7 @@ function configurarEventos() {
     });
 
     function mostrarAtalhosTeclado() {
-        const msg = 'Atalhos: Esc = fechar modal Â· Ctrl+S = guardar formulÃ¡rio Â· Ctrl+K = pesquisa global';
+        const msg = 'Atalhos: Esc = fechar modal · Ctrl+S = guardar formulário · Ctrl+K = pesquisa global';
         if (typeof mostrarNotificacao === 'function') {
             mostrarNotificacao(msg, 'info');
         } else {
@@ -6255,7 +5959,7 @@ function configurarEventos() {
             else if (typeof fecharModal === 'function') fecharModal();
             return;
         }
-        // Ctrl+S ou Cmd+S: guardar formulÃ¡rio em foco
+        // Ctrl+S ou Cmd+S: guardar formulário em foco
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             const form = document.activeElement?.closest('form');
@@ -6278,7 +5982,7 @@ function configurarEventos() {
             }
             return;
         }
-        // Ctrl+N ou Cmd+N: criar novo item na secÃ§Ã£o ativa (evitar quando em input/textarea)
+        // Ctrl+N ou Cmd+N: criar novo item na secção ativa (evitar quando em input/textarea)
         if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
             const tag = (document.activeElement?.tagName || '').toUpperCase();
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
@@ -6297,7 +6001,7 @@ function configurarEventos() {
             if (acoes[sec]) acoes[sec]();
             return;
         }
-        // ? (Shift+/) ou F1: mostrar atalhos disponÃ­veis
+        // ? (Shift+/) ou F1: mostrar atalhos disponíveis
         if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
             mostrarAtalhosTeclado();
         }
@@ -6336,10 +6040,8 @@ function toggleSidebar() {
 }
 
 function carregarSecao(secao) {
-    // Cancelar refresh pendente dos listeners (prioridade Ã  navegaÃ§Ã£o explÃ­cita do utilizador)
-    if (typeof cancelarRefreshListener === 'function') cancelarRefreshListener();
     
-    // Verificar se Ã© convidado e redirecionar para clientes se necessÃ¡rio
+    // Verificar se é convidado e redirecionar para clientes se necessário
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     if (tipoUsuario === 'convidado') {
         const secoesPermitidas = [
@@ -6355,31 +6057,30 @@ function carregarSecao(secao) {
             'prazos',
             'tarefas',
             'calendario',
-            'documentos',
-            'notificacoes'
+            'documentos'
         ];
         if (!secoesPermitidas.includes(secao)) {
-            secao = 'dashboard'; // Redirecionar para visÃ£o geral
+            secao = 'dashboard'; // Redirecionar para visão geral
         }
     }
     
-    // Fechar qualquer modal aberto antes de carregar nova seÃ§Ã£o
+    // Fechar qualquer modal aberto antes de carregar nova seção
     if (typeof fecharModalRobusto === 'function') fecharModalRobusto();
     else if (typeof fecharModal === 'function') fecharModal();
     
-    // Mostrar loader em secÃ§Ãµes pesadas
+    // Mostrar loader em secções pesadas
     const secoesComLoader = ['dashboard', 'clientes', 'honorarios', 'contratos', 'relatorios', 'tarefas', 'documentos', 'integracoes', 'migracoes', 'herancas', 'registos', 'prazos'];
     const mensagensLoader = {
-        dashboard: 'A preparar visÃ£o geral',
+        dashboard: 'A preparar visão geral',
         clientes: 'A preparar lista de clientes',
-        honorarios: 'A preparar honorÃ¡rios',
+        honorarios: 'A preparar honorários',
         contratos: 'A preparar contratos',
-        relatorios: 'A preparar relatÃ³rios',
+        relatorios: 'A preparar relatórios',
         tarefas: 'A preparar tarefas',
         documentos: 'A preparar documentos',
-        integracoes: 'A preparar integraÃ§Ãµes externas',
-        migracoes: 'A preparar migraÃ§Ãµes',
-        herancas: 'A preparar heranÃ§as',
+        integracoes: 'A preparar integrações externas',
+        migracoes: 'A preparar migrações',
+        herancas: 'A preparar heranças',
         registos: 'A preparar registos',
         prazos: 'A preparar prazos'
     };
@@ -6394,7 +6095,7 @@ function carregarSecao(secao) {
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     }
     
-    // Reset limites de paginaÃ§Ã£o ao entrar na secÃ§Ã£o
+    // Reset limites de paginação ao entrar na secção
     if (secao === 'clientes') window.__clientesLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'honorarios') window.__honorariosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'contratos') window.__contratosLimit = LISTA_PAGINA_TAMANHO;
@@ -6403,9 +6104,9 @@ function carregarSecao(secao) {
     if (secao === 'herancas') window.__herancasLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'migracoes') window.__migracoesLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'registos') window.__registosLimit = LISTA_PAGINA_TAMANHO;
-    // OrdenaÃ§Ã£o: manter estado (nÃ£o resetar) para nÃ£o confundir o utilizador
+    // Ordenação: manter estado (não resetar) para não confundir o utilizador
     
-    // Recarregar dados em memÃ³ria antes de gerar conteÃºdo
+    // Recarregar dados em memória antes de gerar conteúdo
     carregarDados();
     
     secaoAtiva = secao;
@@ -6419,11 +6120,11 @@ function carregarSecao(secao) {
             conteudoEl.innerHTML = conteudo;
             removerBotoesAnexos();
         } else {
-            console.error('âŒ Elemento conteudoDinamico nÃ£o encontrado');
+            console.error('❌ Elemento conteudoDinamico não encontrado');
         }
         inicializarSecao(secao);
     
-    // Inicializar filtros para seÃ§Ãµes especÃ­ficas
+    // Inicializar filtros para seções específicas
     if (secao === 'clientes') {
         setTimeout(() => { restaurarFiltrosClientes(); aplicarFiltrosClientes(); }, 100);
     }
@@ -6476,14 +6177,15 @@ function carregarSecao(secao) {
             if (typeof aplicarFiltrosIntegracoes === 'function') aplicarFiltrosIntegracoes();
         }, 100);
     }
-    // Sem execuÃ§Ã£o de testes automÃ¡ticos para heranÃ§as/registos
     
-    // SÃ³ tentar fechar sidebar se estiver no sistema principal
+    // Sem execução de testes automáticos para heranças/registos
+    
+    // Só tentar fechar sidebar se estiver no sistema principal
     if (window.innerWidth <= 1024 && document.getElementById('sidebar')) {
         toggleSidebar();
     }
     
-    // Criar grÃ¡ficos avanÃ§ados se for a seÃ§Ã£o dashboard
+    // Criar gráficos avançados se for a seção dashboard
     if (secao === 'dashboard') {
         setTimeout(() => {
             criarGraficosAvancados();
@@ -6512,24 +6214,23 @@ function atualizarNavegacao() {
 
 function atualizarTitulo(secao) {
     const titulos = {
-        dashboard: 'VisÃ£o Geral',
-        clientes: 'GestÃ£o de Clientes',
-        honorarios: 'GestÃ£o de HonorÃ¡rios',
+        dashboard: 'Visão Geral',
+        clientes: 'Gestão de Clientes',
+        honorarios: 'Gestão de Honorários',
         pagamentos: 'Registo de Pagamentos',
-        despesas: 'GestÃ£o de Despesas',
-        contratos: 'GestÃ£o de Contratos',
-        prazos: 'GestÃ£o de Prazos',
-        herancas: 'GestÃ£o de HeranÃ§as',
-        migracoes: 'GestÃ£o de MigraÃ§Ã£o',
-        registos: 'GestÃ£o de Registos',
+        despesas: 'Gestão de Despesas',
+        contratos: 'Gestão de Contratos',
+        prazos: 'Gestão de Prazos',
+        herancas: 'Gestão de Heranças',
+        migracoes: 'Gestão de Migração',
+        registos: 'Gestão de Registos',
         documentos: 'Minutas',
-        integracoes: 'IntegraÃ§Ãµes Externas',
+        integracoes: 'Integrações Externas',
         tarefas: 'Sistema de Tarefas',
-        calendario: 'CalendÃ¡rio de Prazos',
-        notificacoes: 'Central de NotificaÃ§Ãµes',
-        relatorios: 'GestÃ£o de RelatÃ³rios',
+        calendario: 'Calendário de Prazos',
+        relatorios: 'Gestão de Relatórios',
         backup: 'Sistema de Backup',
-        historico: 'HistÃ³rico de AlteraÃ§Ãµes',
+        historico: 'Histórico de Alterações',
     };
     
     const tituloElement = document.getElementById('tituloSecao');
@@ -6539,7 +6240,7 @@ function atualizarTitulo(secao) {
     
     if (tituloElement) tituloElement.textContent = titulo;
     if (subtituloElement) {
-        subtituloElement.textContent = 'VisÃ£o geral do sistema';
+        subtituloElement.textContent = 'Visão geral do sistema';
     }
     if (pageTitleElement) pageTitleElement.textContent = titulo;
 }
@@ -6570,12 +6271,12 @@ function gerarConteudoSecao(secao) {
         historico: gerarHistoricoDetalhado(),
     };
     
-    return conteudos[secao] || '<p>SeÃ§Ã£o nÃ£o encontrada</p>';
+    return conteudos[secao] || '<p>Seção não encontrada</p>';
     } catch (error) {
-        console.error('âŒ Erro ao gerar conteÃºdo da seÃ§Ã£o:', secao, error);
+        console.error('❌ Erro ao gerar conteúdo da seção:', secao, error);
         return `
             <div class="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                Ocorreu um erro ao carregar esta seÃ§Ã£o. Atualize a pÃ¡gina (Ctrl+F5).
+                Ocorreu um erro ao carregar esta seção. Atualize a página (Ctrl+F5).
             </div>
         `;
     }
@@ -6625,26 +6326,26 @@ function gerarRelatorioCompleto() {
     const valorTotalGeral = valorTotalHonorarios + valorTotalHerancas + valorTotalMigracoes + valorTotalRegistos + valorTotalContratos;
     
     const relatorio = `
-RELATÃ“RIO COMPLETO - SISTEMA LEGAL
+RELATÓRIO COMPLETO - SISTEMA LEGAL
 Data: ${new Date().toLocaleDateString('pt-PT')} ${new Date().toLocaleTimeString('pt-PT')}
 
 === RESUMO GERAL ===
 Total de Clientes: ${clientesParaMostrar.length}
-Total de HonorÃ¡rios: ${honorariosParaMostrar.length}
-Total de HeranÃ§as: ${herancasParaMostrar.length}
-Total de MigraÃ§Ãµes: ${migracoesParaMostrar.length}
+Total de Honorários: ${honorariosParaMostrar.length}
+Total de Heranças: ${herancasParaMostrar.length}
+Total de Migrações: ${migracoesParaMostrar.length}
 Total de Registos: ${registosParaMostrar.length}
 Total de Contratos: ${contratosParaMostrar.length}
 
 === RESUMO FINANCEIRO ===
-Valor Total HonorÃ¡rios: â‚¬${(Math.round(valorTotalHonorarios * 100) / 100).toFixed(2)}
-Valor Total HeranÃ§as: â‚¬${(Math.round(valorTotalHerancas * 100) / 100).toFixed(2)}
-Valor Total MigraÃ§Ãµes: â‚¬${(Math.round(valorTotalMigracoes * 100) / 100).toFixed(2)}
-Valor Total Registos: â‚¬${(Math.round(valorTotalRegistos * 100) / 100).toFixed(2)}
-Valor Total Contratos: â‚¬${(Math.round(valorTotalContratos * 100) / 100).toFixed(2)}
-VALOR TOTAL GERAL: â‚¬${(Math.round(valorTotalGeral * 100) / 100).toFixed(2)}
+Valor Total Honorários: €${(Math.round(valorTotalHonorarios * 100) / 100).toFixed(2)}
+Valor Total Heranças: €${(Math.round(valorTotalHerancas * 100) / 100).toFixed(2)}
+Valor Total Migrações: €${(Math.round(valorTotalMigracoes * 100) / 100).toFixed(2)}
+Valor Total Registos: €${(Math.round(valorTotalRegistos * 100) / 100).toFixed(2)}
+Valor Total Contratos: €${(Math.round(valorTotalContratos * 100) / 100).toFixed(2)}
+VALOR TOTAL GERAL: €${(Math.round(valorTotalGeral * 100) / 100).toFixed(2)}
 
-=== STATUS DOS HONORÃRIOS ===
+=== STATUS DOS HONORÁRIOS ===
 Pagos: ${honorariosParaMostrar.filter(h => h.status === 'pago').length}
 Pendentes: ${honorariosParaMostrar.filter(h => isHonorarioEmAberto(h)).length}
 Vencidos: ${honorariosParaMostrar.filter(h => {
@@ -6654,14 +6355,14 @@ Vencidos: ${honorariosParaMostrar.filter(h => {
         return dataVencimento < hoje && isHonorarioEmAberto(h);
     }).length}
 
-=== PRAZOS PRÃ“XIMOS (7 dias) ===
+=== PRAZOS PRÓXIMOS (7 dias) ===
 ${prazos.filter(p => {
         if (!p.dataLimite) return false;
         const dataLimite = new Date(p.dataLimite);
         const hoje = new Date();
         const diferencaDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
         return diferencaDias <= 7 && diferencaDias >= 0 && p.status === 'ativo';
-    }).map(p => `- ${p.descricao} (${p.clienteNome}) - ${p.tipo} - ${Math.ceil((new Date(p.dataLimite) - new Date()) / (1000 * 60 * 60 * 24))} dias`).join('\n') || 'Nenhum prazo prÃ³ximo'}
+    }).map(p => `- ${p.descricao} (${p.clienteNome}) - ${p.tipo} - ${Math.ceil((new Date(p.dataLimite) - new Date()) / (1000 * 60 * 60 * 24))} dias`).join('\n') || 'Nenhum prazo próximo'}
 
 === TOP 5 CLIENTES POR VALOR ===
 ${clientesParaMostrar.map(cliente => {
@@ -6670,17 +6371,17 @@ ${clientesParaMostrar.map(cliente => {
             .reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
         return { ...cliente, valorTotal: valorCliente };
     }).sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 5).map((cliente, index) => 
-        `${index + 1}. ${cliente.nome} - â‚¬${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}`
+        `${index + 1}. ${cliente.nome} - €${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}`
     ).join('\n')}
 
-=== RELATÃ“RIO GERADO AUTOMATICAMENTE ===
+=== RELATÓRIO GERADO AUTOMATICAMENTE ===
 Sistema Legal - ANA PAULA MEDINA
     `;
     
-    textoParaPdf('RelatÃ³rio Completo', relatorio, 'baixar', `relatorio_completo_${new Date().toISOString().split('T')[0]}.pdf`);
+    textoParaPdf('Relatório Completo', relatorio, 'baixar', `relatorio_completo_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
-/** Abre o relatÃ³rio completo em janela imprimÃ­vel (utilizador pode "Guardar como PDF" no diÃ¡logo de impressÃ£o). */
+/** Abre o relatório completo em janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
 function imprimirRelatorioCompletoComoPdf() {
     const janela = window.open('', '_blank');
     if (!janela) {
@@ -6747,28 +6448,28 @@ function gerarHtmlRelatorioCompleto(d) {
     const prazosHtml = d.prazosProximos.map(p => {
         const dias = Math.ceil((new Date(p.dataLimite) - new Date()) / (1000 * 60 * 60 * 24));
         return `<li>${p.descricao} (${p.clienteNome}) - ${p.tipo} - ${dias} dias</li>`;
-    }).join('') || '<li>Nenhum prazo prÃ³ximo</li>';
-    const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - â‚¬${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>RelatÃ³rio Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px}th{background:#f3f4f6}ul{margin:4px 0;padding-left:20px}</style></head><body>
-<h1 class="h1">RELATÃ“RIO COMPLETO - SISTEMA LEGAL</h1>
+    }).join('') || '<li>Nenhum prazo próximo</li>';
+    const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - €${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px}th{background:#f3f4f6}ul{margin:4px 0;padding-left:20px}</style></head><body>
+<h1 class="h1">RELATÓRIO COMPLETO - SISTEMA LEGAL</h1>
 <p>Data: ${dataStr}</p>
 <h2>Resumo Geral</h2>
-<p>Clientes: ${d.clientesParaMostrar.length} | HonorÃ¡rios: ${d.honorariosParaMostrar.length} | HeranÃ§as: ${d.clientesParaMostrar.length} | MigraÃ§Ãµes: ${d.clientesParaMostrar.length} | Registos: ${d.clientesParaMostrar.length} | Contratos: ${d.clientesParaMostrar.length}</p>
+<p>Clientes: ${d.clientesParaMostrar.length} | Honorários: ${d.honorariosParaMostrar.length} | Heranças: ${d.clientesParaMostrar.length} | Migrações: ${d.clientesParaMostrar.length} | Registos: ${d.clientesParaMostrar.length} | Contratos: ${d.clientesParaMostrar.length}</p>
 <h2>Resumo Financeiro</h2>
-<p>HonorÃ¡rios: â‚¬${d.valorTotalH.toFixed(2)} | HeranÃ§as: â‚¬${d.valorTotalHer.toFixed(2)} | MigraÃ§Ãµes: â‚¬${d.valorTotalMig.toFixed(2)} | Registos: â‚¬${d.valorTotalReg.toFixed(2)} | Contratos: â‚¬${d.valorTotalCont.toFixed(2)}</p>
-<p><strong>VALOR TOTAL: â‚¬${total.toFixed(2)}</strong></p>
-<h2>Prazos PrÃ³ximos (7 dias)</h2><ul>${prazosHtml}</ul>
+<p>Honorários: €${d.valorTotalH.toFixed(2)} | Heranças: €${d.valorTotalHer.toFixed(2)} | Migrações: €${d.valorTotalMig.toFixed(2)} | Registos: €${d.valorTotalReg.toFixed(2)} | Contratos: €${d.valorTotalCont.toFixed(2)}</p>
+<p><strong>VALOR TOTAL: €${total.toFixed(2)}</strong></p>
+<h2>Prazos Próximos (7 dias)</h2><ul>${prazosHtml}</ul>
 <h2>Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
-<p><em>Sistema Legal - RelatÃ³rio gerado automaticamente</em></p>
+<p><em>Sistema Legal - Relatório gerado automaticamente</em></p>
 </body></html>`;
 }
 
-/** Converte texto em PDF (download ou imprimir). Usado para todos os relatÃ³rios. */
+/** Converte texto em PDF (download ou imprimir). Usado para todos os relatórios. */
 async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
     try {
         const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
         if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF nÃ£o carregada. FaÃ§a Ctrl+F5 para recarregar.', 'error');
+            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
             return;
         }
         const doc = new jsPDF({ format: 'a4', unit: 'mm' });
@@ -6792,7 +6493,7 @@ async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
         const nome = nomeFicheiro || `${(titulo || 'relatorio').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
         if (acao === 'baixar') {
             doc.save(nome);
-            mostrarNotificacao('RelatÃ³rio PDF gerado com sucesso!', 'success');
+            mostrarNotificacao('Relatório PDF gerado com sucesso!', 'success');
         } else if (acao === 'imprimir') {
             const blob = doc.output('blob');
             const url = URL.createObjectURL(blob);
@@ -6810,7 +6511,7 @@ async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
     }
 }
 
-/** Abre relatÃ³rio em texto numa janela imprimÃ­vel (utilizador pode "Guardar como PDF" no diÃ¡logo de impressÃ£o). */
+/** Abre relatório em texto numa janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
 function abrirRelatorioTextoComoPdf(titulo, relatorioTexto) {
     const janela = window.open('', '_blank');
     if (!janela) {
@@ -6823,23 +6524,23 @@ function abrirRelatorioTextoComoPdf(titulo, relatorioTexto) {
     setTimeout(() => { janela.focus(); janela.print(); }, 250);
 }
 
-// NOVA FUNÃ‡ÃƒO: RelatÃ³rio personalizado por cliente
+// NOVA FUNÇÃO: Relatório personalizado por cliente
 function gerarRelatorioCliente() {
     
-    // Verificar se jÃ¡ existe um modal aberto
+    // Verificar se já existe um modal aberto
     const modalExistente = document.querySelector('.modal');
     if (modalExistente) {
         modalExistente.remove();
     }
     
-    // Verificar se hÃ¡ clientes
+    // Verificar se há clientes
     if (!clientes || clientes.length === 0) {
-        mostrarNotificacao('Nenhum cliente encontrado para gerar relatÃ³rio!', 'warning');
+        mostrarNotificacao('Nenhum cliente encontrado para gerar relatório!', 'warning');
         return;
     }
     
     
-    // Criar modal para seleÃ§Ã£o de cliente
+    // Criar modal para seleção de cliente
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -6875,7 +6576,7 @@ function gerarRelatorioCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ“Š RelatÃ³rio Personalizado por Cliente</h3>
+                <h3 style="margin: 0; color: #1f2937;">📊 Relatório Personalizado por Cliente</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -6901,7 +6602,7 @@ function gerarRelatorioCliente() {
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="tipoRelatorio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de RelatÃ³rio:</label>
+                    <label for="tipoRelatorio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de Relatório:</label>
                     <select id="tipoRelatorio" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -6909,16 +6610,16 @@ function gerarRelatorioCliente() {
                         border-radius: 6px;
                         font-size: 14px;
                     ">
-                        <option value="completo">RelatÃ³rio Completo</option>
-                        <option value="honorarios">Apenas HonorÃ¡rios</option>
+                        <option value="completo">Relatório Completo</option>
+                        <option value="honorarios">Apenas Honorários</option>
                         <option value="contratos">Apenas Contratos</option>
-                        <option value="herancas">Apenas HeranÃ§as</option>
-                        <option value="migracoes">Apenas MigraÃ§Ãµes</option>
+                        <option value="herancas">Apenas Heranças</option>
+                        <option value="migracoes">Apenas Migrações</option>
                         <option value="registos">Apenas Registos</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="periodoRelatorio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">PerÃ­odo:</label>
+                    <label for="periodoRelatorio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Período:</label>
                     <select id="periodoRelatorio" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -6927,14 +6628,14 @@ function gerarRelatorioCliente() {
                         font-size: 14px;
                     ">
                         <option value="todos">Todos os dados</option>
-                        <option value="mes">Ãšltimo mÃªs</option>
-                        <option value="trimestre">Ãšltimo trimestre</option>
-                        <option value="ano">Ãšltimo ano</option>
-                        <option value="personalizado">PerÃ­odo personalizado</option>
+                        <option value="mes">Último mês</option>
+                        <option value="trimestre">Último trimestre</option>
+                        <option value="ano">Último ano</option>
+                        <option value="personalizado">Período personalizado</option>
                     </select>
                 </div>
                 <div id="periodoPersonalizado" class="form-group" style="display: none; margin-bottom: 15px;">
-                    <label for="dataInicio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de InÃ­cio:</label>
+                    <label for="dataInicio" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de Início:</label>
                     <input type="date" id="dataInicio" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7009,7 +6710,7 @@ function gerarRelatorioCliente() {
     setTimeout(() => {
         const modalTeste = document.querySelector('.modal');
         if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
+            // Forçar visibilidade do modal
             modalTeste.style.display = 'flex';
             modalTeste.style.visibility = 'visible';
             modalTeste.style.opacity = '1';
@@ -7017,7 +6718,7 @@ function gerarRelatorioCliente() {
         }
     }, 100);
     
-    // Event listener para perÃ­odo personalizado
+    // Event listener para período personalizado
     setTimeout(() => {
         const periodoSelect = document.getElementById('periodoRelatorio');
         if (periodoSelect) {
@@ -7056,7 +6757,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         registos: registos ? registos.filter(r => r.cliente === clienteSelecionado) : []
     };
     
-    // Aplicar filtro de perÃ­odo se necessÃ¡rio
+    // Aplicar filtro de período se necessário
     if (periodoRelatorio !== 'todos') {
         const agora = new Date();
         let dataLimite = new Date();
@@ -7075,7 +6776,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
                 const dataInicio = document.getElementById('dataInicio').value;
                 const dataFim = document.getElementById('dataFim').value;
                 if (!dataInicio || !dataFim) {
-                    mostrarNotificacao('Por favor, selecione as datas do perÃ­odo personalizado!', 'warning');
+                    mostrarNotificacao('Por favor, selecione as datas do período personalizado!', 'warning');
                     return;
                 }
                 // Aplicar filtro personalizado
@@ -7098,31 +6799,31 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         }
     }
     
-    // Gerar relatÃ³rio
-    let relatorio = `RELATÃ“RIO PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
+    // Gerar relatório
+    let relatorio = `RELATÓRIO PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
     relatorio += '==========================================\n\n';
     relatorio += `Cliente: ${clienteSelecionado}\n`;
     relatorio += `Data: ${new Date().toLocaleDateString('pt-PT')}\n`;
     relatorio += `Hora: ${new Date().toLocaleTimeString('pt-PT')}\n`;
     relatorio += `Tipo: ${tipoRelatorio.toUpperCase()}\n`;
-    relatorio += `PerÃ­odo: ${periodoRelatorio.toUpperCase()}\n\n`;
+    relatorio += `Período: ${periodoRelatorio.toUpperCase()}\n\n`;
     
-    // Adicionar seÃ§Ãµes baseadas no tipo de relatÃ³rio
+    // Adicionar seções baseadas no tipo de relatório
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'honorarios') {
-        relatorio += 'HONORÃRIOS:\n';
+        relatorio += 'HONORÁRIOS:\n';
         relatorio += '-----------\n';
         if (dadosCliente.honorarios.length > 0) {
             let totalHonorarios = 0;
             dadosCliente.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: €${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n\n`;
                 totalHonorarios += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorarios.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÁRIOS: €${totalHonorarios.toFixed(2)}\n\n`;
         } else {
-            relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
+            relatorio += 'Nenhum honorário encontrado.\n\n';
         }
     }
     
@@ -7132,7 +6833,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.contratos.length > 0) {
             dadosCliente.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: €${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
@@ -7142,32 +6843,32 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
     }
     
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'herancas') {
-        relatorio += 'HERANÃ‡AS:\n';
+        relatorio += 'HERANÇAS:\n';
         relatorio += '---------\n';
         if (dadosCliente.herancas.length > 0) {
             dadosCliente.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: €${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
         } else {
-            relatorio += 'Nenhuma heranÃ§a encontrada.\n\n';
+            relatorio += 'Nenhuma herança encontrada.\n\n';
         }
     }
     
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'migracoes') {
-        relatorio += 'MIGRAÃ‡Ã•ES:\n';
+        relatorio += 'MIGRAÇÕES:\n';
         relatorio += '----------\n';
         if (dadosCliente.migracoes.length > 0) {
             dadosCliente.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: €${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
         } else {
-            relatorio += 'Nenhuma migraÃ§Ã£o encontrada.\n\n';
+            relatorio += 'Nenhuma migração encontrada.\n\n';
         }
     }
     
@@ -7177,7 +6878,7 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         if (dadosCliente.registos.length > 0) {
             dadosCliente.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: €${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
@@ -7187,13 +6888,13 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
     }
     
     relatorio += '==========================================\n';
-    relatorio += 'RelatÃ³rio personalizado gerado automaticamente\n';
-    relatorio += 'Sistema Legal - GestÃ£o JurÃ­dica\n';
+    relatorio += 'Relatório personalizado gerado automaticamente\n';
+    relatorio += 'Sistema Legal - Gestão Jurídica\n';
     
     if (exportarComoPdf) {
-        abrirRelatorioTextoComoPdf(`RelatÃ³rio Personalizado - ${clienteSelecionado}`, relatorio);
+        abrirRelatorioTextoComoPdf(`Relatório Personalizado - ${clienteSelecionado}`, relatorio);
     } else {
-        textoParaPdf(`RelatÃ³rio - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        textoParaPdf(`Relatório - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -7202,26 +6903,26 @@ function gerarRelatorioClienteSelecionado(exportarComoPdf) {
         document.querySelectorAll('.modal').forEach(m => m.remove());
     }, 100);
     
-    mostrarNotificacao(exportarComoPdf ? `RelatÃ³rio PDF aberto para ${clienteSelecionado}` : `RelatÃ³rio personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
+    mostrarNotificacao(exportarComoPdf ? `Relatório PDF aberto para ${clienteSelecionado}` : `Relatório personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
 }
 
-// NOVA FUNÃ‡ÃƒO: RelatÃ³rio financeiro personalizado por cliente
+// NOVA FUNÇÃO: Relatório financeiro personalizado por cliente
 function gerarRelatorioFinanceiroCliente() {
     
-    // Verificar se jÃ¡ existe um modal aberto
+    // Verificar se já existe um modal aberto
     const modalExistente = document.querySelector('.modal');
     if (modalExistente) {
         modalExistente.remove();
     }
     
-    // Verificar se hÃ¡ clientes
+    // Verificar se há clientes
     if (!clientes || clientes.length === 0) {
-        mostrarNotificacao('Nenhum cliente encontrado para gerar relatÃ³rio!', 'warning');
+        mostrarNotificacao('Nenhum cliente encontrado para gerar relatório!', 'warning');
         return;
     }
     
     
-    // Criar modal para seleÃ§Ã£o de cliente
+    // Criar modal para seleção de cliente
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -7257,7 +6958,7 @@ function gerarRelatorioFinanceiroCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ’° RelatÃ³rio Financeiro Personalizado</h3>
+                <h3 style="margin: 0; color: #1f2937;">💰 Relatório Financeiro Personalizado</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -7283,7 +6984,7 @@ function gerarRelatorioFinanceiroCliente() {
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="tipoRelatorioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de RelatÃ³rio Financeiro:</label>
+                    <label for="tipoRelatorioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de Relatório Financeiro:</label>
                     <select id="tipoRelatorioFinanceiro" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7291,8 +6992,8 @@ function gerarRelatorioFinanceiroCliente() {
                         border-radius: 6px;
                         font-size: 14px;
                     ">
-                        <option value="completo">RelatÃ³rio Financeiro Completo</option>
-                        <option value="honorarios">Apenas HonorÃ¡rios</option>
+                        <option value="completo">Relatório Financeiro Completo</option>
+                        <option value="honorarios">Apenas Honorários</option>
                         <option value="receitas">Apenas Receitas</option>
                         <option value="pendentes">Apenas Pendentes</option>
                         <option value="pagos">Apenas Pagos</option>
@@ -7300,7 +7001,7 @@ function gerarRelatorioFinanceiroCliente() {
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="periodoRelatorioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">PerÃ­odo:</label>
+                    <label for="periodoRelatorioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Período:</label>
                     <select id="periodoRelatorioFinanceiro" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7309,14 +7010,14 @@ function gerarRelatorioFinanceiroCliente() {
                         font-size: 14px;
                     ">
                         <option value="todos">Todos os dados</option>
-                        <option value="mes">Ãšltimo mÃªs</option>
-                        <option value="trimestre">Ãšltimo trimestre</option>
-                        <option value="ano">Ãšltimo ano</option>
-                        <option value="personalizado">PerÃ­odo personalizado</option>
+                        <option value="mes">Último mês</option>
+                        <option value="trimestre">Último trimestre</option>
+                        <option value="ano">Último ano</option>
+                        <option value="personalizado">Período personalizado</option>
                     </select>
                 </div>
                 <div id="periodoPersonalizadoFinanceiro" class="form-group" style="display: none; margin-bottom: 15px;">
-                    <label for="dataInicioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de InÃ­cio:</label>
+                    <label for="dataInicioFinanceiro" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de Início:</label>
                     <input type="date" id="dataInicioFinanceiro" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7391,7 +7092,7 @@ function gerarRelatorioFinanceiroCliente() {
     setTimeout(() => {
         const modalTeste = document.querySelector('.modal');
         if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
+            // Forçar visibilidade do modal
             modalTeste.style.display = 'flex';
             modalTeste.style.visibility = 'visible';
             modalTeste.style.opacity = '1';
@@ -7399,7 +7100,7 @@ function gerarRelatorioFinanceiroCliente() {
         }
     }, 100);
     
-    // Event listener para perÃ­odo personalizado
+    // Event listener para período personalizado
     setTimeout(() => {
         const periodoSelect = document.getElementById('periodoRelatorioFinanceiro');
         if (periodoSelect) {
@@ -7437,7 +7138,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
         registos: registos ? registos.filter(r => r.cliente === clienteSelecionado) : []
     };
     
-    // Aplicar filtro de perÃ­odo se necessÃ¡rio
+    // Aplicar filtro de período se necessário
     if (periodoRelatorio !== 'todos') {
         const agora = new Date();
         let dataLimite = new Date();
@@ -7456,7 +7157,7 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
                 const dataInicio = document.getElementById('dataInicioFinanceiro').value;
                 const dataFim = document.getElementById('dataFimFinanceiro').value;
                 if (!dataInicio || !dataFim) {
-                    mostrarNotificacao('Por favor, selecione as datas do perÃ­odo personalizado!', 'warning');
+                    mostrarNotificacao('Por favor, selecione as datas do período personalizado!', 'warning');
                     return;
                 }
                 // Aplicar filtro personalizado
@@ -7494,34 +7195,34 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
     
     const totalGeral = totalHonorarios + totalContratos + totalHerancas + totalMigracoes + totalRegistos;
     
-    // Gerar relatÃ³rio financeiro
-    let relatorio = `RELATÃ“RIO FINANCEIRO PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
+    // Gerar relatório financeiro
+    let relatorio = `RELATÓRIO FINANCEIRO PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
     relatorio += '==================================================\n\n';
     relatorio += `Cliente: ${clienteSelecionado}\n`;
     relatorio += `Data: ${new Date().toLocaleDateString('pt-PT')}\n`;
     relatorio += `Hora: ${new Date().toLocaleTimeString('pt-PT')}\n`;
     relatorio += `Tipo: ${tipoRelatorio.toUpperCase()}\n`;
-    relatorio += `PerÃ­odo: ${periodoRelatorio.toUpperCase()}\n\n`;
+    relatorio += `Período: ${periodoRelatorio.toUpperCase()}\n\n`;
     
     // Resumo financeiro
     relatorio += 'RESUMO FINANCEIRO:\n';
     relatorio += '==================\n';
-    relatorio += `Total Geral: â‚¬${totalGeral.toFixed(2)}\n`;
-    relatorio += `HonorÃ¡rios: â‚¬${totalHonorarios.toFixed(2)}\n`;
-    relatorio += `Contratos: â‚¬${totalContratos.toFixed(2)}\n`;
-    relatorio += `HeranÃ§as: â‚¬${totalHerancas.toFixed(2)}\n`;
-    relatorio += `MigraÃ§Ãµes: â‚¬${totalMigracoes.toFixed(2)}\n`;
-    relatorio += `Registos: â‚¬${totalRegistos.toFixed(2)}\n\n`;
+    relatorio += `Total Geral: €${totalGeral.toFixed(2)}\n`;
+    relatorio += `Honorários: €${totalHonorarios.toFixed(2)}\n`;
+    relatorio += `Contratos: €${totalContratos.toFixed(2)}\n`;
+    relatorio += `Heranças: €${totalHerancas.toFixed(2)}\n`;
+    relatorio += `Migrações: €${totalMigracoes.toFixed(2)}\n`;
+    relatorio += `Registos: €${totalRegistos.toFixed(2)}\n\n`;
     
-    // Adicionar seÃ§Ãµes baseadas no tipo de relatÃ³rio
+    // Adicionar seções baseadas no tipo de relatório
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'honorarios') {
-        relatorio += 'HONORÃRIOS:\n';
+        relatorio += 'HONORÁRIOS:\n';
         relatorio += '-----------\n';
         if (dadosFinanceiros.honorarios.length > 0) {
             let totalHonorariosCliente = 0;
             dadosFinanceiros.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: €${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n`;
                 if (honorario.vencimento) {
@@ -7530,41 +7231,41 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
                 relatorio += `\n`;
                 totalHonorariosCliente += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorariosCliente.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÁRIOS: €${totalHonorariosCliente.toFixed(2)}\n\n`;
         } else {
-            relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
+            relatorio += 'Nenhum honorário encontrado.\n\n';
         }
     }
     
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'receitas') {
-        relatorio += 'RECEITAS (Contratos, HeranÃ§as, MigraÃ§Ãµes, Registos):\n';
+        relatorio += 'RECEITAS (Contratos, Heranças, Migrações, Registos):\n';
         relatorio += '==================================================\n';
         
         if (dadosFinanceiros.contratos.length > 0) {
             relatorio += 'CONTRATOS:\n';
             dadosFinanceiros.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: €${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
         }
         
         if (dadosFinanceiros.herancas.length > 0) {
-            relatorio += 'HERANÃ‡AS:\n';
+            relatorio += 'HERANÇAS:\n';
             dadosFinanceiros.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: €${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
         }
         
         if (dadosFinanceiros.migracoes.length > 0) {
-            relatorio += 'MIGRAÃ‡Ã•ES:\n';
+            relatorio += 'MIGRAÇÕES:\n';
             dadosFinanceiros.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: €${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
@@ -7574,35 +7275,35 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
             relatorio += 'REGISTOS:\n';
             dadosFinanceiros.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: €${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
         }
     }
     
-    // AnÃ¡lise por status
+    // Análise por status
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'pendentes' || tipoRelatorio === 'pagos' || tipoRelatorio === 'vencidos') {
-        relatorio += 'ANÃLISE POR STATUS:\n';
+        relatorio += 'ANÁLISE POR STATUS:\n';
         relatorio += '==================\n';
         
         const honorariosPendentes = dadosFinanceiros.honorarios.filter(h => isHonorarioEmAberto(h));
         const honorariosPagos = dadosFinanceiros.honorarios.filter(h => h.status === 'pago');
         const honorariosVencidos = dadosFinanceiros.honorarios.filter(h => h.status === 'vencido');
         
-        relatorio += `HonorÃ¡rios Pendentes: ${honorariosPendentes.length} (â‚¬${honorariosPendentes.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
-        relatorio += `HonorÃ¡rios Pagos: ${honorariosPagos.length} (â‚¬${honorariosPagos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
-        relatorio += `HonorÃ¡rios Vencidos: ${honorariosVencidos.length} (â‚¬${honorariosVencidos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n\n`;
+        relatorio += `Honorários Pendentes: ${honorariosPendentes.length} (€${honorariosPendentes.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
+        relatorio += `Honorários Pagos: ${honorariosPagos.length} (€${honorariosPagos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n`;
+        relatorio += `Honorários Vencidos: ${honorariosVencidos.length} (€${honorariosVencidos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0).toFixed(2)})\n\n`;
     }
     
     relatorio += '==================================================\n';
-    relatorio += 'RelatÃ³rio financeiro personalizado gerado automaticamente\n';
-    relatorio += 'Sistema Legal - GestÃ£o JurÃ­dica\n';
+    relatorio += 'Relatório financeiro personalizado gerado automaticamente\n';
+    relatorio += 'Sistema Legal - Gestão Jurídica\n';
     
     if (exportarComoPdf) {
-        abrirRelatorioTextoComoPdf(`RelatÃ³rio Financeiro - ${clienteSelecionado}`, relatorio);
+        abrirRelatorioTextoComoPdf(`Relatório Financeiro - ${clienteSelecionado}`, relatorio);
     } else {
-        textoParaPdf(`RelatÃ³rio Financeiro - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_financeiro_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        textoParaPdf(`Relatório Financeiro - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_financeiro_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -7611,26 +7312,26 @@ function gerarRelatorioFinanceiroClienteSelecionado(exportarComoPdf) {
         document.querySelectorAll('.modal').forEach(m => m.remove());
     }, 100);
     
-    mostrarNotificacao(exportarComoPdf ? `RelatÃ³rio PDF aberto para ${clienteSelecionado}` : `RelatÃ³rio financeiro personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
+    mostrarNotificacao(exportarComoPdf ? `Relatório PDF aberto para ${clienteSelecionado}` : `Relatório financeiro personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
 }
 
-// NOVA FUNÃ‡ÃƒO: RelatÃ³rio geral personalizado por cliente
+// NOVA FUNÇÃO: Relatório geral personalizado por cliente
 function gerarRelatorioGeralCliente() {
     
-    // Verificar se jÃ¡ existe um modal aberto
+    // Verificar se já existe um modal aberto
     const modalExistente = document.querySelector('.modal');
     if (modalExistente) {
         modalExistente.remove();
     }
     
-    // Verificar se hÃ¡ clientes
+    // Verificar se há clientes
     if (!clientes || clientes.length === 0) {
-        mostrarNotificacao('Nenhum cliente encontrado para gerar relatÃ³rio!', 'warning');
+        mostrarNotificacao('Nenhum cliente encontrado para gerar relatório!', 'warning');
         return;
     }
     
     
-    // Criar modal para seleÃ§Ã£o de cliente
+    // Criar modal para seleção de cliente
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -7666,7 +7367,7 @@ function gerarRelatorioGeralCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ“Š RelatÃ³rio Geral Personalizado</h3>
+                <h3 style="margin: 0; color: #1f2937;">📊 Relatório Geral Personalizado</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -7692,7 +7393,7 @@ function gerarRelatorioGeralCliente() {
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="tipoRelatorioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de RelatÃ³rio Geral:</label>
+                    <label for="tipoRelatorioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tipo de Relatório Geral:</label>
                     <select id="tipoRelatorioGeral" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7700,18 +7401,18 @@ function gerarRelatorioGeralCliente() {
                         border-radius: 6px;
                         font-size: 14px;
                     ">
-                        <option value="completo">RelatÃ³rio Geral Completo</option>
+                        <option value="completo">Relatório Geral Completo</option>
                         <option value="dados_pessoais">Apenas Dados Pessoais</option>
-                        <option value="honorarios">Apenas HonorÃ¡rios</option>
+                        <option value="honorarios">Apenas Honorários</option>
                         <option value="contratos">Apenas Contratos</option>
-                        <option value="herancas">Apenas HeranÃ§as</option>
-                        <option value="migracoes">Apenas MigraÃ§Ãµes</option>
+                        <option value="herancas">Apenas Heranças</option>
+                        <option value="migracoes">Apenas Migrações</option>
                         <option value="registos">Apenas Registos</option>
                         <option value="documentos">Apenas Documentos</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="periodoRelatorioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">PerÃ­odo:</label>
+                    <label for="periodoRelatorioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Período:</label>
                     <select id="periodoRelatorioGeral" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7720,14 +7421,14 @@ function gerarRelatorioGeralCliente() {
                         font-size: 14px;
                     ">
                         <option value="todos">Todos os dados</option>
-                        <option value="mes">Ãšltimo mÃªs</option>
-                        <option value="trimestre">Ãšltimo trimestre</option>
-                        <option value="ano">Ãšltimo ano</option>
-                        <option value="personalizado">PerÃ­odo personalizado</option>
+                        <option value="mes">Último mês</option>
+                        <option value="trimestre">Último trimestre</option>
+                        <option value="ano">Último ano</option>
+                        <option value="personalizado">Período personalizado</option>
                     </select>
                 </div>
                 <div id="periodoPersonalizadoGeral" class="form-group" style="display: none; margin-bottom: 15px;">
-                    <label for="dataInicioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de InÃ­cio:</label>
+                    <label for="dataInicioGeral" style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Data de Início:</label>
                     <input type="date" id="dataInicioGeral" class="form-control" style="
                         width: 100%;
                         padding: 8px 12px;
@@ -7802,7 +7503,7 @@ function gerarRelatorioGeralCliente() {
     setTimeout(() => {
         const modalTeste = document.querySelector('.modal');
         if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
+            // Forçar visibilidade do modal
             modalTeste.style.display = 'flex';
             modalTeste.style.visibility = 'visible';
             modalTeste.style.opacity = '1';
@@ -7810,7 +7511,7 @@ function gerarRelatorioGeralCliente() {
         }
     }, 100);
     
-    // Event listener para perÃ­odo personalizado
+    // Event listener para período personalizado
     setTimeout(() => {
         const periodoSelect = document.getElementById('periodoRelatorioGeral');
         if (periodoSelect) {
@@ -7852,7 +7553,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
     // Encontrar dados do cliente
     const cliente = clientes.find(c => c.nome === clienteSelecionado);
     
-    // Aplicar filtro de perÃ­odo se necessÃ¡rio
+    // Aplicar filtro de período se necessário
     if (periodoRelatorio !== 'todos') {
         const agora = new Date();
         let dataLimite = new Date();
@@ -7871,7 +7572,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
                 const dataInicio = document.getElementById('dataInicioGeral').value;
                 const dataFim = document.getElementById('dataFimGeral').value;
                 if (!dataInicio || !dataFim) {
-                    mostrarNotificacao('Por favor, selecione as datas do perÃ­odo personalizado!', 'warning');
+                    mostrarNotificacao('Por favor, selecione as datas do período personalizado!', 'warning');
                     return;
                 }
                 // Aplicar filtro personalizado
@@ -7894,14 +7595,14 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         }
     }
     
-    // Gerar relatÃ³rio geral
-    let relatorio = `RELATÃ“RIO GERAL PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
+    // Gerar relatório geral
+    let relatorio = `RELATÓRIO GERAL PERSONALIZADO - ${clienteSelecionado.toUpperCase()}\n`;
     relatorio += '==================================================\n\n';
     relatorio += `Cliente: ${clienteSelecionado}\n`;
     relatorio += `Data: ${new Date().toLocaleDateString('pt-PT')}\n`;
     relatorio += `Hora: ${new Date().toLocaleTimeString('pt-PT')}\n`;
     relatorio += `Tipo: ${tipoRelatorio.toUpperCase()}\n`;
-    relatorio += `PerÃ­odo: ${periodoRelatorio.toUpperCase()}\n\n`;
+    relatorio += `Período: ${periodoRelatorio.toUpperCase()}\n\n`;
     
     // Dados pessoais do cliente
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'dados_pessoais') {
@@ -7914,24 +7615,24 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
             relatorio += `NIF: ${cliente.nif}\n`;
             relatorio += `Data de Registo: ${cliente.data}\n`;
             if (cliente.endereco) {
-                relatorio += `EndereÃ§o: ${cliente.endereco}\n`;
+                relatorio += `Endereço: ${cliente.endereco}\n`;
             }
             if (cliente.observacoes) {
-                relatorio += `ObservaÃ§Ãµes: ${cliente.observacoes}\n`;
+                relatorio += `Observações: ${cliente.observacoes}\n`;
             }
         }
         relatorio += '\n';
     }
     
-    // HonorÃ¡rios
+    // Honorários
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'honorarios') {
-        relatorio += 'HONORÃRIOS:\n';
+        relatorio += 'HONORÁRIOS:\n';
         relatorio += '-----------\n';
         if (dadosGeral.honorarios.length > 0) {
             let totalHonorarios = 0;
             dadosGeral.honorarios.forEach((honorario, index) => {
                 relatorio += `${index + 1}. ${honorario.descricao || honorario.servico}\n`;
-                relatorio += `   Valor: â‚¬${honorario.valor}\n`;
+                relatorio += `   Valor: €${honorario.valor}\n`;
                 relatorio += `   Status: ${formatarStatusHonorario(honorario.status)}\n`;
                 relatorio += `   Data: ${honorario.data}\n`;
                 if (honorario.vencimento) {
@@ -7940,9 +7641,9 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
                 relatorio += `\n`;
                 totalHonorarios += parseFloat(honorario.valor) || 0;
             });
-            relatorio += `TOTAL HONORÃRIOS: â‚¬${totalHonorarios.toFixed(2)}\n\n`;
+            relatorio += `TOTAL HONORÁRIOS: €${totalHonorarios.toFixed(2)}\n\n`;
         } else {
-            relatorio += 'Nenhum honorÃ¡rio encontrado.\n\n';
+            relatorio += 'Nenhum honorário encontrado.\n\n';
         }
     }
     
@@ -7953,7 +7654,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.contratos.length > 0) {
             dadosGeral.contratos.forEach((contrato, index) => {
                 relatorio += `${index + 1}. ${contrato.tipo}\n`;
-                relatorio += `   Valor: â‚¬${contrato.valor}\n`;
+                relatorio += `   Valor: €${contrato.valor}\n`;
                 relatorio += `   Status: ${contrato.status}\n`;
                 relatorio += `   Data: ${contrato.data}\n\n`;
             });
@@ -7962,35 +7663,35 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         }
     }
     
-    // HeranÃ§as
+    // Heranças
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'herancas') {
-        relatorio += 'HERANÃ‡AS:\n';
+        relatorio += 'HERANÇAS:\n';
         relatorio += '---------\n';
         if (dadosGeral.herancas.length > 0) {
             dadosGeral.herancas.forEach((heranca, index) => {
                 relatorio += `${index + 1}. ${heranca.tipo}\n`;
-                relatorio += `   Valor: â‚¬${heranca.valor}\n`;
+                relatorio += `   Valor: €${heranca.valor}\n`;
                 relatorio += `   Status: ${heranca.status}\n`;
                 relatorio += `   Data: ${heranca.data}\n\n`;
             });
         } else {
-            relatorio += 'Nenhuma heranÃ§a encontrada.\n\n';
+            relatorio += 'Nenhuma herança encontrada.\n\n';
         }
     }
     
-    // MigraÃ§Ãµes
+    // Migrações
     if (tipoRelatorio === 'completo' || tipoRelatorio === 'migracoes') {
-        relatorio += 'MIGRAÃ‡Ã•ES:\n';
+        relatorio += 'MIGRAÇÕES:\n';
         relatorio += '----------\n';
         if (dadosGeral.migracoes.length > 0) {
             dadosGeral.migracoes.forEach((migracao, index) => {
                 relatorio += `${index + 1}. ${migracao.tipo}\n`;
-                relatorio += `   Valor: â‚¬${migracao.valor}\n`;
+                relatorio += `   Valor: €${migracao.valor}\n`;
                 relatorio += `   Status: ${migracao.status}\n`;
                 relatorio += `   Data: ${migracao.data}\n\n`;
             });
         } else {
-            relatorio += 'Nenhuma migraÃ§Ã£o encontrada.\n\n';
+            relatorio += 'Nenhuma migração encontrada.\n\n';
         }
     }
     
@@ -8001,7 +7702,7 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         if (dadosGeral.registos.length > 0) {
             dadosGeral.registos.forEach((registo, index) => {
                 relatorio += `${index + 1}. ${registo.tipo}\n`;
-                relatorio += `   Valor: â‚¬${registo.valor}\n`;
+                relatorio += `   Valor: €${registo.valor}\n`;
                 relatorio += `   Status: ${registo.status}\n`;
                 relatorio += `   Data: ${registo.data}\n\n`;
             });
@@ -8010,25 +7711,25 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         }
     }
     
-    // Resumo estatÃ­stico
+    // Resumo estatístico
     if (tipoRelatorio === 'completo') {
-        relatorio += 'RESUMO ESTATÃSTICO:\n';
+        relatorio += 'RESUMO ESTATÍSTICO:\n';
         relatorio += '===================\n';
-        relatorio += `Total de HonorÃ¡rios: ${dadosGeral.honorarios.length}\n`;
+        relatorio += `Total de Honorários: ${dadosGeral.honorarios.length}\n`;
         relatorio += `Total de Contratos: ${dadosGeral.contratos.length}\n`;
-        relatorio += `Total de HeranÃ§as: ${dadosGeral.herancas.length}\n`;
-        relatorio += `Total de MigraÃ§Ãµes: ${dadosGeral.migracoes.length}\n`;
+        relatorio += `Total de Heranças: ${dadosGeral.herancas.length}\n`;
+        relatorio += `Total de Migrações: ${dadosGeral.migracoes.length}\n`;
         relatorio += `Total de Registos: ${dadosGeral.registos.length}\n\n`;
     }
     
     relatorio += '==================================================\n';
-    relatorio += 'RelatÃ³rio geral personalizado gerado automaticamente\n';
-    relatorio += 'Sistema Legal - GestÃ£o JurÃ­dica\n';
+    relatorio += 'Relatório geral personalizado gerado automaticamente\n';
+    relatorio += 'Sistema Legal - Gestão Jurídica\n';
     
     if (exportarComoPdf) {
-        abrirRelatorioTextoComoPdf(`RelatÃ³rio Geral - ${clienteSelecionado}`, relatorio);
+        abrirRelatorioTextoComoPdf(`Relatório Geral - ${clienteSelecionado}`, relatorio);
     } else {
-        textoParaPdf(`RelatÃ³rio Geral - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_geral_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        textoParaPdf(`Relatório Geral - ${clienteSelecionado}`, relatorio, 'baixar', `relatorio_geral_${clienteSelecionado.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     }
     
     setTimeout(() => {
@@ -8037,12 +7738,12 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
         document.querySelectorAll('.modal').forEach(m => m.remove());
     }, 100);
     
-    mostrarNotificacao(exportarComoPdf ? `RelatÃ³rio PDF aberto para ${clienteSelecionado}` : `RelatÃ³rio geral personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
+    mostrarNotificacao(exportarComoPdf ? `Relatório PDF aberto para ${clienteSelecionado}` : `Relatório geral personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
 }
 
 function mostrarInformacoesCompletasCliente(cliente) {
     
-    // Verificar se jÃ¡ existe um modal aberto
+    // Verificar se já existe um modal aberto
     const modalExistente = document.querySelector('.modal');
     if (modalExistente) {
         modalExistente.remove();
@@ -8055,7 +7756,6 @@ function mostrarInformacoesCompletasCliente(cliente) {
         if (clienteId && String(item.clienteId) === String(clienteId)) return true;
         return item.clienteNome === cliente.nome || item.cliente === cliente.nome;
     };
-    const faturasCliente = (typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f && f.id !== 'seed-inicial' && (String(f.clienteId) === String(clienteId) || f.clienteNome === cliente.nome));
     const dadosCliente = {
         honorarios: honorarios ? honorarios.filter(correspondeCliente) : [],
         contratos: contratos ? contratos.filter(correspondeCliente) : [],
@@ -8065,11 +7765,10 @@ function mostrarInformacoesCompletasCliente(cliente) {
         prazos: prazos ? prazos.filter(correspondeCliente) : [],
         tarefas: tarefas ? tarefas.filter(correspondeCliente) : [],
         documentos: documentos ? documentos.filter(correspondeCliente) : [],
-        faturas: faturasCliente,
         notificacoes: notificacoes ? notificacoes.filter(n => n.clienteId === clienteId || n.clienteNome === cliente.nome || n.cliente === cliente.nome) : []
     };
     
-    // Criar modal com informaÃ§Ãµes completas
+    // Criar modal com informações completas
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -8105,7 +7804,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ‘¤ ${cliente.nome} - InformaÃ§Ãµes Completas</h3>
+                <h3 style="margin: 0; color: #1f2937;">👤 ${cliente.nome} - Informações Completas</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -8117,7 +7816,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
             <div class="modal-body" style="margin-bottom: 20px;">
                 <!-- Dados Pessoais -->
                 <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ“‹ Dados Pessoais</h4>
+                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">📋 Dados Pessoais</h4>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
                         <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
                             <strong>Nome:</strong> ${cliente.nome}
@@ -8140,26 +7839,22 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                     ${cliente.endereco ? `
                         <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #6366f1; margin-top: 15px;">
-                            <strong>EndereÃ§o:</strong> ${cliente.endereco}
+                            <strong>Endereço:</strong> ${cliente.endereco}
                         </div>
                     ` : ''}
                 </div>
                 
-                <!-- Resumo EstatÃ­stico (HonorÃ¡rios, Faturas, NotificaÃ§Ãµes, Contratos, HeranÃ§as, MigraÃ§Ãµes, Registos) -->
+                <!-- Resumo Estatístico (6 itens: Honorários, Notificações, Contratos, Heranças, Migrações, Registos) -->
                 <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“Š Resumo EstatÃ­stico</h4>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📊 Resumo Estatístico</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
                         <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 16px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
-                            <div style="font-size: 13px;">HonorÃ¡rios</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #0d9488, #0f766e); color: white; padding: 16px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; font-weight: bold;">${(dadosCliente.faturas && dadosCliente.faturas.length) || 0}</div>
-                            <div style="font-size: 13px;">Faturas</div>
+                            <div style="font-size: 13px;">Honorários</div>
                         </div>
                         <div id="card-notificacoes-cliente" style="background: linear-gradient(135deg, #ea580c, #c2410c); color: white; padding: 16px; border-radius: 8px; text-align: center; border: 2px solid #9a3412;">
                             <div style="font-size: 22px; font-weight: bold;">${(dadosCliente.notificacoes && dadosCliente.notificacoes.length) || 0}</div>
-                            <div style="font-size: 13px;">ðŸ”” NotificaÃ§Ãµes</div>
+                            <div style="font-size: 13px;">🔔 Notificações</div>
                         </div>
                         <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold;">${dadosCliente.contratos.length}</div>
@@ -8167,11 +7862,11 @@ function mostrarInformacoesCompletasCliente(cliente) {
                         </div>
                         <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 16px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold;">${dadosCliente.herancas.length}</div>
-                            <div style="font-size: 13px;">HeranÃ§as</div>
+                            <div style="font-size: 13px;">Heranças</div>
                         </div>
                         <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 16px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
-                            <div style="font-size: 13px;">MigraÃ§Ãµes</div>
+                            <div style="font-size: 13px;">Migrações</div>
                         </div>
                         <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 16px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold;">${dadosCliente.registos.length}</div>
@@ -8180,17 +7875,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 </div>
                 
-                <!-- NotificaÃ§Ãµes do cliente (no processo) -->
+                <!-- Notificações do cliente (no processo) -->
                 ${dadosCliente.notificacoes && dadosCliente.notificacoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ”” NotificaÃ§Ãµes (${dadosCliente.notificacoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">🔔 Notificações (${dadosCliente.notificacoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.notificacoes.map((noti) => `
                                 <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
-                                            <strong>${noti.titulo || 'NotificaÃ§Ã£o'}</strong><br>
+                                            <strong>${noti.titulo || 'Notificação'}</strong><br>
                                             <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
                                         </div>
@@ -8201,17 +7896,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 ` : ''}
                 
-                <!-- HonorÃ¡rios -->
+                <!-- Honorários -->
                 ${dadosCliente.honorarios.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ’° HonorÃ¡rios (${dadosCliente.honorarios.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">💰 Honorários (${dadosCliente.honorarios.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.honorarios.map((honorario, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3b82f6;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${honorario.descricao || honorario.servico}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: €${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${honorario.data}</span>
                                         </div>
                                     </div>
@@ -8221,41 +7916,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 ` : ''}
                 
-                <!-- Faturas -->
-                ${dadosCliente.faturas && dadosCliente.faturas.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0d9488; padding-bottom: 5px;">ðŸ§¾ Faturas (${dadosCliente.faturas.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.faturas.map((fatura) => {
-                                const numero = fatura.numero || fatura.id || 'FAT-';
-                                const valor = parseFloat(fatura.valorTotal || fatura.valor || 0);
-                                return `
-                                <div style="background: #f0fdfa; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0d9488;">
-                                    <button type="button" onclick='mostrarFaturaNoModal(${JSON.stringify(fatura.id)})' style="
-                                        display: block; width: 100%; text-align: left; background: transparent; border: none; cursor: pointer; padding: 0; font-family: inherit;
-                                    ">
-                                        <strong style="color: #0d9488; font-size: 15px;">${numero}</strong><br>
-                                        <span style="color: #6b7280; font-size: 14px;">â‚¬${valor.toFixed(2)} | ${fatura.estado || fatura.status || 'pendente'}</span><br>
-                                        <span style="color: #6b7280; font-size: 12px;">Data: ${(fatura.dataEmissao || fatura.data || '').toString().split('T')[0] || 'N/D'}</span><br>
-                                        <span style="color: #2563eb; font-size: 12px; text-decoration: underline;">Clique para ver a fatura</span>
-                                    </button>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
                 <!-- Contratos -->
                 ${dadosCliente.contratos.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“„ Contratos (${dadosCliente.contratos.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Contratos (${dadosCliente.contratos.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.contratos.map((contrato, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #10b981;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${contrato.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${contrato.valor} | Status: ${contrato.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: €${contrato.valor} | Status: ${contrato.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${contrato.data}</span>
                                         </div>
                                     </div>
@@ -8265,17 +7936,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 ` : ''}
                 
-                <!-- HeranÃ§as -->
+                <!-- Heranças -->
                 ${dadosCliente.herancas.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ›ï¸ HeranÃ§as (${dadosCliente.herancas.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">🏛️ Heranças (${dadosCliente.herancas.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.herancas.map((heranca, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${heranca.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${heranca.valor} | Status: ${heranca.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: €${heranca.valor} | Status: ${heranca.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${heranca.data}</span>
                                         </div>
                                     </div>
@@ -8285,17 +7956,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 ` : ''}
                 
-                <!-- MigraÃ§Ãµes -->
+                <!-- Migrações -->
                 ${dadosCliente.migracoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #8b5cf6; padding-bottom: 5px;">ðŸŒ MigraÃ§Ãµes (${dadosCliente.migracoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #8b5cf6; padding-bottom: 5px;">🌍 Migrações (${dadosCliente.migracoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.migracoes.map((migracao, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #8b5cf6;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${migracao.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${migracao.valor} | Status: ${migracao.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: €${migracao.valor} | Status: ${migracao.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${migracao.data}</span>
                                         </div>
                                     </div>
@@ -8308,14 +7979,14 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Registos -->
                 ${dadosCliente.registos.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 5px;">ðŸ“ Registos (${dadosCliente.registos.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 5px;">📝 Registos (${dadosCliente.registos.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.registos.map((registo, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #ef4444;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <strong>${registo.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: â‚¬${registo.valor} | Status: ${registo.status}</span><br>
+                                            <span style="color: #6b7280; font-size: 14px;">Valor: €${registo.valor} | Status: ${registo.status}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">Data: ${registo.data}</span>
                                         </div>
                                     </div>
@@ -8328,7 +7999,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Prazos -->
                 ${dadosCliente.prazos.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0ea5e9; padding-bottom: 5px;">â° Prazos (${dadosCliente.prazos.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0ea5e9; padding-bottom: 5px;">⏰ Prazos (${dadosCliente.prazos.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.prazos.map((prazo) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0ea5e9;">
@@ -8348,7 +8019,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Tarefas -->
                 ${dadosCliente.tarefas.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">âœ… Tarefas (${dadosCliente.tarefas.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">✅ Tarefas (${dadosCliente.tarefas.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.tarefas.map((tarefa) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #6366f1;">
@@ -8356,7 +8027,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                                         <div>
                                             <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
                                             <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
-                                            ${tarefa.responsavelNome ? `<span style="color: #374151; font-size: 12px; font-weight: 700;">ResponsÃ¡vel: ${(tarefa.responsavelNome || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span><br>` : ''}
+                                            ${tarefa.responsavelNome ? `<span style="color: #374151; font-size: 12px; font-weight: 700;">Responsável: ${(tarefa.responsavelNome || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span><br>` : ''}
                                             <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
                                             ${tarefa.links && tarefa.links.length ? `
                                                 <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
@@ -8385,14 +8056,14 @@ function mostrarInformacoesCompletasCliente(cliente) {
 
                 <!-- Documentos -->
                 <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“„ Documentos (${dadosCliente.documentos.length})</h4>
+                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">📄 Documentos (${dadosCliente.documentos.length})</h4>
                     <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                        <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rÃ¡pido</div>
+                        <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
                             <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                                 <option value="contrato">Contrato</option>
-                                <option value="heranca">HeranÃ§a</option>
-                                <option value="migracao">MigraÃ§Ã£o</option>
+                                <option value="heranca">Herança</option>
+                                <option value="migracao">Migração</option>
                                 <option value="registo">Registo</option>
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
@@ -8400,10 +8071,10 @@ function mostrarInformacoesCompletasCliente(cliente) {
                             <select id="docModalEntidade-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;" title="Entidade">
                                 ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                             </select>
-                            <input id="docModalDescricao-${cliente.id}" type="text" placeholder="DescriÃ§Ã£o" style="grid-column: span 2; width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                            <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="grid-column: span 2; width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                            <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vÃ­rgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
+                            <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                             <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
                         </div>
                         <button type="button" class="js-doc-modal-add" data-cliente-id="${cliente.id}" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" onclick="adicionarDocumentoModalHandler(this)" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
@@ -8434,17 +8105,17 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
                 </div>
 
-                <!-- NotificaÃ§Ãµes -->
+                <!-- Notificações -->
                 ${dadosCliente.notificacoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ”” NotificaÃ§Ãµes (${dadosCliente.notificacoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">🔔 Notificações (${dadosCliente.notificacoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.notificacoes.map((noti) => `
                                 <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div>
                                             <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
-                                            <strong>${noti.titulo || 'NotificaÃ§Ã£o'}</strong><br>
+                                            <strong>${noti.titulo || 'Notificação'}</strong><br>
                                             <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
                                             <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
                                         </div>
@@ -8455,11 +8126,11 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     </div>
                 ` : ''}
                 
-                ${dadosCliente.honorarios.length === 0 && (!dadosCliente.faturas || dadosCliente.faturas.length === 0) && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 && dadosCliente.notificacoes.length === 0 ? `
+                ${dadosCliente.honorarios.length === 0 && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 && dadosCliente.notificacoes.length === 0 ? `
                     <div style="text-align: center; padding: 40px; color: #6b7280;">
                         <i data-lucide="file-x" style="width: 48px; height: 48px; margin: 0 auto 20px; display: block;"></i>
                         <h4 style="margin: 0 0 10px 0;">Nenhum item encontrado</h4>
-                        <p style="margin: 0;">Este cliente ainda nÃ£o possui registros associados.</p>
+                        <p style="margin: 0;">Este cliente ainda não possui registros associados.</p>
                     </div>
                 ` : ''}
             </div>
@@ -8522,7 +8193,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     gap: 5px;
                 ">
                     <i data-lucide="download" class="w-4 h-4"></i>
-                    Gerar RelatÃ³rio
+                    Gerar Relatório
                 </button>
             </div>
         </div>
@@ -8552,7 +8223,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
     setTimeout(() => {
         const modalTeste = document.querySelector('.modal');
         if (modalTeste) {
-            // ForÃ§ar visibilidade do modal
+            // Forçar visibilidade do modal
             modalTeste.style.display = 'flex';
             modalTeste.style.visibility = 'visible';
             modalTeste.style.opacity = '1';
@@ -8646,7 +8317,7 @@ function renderDocumentosClienteModal(documentos, termo) {
                         <div>
                             <strong>${doc.nomeArquivo || 'Documento'}</strong>
                             ${documentoMaisRecente && doc === documentoMaisRecente ? `<span style="margin-left: 6px; font-size: 11px; color: #0f766e; font-weight: 600;">Mais recente</span>` : ''}<br>
-                            <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descriÃ§Ã£o'}</span><br>
+                            <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
                             <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
                             ${doc.conteudo ? `
                                 <div style="margin-top: 6px;">
@@ -8715,14 +8386,9 @@ function baixarDocumentoUrl(url, nome) {
 }
 
 async function abrirDocumentoEmNovaAba(doc) {
-    if (!doc) return;
-    if (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html')) {
-        abrirFaturaGuardadaComoHtml(doc, false);
-        return;
-    }
-    const url = doc.conteudo || '';
+    const url = doc && doc.conteudo ? doc.conteudo : '';
     if (!url) {
-        mostrarNotificacao('Documento sem conteÃºdo.', 'warning');
+        mostrarNotificacao('Documento sem conteúdo.', 'warning');
         return;
     }
     try {
@@ -8766,7 +8432,7 @@ function abrirDocumentoClienteModal(idx) {
     const lista = window.__docsClienteModalFiltrados || [];
     const doc = lista[idx];
     if (!doc) {
-        mostrarNotificacao('Documento nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Documento não encontrado.', 'error');
         return;
     }
     abrirDocumentoEmNovaAba(doc);
@@ -8777,7 +8443,7 @@ function gerarRelatorioClienteEspecifico(nomeCliente) {
     // Fechar modal atual
     fecharModalRobusto();
     
-    // Simular seleÃ§Ã£o do cliente no relatÃ³rio
+    // Simular seleção do cliente no relatório
     setTimeout(() => {
         gerarRelatorioCliente();
         
@@ -8885,7 +8551,7 @@ document.addEventListener('click', (event) => {
     const nome = botao.getAttribute('data-cliente-nome') || '';
     const cliente = obterClientePorIdOuNome(id, nome);
     if (!cliente) {
-        mostrarNotificacao('Cliente nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Cliente não encontrado.', 'error');
         return;
     }
     mostrarInformacoesCompletasCliente(cliente);
@@ -8901,7 +8567,7 @@ document.addEventListener('click', (event) => {
 
 function gerarDashboard() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
-    // Usar obter*Atual() para garantir que os nÃºmeros batem com o resto da plataforma
+    // Usar obter*Atual() para garantir que os números batem com o resto da plataforma
     let clientesParaMostrar = obterClientesAtual();
     let honorariosParaMostrar = obterHonorariosAtual();
     let contratosParaMostrar = obterContratosAtual();
@@ -8926,7 +8592,7 @@ function gerarDashboard() {
             contratosParaMostrar = contratos.filter(c => idsVisiveis.includes(String(c.clienteId)));
             prazosParaMostrar = prazosParaMostrar.filter(p => idsVisiveis.includes(String(p.clienteId)));
         } else {
-            // Se nÃ£o hÃ¡ permissÃµes, mostrar dados vazios
+            // Se não há permissões, mostrar dados vazios
             clientesParaMostrar = [];
             honorariosParaMostrar = [];
             herancasParaMostrar = [];
@@ -8967,7 +8633,7 @@ function gerarDashboard() {
     // Calcular IVA de todos os itens do trimestre atual
     let ivaAcumuladoTrimestral = 0;
     
-    // IVA dos honorÃ¡rios do trimestre
+    // IVA dos honorários do trimestre
     const honorariosTrimestre = honorariosParaMostrar.filter(h => {
         const dataHonorario = new Date(h.dataCriacao);
         return dataHonorario >= inicioTrimestre && dataHonorario <= fimTrimestre;
@@ -8989,7 +8655,7 @@ function gerarDashboard() {
         ivaAcumuladoTrimestral += (valor * iva / 100);
     });
     
-    // IVA das heranÃ§as do trimestre
+    // IVA das heranças do trimestre
     const herancasTrimestre = herancasParaMostrar.filter(h => {
         const dataHeranca = new Date(h.dataCriacao);
         return dataHeranca >= inicioTrimestre && dataHeranca <= fimTrimestre;
@@ -9000,7 +8666,7 @@ function gerarDashboard() {
         ivaAcumuladoTrimestral += (valor * iva / 100);
     });
     
-    // IVA das migraÃ§Ãµes do trimestre
+    // IVA das migrações do trimestre
     const migracoesTrimestre = migracoesParaMostrar.filter(m => {
         const dataMigracao = new Date(m.dataCriacao);
         return dataMigracao >= inicioTrimestre && dataMigracao <= fimTrimestre;
@@ -9022,7 +8688,7 @@ function gerarDashboard() {
         ivaAcumuladoTrimestral += (valor * iva / 100);
     });
     
-    const nomeTrimestre = ['1Âº Trimestre', '2Âº Trimestre', '3Âº Trimestre', '4Âº Trimestre'][trimestreAtual];
+    const nomeTrimestre = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'][trimestreAtual];
     const prazosHoje = prazosParaMostrar.filter(p => {
         if (!p.dataLimite) return false;
         return new Date(p.dataLimite).toDateString() === hoje.toDateString() && p.status === 'ativo';
@@ -9099,21 +8765,21 @@ function gerarDashboard() {
 
     const movimentosRecentes = [
         ...honorariosParaMostrar.map(h => ({
-            tipo: 'HonorÃ¡rio',
+            tipo: 'Honorário',
             clienteId: h.clienteId || null,
             cliente: h.cliente || h.clienteNome || 'Cliente',
             valor: h.valor,
             data: h.dataCriacao || h.data
         })),
         ...herancasParaMostrar.map(h => ({
-            tipo: 'HeranÃ§a',
+            tipo: 'Herança',
             clienteId: h.clienteId || null,
             cliente: h.cliente || h.clienteNome || h.requerente || 'Cliente',
             valor: h.valor,
             data: h.dataCriacao || h.data
         })),
         ...migracoesParaMostrar.map(m => ({
-            tipo: 'MigraÃ§Ã£o',
+            tipo: 'Migração',
             clienteId: m.clienteId || null,
             cliente: m.cliente || m.clienteNome || m.requerente || 'Cliente',
             valor: m.valor,
@@ -9146,29 +8812,29 @@ function gerarDashboard() {
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 id="guiaTitulo" class="text-lg font-semibold text-blue-900 mb-2">Bem-vindo ao Sistema Legal</h3>
-                        <p class="text-sm text-blue-800 mb-4">Siga estes passos para comeÃ§ar:</p>
+                        <p class="text-sm text-blue-800 mb-4">Siga estes passos para começar:</p>
                     </div>
-                    <button type="button" onclick="${fecharGuia}" class="text-blue-600 hover:text-blue-800 p-1" aria-label="Fechar guia">Ã—</button>
+                    <button type="button" onclick="${fecharGuia}" class="text-blue-600 hover:text-blue-800 p-1" aria-label="Fechar guia">×</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     <button type="button" onclick="carregarSecao('clientes'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('cliente'); }, 400);" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">1</span>
-                        <div><span class="font-medium text-blue-900">Criar cliente</span><br><span class="text-xs text-blue-700">Clientes â†’ Novo Cliente</span></div>
+                        <div><span class="font-medium text-blue-900">Criar cliente</span><br><span class="text-xs text-blue-700">Clientes → Novo Cliente</span></div>
                     </button>
                     <button type="button" onclick="carregarSecao('honorarios'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('honorario'); }, 400);" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">2</span>
-                        <div><span class="font-medium text-blue-900">Criar honorÃ¡rio</span><br><span class="text-xs text-blue-700">HonorÃ¡rios â†’ Novo HonorÃ¡rio</span></div>
+                        <div><span class="font-medium text-blue-900">Criar honorário</span><br><span class="text-xs text-blue-700">Honorários → Novo Honorário</span></div>
                     </button>
                     <button type="button" onclick="carregarSecao('relatorios');" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">3</span>
-                        <div><span class="font-medium text-blue-900">Ver relatÃ³rios</span><br><span class="text-xs text-blue-700">Dashboard e exportaÃ§Ãµes</span></div>
+                        <div><span class="font-medium text-blue-900">Ver relatórios</span><br><span class="text-xs text-blue-700">Dashboard e exportações</span></div>
                     </button>
                     <button type="button" onclick="carregarSecao('backup');" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">4</span>
                         <div><span class="font-medium text-blue-900">Exportar backup</span><br><span class="text-xs text-blue-700">Proteja os seus dados</span></div>
                     </button>
                 </div>
-                <button type="button" onclick="${fecharGuia}" class="btn btn-secondary text-sm">Entendido, nÃ£o mostrar novamente</button>
+                <button type="button" onclick="${fecharGuia}" class="btn btn-secondary text-sm">Entendido, não mostrar novamente</button>
             </div>
             ` : ''}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -9178,7 +8844,7 @@ function gerarDashboard() {
                             <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">HonorÃ¡rios Vencidos</p>
+                            <p class="text-sm font-medium text-gray-600">Honorários Vencidos</p>
                             <p class="text-2xl font-bold text-gray-900">${honorariosVencidos}</p>
                         </div>
                     </div>
@@ -9200,7 +8866,7 @@ function gerarDashboard() {
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
                         <i data-lucide="clock" class="w-5 h-5 text-blue-600"></i>
-                        PrÃ³ximos prazos
+                        Próximos prazos
                     </h3>
                     <button onclick="carregarSecao('prazos')" class="btn btn-secondary text-sm">Ver todos</button>
                 </div>
@@ -9209,9 +8875,9 @@ function gerarDashboard() {
                         const dias = Math.ceil((p.dataLimiteDate - hoje) / (1000 * 60 * 60 * 24));
                         const dataStr = p.dataLimiteDate.toLocaleDateString('pt-PT');
                         const clienteNome = p.clienteNome || p.cliente || 'Cliente';
-                        const label = dias < 0 ? `${Math.abs(dias)} d atrasado` : (dias === 0 ? 'Hoje' : (dias === 1 ? 'AmanhÃ£' : `${dias} dias`));
+                        const label = dias < 0 ? `${Math.abs(dias)} d atrasado` : (dias === 0 ? 'Hoje' : (dias === 1 ? 'Amanhã' : `${dias} dias`));
                         return `<li><button type="button" onclick="carregarSecao('prazos')" class="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 text-left">
-                            <span class="text-sm">${escaparHtml(p.descricao || p.tipo || 'Prazo')} <span class="text-gray-500">â€” ${escaparHtml(clienteNome)}</span></span>
+                            <span class="text-sm">${escaparHtml(p.descricao || p.tipo || 'Prazo')} <span class="text-gray-500">— ${escaparHtml(clienteNome)}</span></span>
                             <span class="text-xs ${dias <= 2 ? 'text-red-600 font-medium' : 'text-gray-600'}">${label} (${dataStr})</span>
                         </button></li>`;
                     }).join('')}
@@ -9237,7 +8903,7 @@ function gerarDashboard() {
                             <i data-lucide="dollar-sign" class="w-6 h-6 text-yellow-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">HonorÃ¡rios</p>
+                            <p class="text-sm font-medium text-gray-600">Honorários</p>
                             <p class="text-2xl font-bold text-gray-900">${totalHonorarios}</p>
                         </div>
                     </div>
@@ -9262,7 +8928,7 @@ function gerarDashboard() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -9274,13 +8940,13 @@ function gerarDashboard() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">IVA Acumulado ${nomeTrimestre}</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(ivaAcumuladoTrimestral).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${Number(ivaAcumuladoTrimestral).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- MÃ©tricas AvanÃ§adas -->
+            <!-- Métricas Avançadas -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -9288,7 +8954,7 @@ function gerarDashboard() {
                             <i data-lucide="target" class="w-6 h-6 text-indigo-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Taxa de ConversÃ£o</p>
+                            <p class="text-sm font-medium text-gray-600">Taxa de Conversão</p>
                             <p class="text-2xl font-bold text-gray-900">${totalClientes > 0 ? Math.round((clientesComHonorarios / totalClientes) * 100) : 0}%</p>
                         </div>
                     </div>
@@ -9300,8 +8966,8 @@ function gerarDashboard() {
                             <i data-lucide="calculator" class="w-6 h-6 text-teal-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">MÃ©dia por Cliente</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${totalClientes > 0 ? (Math.round((valorTotal / totalClientes) * 100) / 100).toFixed(2) : '0.00'}</p>
+                            <p class="text-sm font-medium text-gray-600">Média por Cliente</p>
+                            <p class="text-2xl font-bold text-gray-900">€${totalClientes > 0 ? (Math.round((valorTotal / totalClientes) * 100) / 100).toFixed(2) : '0.00'}</p>
                         </div>
                     </div>
                 </div>
@@ -9312,7 +8978,7 @@ function gerarDashboard() {
                             <i data-lucide="alert-triangle" class="w-6 h-6 text-orange-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">HonorÃ¡rios Vencidos</p>
+                            <p class="text-sm font-medium text-gray-600">Honorários Vencidos</p>
                             <p class="text-2xl font-bold text-gray-900">${honorariosVencidos}</p>
                         </div>
                     </div>
@@ -9324,7 +8990,7 @@ function gerarDashboard() {
                             <i data-lucide="clock" class="w-6 h-6 text-pink-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Prazos PrÃ³ximos</p>
+                            <p class="text-sm font-medium text-gray-600">Prazos Próximos</p>
                             <p class="text-2xl font-bold text-gray-900">${prazosParaMostrar.filter(p => {
                                 if (!p.dataLimite) return false;
                                 const dataLimite = new Date(p.dataLimite);
@@ -9339,7 +9005,7 @@ function gerarDashboard() {
             <!-- Alertas e Resumos Inteligentes -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸš¨ Alertas Urgentes</h3>
+                    <h3 class="text-lg font-semibold mb-4">🚨 Alertas Urgentes</h3>
                     <div class="space-y-3">
                         ${honorariosParaMostrar.filter(h => {
                             if (!h.vencimento) return false;
@@ -9352,7 +9018,7 @@ function gerarDashboard() {
                                     <p class="text-sm font-medium text-red-800">${honorario.cliente}</p>
                                     <p class="text-xs text-red-600">Vencido em ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</p>
                                 </div>
-                                <span class="text-red-600 font-bold">â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                <span class="text-red-600 font-bold">€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${honorariosParaMostrar.filter(h => {
@@ -9363,17 +9029,17 @@ function gerarDashboard() {
                         }).length === 0 ? `
                             <div class="text-center py-4">
                                 <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                <p class="text-sm text-green-600">Nenhum honorÃ¡rio vencido!</p>
+                                <p class="text-sm text-green-600">Nenhum honorário vencido!</p>
                             </div>
                         ` : ''}
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">â° Prazos PrÃ³ximos</h3>
+                    <h3 class="text-lg font-semibold mb-4">⏰ Prazos Próximos</h3>
                     ${proximoPrazo ? `
                         <div class="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                            <p class="text-xs text-blue-600 mb-1">PrÃ³ximo prazo</p>
+                            <p class="text-xs text-blue-600 mb-1">Próximo prazo</p>
                             <p class="text-sm font-medium text-blue-800">${proximoPrazo.descricao}</p>
                             <p class="text-xs text-blue-600">${renderClienteLink(proximoPrazo.clienteId, proximoPrazo.clienteNome)} - ${proximoPrazo.dataLimiteDate.toLocaleDateString('pt-PT')} (${diasParaProximoPrazo} dias)</p>
                         </div>
@@ -9401,52 +9067,52 @@ function gerarDashboard() {
                         }).length === 0 ? `
                             <div class="text-center py-4">
                                 <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                <p class="text-sm text-green-600">Nenhum prazo prÃ³ximo!</p>
+                                <p class="text-sm text-green-600">Nenhum prazo próximo!</p>
                             </div>
                         ` : ''}
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“Š Resumo Financeiro</h3>
+                    <h3 class="text-lg font-semibold mb-4">📊 Resumo Financeiro</h3>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                            <span class="text-green-800 font-medium">HonorÃ¡rios Pagos</span>
+                            <span class="text-green-800 font-medium">Honorários Pagos</span>
                             <span class="text-green-600 font-bold">${honorariosPagos}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-                            <span class="text-yellow-800 font-medium">HonorÃ¡rios Pendentes</span>
+                            <span class="text-yellow-800 font-medium">Honorários Pendentes</span>
                             <span class="text-yellow-600 font-bold">${honorariosPendentes}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                             <span class="text-blue-800 font-medium">Valor Total</span>
-                            <span class="text-blue-600 font-bold">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</span>
+                            <span class="text-blue-600 font-bold">€${(Math.round(valorTotal * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                            <span class="text-indigo-800 font-medium">Entradas do MÃªs</span>
-                            <span class="text-indigo-600 font-bold">â‚¬${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
+                            <span class="text-indigo-800 font-medium">Entradas do Mês</span>
+                            <span class="text-indigo-600 font-bold">€${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                            <span class="text-emerald-800 font-medium">IVA do MÃªs</span>
-                            <span class="text-emerald-600 font-bold">â‚¬${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
+                            <span class="text-emerald-800 font-medium">IVA do Mês</span>
+                            <span class="text-emerald-600 font-bold">€${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                            <span class="text-purple-800 font-medium">Taxa de ConversÃ£o</span>
+                            <span class="text-purple-800 font-medium">Taxa de Conversão</span>
                             <span class="text-purple-600 font-bold">${totalClientes > 0 ? Math.round((honorariosParaMostrar.filter(h => h.clienteId).length / totalClientes) * 100) : 0}%</span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ Comparativo Mensal</h3>
+                    <h3 class="text-lg font-semibold mb-4">📈 Comparativo Mensal</h3>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
                             <div>
-                                <span class="text-indigo-800 font-medium">Entradas do MÃªs</span>
-                                <p class="text-xs text-indigo-600">MÃªs anterior: â‚¬${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
+                                <span class="text-indigo-800 font-medium">Entradas do Mês</span>
+                                <p class="text-xs text-indigo-600">Mês anterior: €${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
                             </div>
                             <div class="text-right">
-                                <span class="text-indigo-600 font-bold">â‚¬${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
+                                <span class="text-indigo-600 font-bold">€${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
                                 <div class="flex items-center justify-end gap-1 text-xs ${variacaoEntradas.classe}">
                                     <i data-lucide="${variacaoEntradas.icone}" class="w-3 h-3"></i>
                                     <span>${variacaoEntradas.texto}</span>
@@ -9455,11 +9121,11 @@ function gerarDashboard() {
                         </div>
                         <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
                             <div>
-                                <span class="text-emerald-800 font-medium">IVA do MÃªs</span>
-                                <p class="text-xs text-emerald-600">MÃªs anterior: â‚¬${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
+                                <span class="text-emerald-800 font-medium">IVA do Mês</span>
+                                <p class="text-xs text-emerald-600">Mês anterior: €${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
                             </div>
                             <div class="text-right">
-                                <span class="text-emerald-600 font-bold">â‚¬${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
+                                <span class="text-emerald-600 font-bold">€${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
                                 <div class="flex items-center justify-end gap-1 text-xs ${variacaoIva.classe}">
                                     <i data-lucide="${variacaoIva.icone}" class="w-3 h-3"></i>
                                     <span>${variacaoIva.texto}</span>
@@ -9470,17 +9136,17 @@ function gerarDashboard() {
                 </div>
             </div>
 
-            <!-- GrÃ¡ficos AvanÃ§ados -->
+            <!-- Gráficos Avançados -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“Š EvoluÃ§Ã£o Temporal dos HonorÃ¡rios</h3>
+                    <h3 class="text-lg font-semibold mb-4">📊 Evolução Temporal dos Honorários</h3>
                     <div class="chart-container">
                         <canvas id="chartEvolucaoTemporal"></canvas>
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ ComparaÃ§Ã£o Mensal</h3>
+                    <h3 class="text-lg font-semibold mb-4">📈 Comparação Mensal</h3>
                     <div class="chart-container">
                         <canvas id="chartComparacaoMensal"></canvas>
                     </div>
@@ -9489,14 +9155,14 @@ function gerarDashboard() {
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ¥§ DistribuiÃ§Ã£o por Tipo</h3>
+                    <h3 class="text-lg font-semibold mb-4">🥧 Distribuição por Tipo</h3>
                     <div class="chart-container">
                         <canvas id="chartDistribuicaoTipo"></canvas>
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ Top 5 Clientes por Valor</h3>
+                    <h3 class="text-lg font-semibold mb-4">📈 Top 5 Clientes por Valor</h3>
                     <div class="space-y-3">
                         ${clientesParaMostrar.map(cliente => {
                             const valorCliente = honorariosParaMostrar
@@ -9512,7 +9178,7 @@ function gerarDashboard() {
                                         <p class="text-xs text-gray-600">${cliente.email}</p>
                                     </div>
                                 </div>
-                                <span class="text-blue-600 font-bold">â‚¬${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
+                                <span class="text-blue-600 font-bold">€${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${clientesParaMostrar.length === 0 ? `
@@ -9527,7 +9193,7 @@ function gerarDashboard() {
             
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Ãšltimos Clientes</h3>
+                    <h3 class="text-lg font-semibold mb-4">Últimos Clientes</h3>
                     <div class="space-y-3">
                         ${clientesParaMostrar.slice(-3).map(cliente => `
                             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -9548,13 +9214,13 @@ function gerarDashboard() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Ãšltimos HonorÃ¡rios</h3>
+                    <h3 class="text-lg font-semibold mb-4">Últimos Honorários</h3>
                     <div class="space-y-3">
                         ${honorariosParaMostrar.slice(-3).map(honorario => `
                             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                 <div>
                                     <p class="font-medium">${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}</p>
-                                    <p class="text-sm text-gray-600">â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
+                                    <p class="text-sm text-gray-600">€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
                                 </div>
                                 <span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span>
                             </div>
@@ -9562,14 +9228,14 @@ function gerarDashboard() {
                         ${honorariosParaMostrar.length === 0 ? `
                             <div class="text-center py-4">
                                 <i data-lucide="receipt" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Nenhum honorÃ¡rio encontrado</p>
+                                <p class="text-sm text-gray-500">Nenhum honorário encontrado</p>
                             </div>
                         ` : ''}
                     </div>
                 </div>
 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Ãšltimos Movimentos</h3>
+                    <h3 class="text-lg font-semibold mb-4">Últimos Movimentos</h3>
                     <div class="space-y-3">
                         ${movimentosRecentes.map(movimento => `
                             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -9577,7 +9243,7 @@ function gerarDashboard() {
                                     <p class="font-medium">${movimento.tipo} - ${renderClienteLink(movimento.clienteId, movimento.cliente)}</p>
                                     <p class="text-xs text-gray-600">${new Date(movimento.data).toLocaleDateString('pt-PT')}</p>
                                 </div>
-                                <span class="text-blue-600 font-bold">â‚¬${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                <span class="text-blue-600 font-bold">€${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
                         ${movimentosRecentes.length === 0 ? `
@@ -9590,14 +9256,14 @@ function gerarDashboard() {
                 </div>
             </div>
 
-            <!-- AÃ§Ãµes RÃ¡pidas -->
+            <!-- Ações Rápidas -->
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">âš¡ AÃ§Ãµes RÃ¡pidas</h3>
+                <h3 class="text-lg font-semibold mb-4">⚡ Ações Rápidas</h3>
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <button onclick="carregarSecao('honorarios')" class="flex items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
                         <div class="text-center">
                             <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-blue-800">Criar HonorÃ¡rio</p>
+                            <p class="text-sm font-medium text-blue-800">Criar Honorário</p>
                         </div>
                     </button>
                     
@@ -9618,14 +9284,14 @@ function gerarDashboard() {
                     <button onclick="carregarSecao('herancas')" class="flex items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors">
                         <div class="text-center">
                             <i data-lucide="home" class="w-6 h-6 text-emerald-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-emerald-800">Nova HeranÃ§a</p>
+                            <p class="text-sm font-medium text-emerald-800">Nova Herança</p>
                         </div>
                     </button>
 
                     <button onclick="carregarSecao('migracoes')" class="flex items-center justify-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors">
                         <div class="text-center">
                             <i data-lucide="globe" class="w-6 h-6 text-orange-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-orange-800">Nova MigraÃ§Ã£o</p>
+                            <p class="text-sm font-medium text-orange-800">Nova Migração</p>
                         </div>
                     </button>
 
@@ -9639,21 +9305,21 @@ function gerarDashboard() {
                     <button onclick="gerarRelatorioCompleto()" class="flex items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors">
                         <div class="text-center">
                             <i data-lucide="download" class="w-6 h-6 text-purple-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-purple-800">RelatÃ³rio Geral</p>
+                            <p class="text-sm font-medium text-purple-800">Relatório Geral</p>
                         </div>
                     </button>
                     
                     <button onclick="gerarRelatorioCliente()" class="flex items-center justify-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors">
                         <div class="text-center">
                             <i data-lucide="user-check" class="w-6 h-6 text-indigo-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-indigo-800">RelatÃ³rio Cliente</p>
+                            <p class="text-sm font-medium text-indigo-800">Relatório Cliente</p>
                         </div>
                     </button>
                     
                 </div>
             </div>
 
-            <!-- Novas SeÃ§Ãµes -->
+            <!-- Novas Seções -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -9661,7 +9327,7 @@ function gerarDashboard() {
                             <i data-lucide="home" class="w-6 h-6 text-green-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">HeranÃ§as</p>
+                            <p class="text-sm font-medium text-gray-600">Heranças</p>
                             <p class="text-2xl font-bold text-gray-900">${totalHerancas}</p>
                         </div>
                     </div>
@@ -9673,7 +9339,7 @@ function gerarDashboard() {
                             <i data-lucide="users-2" class="w-6 h-6 text-orange-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">MigraÃ§Ãµes</p>
+                            <p class="text-sm font-medium text-gray-600">Migrações</p>
                             <p class="text-2xl font-bold text-gray-900">${totalMigracoes}</p>
                         </div>
                     </div>
@@ -9697,12 +9363,12 @@ function gerarDashboard() {
 }
 
 function criarGraficosAvancados() {
-    // Dados para os grÃ¡ficos
+    // Dados para os gráficos
     const dadosEvolucaoTemporal = calcularEvolucaoTemporal();
     const dadosComparacaoMensal = calcularComparacaoMensal();
     const dadosDistribuicaoTipo = calcularDistribuicaoTipo();
     
-    // GrÃ¡fico de EvoluÃ§Ã£o Temporal
+    // Gráfico de Evolução Temporal
     const ctxEvolucao = document.getElementById('chartEvolucaoTemporal');
     if (ctxEvolucao) {
         const chartAntigo = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(ctxEvolucao) : null;
@@ -9712,7 +9378,7 @@ function criarGraficosAvancados() {
             data: {
                 labels: dadosEvolucaoTemporal.labels,
                 datasets: [{
-                    label: 'HonorÃ¡rios (â‚¬)',
+                    label: 'Honorários (€)',
                     data: dadosEvolucaoTemporal.valores,
                     borderColor: 'rgb(59, 130, 246)',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -9733,7 +9399,7 @@ function criarGraficosAvancados() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return 'â‚¬' + value.toFixed(2);
+                                return '€' + value.toFixed(2);
                             }
                         }
                     }
@@ -9742,7 +9408,7 @@ function criarGraficosAvancados() {
         });
     }
     
-    // GrÃ¡fico de ComparaÃ§Ã£o Mensal
+    // Gráfico de Comparação Mensal
     const ctxComparacao = document.getElementById('chartComparacaoMensal');
     if (ctxComparacao) {
         const chartAntigo = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(ctxComparacao) : null;
@@ -9752,15 +9418,15 @@ function criarGraficosAvancados() {
             data: {
                 labels: dadosComparacaoMensal.labels,
                 datasets: [{
-                    label: 'HonorÃ¡rios',
+                    label: 'Honorários',
                     data: dadosComparacaoMensal.honorarios,
                     backgroundColor: 'rgba(34, 197, 94, 0.8)'
                 }, {
-                    label: 'HeranÃ§as',
+                    label: 'Heranças',
                     data: dadosComparacaoMensal.herancas,
                     backgroundColor: 'rgba(249, 115, 22, 0.8)'
                 }, {
-                    label: 'MigraÃ§Ãµes',
+                    label: 'Migrações',
                     data: dadosComparacaoMensal.migracoes,
                     backgroundColor: 'rgba(59, 130, 246, 0.8)'
                 }]
@@ -9778,7 +9444,7 @@ function criarGraficosAvancados() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return 'â‚¬' + value.toFixed(2);
+                                return '€' + value.toFixed(2);
                             }
                         }
                     }
@@ -9787,7 +9453,7 @@ function criarGraficosAvancados() {
         });
     }
     
-    // GrÃ¡fico de DistribuiÃ§Ã£o por Tipo
+    // Gráfico de Distribuição por Tipo
     const ctxDistribuicao = document.getElementById('chartDistribuicaoTipo');
     if (ctxDistribuicao) {
         const chartAntigo = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(ctxDistribuicao) : null;
@@ -9901,7 +9567,7 @@ function calcularDistribuicaoTipo() {
     const valorContratos = window.contratos ? window.contratos.reduce((sum, c) => sum + (parseFloat(c.valor) || 0), 0) : 0;
     
     return {
-        labels: ['HonorÃ¡rios', 'HeranÃ§as', 'MigraÃ§Ãµes', 'Registos', 'Contratos'],
+        labels: ['Honorários', 'Heranças', 'Migrações', 'Registos', 'Contratos'],
         valores: [valorHonorarios, valorHerancas, valorMigracoes, valorRegistos, valorContratos]
     };
 }
@@ -9927,7 +9593,7 @@ function gerarClientes() {
         
         
         if (convidado && convidado.ativo) {
-            // Incluir: clientesAutorizados + clientes de tarefas atribuÃ­das + clientes criados por ele
+            // Incluir: clientesAutorizados + clientes de tarefas atribuídas + clientes criados por ele
             const idsVisiveis = obterIdsClientesVisiveisParaConvidado(convidado);
             clientesParaMostrar = clientes.filter(cliente => 
                 idsVisiveis.includes(String(cliente.id)) || 
@@ -9936,7 +9602,7 @@ function gerarClientes() {
             );
             
         } else {
-            clientesParaMostrar = []; // Nenhum cliente se nÃ£o hÃ¡ permissÃµes
+            clientesParaMostrar = []; // Nenhum cliente se não há permissões
         }
     }
     
@@ -9951,7 +9617,7 @@ function gerarClientes() {
     let ordClientes = window.__clientesOrdenar;
     if (!ordClientes) try { ordClientes = JSON.parse(appStorage.getItem('ordenarClientes') || '{}'); } catch(e) {}
     ordClientes = ordClientes && ordClientes.col ? ordClientes : { col: 'nome', dir: 1 };
-    const seta = (col) => ordClientes.col === col ? (ordClientes.dir === 1 ? 'â†‘' : 'â†“') : 'â†•';
+    const seta = (col) => ordClientes.col === col ? (ordClientes.dir === 1 ? '↑' : '↓') : '↕';
     return `
         <div class="space-y-6">
             ${mostrarDicaPrimeiroCliente ? `
@@ -9971,7 +9637,7 @@ function gerarClientes() {
                            class="search-input" onkeyup="filtrarClientes()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -9984,12 +9650,12 @@ function gerarClientes() {
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Data de CriaÃ§Ã£o</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Data de Criação</label>
                         <select id="filtroDataCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosClientes()">
                             <option value="">Todas as datas</option>
                             <option value="hoje">Hoje</option>
                             <option value="semana">Esta semana</option>
-                            <option value="mes">Este mÃªs</option>
+                            <option value="mes">Este mês</option>
                             <option value="ano">Este ano</option>
                         </select>
                     </div>
@@ -10024,7 +9690,7 @@ function gerarClientes() {
                                     <th>NIF</th>
                                     <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarClientes('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">${seta('status')}</span></th>
                                     <th>Criado por</th>
-                                    <th>AÃ§Ãµes</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="listaClientes">
@@ -10037,7 +9703,7 @@ function gerarClientes() {
                                         const temPermissoes = conv && (conv.clientesAutorizados || []).length > 0;
                                         const aCarregar = tipoU === 'convidado' && temPermissoes && clientes.length === 0 && isCloudReady();
                                         return `<tr><td colspan="7" class="text-center py-8 text-gray-500">
-                                            ${aCarregar ? '<i data-lucide="loader" class="w-8 h-8 animate-spin mx-auto mb-2"></i><p>A carregar os seus clientes... (aguarde a sincronizaÃ§Ã£o)</p>' : '<i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i><p>Nenhum cliente encontrado</p>'}
+                                            ${aCarregar ? '<i data-lucide="loader" class="w-8 h-8 animate-spin mx-auto mb-2"></i><p>A carregar os seus clientes... (aguarde a sincronização)</p>' : '<i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i><p>Nenhum cliente encontrado</p>'}
                                         </td></tr>`;
                                     }
                                     const mostrar = clientesParaMostrar.slice(0, limit);
@@ -10046,7 +9712,7 @@ function gerarClientes() {
                                         <td>
                                             <button onclick="mostrarInformacoesCompletasCliente(${JSON.stringify(cliente).replace(/"/g, '&quot;')})" 
                                                     class="text-blue-600 hover:text-blue-800 font-medium cursor-pointer hover:underline flex items-center gap-1" 
-                                                    title="Clicar para ver informaÃ§Ãµes completas">
+                                                    title="Clicar para ver informações completas">
                                                 <i data-lucide="user" class="w-4 h-4"></i>
                                                 ${cliente.nome}
                                             </button>
@@ -10094,7 +9760,7 @@ function gerarPagamentos() {
 
     const obterFaturaInfo = (fid) => {
         const f = faturasLista.find(x => String(x.id) === String(fid));
-        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
+        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (€${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
     };
 
     return `
@@ -10113,7 +9779,7 @@ function gerarPagamentos() {
                 </div>
                 <div class="card p-4">
                     <p class="text-sm text-gray-600">Valor total recebido</p>
-                    <p class="text-2xl font-bold text-green-700">â‚¬${valorTotal.toFixed(2)}</p>
+                    <p class="text-2xl font-bold text-green-700">€${valorTotal.toFixed(2)}</p>
                 </div>
             </div>
             <div class="card p-6">
@@ -10124,7 +9790,7 @@ function gerarPagamentos() {
                                 <th class="text-left py-2">Fatura</th>
                                 <th class="text-left py-2">Valor</th>
                                 <th class="text-left py-2">Data</th>
-                                <th class="text-left py-2">MÃ©todo</th>
+                                <th class="text-left py-2">Método</th>
                                 <th class="text-left py-2">Ref.</th>
                             </tr>
                         </thead>
@@ -10132,7 +9798,7 @@ function gerarPagamentos() {
                             ${lista.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-500">Nenhum pagamento registado. Clique em "Novo Pagamento" para registar.</td></tr>' : lista.map(p => `
                                 <tr>
                                     <td class="py-2">${obterFaturaInfo(p.faturaId)}</td>
-                                    <td class="py-2 font-medium">â‚¬${(parseFloat(p.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2 font-medium">€${(parseFloat(p.valor) || 0).toFixed(2)}</td>
                                     <td class="py-2">${(p.dataPagamento || p.data || '').toString().split('T')[0]}</td>
                                     <td class="py-2">${p.metodoPagamento || p.metodo || '-'}</td>
                                     <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
@@ -10149,10 +9815,10 @@ function gerarPagamentos() {
 function obterProcessosParaDespesa() {
     const lista = [];
     (obterHerancasAtual?.() || []).forEach(h => {
-        lista.push({ processoTipo: 'herancas', processoId: h.id, label: `HeranÃ§a: ${h.clienteNome || h.id} (${h.tipo || '-'})` });
+        lista.push({ processoTipo: 'herancas', processoId: h.id, label: `Herança: ${h.clienteNome || h.id} (${h.tipo || '-'})` });
     });
     (obterMigracoesAtual?.() || []).forEach(m => {
-        lista.push({ processoTipo: 'migracoes', processoId: m.id, label: `MigraÃ§Ã£o: ${m.clienteNome || m.id} (${m.tipo || '-'})` });
+        lista.push({ processoTipo: 'migracoes', processoId: m.id, label: `Migração: ${m.clienteNome || m.id} (${m.tipo || '-'})` });
     });
     (obterRegistosAtual?.() || []).forEach(r => {
         lista.push({ processoTipo: 'registos', processoId: r.id, label: `Registo: ${r.clienteNome || r.id} (${r.tipo || '-'})` });
@@ -10161,7 +9827,7 @@ function obterProcessosParaDespesa() {
 }
 
 function obterProcessoInfo(processoTipo, processoId) {
-    const tipos = { herancas: 'HeranÃ§a', migracoes: 'MigraÃ§Ã£o', registos: 'Registo' };
+    const tipos = { herancas: 'Herança', migracoes: 'Migração', registos: 'Registo' };
     let proc = null;
     if (processoTipo === 'herancas') proc = (obterHerancasAtual?.() || []).find(h => String(h.id) === String(processoId));
     else if (processoTipo === 'migracoes') proc = (obterMigracoesAtual?.() || []).find(m => String(m.id) === String(processoId));
@@ -10177,7 +9843,7 @@ function gerarDespesas() {
     return `
         <div class="space-y-6">
             <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold">GestÃ£o de Despesas</h3>
+                <h3 class="text-lg font-semibold">Gestão de Despesas</h3>
                 <button onclick="abrirModalNovaDespesa()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Nova Despesa
@@ -10190,7 +9856,7 @@ function gerarDespesas() {
                 </div>
                 <div class="card p-4">
                     <p class="text-sm text-gray-600">Valor total</p>
-                    <p class="text-2xl font-bold text-red-700">â‚¬${valorTotal.toFixed(2)}</p>
+                    <p class="text-2xl font-bold text-red-700">€${valorTotal.toFixed(2)}</p>
                 </div>
             </div>
             <div class="card p-6">
@@ -10199,20 +9865,20 @@ function gerarDespesas() {
                         <thead>
                             <tr>
                                 <th class="text-left py-2">Processo</th>
-                                <th class="text-left py-2">DescriÃ§Ã£o</th>
+                                <th class="text-left py-2">Descrição</th>
                                 <th class="text-left py-2">Tipo</th>
                                 <th class="text-left py-2">Valor</th>
                                 <th class="text-left py-2">Data</th>
-                                <th class="text-left py-2">AÃ§Ãµes</th>
+                                <th class="text-left py-2">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${lista.length === 0 ? '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhuma despesa registada. Associe despesas a processos (heranÃ§as, migraÃ§Ãµes, registos).</td></tr>' : lista.map(d => `
+                            ${lista.length === 0 ? '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhuma despesa registada. Associe despesas a processos (heranças, migrações, registos).</td></tr>' : lista.map(d => `
                                 <tr>
                                     <td class="py-2">${obterProcessoInfo(d.processoTipo, d.processoId)}</td>
                                     <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
                                     <td class="py-2">${d.tipo || 'outro'}</td>
-                                    <td class="py-2 font-medium">â‚¬${(parseFloat(d.valor) || 0).toFixed(2)}</td>
+                                    <td class="py-2 font-medium">€${(parseFloat(d.valor) || 0).toFixed(2)}</td>
                                     <td class="py-2">${(d.data || '').toString().split('T')[0]}</td>
                                     <td class="py-2">
                                         <button onclick="anularDespesaUi(${JSON.stringify(d.id)})" class="text-red-600 hover:text-red-800 text-sm" title="Anular">Anular</button>
@@ -10230,7 +9896,7 @@ function gerarDespesas() {
 function abrirModalNovaDespesa() {
     const processosOpts = obterProcessosParaDespesa();
     if (processosOpts.length === 0) {
-        mostrarNotificacao('Crie primeiro um processo (heranÃ§a, migraÃ§Ã£o ou registo).', 'info');
+        mostrarNotificacao('Crie primeiro um processo (herança, migração ou registo).', 'info');
         return;
     }
     const hoje = new Date().toISOString().split('T')[0];
@@ -10248,7 +9914,7 @@ function abrirModalNovaDespesa() {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">DescriÃ§Ã£o *</label>
+                    <label class="block text-sm font-medium mb-1">Descrição *</label>
                     <input type="text" name="descricao" required class="w-full p-2 border rounded-lg" placeholder="Ex: Taxa IRN">
                 </div>
                 <div>
@@ -10256,7 +9922,7 @@ function abrirModalNovaDespesa() {
                     <select name="tipo" class="w-full p-2 border rounded-lg">${tipoOpts}</select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Valor (â‚¬) *</label>
+                    <label class="block text-sm font-medium mb-1">Valor (€) *</label>
                     <input type="number" name="valor" step="0.01" min="0" required class="w-full p-2 border rounded-lg" placeholder="0.00">
                 </div>
                 <div>
@@ -10280,7 +9946,7 @@ async function guardarNovaDespesa(event) {
     if (!processoVal) { mostrarNotificacao('Selecione o processo.', 'error'); return; }
     const [processoTipo, processoId] = processoVal.split('|');
     const valor = parseFloat(form.valor?.value || 0);
-    if (valor < 0) { mostrarNotificacao('Valor invÃ¡lido.', 'error'); return; }
+    if (valor < 0) { mostrarNotificacao('Valor inválido.', 'error'); return; }
     try {
         await criarDespesaCloud({
             processoTipo: processoTipo || 'herancas',
@@ -10299,7 +9965,7 @@ async function guardarNovaDespesa(event) {
 }
 
 async function anularDespesaUi(id) {
-    if (!confirm('Anular esta despesa? (ficarÃ¡ registada como anulada)')) return;
+    if (!confirm('Anular esta despesa? (ficará registada como anulada)')) return;
     try {
         await anularDespesaCloud(id);
         mostrarNotificacao('Despesa anulada.', 'success');
@@ -10312,10 +9978,10 @@ async function anularDespesaUi(id) {
 function abrirModalNovoPagamento() {
     const faturas = obterFaturas().filter(f => (f.estado || f.status) !== 'pago');
     if (faturas.length === 0) {
-        mostrarNotificacao('NÃ£o hÃ¡ faturas pendentes para registar pagamento.', 'info');
+        mostrarNotificacao('Não há faturas pendentes para registar pagamento.', 'info');
         return;
     }
-    const opcoes = faturas.map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
+    const opcoes = faturas.map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
     const hoje = new Date().toISOString().split('T')[0];
     const html = `
         <div class="p-6">
@@ -10329,7 +9995,7 @@ function abrirModalNovoPagamento() {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Valor (â‚¬) *</label>
+                    <label class="block text-sm font-medium mb-1">Valor (€) *</label>
                     <input type="number" name="valor" step="0.01" min="0.01" required class="w-full p-2 border rounded-lg" placeholder="0.00">
                 </div>
                 <div>
@@ -10337,18 +10003,18 @@ function abrirModalNovoPagamento() {
                     <input type="date" name="dataPagamento" required class="w-full p-2 border rounded-lg" value="${hoje}">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">MÃ©todo</label>
+                    <label class="block text-sm font-medium mb-1">Método</label>
                     <select name="metodoPagamento" class="w-full p-2 border rounded-lg">
-                        <option value="transferencia">TransferÃªncia</option>
-                        <option value="numerario">NumerÃ¡rio</option>
+                        <option value="transferencia">Transferência</option>
+                        <option value="numerario">Numerário</option>
                         <option value="cheque">Cheque</option>
                         <option value="multibanco">Multibanco</option>
                         <option value="outro">Outro</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">ReferÃªncia</label>
-                    <input type="text" name="referencia" class="w-full p-2 border rounded-lg" placeholder="NÂº referÃªncia ou descriÃ§Ã£o">
+                    <label class="block text-sm font-medium mb-1">Referência</label>
+                    <input type="text" name="referencia" class="w-full p-2 border rounded-lg" placeholder="Nº referência ou descrição">
                 </div>
                 <div class="flex gap-2 pt-2">
                     <button type="submit" class="btn btn-primary">Guardar</button>
@@ -10408,17 +10074,17 @@ function gerarHonorarios() {
     return `
         <div class="space-y-6">
             ${mostrarDicaHonorario ? `
-            <div id="dicaPrimeiroHonorario" class="card p-4 border-2 border-amber-200 bg-amber-50 flex items-center justify-between gap-4" role="region" aria-label="Dica de honorÃ¡rios">
-                <p class="text-sm text-amber-800"><strong>PrÃ³ximo passo:</strong> Crie o seu primeiro honorÃ¡rio clicando em "Novo HonorÃ¡rio".</p>
+            <div id="dicaPrimeiroHonorario" class="card p-4 border-2 border-amber-200 bg-amber-50 flex items-center justify-between gap-4" role="region" aria-label="Dica de honorários">
+                <p class="text-sm text-amber-800"><strong>Próximo passo:</strong> Crie o seu primeiro honorário clicando em "Novo Honorário".</p>
                 <button type="button" onclick="document.getElementById('dicaPrimeiroHonorario')?.remove(); appStorage.setItem('guiaHonorarioVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
             </div>
             ` : ''}
             <div class="flex flex-wrap justify-between items-center gap-2">
                 <button onclick="abrirModal('honorario')" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
-                    Novo HonorÃ¡rio
+                    Novo Honorário
                 </button>
-                <button onclick="gerarFaturasAutomaticas()" class="btn btn-secondary" title="Cria faturas a partir de honorÃ¡rios que ainda nÃ£o tÃªm fatura">
+                <button onclick="gerarFaturasAutomaticas()" class="btn btn-secondary" title="Cria faturas a partir de honorários que ainda não têm fatura">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     Gerar faturas
                 </button>
@@ -10468,7 +10134,7 @@ function gerarHonorarios() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -10477,11 +10143,11 @@ function gerarHonorarios() {
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaHonorarios" placeholder="Buscar por nome do cliente, serviÃ§o ou valor..." 
-                           class="search-input" onkeyup="filtrarHonorarios()" title="Pode escrever o nome do cliente, o serviÃ§o ou o valor">
+                    <input type="text" id="buscaHonorarios" placeholder="Buscar por nome do cliente, serviço ou valor..." 
+                           class="search-input" onkeyup="filtrarHonorarios()" title="Pode escrever o nome do cliente, o serviço ou o valor">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -10495,12 +10161,12 @@ function gerarHonorarios() {
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor MÃ­nimo</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor Mínimo</label>
                         <input type="number" id="filtroValorMinHonorario" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor MÃ¡ximo</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor Máximo</label>
                         <input type="number" id="filtroValorMaxHonorario" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
                     </div>
                     
@@ -10510,7 +10176,7 @@ function gerarHonorarios() {
                             <option value="">Todas as datas</option>
                             <option value="hoje">Vence hoje</option>
                             <option value="semana">Esta semana</option>
-                            <option value="mes">Este mÃªs</option>
+                            <option value="mes">Este mês</option>
                             <option value="vencido">Vencidos</option>
                         </select>
                     </div>
@@ -10522,7 +10188,7 @@ function gerarHonorarios() {
                         Limpar Filtros
                     </button>
                     <div class="text-sm text-gray-600">
-                        <span id="contadorHonorarios">0</span> honorÃ¡rios encontrados
+                        <span id="contadorHonorarios">0</span> honorários encontrados
                     </div>
                 </div>
             </div>
@@ -10533,12 +10199,12 @@ function gerarHonorarios() {
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('servico')" title="Ordenar por serviÃ§o">ServiÃ§o <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('vencimento')" title="Ordenar por vencimento">Vencimento <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th>AÃ§Ãµes</th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('servico')" title="Ordenar por serviço">Serviço <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('vencimento')" title="Ordenar por vencimento">Vencimento <span class="text-xs text-blue-500">↕</span></th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="listaHonorarios">
@@ -10553,7 +10219,7 @@ function gerarHonorarios() {
                                             ${renderMetaAuditoria('honorario', honorario)}
                                         </td>
                                         <td>${honorario.servico}</td>
-                                        <td>â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
+                                        <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
                                         <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
                                         <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
                                         <td>
@@ -10640,7 +10306,7 @@ function gerarContratos() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Math.round(valorTotalContratos * 100) / 100}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${Math.round(valorTotalContratos * 100) / 100}</p>
                         </div>
                     </div>
                 </div>
@@ -10653,7 +10319,7 @@ function gerarContratos() {
                            class="search-input" onkeyup="filtrarContratos()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -10661,7 +10327,7 @@ function gerarContratos() {
                             <option value="">Todos os status</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                         </select>
                     </div>
                     
@@ -10697,13 +10363,13 @@ function gerarContratos() {
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('clienteNome')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold">DescriÃ§Ã£o</th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('dataInicio')" title="Ordenar por data">Data InÃ­cio <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold">AÃ§Ãµes</th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('clienteNome')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="font-bold">Descrição</th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('dataInicio')" title="Ordenar por data">Data Início <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="font-bold">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="listaContratos">
@@ -10721,26 +10387,26 @@ function gerarContratos() {
                                         <td>${contrato.descricao}</td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <div class="text-sm font-medium text-gray-900">â‚¬${(Math.round((parseFloat(contrato.valor) || 0) * 100) / 100).toFixed(2)}</div>
+                                                <div class="text-sm font-medium text-gray-900">€${(Math.round((parseFloat(contrato.valor) || 0) * 100) / 100).toFixed(2)}</div>
                                                 <div class="text-xs text-gray-500">
                                                     <span class="text-gray-400">+ ${contrato.iva || 0}% IVA:</span>
-                                                    <span class="font-medium text-gray-700">â‚¬${(Math.round((parseFloat(contrato.valorTotal || contrato.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                                    <span class="font-medium text-gray-700">€${(Math.round((parseFloat(contrato.valorTotal || contrato.valor) || 0) * 100) / 100).toFixed(2)}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'ConcluÃ­do' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
+                                        <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'Concluído' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
                                         <td>${new Date(contrato.dataInicio).toLocaleDateString('pt-PT')}</td>
                                         <td>
-                                            <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                            <button onclick="editarContratoDireto(${JSON.stringify(contrato.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
+                                            <button onclick="duplicarContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
                                                 <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                                            <button onclick="abrirAnexosContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                                                 <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
+                                            <button onclick="excluirContratoDireto(${JSON.stringify(contrato.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                                                 <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
                                         </td>
@@ -10780,7 +10446,7 @@ function gerarPrazos() {
             <div class="flex flex-wrap justify-between items-center gap-4">
                 <div class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
                     <i data-lucide="info" class="w-4 h-4 inline mr-2"></i>
-                    Prazos criados automaticamente pelas Ã¡reas de execuÃ§Ã£o
+                    Prazos criados automaticamente pelas áreas de execução
                 </div>
                 <button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
@@ -10838,23 +10504,23 @@ function gerarPrazos() {
                 </div>
             </div>
 
-            <!-- InformaÃ§Ã£o sobre prazos automÃ¡ticos -->
+            <!-- Informação sobre prazos automáticos -->
             <div class="card p-6 bg-blue-50 border-l-4 border-blue-400">
                 <div class="flex items-start">
                     <div class="flex-shrink-0">
                         <i data-lucide="clock" class="w-6 h-6 text-blue-600"></i>
                     </div>
                     <div class="ml-3">
-                        <h3 class="text-sm font-medium text-blue-800">Prazos AutomÃ¡ticos</h3>
+                        <h3 class="text-sm font-medium text-blue-800">Prazos Automáticos</h3>
                         <div class="mt-2 text-sm text-blue-700">
-                            <p>Os prazos sÃ£o criados automaticamente quando vocÃª adiciona itens nas Ã¡reas de execuÃ§Ã£o:</p>
+                            <p>Os prazos são criados automaticamente quando você adiciona itens nas áreas de execução:</p>
                             <ul class="mt-2 list-disc list-inside space-y-1">
                                 <li><strong>Contratos:</strong> Prazo de 30 dias</li>
-                                <li><strong>HeranÃ§as:</strong> Prazo de 60 dias</li>
-                                <li><strong>MigraÃ§Ã£o:</strong> Prazo de 90 dias</li>
+                                <li><strong>Heranças:</strong> Prazo de 60 dias</li>
+                                <li><strong>Migração:</strong> Prazo de 90 dias</li>
                                 <li><strong>Registos:</strong> Prazo de 15 dias</li>
                             </ul>
-                            <p class="mt-2 text-xs text-blue-600">VocÃª pode editar ou excluir prazos conforme necessÃ¡rio.</p>
+                            <p class="mt-2 text-xs text-blue-600">Você pode editar ou excluir prazos conforme necessário.</p>
                         </div>
                     </div>
                 </div>
@@ -10867,7 +10533,7 @@ function gerarPrazos() {
                            class="search-input" onkeyup="filtrarPrazos()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -10875,7 +10541,7 @@ function gerarPrazos() {
                             <option value="">Todos os status</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                             <option value="vencido">Vencido</option>
                         </select>
                     </div>
@@ -10885,8 +10551,8 @@ function gerarPrazos() {
                         <select id="filtroTipoPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
                             <option value="">Todos os tipos</option>
                             <option value="contrato">Contrato</option>
-                            <option value="heranca">HeranÃ§a</option>
-                            <option value="migracao">MigraÃ§Ã£o</option>
+                            <option value="heranca">Herança</option>
+                            <option value="migracao">Migração</option>
                             <option value="registo">Registo</option>
                         </select>
                     </div>
@@ -10897,7 +10563,7 @@ function gerarPrazos() {
                             <option value="">Todas as datas</option>
                             <option value="hoje">Vence hoje</option>
                             <option value="semana">Esta semana</option>
-                            <option value="mes">Este mÃªs</option>
+                            <option value="mes">Este mês</option>
                             <option value="vencido">Vencidos</option>
                         </select>
                     </div>
@@ -10907,7 +10573,7 @@ function gerarPrazos() {
                         <select id="filtroPrioridadePrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
                             <option value="">Todas as prioridades</option>
                             <option value="baixa">Baixa</option>
-                            <option value="media">MÃ©dia</option>
+                            <option value="media">Média</option>
                             <option value="alta">Alta</option>
                             <option value="urgente">Urgente</option>
                         </select>
@@ -10931,14 +10597,14 @@ function gerarPrazos() {
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('descricao')" title="Ordenar por descriÃ§Ã£o">DescriÃ§Ã£o <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('dataLimite')" title="Ordenar por data">Data Limite <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('prioridade')" title="Ordenar por prioridade">Prioridade <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('descricao')" title="Ordenar por descrição">Descrição <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('dataLimite')" title="Ordenar por data">Data Limite <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('prioridade')" title="Ordenar por prioridade">Prioridade <span class="text-xs text-blue-500">↕</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
                                     <th>Criado por</th>
-                                    <th>AÃ§Ãµes</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="listaPrazos">
@@ -10952,18 +10618,18 @@ function gerarPrazos() {
                                         </td>
                                         <td>${prazo.tipo}</td>
                                         <td>${prazo.descricao}</td>
-                                        <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data nÃ£o definida'}</td>
+                                        <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                                         <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
                                         <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
                                         <td>${prazo.criadoPor || '-'}</td>
                                         <td>
-                                            <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2">
+                                            <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800 mr-2">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-prazo-acao="anexos" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2">
+                                            <button onclick="abrirAnexosPrazo(${JSON.stringify(prazo.id)})" class="text-green-600 hover:text-green-800 mr-2">
                                                 <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
+                                            <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800">
                                                 <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
                                         </td>
@@ -10982,17 +10648,14 @@ function gerarNotificacoes() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
     
-    // Filtrar notificaÃ§Ãµes baseado no tipo de usuÃ¡rio
-    let notificacoesFiltradas = Array.isArray(obterNotificacoesAtual()) ? obterNotificacoesAtual() : [];
+    // Filtrar notificações baseado no tipo de usuário
+    let notificacoesFiltradas = obterNotificacoesAtual();
     
     if (tipoUsuario === 'convidado') {
-        // Para convidados: apenas notificaÃ§Ãµes direcionadas a eles (por id, codigo ou "todos")
-        const convidados = Array.isArray(obterConvidados()) ? obterConvidados() : [];
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
+        // Para convidados: apenas notificações direcionadas a eles
         notificacoesFiltradas = notificacoesFiltradas.filter(n => 
+            n.destinatarioId === parseInt(convidadoId) || 
             n.destinatarioId === 'todos' ||
-            String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
             n.tipo === 'cliente_autorizado' ||
             n.tipo === 'documento_anexado' ||
             n.tipo === 'prazo_proximo'
@@ -11007,7 +10670,7 @@ function gerarNotificacoes() {
             const dataNotificacao = new Date(n.dataCriacao).toISOString().split('T')[0];
             return dataNotificacao === hoje;
         } catch (error) {
-            console.warn('Erro ao processar data da notificaÃ§Ã£o:', n.dataCriacao);
+            console.warn('Erro ao processar data da notificação:', n.dataCriacao);
             return false;
         }
     }).length;
@@ -11019,7 +10682,7 @@ function gerarNotificacoes() {
             ${tipoUsuario === 'admin' ? `
                 ${(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `<button onclick="criarNotificacaoTeste()" class="btn btn-info">
                     <i data-lucide="flask-conical" class="w-4 h-4"></i>
-                    Teste AleatÃ³rio
+                    Teste Aleatório
                 </button>` : ''}
                 <button onclick="criarNotificacaoPersonalizada()" class="btn btn-warning">
                     <i data-lucide="edit" class="w-4 h-4"></i>
@@ -11028,7 +10691,7 @@ function gerarNotificacoes() {
             ` : `
                 <div class="text-sm text-gray-600">
                     <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                    Suas notificaÃ§Ãµes automÃ¡ticas e mensagens do administrador
+                    Suas notificações automáticas e mensagens do administrador
                 </div>
             `}
         </div>
@@ -11045,45 +10708,19 @@ function gerarNotificacoes() {
             ` : ''}
         </div>
     </div>
-    ${tipoUsuario === 'admin' ? `
-    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%); border: 3px solid #7c3aed; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h3 class="text-lg font-bold" style="color: #4c1d95;">
-                    <i data-lucide="mail" class="w-5 h-5 inline mr-1"></i> Enviar Convite
-                </h3>
-                <p class="text-sm" style="color: #5b21b6;">Enviar código de acesso e instruções de login por Email ou WhatsApp.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <select id="conviteConvidadoNotificacoes" class="border-2 border-purple-300 rounded px-3 py-2 bg-white text-gray-800 min-w-[180px]">
-                    <option value="">Escolher convidado...</option>
-                    ${(() => { try { const lista = (typeof obterConvidadosAtual === 'function' ? obterConvidadosAtual() : window.convidados) || []; return lista.filter(c => c && c.ativo).map(c => `<option value="${String(c.codigo || c.id || '').replace(/"/g, '&quot;')}">${(c.nome || 'Convidado')} (${c.codigo || c.id || ''})</option>`).join(''); } catch (e) { return ''; } })()}
-                </select>
-                <button onclick="enviarConviteDoSeletor()" class="btn text-white" style="background-color: #7c3aed;">
-                    <i data-lucide="send" class="w-4 h-4"></i> Enviar Convite
-                </button>
-                <button onclick="carregarSecao('convidados')" class="btn btn-secondary">Ver Gestão de Convidados</button>
-            </div>
-        </div>
-    </div>
-    ` : ''}
     
     <div class="card p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-                <h3 class="text-lg font-semibold">Alertas AutomÃ¡ticos (v2)</h3>
-                <p class="text-sm text-gray-600">Enviar resumo de prazos e honorÃ¡rios por Email ou WhatsApp.</p>
+                <h3 class="text-lg font-semibold">Alertas Automáticos (v2)</h3>
+                <p class="text-sm text-gray-600">Enviar resumo de prazos e honorários por Email ou WhatsApp.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button type="button" data-acao="baixarAlertasPDF" onclick="typeof baixarAlertasPDF==='function'&&baixarAlertasPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i>
-                    Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarAlertasEmail" onclick="typeof enviarAlertasEmail==='function'&&enviarAlertasEmail();return false" class="btn btn-primary">
+                <button onclick="enviarAlertasEmail()" class="btn btn-primary">
                     <i data-lucide="mail" class="w-4 h-4"></i>
                     Enviar por Email
                 </button>
-                <button type="button" data-acao="enviarAlertasWhatsApp" onclick="typeof enviarAlertasWhatsApp==='function'&&enviarAlertasWhatsApp();return false" class="btn btn-success">
+                <button onclick="enviarAlertasWhatsApp()" class="btn btn-success">
                     <i data-lucide="message-circle" class="w-4 h-4"></i>
                     Enviar por WhatsApp
                 </button>
@@ -11100,42 +10737,7 @@ function gerarNotificacoes() {
             </div>
         </div>
         <div class="mt-3 text-xs text-gray-500">
-            Dica: Email e WhatsApp enviam o resumo em PDF. O PDF é guardado nas transferências para anexar.
-        </div>
-    </div>
-    
-    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%); border: 3px solid #0d9488; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h3 class="text-lg font-bold" style="color: #0f766e;">
-                    <i data-lucide="file-text" class="w-5 h-5 inline mr-1"></i> Notificações em PDF
-                </h3>
-                <p class="text-sm" style="color: #0d9488;">Enviar a lista de notificações (conforme filtros) por Email ou WhatsApp em PDF.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
-                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
-                </button>
-                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
-                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
-                </button>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
-                <input id="notificacoesEmailDestino" type="email" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: destinatario@email.com">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
-                <input id="notificacoesWhatsAppDestino" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 351912345678">
-            </div>
-        </div>
-        <div class="mt-3 text-xs text-gray-500">
-            O PDF é guardado nas transferências. Anexe-o ao abrir o email ou WhatsApp.
+            Dica: o envio usa o seu cliente de email/WhatsApp Web (sem serviços externos).
         </div>
     </div>
     
@@ -11144,14 +10746,14 @@ function gerarNotificacoes() {
             <i data-lucide="bell" class="w-5 h-5 inline mr-1"></i> Alertas do navegador
         </h3>
         <p class="text-sm text-blue-700 mb-3">
-            Receba notificaÃ§Ãµes de prazos, tarefas e honorÃ¡rios vencidos mesmo quando o site estÃ¡ em background.
+            Receba notificações de prazos, tarefas e honorários vencidos mesmo quando o site está em background.
         </p>
         ${typeof Notification !== 'undefined' ? (Notification.permission === 'granted'
-            ? '<p class="text-sm text-green-700 font-medium">âœ“ NotificaÃ§Ãµes ativadas</p>'
+            ? '<p class="text-sm text-green-700 font-medium">✓ Notificações ativadas</p>'
             : Notification.permission === 'denied'
-                ? '<p class="text-sm text-gray-600">NotificaÃ§Ãµes bloqueadas. Ative nas definiÃ§Ãµes do browser.</p>'
-                : '<button onclick="solicitarPermissaoNotificacoes()" class="btn btn-primary"><i data-lucide="bell-ring" class="w-4 h-4"></i> Ativar notificaÃ§Ãµes</button>'
-        ) : '<p class="text-sm text-gray-500">O seu browser nÃ£o suporta notificaÃ§Ãµes.</p>'}
+                ? '<p class="text-sm text-gray-600">Notificações bloqueadas. Ative nas definições do browser.</p>'
+                : '<button onclick="solicitarPermissaoNotificacoes()" class="btn btn-primary"><i data-lucide="bell-ring" class="w-4 h-4"></i> Ativar notificações</button>'
+        ) : '<p class="text-sm text-gray-500">O seu browser não suporta notificações.</p>'}
     </div>
     
     <!-- Filtros Inteligentes -->
@@ -11163,7 +10765,7 @@ function gerarNotificacoes() {
                 <select id="filtroPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
                     <option value="">Todas as prioridades</option>
                     <option value="alta">Alta</option>
-                    <option value="media">MÃ©dia</option>
+                    <option value="media">Média</option>
                     <option value="baixa">Baixa</option>
                 </select>
             </div>
@@ -11176,8 +10778,8 @@ function gerarNotificacoes() {
                     <option value="resposta_convidado">Resposta do Convidado</option>
                     <option value="cliente_autorizado">Cliente Autorizado</option>
                     <option value="documento_anexado">Documento Anexado</option>
-                    <option value="prazo_proximo">Prazo PrÃ³ximo</option>
-                    <option value="honorario">HonorÃ¡rio</option>
+                    <option value="prazo_proximo">Prazo Próximo</option>
+                    <option value="honorario">Honorário</option>
                     <option value="prazo">Prazo</option>
                 </select>
             </div>
@@ -11186,18 +10788,18 @@ function gerarNotificacoes() {
                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select id="filtroStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
                     <option value="">Todas</option>
-                    <option value="nao_lida">NÃ£o Lidas</option>
+                    <option value="nao_lida">Não Lidas</option>
                     <option value="lida">Lidas</option>
                 </select>
             </div>
             
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">PerÃ­odo</label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Período</label>
                 <select id="filtroPeriodo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
                     <option value="">Todos</option>
                     <option value="hoje">Hoje</option>
                     <option value="semana">Esta Semana</option>
-                    <option value="mes">Este MÃªs</option>
+                    <option value="mes">Este Mês</option>
                 </select>
             </div>
         </div>
@@ -11208,22 +10810,7 @@ function gerarNotificacoes() {
                 Limpar Filtros
             </button>
             <div class="text-sm text-gray-600">
-                <span id="contadorFiltros">${notificacoesFiltradas.length} notificaÃ§Ãµes encontradas</span>
-            </div>
-        </div>
-        <div class="mt-6 pt-6 border-t border-gray-200">
-            <h4 class="text-sm font-semibold text-gray-700 mb-2">Exportar notificaÃ§Ãµes em PDF</h4>
-            <p class="text-xs text-gray-500 mb-3">As notificaÃ§Ãµes acima (conforme filtros) serÃ£o exportadas em PDF. Use os campos Email/WhatsApp do card Alertas AutomÃ¡ticos para o destino.</p>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
-                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
-                </button>
-                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
-                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
-                </button>
+                <span id="contadorFiltros">${notificacoesFiltradas.length} notificações encontradas</span>
             </div>
         </div>
     </div>
@@ -11235,7 +10822,7 @@ function gerarNotificacoes() {
                             <i data-lucide="bell" class="w-6 h-6 text-red-600"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">NÃ£o Lidas</p>
+                            <p class="text-sm font-medium text-gray-600">Não Lidas</p>
                             <p class="text-2xl font-bold text-gray-900">${notificacoesNaoLidas}</p>
                         </div>
                     </div>
@@ -11270,8 +10857,8 @@ function gerarNotificacoes() {
                 ${notificacoesFiltradas.length === 0 ? `
                     <div class="card p-8 text-center">
                         <i data-lucide="bell-off" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
-                        <h3 class="text-lg font-semibold text-gray-600 mb-2">Nenhuma notificaÃ§Ã£o</h3>
-                        <p class="text-gray-500">VocÃª estÃ¡ em dia! NÃ£o hÃ¡ notificaÃ§Ãµes pendentes.</p>
+                        <h3 class="text-lg font-semibold text-gray-600 mb-2">Nenhuma notificação</h3>
+                        <p class="text-gray-500">Você está em dia! Não há notificações pendentes.</p>
                     </div>
                 ` : notificacoesFiltradas.map(notificacao => `
                     <div class="card p-4 ${notificacao.lida ? 'opacity-60' : 'border-l-4 border-blue-500'}">
@@ -11286,7 +10873,7 @@ function gerarNotificacoes() {
                                 </div>
                                 <h4 class="font-semibold text-gray-800">${notificacao.titulo}</h4>
                                 <p class="text-gray-600 text-sm mt-1">${notificacao.mensagem}</p>
-                                <p class="text-gray-400 text-xs mt-2">${notificacao.dataCriacao ? new Date(notificacao.dataCriacao).toLocaleString('pt-PT') : 'Data nÃ£o disponÃ­vel'}</p>
+                                <p class="text-gray-400 text-xs mt-2">${notificacao.dataCriacao ? new Date(notificacao.dataCriacao).toLocaleString('pt-PT') : 'Data não disponível'}</p>
                                 
                                 ${notificacao.origem === 'admin' && tipoUsuario === 'convidado' ? `
                                     <div class="mt-3 pt-3 border-t border-gray-200">
@@ -11303,7 +10890,7 @@ function gerarNotificacoes() {
                                         ${notificacao.respostas.map(resposta => `
                                             <div class="bg-gray-50 p-3 rounded-lg mb-2">
                                                 <div class="flex items-center justify-between mb-1">
-                                                    <span class="text-xs font-medium text-gray-600">${resposta.origem === 'admin' ? 'Admin' : 'VocÃª'}</span>
+                                                    <span class="text-xs font-medium text-gray-600">${resposta.origem === 'admin' ? 'Admin' : 'Você'}</span>
                                                     <span class="text-xs text-gray-400">${new Date(resposta.dataCriacao).toLocaleString('pt-PT')}</span>
                                                 </div>
                                                 <p class="text-sm text-gray-800">${resposta.mensagem}</p>
@@ -11314,11 +10901,11 @@ function gerarNotificacoes() {
                             </div>
                             <div class="flex items-center space-x-2">
                                 ${!notificacao.lida ? `
-                                    <button type="button" data-notificacao-acao="marcar-lida" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
+                                    <button onclick="marcarComoLida(${JSON.stringify(notificacao.id)})" class="text-blue-600 hover:text-blue-800">
                                         <i data-lucide="check" class="w-4 h-4" style="pointer-events:none"></i>
                                     </button>
                                 ` : ''}
-                                <button type="button" data-notificacao-acao="excluir" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
+                                <button onclick="excluirNotificacao(${JSON.stringify(notificacao.id)})" class="text-red-600 hover:text-red-800">
                                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                 </button>
                             </div>
@@ -11381,7 +10968,7 @@ function obterClientesAtual() {
     return Array.isArray(clientes) ? clientes : [];
 }
 
-/** Atualiza clientes em memÃ³ria e persiste no Firestore. */
+/** Atualiza clientes em memória e persiste no Firestore. */
 function atualizarClientesEmMemoria(lista) {
     if (!Array.isArray(lista)) return;
     clientes = lista;
@@ -11391,31 +10978,31 @@ function atualizarClientesEmMemoria(lista) {
     } catch (e) { console.warn('LocalStorage clientes:', e?.message); }
 }
 
-/** Lista tarefas: Firestore (global) ou appStorage sÃ³ offline. */
+/** Lista tarefas: Firestore (global) ou appStorage só offline. */
 /** Lista tarefas: apenas Firestore. Sem localStorage. */
 function obterTarefasAtual() {
     return Array.isArray(tarefas) ? tarefas : [];
 }
 
-/** Lista prazos: Firestore (global) ou appStorage sÃ³ offline. */
+/** Lista prazos: Firestore (global) ou appStorage só offline. */
 /** Lista prazos: apenas Firestore. Sem localStorage. */
 function obterPrazosAtual() {
     return Array.isArray(prazos) ? prazos : [];
 }
 
-/** Lista notificaÃ§Ãµes: Firestore (global) ou appStorage sÃ³ offline. */
-/** Lista notificaÃ§Ãµes: apenas Firestore. Sem localStorage. */
+/** Lista notificações: Firestore (global) ou appStorage só offline. */
+/** Lista notificações: apenas Firestore. Sem localStorage. */
 function obterNotificacoesAtual() {
     return Array.isArray(notificacoes) ? notificacoes : [];
 }
 
-/** Lista documentos: Firestore (global) ou appStorage sÃ³ offline. */
+/** Lista documentos: Firestore (global) ou appStorage só offline. */
 /** Lista documentos: apenas Firestore. Sem localStorage. */
 function obterDocumentosAtual() {
     return Array.isArray(documentos) ? documentos : [];
 }
 
-/** Lista convidados: Firestore (global) ou appStorage sÃ³ offline. */
+/** Lista convidados: Firestore (global) ou appStorage só offline. */
 /** Lista convidados: apenas Firestore. Sem localStorage. */
 function obterConvidadosAtual() {
     return Array.isArray(convidados) ? convidados : [];
@@ -11439,7 +11026,7 @@ function baixarAnexoTarefa(tarefaId, anexoId) {
     const tarefa = lista.find(t => String(t.id) === String(tarefaId));
     const anexo = tarefa && Array.isArray(tarefa.anexos) ? tarefa.anexos.find(a => a.id === anexoId) : null;
     if (!anexo || !anexo.conteudo) {
-        mostrarNotificacao('Anexo nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Anexo não encontrado.', 'error');
         return;
     }
     const link = document.createElement('a');
@@ -11532,8 +11119,8 @@ function gerarTarefas() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
                             <select id="tarefaProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="contrato">Contrato</option>
-                                <option value="heranca">HeranÃ§a</option>
-                                <option value="migracao">MigraÃ§Ã£o</option>
+                                <option value="heranca">Herança</option>
+                                <option value="migracao">Migração</option>
                                 <option value="registo">Registo</option>
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
@@ -11541,7 +11128,7 @@ function gerarTarefas() {
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                            <select id="tarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="InstituiÃ§Ã£o em Portugal (FinanÃ§as, IRN, IMT, etc.)">
+                            <select id="tarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal (Finanças, IRN, IMT, etc.)">
                                 ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                             </select>
                         </div>
@@ -11549,38 +11136,38 @@ function gerarTarefas() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                             <select id="tarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="baixa">Baixa</option>
-                                <option value="media" selected>MÃ©dia</option>
+                                <option value="media" selected>Média</option>
                                 <option value="alta">Alta</option>
-                                <option value="critica">CrÃ­tica</option>
+                                <option value="critica">Crítica</option>
                             </select>
                         </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">ResponsÃ¡vel</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
                         <select id="tarefaResponsavel" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="admin">Admin</option>
                             ${convidadosLista.map(c => `<option value="convidado:${c.id}">${c.nome}</option>`).join('')}
                         </select>
                     </div>
                         <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">TÃ­tulo *</label>
-                            <input id="tarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Recolher documentaÃ§Ã£o do cliente">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
+                            <input id="tarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Recolher documentação do cliente">
                         </div>
                         <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                             <textarea id="tarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3" placeholder="Detalhes adicionais"></textarea>
                         </div>
                         <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea id="tarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2" placeholder="ObservaÃ§Ãµes internas"></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea id="tarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2" placeholder="Observações internas"></textarea>
                         </div>
                         <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vÃ­rgula)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
                             <input id="tarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: https://..., https://...">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Anexos</label>
                             <input id="tarefaAnexos" type="file" multiple class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <p class="text-xs text-gray-500 mt-1">Recomendado atÃ© 5 MB por anexo.</p>
+                            <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB por anexo.</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
@@ -11595,11 +11182,11 @@ function gerarTarefas() {
             `}
             
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Filtros rÃ¡pidos</h3>
+                <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
-                        <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="tÃ­tulo, cliente, processo..." oninput="aplicarFiltrosTarefas()">
+                        <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo..." oninput="aplicarFiltrosTarefas()">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
@@ -11613,7 +11200,7 @@ function gerarTarefas() {
                         <select id="filtroTarefasStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                             <option value="">Todos</option>
                             <option value="aberta">Aberta</option>
-                            <option value="concluida">ConcluÃ­da</option>
+                            <option value="concluida">Concluída</option>
                         </select>
                     </div>
                     <div>
@@ -11621,9 +11208,9 @@ function gerarTarefas() {
                         <select id="filtroTarefasPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                             <option value="">Todas</option>
                             <option value="baixa">Baixa</option>
-                            <option value="media">MÃ©dia</option>
+                            <option value="media">Média</option>
                             <option value="alta">Alta</option>
-                            <option value="critica">CrÃ­tica</option>
+                            <option value="critica">Crítica</option>
                         </select>
                     </div>
                     <div>
@@ -11633,7 +11220,7 @@ function gerarTarefas() {
                             <option value="vencidas">Vencidas</option>
                             <option value="hoje">Hoje</option>
                             <option value="semana">Esta semana</option>
-                            <option value="mes">Este mÃªs</option>
+                            <option value="mes">Este mês</option>
                             <option value="sem_prazo">Sem prazo</option>
                         </select>
                     </div>
@@ -11649,7 +11236,7 @@ function gerarTarefas() {
                         <select id="filtroTarefasOrdenacao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
                             <option value="prazo">Prazo (data limite)</option>
                             <option value="prioridade">Prioridade</option>
-                            <option value="titulo">TÃ­tulo</option>
+                            <option value="titulo">Título</option>
                             <option value="cliente">Cliente</option>
                             <option value="prioridade_prazo">Prioridade + Prazo</option>
                             <option value="prazo_prioridade">Prazo + Prioridade</option>
@@ -11659,7 +11246,7 @@ function gerarTarefas() {
                 <div class="flex flex-wrap items-center gap-2 mt-4">
                     <button id="btnSoComPrazo" onclick="alternarFiltroSoComPrazo()" class="btn ${obterFiltroSoComPrazo() ? 'btn-primary' : 'btn-secondary'}" data-ativo="${obterFiltroSoComPrazo() ? 'true' : 'false'}">
                         <i data-lucide="clock" class="w-4 h-4"></i>
-                        ${obterFiltroSoComPrazo() ? 'SÃ³ com prazo: ON' : 'SÃ³ com prazo'}
+                        ${obterFiltroSoComPrazo() ? 'Só com prazo: ON' : 'Só com prazo'}
                     </button>
                     <button onclick="aplicarFiltrosTarefas()" class="btn btn-primary">
                         <i data-lucide="filter" class="w-4 h-4"></i>
@@ -11695,7 +11282,7 @@ function limparFiltrosTarefas() {
         btnSoComPrazo.dataset.ativo = 'false';
         btnSoComPrazo.classList.remove('btn-primary');
         btnSoComPrazo.classList.add('btn-secondary');
-        btnSoComPrazo.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i> SÃ³ com prazo';
+        btnSoComPrazo.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i> Só com prazo';
     }
     appStorage.setItem('tarefasFiltroSoComPrazo', 'false');
     aplicarFiltrosTarefas();
@@ -11709,7 +11296,7 @@ function alternarFiltroSoComPrazo() {
     btn.dataset.ativo = ativo ? 'false' : 'true';
     btn.classList.toggle('btn-primary', !ativo);
     btn.classList.toggle('btn-secondary', ativo);
-    btn.innerHTML = `<i data-lucide="clock" class="w-4 h-4"></i> ${ativo ? 'SÃ³ com prazo' : 'SÃ³ com prazo: ON'}`;
+    btn.innerHTML = `<i data-lucide="clock" class="w-4 h-4"></i> ${ativo ? 'Só com prazo' : 'Só com prazo: ON'}`;
     if (tipoUsuario !== 'admin') {
         appStorage.setItem('tarefasFiltroSoComPrazo', ativo ? 'false' : 'true');
     }
@@ -11717,8 +11304,6 @@ function alternarFiltroSoComPrazo() {
 }
 
 function aplicarFiltrosTarefas() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'tarefas') return;
-    if (!document.getElementById('listaTarefas')) return;
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     let lista = Array.isArray(tarefas) ? tarefas : [];
     if (tipoUsuario === 'convidado') {
@@ -11874,13 +11459,13 @@ function renderizarListaTarefas(lista, total, limit) {
             <div class="flex justify-between items-start gap-3">
                 <div class="flex-1">
                     <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
-                    <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descriÃ§Ã£o'}</div>
-                    ${tarefa.observacoes ? `<div class="text-xs text-gray-500">ObservaÃ§Ãµes: ${tarefa.observacoes}</div>` : ''}
-                    <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} â€¢ ${tarefa.processoTipo || 'outro'}${tarefa.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' â€¢ ' + (ENTIDADES_PORTUGAL.find(e => e.id === tarefa.entidade)?.nome || tarefa.entidade) : ''}</div>
-                    ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">ResponsÃ¡vel: <span class="font-bold text-gray-700">${escaparHtml(tarefa.responsavelNome)}</span></div>` : ''}
+                    <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
+                    ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
+                    <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}${tarefa.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === tarefa.entidade)?.nome || tarefa.entidade) : ''}</div>
+                    ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: <span class="font-bold text-gray-700">${escaparHtml(tarefa.responsavelNome)}</span></div>` : ''}
                     ${renderMetaAuditoria('tarefa', tarefa)}
                     ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
-                    ${tarefa.concluidaPorNome ? `<div class="text-xs text-gray-400">ConcluÃ­da por: ${escaparHtml(tarefa.concluidaPorNome)}${tarefa.concluidaEm ? ` em ${new Date(tarefa.concluidaEm).toLocaleString('pt-PT')}` : ''}</div>` : ''}
+                    ${tarefa.concluidaPorNome ? `<div class="text-xs text-gray-400">Concluída por: ${escaparHtml(tarefa.concluidaPorNome)}${tarefa.concluidaEm ? ` em ${new Date(tarefa.concluidaEm).toLocaleString('pt-PT')}` : ''}</div>` : ''}
                     ${tarefa.lembreteEm ? `<div class="text-xs text-gray-400">Lembrete: ${formatarDataHora(tarefa.lembreteEm)}</div>` : ''}
                     ${tarefa.links && tarefa.links.length ? `
                         <div class="text-xs text-gray-400">
@@ -11903,14 +11488,14 @@ function renderizarListaTarefas(lista, total, limit) {
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="status-badge status-${tarefa.prioridade || 'media'}">${tarefa.prioridade || 'media'}</span>
-                    <span class="status-badge status-${tarefa.status}">${tarefa.status === 'concluida' ? 'ConcluÃ­da' : 'Aberta'}</span>
+                    <span class="status-badge status-${tarefa.status}">${tarefa.status === 'concluida' ? 'Concluída' : 'Aberta'}</span>
                 </div>
             </div>
             ${isConvidado ? `
                 <div class="flex items-center gap-2">
                     <button type="button" data-tarefa-id="${String(tarefa.id).replace(/"/g, '&quot;')}" data-tarefa-acao="concluir" class="btn btn-secondary btn-acao-tarefa" ${tarefa.status === 'concluida' ? 'disabled' : ''}>
                         <i data-lucide="check" class="w-4 h-4" style="pointer-events:none"></i>
-                        ${tarefa.status === 'concluida' ? 'ConcluÃ­da' : 'Concluir'}
+                        ${tarefa.status === 'concluida' ? 'Concluída' : 'Concluir'}
                     </button>
                 </div>
             ` : `
@@ -11935,7 +11520,7 @@ function renderizarListaTarefas(lista, total, limit) {
     container.innerHTML = container.innerHTML + verMais;
     lucide.createIcons();
     removerBotoesAnexos();
-    // Listener de clique nos botÃµes (delegaÃ§Ã£o no contentor)
+    // Listener de clique nos botões (delegação no contentor)
     const listaEl = document.getElementById('listaTarefas');
     if (listaEl && !listaEl._tarefaListener) {
         listaEl._tarefaListener = true;
@@ -11972,7 +11557,7 @@ function criarTarefa() {
     const lembreteValor = document.getElementById('tarefaLembrete')?.value || '';
     const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
     if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
-        mostrarNotificacao('Data/hora do lembrete invÃ¡lida.', 'warning');
+        mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
         return;
     }
     const anexosInput = document.getElementById('tarefaAnexos');
@@ -11989,7 +11574,7 @@ function criarTarefa() {
         return;
     }
     if (!titulo) {
-        mostrarNotificacao('Informe o tÃ­tulo da tarefa.', 'warning');
+        mostrarNotificacao('Informe o título da tarefa.', 'warning');
         return;
     }
     
@@ -12000,7 +11585,7 @@ function criarTarefa() {
     let responsavelNome = 'Admin';
     if (responsavelRaw.startsWith('convidado:')) {
         responsavelTipo = 'convidado';
-        responsavelId = responsavelRaw.split(':')[1]; // manter string (UUID ou nÃºmero)
+        responsavelId = responsavelRaw.split(':')[1]; // manter string (UUID ou número)
         const convidado = obterConvidados().find(c => String(c.id) === String(responsavelId) || String(c.codigo) === String(responsavelId));
         responsavelCodigo = convidado ? (convidado.codigo || null) : null;
         responsavelNome = convidado ? convidado.nome : 'Convidado';
@@ -12053,7 +11638,7 @@ function abrirModalEditarTarefa(id) {
     const lista = Array.isArray(tarefas) ? tarefas : [];
     const tarefa = lista.find(t => String(t.id) === String(id));
     if (!tarefa) {
-        mostrarNotificacao('Tarefa nÃ£o encontrada.', 'error');
+        mostrarNotificacao('Tarefa não encontrada.', 'error');
         return;
     }
     if (!exigirPermissaoAcaoItem('editar', 'tarefa', tarefa)) return;
@@ -12086,8 +11671,8 @@ function abrirModalEditarTarefa(id) {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
                         <select id="editarTarefaProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="contrato" ${tarefa.processoTipo === 'contrato' ? 'selected' : ''}>Contrato</option>
-                            <option value="heranca" ${tarefa.processoTipo === 'heranca' ? 'selected' : ''}>HeranÃ§a</option>
-                            <option value="migracao" ${tarefa.processoTipo === 'migracao' ? 'selected' : ''}>MigraÃ§Ã£o</option>
+                            <option value="heranca" ${tarefa.processoTipo === 'heranca' ? 'selected' : ''}>Herança</option>
+                            <option value="migracao" ${tarefa.processoTipo === 'migracao' ? 'selected' : ''}>Migração</option>
                             <option value="registo" ${tarefa.processoTipo === 'registo' ? 'selected' : ''}>Registo</option>
                             <option value="prazo" ${tarefa.processoTipo === 'prazo' ? 'selected' : ''}>Prazo</option>
                             <option value="outro" ${tarefa.processoTipo === 'outro' ? 'selected' : ''}>Outro</option>
@@ -12097,9 +11682,9 @@ function abrirModalEditarTarefa(id) {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                         <select id="editarTarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="baixa" ${tarefa.prioridade === 'baixa' ? 'selected' : ''}>Baixa</option>
-                            <option value="media" ${tarefa.prioridade === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                            <option value="media" ${tarefa.prioridade === 'media' ? 'selected' : ''}>Média</option>
                             <option value="alta" ${tarefa.prioridade === 'alta' ? 'selected' : ''}>Alta</option>
-                            <option value="critica" ${tarefa.prioridade === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                            <option value="critica" ${tarefa.prioridade === 'critica' ? 'selected' : ''}>Crítica</option>
                         </select>
                     </div>
                     <div>
@@ -12109,7 +11694,7 @@ function abrirModalEditarTarefa(id) {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">ResponsÃ¡vel</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
                         <select id="editarTarefaResponsavel" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="admin" ${responsavelAtual === 'admin' ? 'selected' : ''}>Admin</option>
                             ${convidadosLista.map(c => `<option value="convidado:${c.id}" ${responsavelAtual === `convidado:${c.id}` ? 'selected' : ''}>${c.nome}</option>`).join('')}
@@ -12119,23 +11704,23 @@ function abrirModalEditarTarefa(id) {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select id="editarTarefaStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="aberta" ${tarefa.status === 'aberta' ? 'selected' : ''}>Aberta</option>
-                            <option value="concluida" ${tarefa.status === 'concluida' ? 'selected' : ''}>ConcluÃ­da</option>
+                            <option value="concluida" ${tarefa.status === 'concluida' ? 'selected' : ''}>Concluída</option>
                         </select>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">TÃ­tulo *</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
                         <input id="editarTarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${escaparHtml(tarefa.titulo || '')}" required>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                         <textarea id="editarTarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3">${escaparHtml(tarefa.descricao || '')}</textarea>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                         <textarea id="editarTarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2">${escaparHtml(tarefa.observacoes || '')}</textarea>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vÃ­rgula)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
                         <input id="editarTarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${escaparHtml(linksValor)}">
                     </div>
                     <div>
@@ -12157,7 +11742,7 @@ function abrirModalEditarTarefa(id) {
     `;
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('modalContainer nÃ£o encontrado!');
+        console.error('modalContainer não encontrado!');
         return;
     }
     modalContainer.innerHTML = modal;
@@ -12170,7 +11755,7 @@ async function atualizarTarefa(event, id) {
     const lista = obterTarefasAtual();
     const index = lista.findIndex(t => String(t.id) === String(id));
     if (index === -1) {
-        mostrarNotificacao('Tarefa nÃ£o encontrada.', 'error');
+        mostrarNotificacao('Tarefa não encontrada.', 'error');
         return;
     }
     if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
@@ -12190,7 +11775,7 @@ async function atualizarTarefa(event, id) {
     const lembreteValor = document.getElementById('editarTarefaLembrete')?.value || '';
     const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
     if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
-        mostrarNotificacao('Data/hora do lembrete invÃ¡lida.', 'warning');
+        mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
         return;
     }
     if (!clienteId) {
@@ -12198,7 +11783,7 @@ async function atualizarTarefa(event, id) {
         return;
     }
     if (!titulo) {
-        mostrarNotificacao('Informe o tÃ­tulo da tarefa.', 'warning');
+        mostrarNotificacao('Informe o título da tarefa.', 'warning');
         return;
     }
 
@@ -12258,7 +11843,7 @@ async function alterarStatusTarefa(id) {
     const lista = obterTarefasAtual();
     const index = lista.findIndex(t => String(t.id) === String(id));
     if (index === -1) {
-        mostrarNotificacao('Tarefa nÃ£o encontrada.', 'error');
+        mostrarNotificacao('Tarefa não encontrada.', 'error');
         return;
     }
     if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
@@ -12293,7 +11878,7 @@ async function concluirTarefaConvidado(id) {
     if (index === -1) return;
     if (!exigirPermissaoAcaoItem('editar', 'tarefa', lista[index])) return;
     if (lista[index].status === 'concluida') {
-        mostrarNotificacao('Tarefa jÃ¡ estÃ¡ concluÃ­da.', 'info');
+        mostrarNotificacao('Tarefa já está concluída.', 'info');
         return;
     }
     const antes = { ...lista[index] };
@@ -12311,8 +11896,8 @@ async function concluirTarefaConvidado(id) {
     } catch (err) {
         salvarTarefasLocal(lista);
     }
-    registrarAuditoria('editar', 'tarefa', `Tarefa concluÃ­da pelo convidado: ${lista[index].titulo}`, antes, lista[index]);
-    mostrarNotificacao('Tarefa marcada como concluÃ­da.', 'success');
+    registrarAuditoria('editar', 'tarefa', `Tarefa concluída pelo convidado: ${lista[index].titulo}`, antes, lista[index]);
+    mostrarNotificacao('Tarefa marcada como concluída.', 'success');
     aplicarFiltrosTarefas();
 }
 
@@ -12321,7 +11906,7 @@ async function excluirTarefa(id) {
     const lista = obterTarefasAtual();
     const tarefa = lista.find(t => String(t.id) === String(id));
     if (!tarefa) {
-        mostrarNotificacao('Tarefa nÃ£o encontrada.', 'error');
+        mostrarNotificacao('Tarefa não encontrada.', 'error');
         return;
     }
     if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
@@ -12335,15 +11920,15 @@ async function excluirTarefa(id) {
         } else {
             salvarTarefasLocal(novas);
         }
-        registrarAuditoria('excluir', 'tarefa', `Tarefa excluÃ­da: ${tarefa.titulo}`, tarefa, null);
+        registrarAuditoria('excluir', 'tarefa', `Tarefa excluída: ${tarefa.titulo}`, tarefa, null);
         aplicarFiltrosTarefas();
-        mostrarNotificacao('Tarefa excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Tarefa excluída com sucesso!', 'success');
     } catch (err) {
         console.warn('Erro ao apagar tarefa na nuvem:', err);
         salvarTarefasLocal(novas);
-        registrarAuditoria('excluir', 'tarefa', `Tarefa excluÃ­da: ${tarefa.titulo}`, tarefa, null);
+        registrarAuditoria('excluir', 'tarefa', `Tarefa excluída: ${tarefa.titulo}`, tarefa, null);
         aplicarFiltrosTarefas();
-        mostrarNotificacao('Tarefa excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Tarefa excluída com sucesso!', 'success');
     }
 }
 
@@ -12391,7 +11976,7 @@ function gerarCalendarioPrazos() {
     return `
         <div class="space-y-6">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h2 class="text-2xl font-bold">CalendÃ¡rio de Prazos</h2>
+                <h2 class="text-2xl font-bold">Calendário de Prazos</h2>
                 <div class="flex flex-wrap gap-2">
                     <button onclick="abrirModalCriarPrazo()" class="btn btn-primary">
                         <i data-lucide="plus" class="w-4 h-4"></i>
@@ -12404,7 +11989,7 @@ function gerarCalendarioPrazos() {
                     <button onclick="moverCalendario(1)" class="btn btn-secondary">
                         <i data-lucide="chevron-right" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="alterarModoCalendario('mensal')" class="btn btn-primary">MÃªs</button>
+                    <button onclick="alterarModoCalendario('mensal')" class="btn btn-primary">Mês</button>
                     <button onclick="alterarModoCalendario('semanal')" class="btn btn-secondary">Semana</button>
                 </div>
             </div>
@@ -12425,7 +12010,7 @@ function gerarCalendarioPrazos() {
                             <option value="ativo">Ativo</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                             <option value="vencido">Vencido</option>
                         </select>
                     </div>
@@ -12434,8 +12019,8 @@ function gerarCalendarioPrazos() {
                         <select id="calendarioFiltroTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
                             <option value="">Todos os tipos</option>
                             <option value="contrato">Contrato</option>
-                            <option value="heranca">HeranÃ§a</option>
-                            <option value="migracao">MigraÃ§Ã£o</option>
+                            <option value="heranca">Herança</option>
+                            <option value="migracao">Migração</option>
                             <option value="registo">Registo</option>
                             <option value="prazo">Prazo</option>
                             <option value="outro">Outro</option>
@@ -12446,9 +12031,9 @@ function gerarCalendarioPrazos() {
                         <select id="calendarioFiltroPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
                             <option value="">Todas</option>
                             <option value="baixa">Baixa</option>
-                            <option value="media">MÃ©dia</option>
+                            <option value="media">Média</option>
                             <option value="alta">Alta</option>
-                            <option value="critica">CrÃ­tica</option>
+                            <option value="critica">Crítica</option>
                         </select>
                     </div>
                 </div>
@@ -12457,13 +12042,13 @@ function gerarCalendarioPrazos() {
                         <span class="calendario-item calendario-prioridade-baixa">Baixa</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-media">MÃ©dia</span>
+                        <span class="calendario-item calendario-prioridade-media">Média</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="calendario-item calendario-prioridade-alta">Alta</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-critica">CrÃ­tica</span>
+                        <span class="calendario-item calendario-prioridade-critica">Crítica</span>
                     </div>
                 </div>
                 <div id="calendarioTitulo" class="text-lg font-semibold mb-4"></div>
@@ -12495,7 +12080,6 @@ function inicializarCalendarioPrazos() {
 }
 
 function aplicarFiltrosCalendario() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'calendario') return;
     const select = document.getElementById('calendarioFiltroCliente');
     const selectStatus = document.getElementById('calendarioFiltroStatus');
     const selectTipo = document.getElementById('calendarioFiltroTipo');
@@ -12545,7 +12129,7 @@ function atualizarCalendarioPrazos() {
         const diaSemana = (dataRef.getDay() + 6) % 7;
         const inicioSemana = new Date(dataRef.getFullYear(), dataRef.getMonth(), dataRef.getDate() - diaSemana);
         const fimSemana = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate() + 6);
-        titulo.textContent = `Semana de ${inicioSemana.toLocaleDateString('pt-PT')} atÃ© ${fimSemana.toLocaleDateString('pt-PT')}`;
+        titulo.textContent = `Semana de ${inicioSemana.toLocaleDateString('pt-PT')} até ${fimSemana.toLocaleDateString('pt-PT')}`;
         grid.innerHTML = gerarSemanaCalendario(inicioSemana);
     } else {
         const dataRef = calendarioDataRef instanceof Date ? calendarioDataRef : new Date(calendarioDataRef);
@@ -12561,7 +12145,7 @@ function gerarMesCalendario(ano, mes) {
     const inicio = new Date(ano, mes, 1 - offset);
     const hoje = formatarDataLocalCalendario(new Date());
     
-    const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b', 'Dom'];
+    const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
     let html = `
         <div class="grid grid-cols-7 text-xs text-gray-500 mb-2">
             ${diasSemana.map(dia => `<div class="text-center font-semibold">${dia}</div>`).join('')}
@@ -12581,7 +12165,7 @@ function gerarMesCalendario(ano, mes) {
                 <div class="text-xs font-semibold mb-1">${dataAtual.getDate()}</div>
                 <div class="space-y-1">
                     ${prazosDia.slice(0, 3).map(prazo => `
-                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
+                        <button type="button" onclick="event.stopPropagation(); editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                             <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                             ${prazo.descricao || prazo.tipo || 'Prazo'}
                         </button>
@@ -12596,7 +12180,7 @@ function gerarMesCalendario(ano, mes) {
 }
 
 function gerarSemanaCalendario(inicioSemana) {
-    const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b', 'Dom'];
+    const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
     const hoje = formatarDataLocalCalendario(new Date());
     let html = '<div class="grid grid-cols-7 gap-2">';
     
@@ -12607,10 +12191,10 @@ function gerarSemanaCalendario(inicioSemana) {
         
         html += `
             <div class="border rounded-lg p-3 min-h-[140px] ${dataLocal === hoje ? 'border-blue-400' : 'border-gray-200'}" onclick="abrirModalCriarPrazo('${dataLocal}')">
-                <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} â€¢ ${dataAtual.toLocaleDateString('pt-PT')}</div>
+                <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} • ${dataAtual.toLocaleDateString('pt-PT')}</div>
                 <div class="space-y-2">
                     ${prazosDia.length ? prazosDia.map(prazo => `
-                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
+                        <button type="button" onclick="event.stopPropagation(); editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
                                 <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
@@ -12630,13 +12214,13 @@ function gerarRelatorios() {
     return `
         <div class="space-y-6">
             <div class="flex justify-between items-center">
-                <h2 class="text-2xl font-bold">RelatÃ³rios</h2>
+                <h2 class="text-2xl font-bold">Relatórios</h2>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">RelatÃ³rio Financeiro por Cliente</h3>
-                    <p class="text-gray-600 mb-4">RelatÃ³rio financeiro personalizado por cliente especÃ­fico</p>
+                    <h3 class="text-lg font-semibold mb-4">Relatório Financeiro por Cliente</h3>
+                    <p class="text-gray-600 mb-4">Relatório financeiro personalizado por cliente específico</p>
                     <button onclick="gerarRelatorioFinanceiroCliente()" class="btn btn-warning">
                         <i data-lucide="dollar-sign" class="w-4 h-4"></i>
                         Gerar
@@ -12644,8 +12228,8 @@ function gerarRelatorios() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">RelatÃ³rio Geral</h3>
-                    <p class="text-gray-600 mb-4">RelatÃ³rio completo do sistema</p>
+                    <h3 class="text-lg font-semibold mb-4">Relatório Geral</h3>
+                    <p class="text-gray-600 mb-4">Relatório completo do sistema</p>
                     <div class="flex flex-wrap gap-2">
                         <button onclick="gerarRelatorioCompleto()" class="btn btn-secondary">
                             <i data-lucide="download" class="w-4 h-4"></i>
@@ -12659,8 +12243,8 @@ function gerarRelatorios() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">RelatÃ³rio por Cliente</h3>
-                    <p class="text-gray-600 mb-4">RelatÃ³rio personalizado por cliente especÃ­fico</p>
+                    <h3 class="text-lg font-semibold mb-4">Relatório por Cliente</h3>
+                    <p class="text-gray-600 mb-4">Relatório personalizado por cliente específico</p>
                     <button onclick="gerarRelatorioCliente()" class="btn btn-secondary">
                         <i data-lucide="user-check" class="w-4 h-4"></i>
                         Gerar
@@ -12668,8 +12252,8 @@ function gerarRelatorios() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">RelatÃ³rio Geral por Cliente</h3>
-                    <p class="text-gray-600 mb-4">RelatÃ³rio geral personalizado por cliente especÃ­fico</p>
+                    <h3 class="text-lg font-semibold mb-4">Relatório Geral por Cliente</h3>
+                    <p class="text-gray-600 mb-4">Relatório geral personalizado por cliente específico</p>
                     <button onclick="gerarRelatorioGeralCliente()" class="btn btn-info">
                         <i data-lucide="file-text" class="w-4 h-4"></i>
                         Gerar
@@ -12679,15 +12263,15 @@ function gerarRelatorios() {
                 <div class="card p-6 md:col-span-2 lg:col-span-3">
                     <div class="flex items-center justify-between mb-4">
                         <div>
-                            <h3 class="text-lg font-semibold">RelatÃ³rios AvanÃ§ados</h3>
-                            <p class="text-gray-600">Filtros por datas, cliente e tipo com exportaÃ§Ã£o em Excel (CSV) e PDF.</p>
+                            <h3 class="text-lg font-semibold">Relatórios Avançados</h3>
+                            <p class="text-gray-600">Filtros por datas, cliente e tipo com exportação em Excel (CSV) e PDF.</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button id="btnExportarCsvRelatorio" class="btn btn-secondary" aria-label="Exportar relatÃ³rio em formato Excel (CSV)">
+                            <button id="btnExportarCsvRelatorio" class="btn btn-secondary" aria-label="Exportar relatório em formato Excel (CSV)">
                                 <i data-lucide="table" class="w-4 h-4"></i>
                                 Exportar Excel
                             </button>
-                            <button id="btnExportarPdfRelatorio" class="btn btn-primary" aria-label="Exportar relatÃ³rio em formato PDF">
+                            <button id="btnExportarPdfRelatorio" class="btn btn-primary" aria-label="Exportar relatório em formato PDF">
                                 <i data-lucide="file-text" class="w-4 h-4"></i>
                                 Exportar PDF
                             </button>
@@ -12708,37 +12292,37 @@ function gerarRelatorios() {
                             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
                             <select id="relatorioAvancadoTipo" class="form-control" aria-label="Filtrar por tipo de registo">
                                 <option value="todos">Todos</option>
-                                <option value="honorarios">HonorÃ¡rios</option>
+                                <option value="honorarios">Honorários</option>
                                 <option value="contratos">Contratos</option>
-                                <option value="herancas">HeranÃ§as</option>
-                                <option value="migracoes">MigraÃ§Ãµes</option>
+                                <option value="herancas">Heranças</option>
+                                <option value="migracoes">Migrações</option>
                                 <option value="registos">Registos</option>
                                 <option value="prazos">Prazos</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="relatorioAvancadoDataInicio">Data inÃ­cio</label>
-                            <input type="date" id="relatorioAvancadoDataInicio" class="form-control" aria-label="Data de inÃ­cio do relatÃ³rio" max="${new Date().toISOString().slice(0,10)}" title="Selecione a data inicial">
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="relatorioAvancadoDataInicio">Data início</label>
+                            <input type="date" id="relatorioAvancadoDataInicio" class="form-control" aria-label="Data de início do relatório" max="${new Date().toISOString().slice(0,10)}" title="Selecione a data inicial">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1" for="relatorioAvancadoDataFim">Data fim</label>
-                            <input type="date" id="relatorioAvancadoDataFim" class="form-control" aria-label="Data de fim do relatÃ³rio" max="${new Date().toISOString().slice(0,10)}" title="Selecione a data final (nÃ£o pode ser antes da data inÃ­cio)">
+                            <input type="date" id="relatorioAvancadoDataFim" class="form-control" aria-label="Data de fim do relatório" max="${new Date().toISOString().slice(0,10)}" title="Selecione a data final (não pode ser antes da data início)">
                         </div>
                     </div>
                     
                     <div class="flex flex-wrap items-center gap-3 mb-4">
-                        <button id="btnAplicarFiltrosRelatorio" class="btn btn-success" aria-label="Aplicar filtros ao relatÃ³rio">
+                        <button id="btnAplicarFiltrosRelatorio" class="btn btn-success" aria-label="Aplicar filtros ao relatório">
                             <i data-lucide="filter" class="w-4 h-4"></i>
                             Aplicar filtros
                         </button>
-                        <button id="btnLimparFiltrosRelatorio" type="button" class="btn btn-secondary" aria-label="Limpar todos os filtros do relatÃ³rio">
+                        <button id="btnLimparFiltrosRelatorio" type="button" class="btn btn-secondary" aria-label="Limpar todos os filtros do relatório">
                             <i data-lucide="x" class="w-4 h-4"></i>
                             Limpar filtros
                         </button>
                         <span id="relatorioAvancadoResumo" class="text-sm text-gray-500">Nenhum filtro aplicado.</span>
                     </div>
                     
-                    <div id="relatorioAvancadoResultados" class="overflow-x-auto text-sm text-gray-600" role="region" aria-live="polite" aria-label="Resultados do relatÃ³rio avanÃ§ado">
+                    <div id="relatorioAvancadoResultados" class="overflow-x-auto text-sm text-gray-600" role="region" aria-live="polite" aria-label="Resultados do relatório avançado">
                         Aplique filtros para visualizar os resultados.
                     </div>
                 </div>
@@ -12760,14 +12344,11 @@ function salvarDocumentosLocal(novos) {
     salvarDados('documentos', documentos);
 }
 
-/** Logos para documentos PDF â€” usa logo incorporada (logo-data.js) ou logo.png como fallback. */
-const LOGO_EMPRESA_URLS = ['logo.png'];
+/** Logos para documentos PDF — tenta logo.png primeiro, depois ana.jpg (relativo à raiz do site). */
+const LOGO_EMPRESA_URLS = ['logo.png', 'ana.jpg'];
 
-/** Carrega a logo como base64 para incluir em PDFs. Usa LOGO_DATA_URI se disponÃ­vel. Devolve null se falhar. */
+/** Carrega a logo como base64 para incluir em PDFs. Devolve null se falhar. */
 function carregarLogoBase64() {
-    if (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) {
-        return Promise.resolve(LOGO_DATA_URI);
-    }
     return new Promise((resolve) => {
         const base = (document.querySelector('base')?.href || window.location.origin + '/').replace(/\/$/, '') + '/';
         const urls = LOGO_EMPRESA_URLS.map(nome => base + nome);
@@ -12798,7 +12379,7 @@ function carregarLogoBase64() {
     });
 }
 
-/** Adiciona a logo ao topo do PDF e devolve o y onde deve comeÃ§ar o conteÃºdo. */
+/** Adiciona a logo ao topo do PDF e devolve o y onde deve começar o conteúdo. */
 async function adicionarLogoAoPdf(doc, margin) {
     const marginY = margin || 20;
     const logoData = await carregarLogoBase64();
@@ -12814,21 +12395,18 @@ async function adicionarLogoAoPdf(doc, margin) {
     } catch (e) { return marginY; }
 }
 
-/** Dados da solicitadora â€” edite aqui para personalizar procuraÃ§Ãµes, faturas e rodapÃ©. */
+/** Dados da solicitadora — edite aqui para personalizar procurações, faturas e rodapé. */
 const DADOS_SOLICITADORA = {
-    nome: 'Dra. Ana Paula Medina',
+    nome: 'Dra. Ana Paula Pinto Medina',
     titulo: 'Solicitadora',
     cedula: '9738',
-    sede: 'Av. Aquilino Ribeiro Machado, n.Âº 8, 1800-399 Lisboa',
+    sede: 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa',
     nif: '288132335',
-    morada: 'Rua Melo Antunes, nÃºmero 34, 3Âº DTO, 2526-728 Vialonga',
+    morada: 'Rua Melo Antunes, número 34, 3º DTO, 2526-728 Vialonga',
     contacto: '+351 938057340',
     email: 'anapaulamedina09738@osae.pt',
     iban: 'PT50 0193 0000 10514937886 86',
-    website: 'Solicitadora Ana Paula',
-    websiteUrl: 'https://www.anapaulamedinasolicitadora.pt/',
-    /** Despesas padrÃ£o que aparecem em todas as faturas. Edite ou defina [] para nenhuma. */
-    despesasPadrao: [{ descricao: 'Emolumentos / CertidÃ£o', valor: 15 }]
+    website: 'Solicitadora Ana Paula'
 };
 
 /** Converte valor em euros para texto por extenso (simplificado). */
@@ -12837,7 +12415,7 @@ function valorPorExtenso(valor) {
     const inteiro = Math.floor(v);
     const centavos = Math.round((v - inteiro) * 100);
     if (inteiro === 0 && centavos === 0) return 'zero euros';
-    const unidades = ['', 'um', 'dois', 'trÃªs', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+    const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
     const especiais = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezasseis', 'dezassete', 'dezoito', 'dezanove'];
     const dezenas = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
     const centenas = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
@@ -12855,11 +12433,11 @@ function valorPorExtenso(valor) {
     if (restante > 0) txt += (txt ? ' e ' : '') + ate999(restante);
     if (inteiro === 1) txt += ' euro';
     else txt += ' euros';
-    if (centavos > 0) txt += ' e ' + ate999(centavos) + (centavos === 1 ? ' cÃªntimo' : ' cÃªntimos');
+    if (centavos > 0) txt += ' e ' + ate999(centavos) + (centavos === 1 ? ' cêntimo' : ' cêntimos');
     return txt;
 }
 
-/** Gera conteÃºdo da Fatura/Recibo profissional (com logo e rodapÃ© no PDF). */
+/** Gera conteúdo da Fatura/Recibo profissional (com logo e rodapé no PDF). */
 function gerarConteudoFaturaRecibo(dados) {
     const fatura = dados.fatura;
     const cliente = dados.cliente || {};
@@ -12885,8 +12463,8 @@ function gerarConteudoFaturaRecibo(dados) {
     const valorRecebido = somaPagamentos || valorPagar;
     const descricaoServico = (fatura.itens && fatura.itens[0] && fatura.itens[0].descricao)
         ? fatura.itens[0].descricao
-        : (fatura.observacoes && !fatura.observacoes.includes('Artigo n.Âº 53') ? fatura.observacoes : null)
-            || 'Assessoria JurÃ­dica';
+        : (fatura.observacoes && fatura.observacoes !== 'Artigo n.º 53' ? fatura.observacoes : null)
+            || 'Assessoria Jurídica';
 
     const nifCliente = (cliente.nif || cliente.documento || '').replace(/\s/g, '');
     const nifFormatado = nifCliente ? nifCliente.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') : '__________';
@@ -12895,162 +12473,38 @@ function gerarConteudoFaturaRecibo(dados) {
 
     const linhas = [
         'SOLICITADORA ANA PAULA MEDINA',
-        `Contribuinte n.Âº ${nifSolicitadora}  |  Tlm: ${sol.contacto || '+351 938057340'}  |  Email: ${sol.email || 'anapaulamedina09738@osae.pt'}`,
+        `Contribuinte n.º ${nifSolicitadora}  |  Tlm: ${sol.contacto || '+351 938057340'}  |  Email: ${sol.email || 'anapaulamedina09738@osae.pt'}`,
         `IBAN: ${sol.iban || 'PT50 0193 0000 10514937886 86'}`,
-        `V/ n.Âº contribuinte: ${nifFormatado}`,
+        `V/ n.º contribuinte: ${nifFormatado}`,
         '',
         `Fatura/Recibo: ${numeroFmt} (Original)`,
-        `Data de EmissÃ£o: ${dataFmt}  |  Vencimento: ${vencFmt}  |  ${atcud}`,
+        `Data de Emissão: ${dataFmt}  |  Vencimento: ${vencFmt}  |  ${atcud}`,
         '',
         'Exmo(s) Sr(s)',
         cliente.nome || '[Nome do Cliente]',
         moradaCliente,
         '',
-        'DescriÃ§Ã£o                                    | Art. | Qt    | IncidÃªncia | IVA% | Total (â‚¬)',
+        'Descrição                                    | Art. | Qt    | Incidência | IVA% | Total (€)',
         `Acto #1 ${descricaoServico.substring(0, 35).padEnd(35)} | 7    | 1,00  | isento      | 0%   | ${valorBase.toFixed(2)}`,
-        `Taxa de IVA Base de IncidÃªncia 0,00%                                              | 0,00`,
+        `Taxa de IVA Base de Incidência 0,00%                                              | 0,00`,
         '',
-        `ServiÃ§os/Produtos: ${valorBase.toFixed(2)}  |  IVA: ${iva.toFixed(2)}  |  TOTAL: ${valorTotal.toFixed(2)}`,
-        `Valor a Pagar: â‚¬${valorPagar.toFixed(2)}`,
+        `Serviços/Produtos: ${valorBase.toFixed(2)}  |  IVA: ${iva.toFixed(2)}  |  TOTAL: ${valorTotal.toFixed(2)}`,
+        `Valor a Pagar: €${valorPagar.toFixed(2)}`,
         '',
         `Recebemos por este documento ${valorPorExtenso(valorRecebido).replace(/^./, c => c.toUpperCase())}.`,
         '',
-        'Artigo 7 HonorÃ¡rios: ' + valorBase.toFixed(2) + '  |  Impostos: ' + iva.toFixed(2) + '  |  Total: ' + valorTotal.toFixed(2),
+        'Artigo 7 Honorários: ' + valorBase.toFixed(2) + '  |  Impostos: ' + iva.toFixed(2) + '  |  Total: ' + valorTotal.toFixed(2),
         '',
-        'Artigo n.Âº 53 CIVA',
+        'Artigo n.º 53',
         '',
         'Recibos:',
-        ...(pagamentos.length > 0 ? pagamentos.map((p, i) => `  Recibo REC ${ano}REC${String(i + 1).padStart(3, '0')}/1 | ${(p.dataPagamento || p.data || '').toString().split('T')[0]} | Valor Recebido: ${(parseFloat(p.valor) || 0).toFixed(2)} | RetenÃ§Ã£o: ${retencao.toFixed(2)}`) : ['  (Nenhum recibo registado)']),
+        ...(pagamentos.length > 0 ? pagamentos.map((p, i) => `  Recibo REC ${ano}REC${String(i + 1).padStart(3, '0')}/1 | ${(p.dataPagamento || p.data || '').toString().split('T')[0]} | Valor Recebido: ${(parseFloat(p.valor) || 0).toFixed(2)} | Retenção: ${retencao.toFixed(2)}`) : ['  (Nenhum recibo registado)']),
         obterRodapeDocumento()
     ];
     return linhas.join('\n');
 }
 
-/** Gera HTML da fatura no layout billing (tabelas, despesas, recibo, QR) para imprimir/PDF. */
-function gerarHtmlFaturaBilling(dados) {
-    const fatura = dados.fatura;
-    const cliente = dados.cliente || {};
-    const sol = dados.solicitadora || DADOS_SOLICITADORA || {};
-    if (!fatura) return '';
-
-    const fmt = (v) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(parseFloat(v) || 0);
-    const fmtNif = (n) => (n || '').replace(/\s/g, '').replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
-    const fmtDate = (d) => (d || '').toString().split('T')[0].split('-').reverse().join('/');
-
-    const itensRaw = fatura.itens || [{ descricao: fatura.observacoes || 'Assessoria JurÃ­dica', quantidade: 1, precoUnitario: fatura.valorTotal || fatura.valor || 0, taxaIva: 0, ivaPercent: 0, valorTotal: fatura.valorTotal || fatura.valor || 0 }];
-    const despesasFromArray = (fatura.despesas || []).map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorTotal: parseFloat(d.valor || d.valorTotal || 0), precoUnitario: parseFloat(d.valor || d.valorTotal || 0) }));
-    const despesasFromItens = itensRaw.filter(i => /emolumentos|certidÃ£o|certidao|taxa|despesa/i.test((i.descricao || '')));
-    let despesas = despesasFromArray.length ? despesasFromArray : despesasFromItens.map(i => ({ descricao: i.descricao, valorTotal: parseFloat(i.valorTotal || i.precoUnitario || 0), precoUnitario: parseFloat(i.precoUnitario || i.valorTotal || 0) }));
-    if (despesas.length === 0 && Array.isArray((sol.despesasPadrao || DADOS_SOLICITADORA?.despesasPadrao))) {
-        const padrao = (sol.despesasPadrao || DADOS_SOLICITADORA?.despesasPadrao || []);
-        despesas = padrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorTotal: parseFloat(d.valor || 0), precoUnitario: parseFloat(d.valor || 0) }));
-    }
-    const servicos = itensRaw.filter(i => !/emolumentos|certidÃ£o|certidao|taxa|despesa/i.test((i.descricao || '')));
-    if (servicos.length === 0 && itensRaw.length) servicos.push(itensRaw[0]);
-
-    const subtotalServicos = servicos.reduce((s, i) => s + (parseFloat(i.valorTotal || i.precoUnitario) || 0), 0);
-    const subtotalDespesas = despesas.reduce((s, i) => s + (parseFloat(i.valorTotal || i.precoUnitario) || 0), 0);
-    const totalComIva = fatura.despesas?.length ? (parseFloat(fatura.valorTotal || fatura.valor || 0) || (subtotalServicos + subtotalDespesas)) : (subtotalServicos + subtotalDespesas);
-
-    const numero = fatura.numero || fatura.id || 'FAT-';
-    const dataEmissao = fatura.dataEmissao || fatura.data || new Date().toISOString().split('T')[0];
-    const incluirRecibo = true;
-    const valorAPagar = totalComIva - (parseFloat(fatura.somaPagamentos || 0) || 0);
-
-    const siteUrl = (sol.websiteUrl || DADOS_SOLICITADORA?.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
-    const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
-    const qrSrc = dados.qrBase64 ? `data:image/png;base64,${dados.qrBase64}` : `https://api.qrserver.com/v1/create-qrcode/?size=150x150&data=${encodeURIComponent(qrData)}`;
-
-    const logo = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : '';
-
-    const rowsServicos = servicos.map(i => {
-        const q = parseFloat(i.quantidade || 1);
-        const p = parseFloat(i.precoUnitario || i.valorTotal || 0);
-        const t = parseFloat(i.valorTotal || 0) || p * q;
-        return `<tr><td>${(i.descricao || '').substring(0, 50)}</td><td>7</td><td>${q.toFixed(2)}</td><td>isento</td><td>${fmt(p)}</td><td>0%</td><td>${fmt(t)}</td></tr>`;
-    }).join('');
-
-    const rowsDespesas = despesas.map(i => {
-        const t = parseFloat(i.valorTotal || i.precoUnitario || 0);
-        return `<tr><td>${(i.descricao || '').substring(0, 50)}</td><td>${fmt(i.precoUnitario || i.valorTotal || 0)}</td><td>0%</td><td>${fmt(t)}</td></tr>`;
-    }).join('');
-
-    let observacoes = fatura.notas || 'Artigo n.Âº 53 CIVA';
-    if (observacoes.includes('Artigo n.Âº 53') && !observacoes.includes('CIVA')) observacoes = 'Artigo n.Âº 53 CIVA';
-    const pagamentosLista = Array.isArray(dados.pagamentos) ? dados.pagamentos : [];
-    const ano = new Date().getFullYear();
-    const rowsRecibos = pagamentosLista.length > 0
-        ? pagamentosLista.map((p, i) => {
-            const n = `REC ${ano}REC${String(i + 1).padStart(3, '0')}/1`;
-            const d = fmtDate(p.dataPagamento || p.data || dataEmissao);
-            const v = fmt(parseFloat(p.valor || 0));
-            return `<tr><td>${n}</td><td>${d}</td><td>${v}</td><td>0,00 â‚¬</td></tr>`;
-        }).join('')
-        : `<tr><td>${numero}</td><td>${fmtDate(dataEmissao)}</td><td>${fmt(valorAPagar)}</td><td>0,00 â‚¬</td></tr>`;
-
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><style>
-html,body,.invoice-body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:25px 35px;background:#fff!important}
-.invoice-container{max-width:210mm;margin:0 auto;background:#fff}
-.action-bar{margin-top:20px;padding:12px 0;border-top:1px solid #ddd;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;background:#f8fafc}
-@media print{.action-bar{display:none!important}}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:15px}
-.logo{width:100px;height:auto}
-.issuer-info{text-align:right}
-.issuer-info h1,.nome-fatura{font-size:14px;font-weight:600;font-family:Arial,sans-serif;letter-spacing:0;line-height:1.2}
-.issuer-info h1{margin:0 0 6px}
-.issuer-info p{margin:2px 0;font-size:10px}
-.divider{margin:12px 0;border:none;border-top:1px solid #aaa}
-.doc-info{margin-bottom:18px}
-.doc-info h3{margin:0 0 4px;font-size:13px;font-weight:600}
-.client-section{margin-bottom:18px}
-.client-section h4{margin:0 0 6px;font-size:11px;font-weight:600}
-.client-section p{margin:2px 0;font-size:10px}
-.client-section p.client-name{font-size:14px}
-.items{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}
-.items th{background:#f5f5f5;border:1px solid #ccc;padding:6px 8px;text-align:left}
-.items td{border:1px solid #ccc;padding:6px 8px}
-.despesas-title,.section-title{margin:12px 0 6px;font-size:11px;font-weight:600}
-.totals-wrap{display:flex;justify-content:flex-end;margin-bottom:18px}
-.totals{min-width:220px;border-collapse:collapse}
-.totals td{padding:5px 12px;border:1px solid #ccc;font-size:10px}
-.totals td:first-child{background:#f8f8f8}
-.totals .total-row td,.totals .pay-row td{font-weight:bold}
-.totals .pay-row td{font-size:12px;background:#f0f0f0}
-.observacoes-section{margin-bottom:18px}
-.observacoes-section h4{margin:0;font-size:11px;font-weight:600}
-.observacoes-section .obs-line{border:none;border-top:1px solid #333;margin:6px 0}
-.observacoes-section .obs-text{margin:6px 0;font-size:10px}
-.footer{text-align:right;margin-top:25px}
-.qrcode{width:85px;height:85px}
-</style></head><body class="invoice-body"><div class="invoice-container">
-<div class="header">${logo ? `<img src="${logo}" class="logo" alt="Logo"/>` : ''}
-<div class="issuer-info"><h1 class="nome-fatura">${sol.nome || 'Dra. Ana Paula Medina'}</h1>
-${sol.nif ? `<p>NIF: ${fmtNif(sol.nif)}</p>` : ''}<p>Tlm: ${sol.contacto || ''}</p><p>Email: ${sol.email || ''}</p><p>IBAN: ${sol.iban || ''}</p><p>Sede: ${sol.sede || ''}</p></div></div>
-<hr class="divider"/>
-<div class="doc-info"><h3>Fatura/Recibo ${numero}</h3><p>Data: ${fmtDate(dataEmissao)}</p></div>
-<div class="client-section"><h4>Cliente</h4><p class="client-name nome-fatura">${cliente.nome || ''}</p>
-${cliente.nif || cliente.documento ? `<p>NIF: ${fmtNif(cliente.nif || cliente.documento)}</p>` : ''}
-<p>${(cliente.morada || cliente.endereco || '').toString().replace(/\n/g, ', ')}</p>
-<p>${(cliente.codigoPostal || '')} ${(cliente.localidade || '')}</p></div>
-<table class="items"><thead><tr><th>DescriÃ§Ã£o</th><th>Art.</th><th>Qtd</th><th>IncidÃªncia</th><th>PreÃ§o Unit.</th><th>IVA %</th><th>Total</th></tr></thead><tbody>${rowsServicos}</tbody></table>
-${despesas.length ? `<h4 class="despesas-title">Despesas</h4><table class="items despesas-table"><thead><tr><th>DescriÃ§Ã£o</th><th>Valor</th><th>IVA %</th><th>Total</th></tr></thead><tbody>${rowsDespesas}</tbody></table>` : ''}
-<div class="totals-wrap"><table class="totals">
-<tr><td>ServiÃ§os/Produtos</td><td>${fmt(subtotalServicos)}</td></tr>
-${despesas.length ? `<tr><td>Despesas</td><td>${fmt(subtotalDespesas)}</td></tr>` : ''}
-<tr><td>IVA</td><td>0,00 â‚¬</td></tr>
-<tr class="total-row"><td>Total</td><td>${fmt(totalComIva)}</td></tr>
-<tr class="pay-row"><td>Valor a Pagar</td><td>${fmt(valorAPagar)}</td></tr></table></div>
-<div class="observacoes-section"><h4>ObservaÃ§Ãµes</h4><hr class="obs-line"/><p class="obs-text">${observacoes}</p><hr class="obs-line"/></div>
-${incluirRecibo ? `<h4 class="section-title">Recibos</h4><table class="items"><thead><tr><th>N.Âº</th><th>Data</th><th>Valor Recebido</th><th>IVA Liquidado</th></tr></thead><tbody>${rowsRecibos}</tbody></table>` : ''}
-<div class="footer"><img src="${qrSrc}" class="qrcode" alt="QR Code"/></div>
-<div class="action-bar">
-<button type="button" onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">Imprimir / Guardar PDF</button>
-<button type="button" onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Fechar</button>
-<span style="color:#6b7280;margin-left:8px">Ou use Ctrl+P para imprimir. Feche esta janela quando terminar.</span>
-</div></div></body></html>`;
-}
-
-/** RodapÃ© padrÃ£o â€” aparece no fim de todos os documentos PDF gerados. */
+/** Rodapé padrão — aparece no fim de todos os documentos PDF gerados. */
 function obterRodapeDocumento() {
     const s = typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {};
     return [
@@ -13058,7 +12512,7 @@ function obterRodapeDocumento() {
         '---',
         '',
         `Contacto: ${s.contacto || '+351 938057340'}`,
-        `EndereÃ§o: ${s.sede || 'Av. Aquilino Ribeiro Machado, n.Âº 8, 1800-399 Lisboa'}`,
+        `Endereço: ${s.sede || 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa'}`,
         `Email: ${s.email || 'anapaulamedina09738@osae.pt'}`,
         `Website: ${s.website || 'Solicitadora Ana Paula'}`
     ].join('\n');
@@ -13066,15 +12520,15 @@ function obterRodapeDocumento() {
 
 function obterModelosDocumentos() {
     return [
-        { id: 'procuracao_simples', nome: 'ProcuraÃ§Ã£o Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
-        { id: 'procuracao_aima', nome: 'ProcuraÃ§Ã£o para AIMA / ResidÃªncia', arquivo: 'procuracao_aima', tipo: 'procuracao' },
-        { id: 'procuracao_irn', nome: 'ProcuraÃ§Ã£o para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
-        { id: 'procuracao_financas', nome: 'ProcuraÃ§Ã£o para FinanÃ§as', arquivo: 'procuracao_financas', tipo: 'procuracao' },
-        { id: 'procuracao_geral', nome: 'ProcuraÃ§Ã£o Geral', arquivo: 'procuracao_geral', tipo: 'procuracao' },
-        { id: 'declaracao_comparecimento', nome: 'DeclaraÃ§Ã£o de Comparecimento', arquivo: 'declaracao_comparecimento', tipo: 'outro' },
-        { id: 'declaracao_residencia', nome: 'DeclaraÃ§Ã£o de ResidÃªncia', arquivo: 'declaracao_residencia', tipo: 'outro' },
-        { id: 'declaracao_conhecimento', nome: 'DeclaraÃ§Ã£o de Conhecimento', arquivo: 'declaracao_conhecimento', tipo: 'outro' },
-        { id: 'recibo_honorarios', nome: 'Recibo de HonorÃ¡rios', arquivo: 'recibo_honorarios', tipo: 'outro' },
+        { id: 'procuracao_simples', nome: 'Procuração Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
+        { id: 'procuracao_aima', nome: 'Procuração para AIMA / Residência', arquivo: 'procuracao_aima', tipo: 'procuracao' },
+        { id: 'procuracao_irn', nome: 'Procuração para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
+        { id: 'procuracao_financas', nome: 'Procuração para Finanças', arquivo: 'procuracao_financas', tipo: 'procuracao' },
+        { id: 'procuracao_geral', nome: 'Procuração Geral', arquivo: 'procuracao_geral', tipo: 'procuracao' },
+        { id: 'declaracao_comparecimento', nome: 'Declaração de Comparecimento', arquivo: 'declaracao_comparecimento', tipo: 'outro' },
+        { id: 'declaracao_residencia', nome: 'Declaração de Residência', arquivo: 'declaracao_residencia', tipo: 'outro' },
+        { id: 'declaracao_conhecimento', nome: 'Declaração de Conhecimento', arquivo: 'declaracao_conhecimento', tipo: 'outro' },
+        { id: 'recibo_honorarios', nome: 'Recibo de Honorários', arquivo: 'recibo_honorarios', tipo: 'outro' },
         { id: 'fatura_recibo', nome: 'Fatura/Recibo (Profissional)', arquivo: 'fatura_recibo', tipo: 'fatura' }
     ];
 }
@@ -13106,19 +12560,17 @@ function toggleCamposProcuracaoAima() {
     const faturas = (typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial');
     const numFaturas = faturas.length;
     if (hintSemFaturas) hintSemFaturas.classList.toggle('hidden', !isFaturaRecibo || numFaturas > 0);
-    const btnGuardar = document.getElementById('btnGuardarFaturaCliente');
-    if (btnGuardar) btnGuardar.classList.toggle('hidden', !isFaturaRecibo);
-    // Atualiza o dropdown de faturas com dados em tempo real (importante apÃ³s "Gerar faturas")
+    // Atualiza o dropdown de faturas com dados em tempo real (importante após "Gerar faturas")
     if (isFaturaRecibo && selectFatura) {
         const valorSel = selectFatura.value;
         selectFatura.innerHTML = '<option value="">Selecione a fatura</option>' + faturas.map(f => 
-            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
+            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
         ).join('');
         if (valorSel && faturas.some(f => String(f.id) === String(valorSel))) selectFatura.value = valorSel;
     }
 }
 
-/** Atualiza a Ã¡rea de texto com o conteÃºdo do modelo selecionado (permite adaptar antes de gerar PDF). */
+/** Atualiza a área de texto com o conteúdo do modelo selecionado (permite adaptar antes de gerar PDF). */
 function atualizarPreviewTemplateDocumento() {
     const modeloId = document.getElementById('templateModelo')?.value || '';
     if (!modeloId) {
@@ -13138,7 +12590,7 @@ function atualizarPreviewTemplateDocumento() {
         solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}
     };
     if (!dadosPreview.cliente) {
-        dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[EndereÃ§o]' };
+        dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
     }
     const conteudo = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
     const ta = document.getElementById('templateConteudoAdaptavel');
@@ -13196,20 +12648,20 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
     switch (modeloId) {
         case 'procuracao_aima':
             return [
-                'PROCURAÃ‡ÃƒO',
+                'PROCURAÇÃO',
                 '',
-                `Por mim outorgado, ${nomeCliente}, NF ${nif}, solteiro(a), maior, residente em ${morada}, portador(a) do passaporte n.Âº __________ da RepÃºblica da ________________, vÃ¡lido atÃ© __________,`,
+                `Por mim outorgado, ${nomeCliente}, NF ${nif}, solteiro(a), maior, residente em ${morada}, portador(a) do passaporte n.º __________ da República da ________________, válido até __________,`,
                 '',
-                `concedo poderes a ${sol.nome || 'Dra. Ana Paula Medina'}, ${sol.titulo || 'Solicitadora'}, com cÃ©dula profissional n.Âº ${sol.cedula || '9738'}, com sede em ${sol.sede || 'Av. Aquilino Ribeiro Machado n.Âº 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, solteira, maior, residente em ${sol.morada || 'Rua Melo Antunes, nÃºmero 34, 3Âº DTO, 2526-728 Vialonga'},`,
+                `concedo poderes a ${sol.nome || 'Dra. Ana Paula Pinto Medina'}, ${sol.titulo || 'Solicitadora'}, com cédula profissional n.º ${sol.cedula || '9738'}, com sede em ${sol.sede || 'Av. Aquilino Ribeiro Machado n.º 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, solteira, maior, residente em ${sol.morada || 'Rua Melo Antunes, número 34, 3º DTO, 2526-728 Vialonga'},`,
                 '',
-                objCustom ? objCustom : `confere poderes para, em seu nome, acompanhar e praticar todos os atos necessÃ¡rios Ã  ConcessÃ£o do tÃ­tulo de residÃªncia em Portugal com base no processo nÃºmero ${numProc} ao abrigo do artigo 88Âº da Lei 23/2007 de 04 de Julho na sua redaÃ§Ã£o atual, junto das competentes entidades portuguesas, nomeadamente AgÃªncia para IntegraÃ§Ã£o, MigraÃ§Ã£o e Asilo (AIMA) podendo para o efeito declarar, praticar e assinar tudo o que seja necessÃ¡rio ao indicado fim, se necessÃ¡rio, substabelecer os poderes que lhe forem conferidos.`,
+                objCustom ? objCustom : `confere poderes para, em seu nome, acompanhar e praticar todos os atos necessários à Concessão do título de residência em Portugal com base no processo número ${numProc} ao abrigo do artigo 88º da Lei 23/2007 de 04 de Julho na sua redação atual, junto das competentes entidades portuguesas, nomeadamente Agência para Integração, Migração e Asilo (AIMA) podendo para o efeito declarar, praticar e assinar tudo o que seja necessário ao indicado fim, se necessário, substabelecer os poderes que lhe forem conferidos.`,
                 '',
                 `Lisboa, ${dataHoje}`,
                 obterRodapeDocumento()
             ].join('\n');
         case 'procuracao_simples':
             return [
-                'PROCURAÃ‡ÃƒO SIMPLES',
+                'PROCURAÇÃO SIMPLES',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
                 'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
@@ -13222,13 +12674,13 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'procuracao_irn':
             return [
-                'PROCURAÃ‡ÃƒO PARA INSTITUTO DOS REGISTOS E NOTARIADO',
+                'PROCURAÇÃO PARA INSTITUTO DOS REGISTOS E NOTARIADO',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
                 'pelo presente instrumento particular, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto do IRN e ConservatÃ³rias,',
-                'com poderes para praticar actos de registo civil, predial e comercial, requerer certidÃµes,',
-                'autenticar documentos e demais actos inerentes ao Ã¢mbito notarial e registral.',
+                'o(a) Dr(a). ________________________, para me representar junto do IRN e Conservatórias,',
+                'com poderes para praticar actos de registo civil, predial e comercial, requerer certidões,',
+                'autenticar documentos e demais actos inerentes ao âmbito notarial e registral.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13237,13 +12689,13 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'procuracao_financas':
             return [
-                'PROCURAÃ‡ÃƒO PARA AUTORIDADE TRIBUTÃRIA',
+                'PROCURAÇÃO PARA AUTORIDADE TRIBUTÁRIA',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
                 'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto das FinanÃ§as / AT,',
-                'com poderes para consultar e submeter declaraÃ§Ãµes fiscais, obter certidÃµes,',
-                'tratar de matÃ©ria contributiva e aduaneira, e demais actos necessÃ¡rios.',
+                'o(a) Dr(a). ________________________, para me representar junto das Finanças / AT,',
+                'com poderes para consultar e submeter declarações fiscais, obter certidões,',
+                'tratar de matéria contributiva e aduaneira, e demais actos necessários.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13252,13 +12704,13 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'procuracao_geral':
             return [
-                'PROCURAÃ‡ÃƒO GERAL',
+                'PROCURAÇÃO GERAL',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
                 'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
                 'o(a) Dr(a). ________________________, para me representar junto de quaisquer entidades,',
-                'com poderes genÃ©ricos para praticar todos os actos que no meu interesse entender,',
-                'incluindo representaÃ§Ã£o em organismos pÃºblicos, bancos e serviÃ§os administrativos.',
+                'com poderes genéricos para praticar todos os actos que no meu interesse entender,',
+                'incluindo representação em organismos públicos, bancos e serviços administrativos.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13267,11 +12719,11 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'declaracao_comparecimento':
             return [
-                'DECLARAÃ‡ÃƒO DE COMPARECIMENTO',
+                'DECLARAÇÃO DE COMPARECIMENTO',
                 '',
-                `Declaro que ${nomeCliente}, NIF ${nif}, compareceu neste escritÃ³rio no dia ${dataHoje}.`,
+                `Declaro que ${nomeCliente}, NIF ${nif}, compareceu neste escritório no dia ${dataHoje}.`,
                 '',
-                'Para os devidos efeitos, assino a presente declaraÃ§Ã£o.',
+                'Para os devidos efeitos, assino a presente declaração.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13280,11 +12732,11 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'declaracao_residencia':
             return [
-                'DECLARAÃ‡ÃƒO DE RESIDÃŠNCIA',
+                'DECLARAÇÃO DE RESIDÊNCIA',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, declaro que resido em ${morada}.`,
                 '',
-                'Declaro, sob compromisso de honra, que as informaÃ§Ãµes acima sÃ£o verdadeiras.',
+                'Declaro, sob compromisso de honra, que as informações acima são verdadeiras.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13293,14 +12745,14 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'declaracao_conhecimento':
             return [
-                'DECLARAÃ‡ÃƒO DE CONHECIMENTO',
+                'DECLARAÇÃO DE CONHECIMENTO',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'declaro, sob compromisso de honra, que tomei conhecimento do conteÃºdo',
-                'dos documentos que me foram apresentados e que as informaÃ§Ãµes prestadas',
-                'correspondem Ã  verdade dos factos.',
+                'declaro, sob compromisso de honra, que tomei conhecimento do conteúdo',
+                'dos documentos que me foram apresentados e que as informações prestadas',
+                'correspondem à verdade dos factos.',
                 '',
-                'Para os devidos efeitos legais, assino a presente declaraÃ§Ã£o.',
+                'Para os devidos efeitos legais, assino a presente declaração.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13309,10 +12761,10 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
             ].join('\n');
         case 'recibo_honorarios':
             return [
-                'RECIBO DE HONORÃRIOS',
+                'RECIBO DE HONORÁRIOS',
                 '',
-                `Recebi de ${nomeCliente}, NIF ${nif}, a quantia de â‚¬__________`,
-                'referente a honorÃ¡rios profissionais.',
+                `Recebi de ${nomeCliente}, NIF ${nif}, a quantia de €__________`,
+                'referente a honorários profissionais.',
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
@@ -13322,55 +12774,7 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
         case 'fatura_recibo':
             return gerarConteudoFaturaRecibo(dados);
         default:
-            return 'Modelo nÃ£o encontrado.';
-    }
-}
-
-/** Guarda a fatura selecionada como documento associado ao cliente. */
-async function guardarFaturaComoDocumentoCliente() {
-    const dados = obterDadosTemplateDocumento();
-    if (!dados || dados.modeloId !== 'fatura_recibo' || !dados.fatura) {
-        mostrarNotificacao('Selecione uma fatura primeiro.', 'warning');
-        return;
-    }
-    if (!exigirPermissaoAcao('criar', 'documento')) return;
-    const fatura = dados.fatura;
-    const cliente = dados.cliente || {};
-    const clienteId = fatura.clienteId || cliente.id;
-    if (!clienteId) {
-        mostrarNotificacao('Fatura sem cliente associado.', 'warning');
-        return;
-    }
-    const lista = obterDocumentosAtual();
-    const jaExiste = lista.some(d => String(d.faturaId) === String(fatura.id) && String(d.clienteId) === String(clienteId));
-    if (jaExiste) {
-        mostrarNotificacao('Esta fatura jÃ¡ estÃ¡ guardada nos documentos do cliente.', 'info');
-        return;
-    }
-    const numero = fatura.numero || fatura.id || 'FAT';
-    const documento = {
-        id: gerarIdImutavel(),
-        clienteId,
-        clienteNome: fatura.clienteNome || cliente.nome || 'Cliente',
-        faturaId: fatura.id,
-        processoTipo: 'fatura_recibo',
-        tipoArquivo: 'text/html',
-        nomeArquivo: `Fatura ${numero}.html`,
-        descricao: `Fatura ${numero} - ${fatura.clienteNome || cliente.nome || ''} - â‚¬${(parseFloat(fatura.valorTotal || fatura.valor) || 0).toFixed(2)}`,
-        dataCriacao: new Date().toISOString()
-    };
-    try {
-        if (isCloudReady() && typeof criarDocumentoCloud === 'function') {
-            await criarDocumentoCloud(documento);
-        } else {
-            lista.unshift(documento);
-            salvarDocumentosLocal(lista);
-        }
-        aplicarFiltrosDocumentos && aplicarFiltrosDocumentos();
-        mostrarNotificacao(`Fatura ${numero} guardada nos documentos de ${documento.clienteNome}.`, 'success');
-    } catch (e) {
-        console.warn('Erro ao guardar fatura:', e);
-        mostrarNotificacao('Erro ao guardar. Tente novamente.', 'error');
+            return 'Modelo não encontrado.';
     }
 }
 
@@ -13384,7 +12788,7 @@ async function gerarTemplateDocumento(acao) {
     const modelos = obterModelosDocumentos();
     const modelo = modelos.find(m => m.id === dados.modeloId);
     if (!modelo) {
-        mostrarNotificacao('Modelo nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Modelo não encontrado.', 'error');
         return;
     }
 
@@ -13394,43 +12798,10 @@ async function gerarTemplateDocumento(acao) {
     const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
     if (acao === 'baixar' || acao === 'imprimir') {
-        if (dados.modeloId === 'fatura_recibo' && dados.fatura && typeof gerarHtmlFaturaBilling === 'function') {
-            try {
-                let qrBase64 = '';
-                const tempDiv = document.createElement('div');
-                tempDiv.style.cssText = 'position:fixed;left:-9999px;opacity:0;pointer-events:none;';
-                try {
-                    if (typeof QRCode !== 'undefined') {
-                        document.body.appendChild(tempDiv);
-                        const fatura = dados.fatura;
-                        const numero = fatura.numero || fatura.id || 'FAT-';
-                        const sol = dados.solicitadora || DADOS_SOLICITADORA || {};
-                        const siteUrl = (sol.websiteUrl || DADOS_SOLICITADORA?.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
-                        const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
-                        new QRCode(tempDiv, { text: qrData, width: 128, height: 128 });
-                        const canvas = tempDiv.querySelector('canvas');
-                        if (canvas) qrBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
-                    }
-                } finally {
-                    if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
-                }
-                dados.qrBase64 = qrBase64;
-                const html = gerarHtmlFaturaBilling(dados);
-                const janela = typeof abrirHtmlNovaJanela === 'function' ? abrirHtmlNovaJanela(html, acao === 'imprimir') : null;
-                if (janela) {
-                    mostrarNotificacao('Fatura aberta noutra janela. Use Ctrl+P para imprimir/guardar PDF.', 'success');
-                } else {
-                    mostrarNotificacao('Bloqueador de janelas impediu a abertura. Permita janelas para este site e tente novamente.', 'warning');
-                }
-                return;
-            } catch (e) {
-                console.warn('Fatura HTML falhou, a usar formato texto:', e);
-            }
-        }
         try {
             const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
             if (!jsPDF) {
-                mostrarNotificacao('Biblioteca PDF nÃ£o carregada. FaÃ§a Ctrl+F5 para recarregar a pÃ¡gina.', 'error');
+                mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar a página.', 'error');
                 return;
             }
             const doc = new jsPDF({ format: 'a4', unit: 'mm' });
@@ -13507,14 +12878,14 @@ function gerarIntegracoes() {
     const entidadesLista = obterEntidadesParaSelect().filter(e => e.id);
     const lista = obterIntegracoesExternasAtual();
     const processosTipos = [
-        { value: 'heranca', label: 'HeranÃ§a' },
-        { value: 'migracao', label: 'MigraÃ§Ã£o' },
+        { value: 'heranca', label: 'Herança' },
+        { value: 'migracao', label: 'Migração' },
         { value: 'registo', label: 'Registo' }
     ];
     const estadosLista = [
         { value: 'pendente', label: 'Pendente' },
         { value: 'enviado', label: 'Enviado' },
-        { value: 'concluido', label: 'ConcluÃ­do' },
+        { value: 'concluido', label: 'Concluído' },
         { value: 'indeferido', label: 'Indeferido' },
         { value: 'cancelado', label: 'Cancelado' }
     ];
@@ -13528,18 +12899,18 @@ function gerarIntegracoes() {
     return `
         <div class="space-y-6">
             <div class="flex justify-between items-center">
-                <h2 class="text-2xl font-bold">IntegraÃ§Ãµes Externas</h2>
+                <h2 class="text-2xl font-bold">Integrações Externas</h2>
                 ${isAdmin ? `
                     <button onclick="abrirModalNovaIntegracao()" class="btn btn-primary">
                         <i data-lucide="plus" class="w-4 h-4"></i>
-                        Nova IntegraÃ§Ã£o
+                        Nova Integração
                     </button>
                 ` : ''}
             </div>
             ${isAdmin ? `
                 <div class="card p-6">
                     <h3 class="text-lg font-semibold mb-4">Entidades</h3>
-                    <p class="text-gray-600 mb-3">GestÃ£o de entidades (FinanÃ§as, IRN, IMT, etc.). As entidades sÃ£o carregadas do Firestore ou da lista padrÃ£o.</p>
+                    <p class="text-gray-600 mb-3">Gestão de entidades (Finanças, IRN, IMT, etc.). As entidades são carregadas do Firestore ou da lista padrão.</p>
                     <button onclick="seedEntidadesSeVazio()" class="btn btn-secondary">
                         <i data-lucide="database" class="w-4 h-4"></i>
                         Inicializar entidades (se vazio)
@@ -13574,8 +12945,8 @@ function gerarIntegracoes() {
             </div>
             <div class="card p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">InteraÃ§Ãµes</h3>
-                    <span class="text-sm text-gray-600" id="contadorIntegracoes">${lista.length}</span> integraÃ§Ãµes
+                    <h3 class="text-lg font-semibold">Interações</h3>
+                    <span class="text-sm text-gray-600" id="contadorIntegracoes">${lista.length}</span> integrações
                 </div>
                 <div id="listaIntegracoes" class="space-y-3"></div>
             </div>
@@ -13583,8 +12954,6 @@ function gerarIntegracoes() {
     `;
 }
 function aplicarFiltrosIntegracoes() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'integracoes') return;
-    if (!document.getElementById('listaIntegracoes')) return;
     const clienteId = document.getElementById('filtroIntCliente')?.value || '';
     const entidadeId = document.getElementById('filtroIntEntidade')?.value || '';
     const estado = document.getElementById('filtroIntEstado')?.value || '';
@@ -13601,15 +12970,15 @@ function renderizarListaIntegracoes(lista) {
     if (contador) contador.textContent = lista.length;
     if (!container) return;
     if (lista.length === 0) {
-        container.innerHTML = '<div class="text-sm text-gray-500 py-4">Nenhuma integraÃ§Ã£o encontrada.</div>';
+        container.innerHTML = '<div class="text-sm text-gray-500 py-4">Nenhuma integração encontrada.</div>';
         return;
     }
     container.innerHTML = lista.map(i => `
         <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
             <div class="flex justify-between items-start">
                 <div>
-                    <div class="text-sm font-semibold text-gray-800">${escaparHtml(i.descricao || 'Sem descriÃ§Ã£o')}</div>
-                    <div class="text-xs text-gray-500">${renderClienteLink(i.clienteId, i.clienteNome || 'Cliente')} â€¢ ${escaparHtml(i.entidadeNome || i.entidadeId || 'â€”')} â€¢ ${i.estado || 'pendente'}</div>
+                    <div class="text-sm font-semibold text-gray-800">${escaparHtml(i.descricao || 'Sem descrição')}</div>
+                    <div class="text-xs text-gray-500">${renderClienteLink(i.clienteId, i.clienteNome || 'Cliente')} • ${escaparHtml(i.entidadeNome || i.entidadeId || '—')} • ${i.estado || 'pendente'}</div>
                     ${i.dataEnvio ? `<div class="text-xs text-gray-400">Enviado: ${new Date(i.dataEnvio).toLocaleDateString('pt-PT')}</div>` : ''}
                     ${i.referenciaExterna ? `<div class="text-xs text-gray-400">Ref. externa: ${escaparHtml(i.referenciaExterna)}</div>` : ''}
                 </div>
@@ -13625,9 +12994,9 @@ function renderizarListaIntegracoes(lista) {
     lucide.createIcons();
 }
 async function seedEntidadesSeVazio() {
-    if (!isCloudReady()) { mostrarNotificacao('Firestore nÃ£o disponÃ­vel.', 'error'); return; }
+    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
     const lista = obterEntidadesAtual();
-    if (lista.length > 0) { mostrarNotificacao('Entidades jÃ¡ existem. Nada a fazer.', 'info'); return; }
+    if (lista.length > 0) { mostrarNotificacao('Entidades já existem. Nada a fazer.', 'info'); return; }
     const padrao = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
     for (const e of padrao) {
         await criarEntidadeCloud({ id: e.id, nome: e.nome, tipo: e.id.replace(/_/g, '-'), ativo: true });
@@ -13637,13 +13006,13 @@ async function seedEntidadesSeVazio() {
 function abrirModalNovaIntegracao() {
     const clientesLista = obterClientesAtual();
     const entidadesLista = obterEntidadesParaSelect().filter(e => e.id);
-    const processosTipos = [{ value: 'heranca', label: 'HeranÃ§a' }, { value: 'migracao', label: 'MigraÃ§Ã£o' }, { value: 'registo', label: 'Registo' }];
-    const estadosLista = [{ value: 'pendente', label: 'Pendente' }, { value: 'enviado', label: 'Enviado' }, { value: 'concluido', label: 'ConcluÃ­do' }];
+    const processosTipos = [{ value: 'heranca', label: 'Herança' }, { value: 'migracao', label: 'Migração' }, { value: 'registo', label: 'Registo' }];
+    const estadosLista = [{ value: 'pendente', label: 'Pendente' }, { value: 'enviado', label: 'Enviado' }, { value: 'concluido', label: 'Concluído' }];
     const canaisLista = [{ value: 'online', label: 'Online' }, { value: 'presencial', label: 'Presencial' }, { value: 'email', label: 'Email' }];
     const modal = `
         <div class="modal show" onclick="fecharModalRobusto()">
             <div class="modal-content" style="max-width: 640px;" onclick="event.stopPropagation()">
-                <h3 class="text-lg font-semibold mb-4">Nova IntegraÃ§Ã£o Externa</h3>
+                <h3 class="text-lg font-semibold mb-4">Nova Integração Externa</h3>
                 <form onsubmit="criarIntegracaoExterna(event)">
                     <div class="space-y-4">
                         <div>
@@ -13672,7 +13041,7 @@ function abrirModalNovaIntegracao() {
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
                             <textarea id="intDescricao" required rows="2" class="w-full border border-gray-300 rounded px-3 py-2"></textarea>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
@@ -13691,7 +13060,7 @@ function abrirModalNovaIntegracao() {
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Ref. externa</label>
-                            <input id="intRefExterna" type="text" class="w-full border border-gray-300 rounded px-3 py-2" placeholder="NÂº pedido no portal">
+                            <input id="intRefExterna" type="text" class="w-full border border-gray-300 rounded px-3 py-2" placeholder="Nº pedido no portal">
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-4">
@@ -13712,7 +13081,7 @@ async function criarIntegracaoExterna(event) {
     const entidadeId = document.getElementById('intEntidade')?.value || '';
     const cliente = clientes.find(c => String(c.id) === String(clienteId));
     const entidade = entidades.find(e => String(e.id) === String(entidadeId)) || { nome: entidadeId };
-    if (!clienteId || !entidadeId) { mostrarNotificacao('Cliente e Entidade sÃ£o obrigatÃ³rios.', 'warning'); return; }
+    if (!clienteId || !entidadeId) { mostrarNotificacao('Cliente e Entidade são obrigatórios.', 'warning'); return; }
     const item = {
         entidadeId,
         entidadeNome: entidade.nome,
@@ -13730,7 +13099,7 @@ async function criarIntegracaoExterna(event) {
     };
     try {
         await criarIntegracaoCloud(item);
-        mostrarNotificacao('IntegraÃ§Ã£o criada com sucesso!', 'success');
+        mostrarNotificacao('Integração criada com sucesso!', 'success');
         fecharModalRobusto();
         aplicarFiltrosIntegracoes();
     } catch (err) {
@@ -13782,8 +13151,8 @@ function gerarDocumentos() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
                             <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="contrato">Contrato</option>
-                                <option value="heranca">HeranÃ§a</option>
-                                <option value="migracao">MigraÃ§Ã£o</option>
+                                <option value="heranca">Herança</option>
+                                <option value="migracao">Migração</option>
                                 <option value="registo">Registo</option>
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
@@ -13791,22 +13160,22 @@ function gerarDocumentos() {
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                            <select id="docEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="InstituiÃ§Ã£o em Portugal">
+                            <select id="docEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
                                 ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                             <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vÃ­rgula)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vírgula)</label>
                             <input id="docTags" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: contrato, assinatura">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
                             <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <p class="text-xs text-gray-500 mt-1">Recomendado atÃ© 5 MB.</p>
+                            <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
                         </div>
                     </div>
                 </div>
@@ -13815,7 +13184,7 @@ function gerarDocumentos() {
             ${podeCriarDocumento ? `
                 <div class="card p-6">
                     <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
-                    <p class="text-gray-600 mb-4">Documentos gerados em PDF a partir de modelos (ProcuraÃ§Ã£o, DeclaraÃ§Ãµes, Recibos)</p>
+                    <p class="text-gray-600 mb-4">Documentos gerados em PDF a partir de modelos (Procuração, Declarações, Recibos)</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                         <div id="containerTemplateCliente">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
@@ -13828,16 +13197,16 @@ function gerarDocumentos() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fatura *</label>
                             <select id="templateFatura" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="">Selecione a fatura</option>
-                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - â‚¬${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
+                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - €${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
                             </select>
-                            <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? VÃ¡ a <strong>HonorÃ¡rios</strong> e clique em <strong>Gerar faturas</strong>.</p>
+                            <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? Vá a <strong>Honorários</strong> e clique em <strong>Gerar faturas</strong>.</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
                             <select id="templateProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="contrato">Contrato</option>
-                                <option value="heranca">HeranÃ§a</option>
-                                <option value="migracao">MigraÃ§Ã£o</option>
+                                <option value="heranca">Herança</option>
+                                <option value="migracao">Migração</option>
                                 <option value="registo">Registo</option>
                                 <option value="prazo">Prazo</option>
                                 <option value="outro">Outro</option>
@@ -13850,18 +13219,18 @@ function gerarDocumentos() {
                             </select>
                         </div>
                         <div id="containerNumeroProcesso" class="hidden">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">N.Âº do processo (AIMA)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">N.º do processo (AIMA)</label>
                             <input id="templateNumeroProcesso" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 6222911" onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()">
                         </div>
                         <div id="containerObjetoProcuracao" class="hidden">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Objeto personalizado (opcional)</label>
-                            <textarea id="templateObjetoProcuracao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black text-sm" placeholder="Deixe vazio para usar o texto padrÃ£o AIMA. Ou escreva o objeto da procuraÃ§Ã£o..." onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()"></textarea>
+                            <textarea id="templateObjetoProcuracao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black text-sm" placeholder="Deixe vazio para usar o texto padrão AIMA. Ou escreva o objeto da procuração..." onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()"></textarea>
                         </div>
                     </div>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Adaptar texto antes de gerar PDF</label>
-                        <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para prÃ©-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
-                        <p class="text-xs text-gray-500 mt-1">Edite o conteÃºdo conforme necessÃ¡rio. Os dados da solicitadora estÃ£o em DADOS_SOLICITADORA no script.js</p>
+                        <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário. Os dados da solicitadora estão em DADOS_SOLICITADORA no script.js</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button onclick="gerarTemplateDocumento('baixar')" class="btn btn-secondary">
@@ -13872,10 +13241,6 @@ function gerarDocumentos() {
                             <i data-lucide="file-text" class="w-4 h-4"></i>
                             PDF / Imprimir
                         </button>
-                        <button id="btnGuardarFaturaCliente" onclick="guardarFaturaComoDocumentoCliente()" class="btn btn-secondary hidden" title="Guardar esta fatura nos documentos do cliente">
-                            <i data-lucide="folder-plus" class="w-4 h-4"></i>
-                            Guardar no cliente
-                        </button>
                     </div>
                 </div>
             ` : ''}
@@ -13885,7 +13250,7 @@ function gerarDocumentos() {
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
-                        <input id="filtroDocTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="nome, descriÃ§Ã£o, tag...">
+                        <input id="filtroDocTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="nome, descrição, tag...">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
@@ -13899,8 +13264,8 @@ function gerarDocumentos() {
                         <select id="filtroDocProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             <option value="">Todos</option>
                             <option value="contrato">Contrato</option>
-                            <option value="heranca">HeranÃ§a</option>
-                            <option value="migracao">MigraÃ§Ã£o</option>
+                            <option value="heranca">Herança</option>
+                            <option value="migracao">Migração</option>
                             <option value="registo">Registo</option>
                             <option value="prazo">Prazo</option>
                             <option value="outro">Outro</option>
@@ -13951,8 +13316,6 @@ function limparFiltrosDocumentos() {
 }
 
 function aplicarFiltrosDocumentos() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'documentos') return;
-    if (!document.getElementById('listaDocumentos')) return;
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     let lista = obterDocumentosAtual();
     
@@ -14011,20 +13374,20 @@ function renderizarListaDocumentos(lista) {
             <div class="flex justify-between items-start">
                 <div>
                     <div class="text-sm font-semibold text-gray-800">${doc.nomeArquivo}</div>
-                    <div class="text-xs text-gray-500">${doc.descricao || 'Sem descriÃ§Ã£o'}</div>
-                    <div class="text-xs text-gray-500">${renderClienteLink(doc.clienteId, doc.clienteNome || 'Cliente')} â€¢ ${doc.processoTipo || 'outro'}${doc.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' â€¢ ' + (ENTIDADES_PORTUGAL.find(e => e.id === doc.entidade)?.nome || doc.entidade) : ''} â€¢ ${formatarTamanhoArquivo(doc.tamanho)}</div>
+                    <div class="text-xs text-gray-500">${doc.descricao || 'Sem descrição'}</div>
+                    <div class="text-xs text-gray-500">${renderClienteLink(doc.clienteId, doc.clienteNome || 'Cliente')} • ${doc.processoTipo || 'outro'}${doc.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === doc.entidade)?.nome || doc.entidade) : ''} • ${formatarTamanhoArquivo(doc.tamanho)}</div>
                     ${renderMetaAuditoria('documento', doc)}
                     <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button type="button" data-documento-acao="baixar" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800" title="Guardar ficheiro HTML no computador">
+                    <button onclick="baixarDocumento(${JSON.stringify(doc.id)})" class="text-blue-600 hover:text-blue-800" title="Baixar">
                         <i data-lucide="download" class="w-4 h-4" style="pointer-events:none"></i>
                     </button>
-                    <button type="button" data-documento-acao="imprimir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-gray-600 hover:text-gray-800" title="Abrir e imprimir (ou guardar PDF)">
+                    <button onclick="imprimirDocumento(${JSON.stringify(doc.id)})" class="text-gray-600 hover:text-gray-800" title="Imprimir">
                         <i data-lucide="printer" class="w-4 h-4" style="pointer-events:none"></i>
                     </button>
                     ${isConvidado ? '' : `
-                        <button type="button" data-documento-acao="excluir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
+                        <button onclick="excluirDocumento(${JSON.stringify(doc.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                             <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                         </button>
                     `}
@@ -14100,114 +13463,10 @@ function uploadDocumento() {
     reader.readAsDataURL(arquivo);
 }
 
-/** Abre HTML numa nova janela (usa Blob URL para renderizar corretamente). */
-function abrirHtmlNovaJanela(html, autoPrint) {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const janela = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!janela) {
-        URL.revokeObjectURL(url);
-        return null;
-    }
-    janela.addEventListener('load', () => {
-        URL.revokeObjectURL(url);
-        if (autoPrint) setTimeout(() => janela.print(), 400);
-    });
-    janela.focus();
-    return janela;
-}
-
-/** Gera o HTML da fatura a partir do documento (compartilhado por baixar e imprimir). */
-function obterHtmlFaturaParaDocumento(doc) {
-    const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
-    const fatura = faturas.find(f => String(f.id) === String(doc.faturaId));
-    if (!fatura) return null;
-    const cliente = (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(fatura.clienteId, fatura.clienteNome) : null) || clientes.find(c => String(c.id) === String(fatura.clienteId));
-    const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(fatura.id));
-    let qrBase64 = '';
-    if (typeof QRCode !== 'undefined') {
-        const tempDiv = document.createElement('div');
-        document.body.appendChild(tempDiv);
-        const numero = fatura.numero || fatura.id || 'FAT-';
-        const sol = DADOS_SOLICITADORA || {};
-        const siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
-        const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
-        new QRCode(tempDiv, { text: qrData, width: 128, height: 128 });
-        const canvas = tempDiv.querySelector('canvas');
-        if (canvas) qrBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
-        document.body.removeChild(tempDiv);
-    }
-    const dados = { fatura, cliente: cliente || {}, solicitadora: DADOS_SOLICITADORA || {}, pagamentos: pagamentosFatura, qrBase64 };
-    return typeof gerarHtmlFaturaBilling === 'function' ? gerarHtmlFaturaBilling(dados) : '';
-}
-
-/** Mostra a fatura num overlay dentro do modal (sem sair da base de dados). */
-function mostrarFaturaNoModal(faturaId) {
-    const doc = { faturaId };
-    const html = obterHtmlFaturaParaDocumento(doc);
-    if (!html) { mostrarNotificacao('Fatura nÃ£o encontrada.', 'error'); return; }
-    const overlay = document.createElement('div');
-    overlay.id = 'overlayFaturaModal';
-    overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;background:rgba(0,0,0,0.85)!important;z-index:100000!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important;box-sizing:border-box!important';
-    overlay.innerHTML = `
-        <div style="background:white;border-radius:12px;max-width:800px;width:100%;max-height:95vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
-            <div style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;">
-                <span style="font-weight:600;color:#1f2937;">Fatura</span>
-                <div style="display:flex;gap:8px;">
-                    <button type="button" id="btnImprimirFaturaOverlay" style="padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Imprimir</button>
-                    <button type="button" id="btnFecharFaturaOverlay" style="padding:6px 14px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Fechar</button>
-                </div>
-            </div>
-            <iframe id="iframeFaturaModal" style="flex:1;width:100%;min-height:70vh;border:none;background:white;"></iframe>
-        </div>
-    `;
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-    document.body.appendChild(overlay);
-    const iframe = overlay.querySelector('#iframeFaturaModal');
-    const docFrame = iframe.contentDocument || iframe.contentWindow.document;
-    docFrame.open();
-    docFrame.write(html);
-    docFrame.close();
-    overlay.querySelector('#btnImprimirFaturaOverlay').onclick = () => { try { iframe.contentWindow.print(); } catch (e) { mostrarNotificacao('Use os botÃµes dentro da fatura para imprimir.', 'info'); } };
-    overlay.querySelector('#btnFecharFaturaOverlay').onclick = () => overlay.remove();
-}
-window.mostrarFaturaNoModal = mostrarFaturaNoModal;
-
-/** Abre fatura numa nova janela e mostra o diÃ¡logo de impressÃ£o (permite imprimir ou guardar PDF). */
-async function abrirFaturaGuardadaComoHtml(doc, autoPrint) {
-    const html = obterHtmlFaturaParaDocumento(doc);
-    if (!html) { mostrarNotificacao('Fatura nÃ£o encontrada. Pode ter sido eliminada.', 'error'); return; }
-    const janela = abrirHtmlNovaJanela(html, autoPrint);
-    if (!janela) {
-        mostrarNotificacao('Permita abrir a janela para imprimir a fatura.', 'warning');
-        return;
-    }
-    mostrarNotificacao('Use o diÃ¡logo de impressÃ£o para imprimir ou guardar como PDF.', 'success');
-}
-
 function baixarDocumento(id) {
-    const doc = obterDocumentosAtual().find(d => String(d.id) === String(id));
+    const doc = obterDocumentosAtual().find(d => d.id === id);
     if (!doc) {
-        mostrarNotificacao('Documento nÃ£o encontrado.', 'error');
-        return;
-    }
-    if (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html')) {
-        const html = obterHtmlFaturaParaDocumento(doc);
-        if (!html) { mostrarNotificacao('Fatura nÃ£o encontrada.', 'error'); return; }
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = doc.nomeArquivo || `fatura_${doc.faturaId || 'fatura'}.html`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        mostrarNotificacao('Fatura guardada no seu computador.', 'success');
-        return;
-    }
-    if (!doc.conteudo) {
-        mostrarNotificacao('ConteÃºdo do documento nÃ£o disponÃ­vel.', 'error');
+        mostrarNotificacao('Documento não encontrado.', 'error');
         return;
     }
     const link = document.createElement('a');
@@ -14219,13 +13478,9 @@ function baixarDocumento(id) {
 }
 
 function imprimirDocumento(id) {
-    const doc = obterDocumentosAtual().find(d => String(d.id) === String(id));
+    const doc = obterDocumentosAtual().find(d => d.id === id);
     if (!doc) {
-        mostrarNotificacao('Documento nÃ£o encontrado.', 'error');
-        return;
-    }
-    if (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html')) {
-        abrirFaturaGuardadaComoHtml(doc, true);
+        mostrarNotificacao('Documento não encontrado.', 'error');
         return;
     }
     let conteudo = '';
@@ -14233,10 +13488,10 @@ function imprimirDocumento(id) {
         try {
             conteudo = decodeURIComponent(doc.conteudo.split(',')[1] || '');
         } catch (e) {
-            conteudo = 'ConteÃºdo nÃ£o disponÃ­vel para impressÃ£o.';
+            conteudo = 'Conteúdo não disponível para impressão.';
         }
     } else {
-        conteudo = doc.descricao || 'ConteÃºdo do documento.';
+        conteudo = doc.descricao || 'Conteúdo do documento.';
     }
     const janela = window.open('', '_blank');
     janela.document.write(`
@@ -14260,9 +13515,9 @@ async function excluirDocumento(id) {
         return;
     }
     const listaDoc = obterDocumentosAtual();
-    const doc = listaDoc.find(d => String(d.id) === String(id));
+    const doc = listaDoc.find(d => d.id === id);
     if (!doc) {
-        mostrarNotificacao('Documento nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Documento não encontrado.', 'error');
         return;
     }
     if (!confirm('Tem certeza que deseja excluir este documento?')) return;
@@ -14279,9 +13534,9 @@ async function excluirDocumento(id) {
             return;
         }
     }
-    registrarAuditoria('excluir', 'documento', `Documento excluÃ­do: ${doc.nomeArquivo}`, doc, null);
+    registrarAuditoria('excluir', 'documento', `Documento excluído: ${doc.nomeArquivo}`, doc, null);
     aplicarFiltrosDocumentos();
-    mostrarNotificacao('Documento excluÃ­do com sucesso!', 'success');
+    mostrarNotificacao('Documento excluído com sucesso!', 'success');
 }
 
 function inicializarRelatoriosAvancados() {
@@ -14302,14 +13557,14 @@ function inicializarRelatoriosAvancados() {
     if (btnLimpar) {
         btnLimpar.addEventListener('click', limparFiltrosRelatorioAvancado);
     }
-    // Sincronizar min/max entre datas: inÃ­cio limita fim; fim limita inÃ­cio
+    // Sincronizar min/max entre datas: início limita fim; fim limita início
     const elInicio = document.getElementById('relatorioAvancadoDataInicio');
     const elFim = document.getElementById('relatorioAvancadoDataFim');
     if (elInicio) elInicio.addEventListener('change', () => { if (elFim && elInicio.value) elFim.min = elInicio.value; });
     if (elFim) elFim.addEventListener('change', () => { if (elInicio && elFim.value) elInicio.max = elFim.value; });
     // Acessibilidade: aria-labels nos filtros
-    if (elInicio) elInicio.setAttribute('aria-label', 'Data de inÃ­cio do relatÃ³rio');
-    if (elFim) elFim.setAttribute('aria-label', 'Data de fim do relatÃ³rio');
+    if (elInicio) elInicio.setAttribute('aria-label', 'Data de início do relatório');
+    if (elFim) elFim.setAttribute('aria-label', 'Data de fim do relatório');
 }
 
 function limparFiltrosRelatorioAvancado() {
@@ -14376,18 +13631,17 @@ function formatarDataRelatorio(data) {
 }
 
 function aplicarFiltrosRelatorioAvancado() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'relatorios') return;
     const clienteFiltro = document.getElementById('relatorioAvancadoCliente')?.value || '';
     const tipoFiltro = document.getElementById('relatorioAvancadoTipo')?.value || 'todos';
     const dataInicioValor = document.getElementById('relatorioAvancadoDataInicio')?.value || '';
     const dataFimValor = document.getElementById('relatorioAvancadoDataFim')?.value || '';
     
-    // Validar datas: data inÃ­cio nÃ£o pode ser depois da data fim
+    // Validar datas: data início não pode ser depois da data fim
     if (dataInicioValor && dataFimValor) {
         const dI = new Date(dataInicioValor);
         const dF = new Date(dataFimValor);
         if (dI > dF) {
-            mostrarNotificacao('A data de inÃ­cio nÃ£o pode ser posterior Ã  data de fim. Ajuste a data de fim para ser igual ou depois da data de inÃ­cio.', 'error');
+            mostrarNotificacao('A data de início não pode ser posterior à data de fim. Ajuste a data de fim para ser igual ou depois da data de início.', 'error');
             document.getElementById('relatorioAvancadoDataFim')?.focus();
             return;
         }
@@ -14396,11 +13650,11 @@ function aplicarFiltrosRelatorioAvancado() {
     const dataInicio = normalizarDataRelatorio(dataInicioValor);
     const dataFim = normalizarDataRelatorio(dataFimValor);
     if (dataInicio && isNaN(dataInicio.getTime())) {
-        mostrarNotificacao('Data de inÃ­cio invÃ¡lida. Use o formato correto.', 'error');
+        mostrarNotificacao('Data de início inválida. Use o formato correto.', 'error');
         return;
     }
     if (dataFim && isNaN(dataFim.getTime())) {
-        mostrarNotificacao('Data de fim invÃ¡lida. Use o formato correto.', 'error');
+        mostrarNotificacao('Data de fim inválida. Use o formato correto.', 'error');
         return;
     }
     if (dataFim) {
@@ -14408,10 +13662,10 @@ function aplicarFiltrosRelatorioAvancado() {
     }
     
     const fontes = [
-        { tipo: 'honorarios', label: 'HonorÃ¡rios', itens: Array.isArray(honorarios) ? honorarios : [], map: (item, cliente, data) => ({
-            tipo: 'HonorÃ¡rios',
+        { tipo: 'honorarios', label: 'Honorários', itens: Array.isArray(honorarios) ? honorarios : [], map: (item, cliente, data) => ({
+            tipo: 'Honorários',
             cliente,
-            descricao: item.descricao || item.servico || item.tipo || 'HonorÃ¡rio',
+            descricao: item.descricao || item.servico || item.tipo || 'Honorário',
             valor: item.valor,
             status: item.status || 'N/D',
             data: formatarDataRelatorio(data),
@@ -14426,19 +13680,19 @@ function aplicarFiltrosRelatorioAvancado() {
             data: formatarDataRelatorio(data),
             _data: data
         }) },
-        { tipo: 'herancas', label: 'HeranÃ§as', itens: Array.isArray(herancas) ? herancas : [], map: (item, cliente, data) => ({
-            tipo: 'HeranÃ§as',
+        { tipo: 'herancas', label: 'Heranças', itens: Array.isArray(herancas) ? herancas : [], map: (item, cliente, data) => ({
+            tipo: 'Heranças',
             cliente,
-            descricao: item.tipo || item.descricao || 'HeranÃ§a',
+            descricao: item.tipo || item.descricao || 'Herança',
             valor: item.valor,
             status: item.status || 'N/D',
             data: formatarDataRelatorio(data),
             _data: data
         }) },
-        { tipo: 'migracoes', label: 'MigraÃ§Ãµes', itens: Array.isArray(migracoes) ? migracoes : [], map: (item, cliente, data) => ({
-            tipo: 'MigraÃ§Ãµes',
+        { tipo: 'migracoes', label: 'Migrações', itens: Array.isArray(migracoes) ? migracoes : [], map: (item, cliente, data) => ({
+            tipo: 'Migrações',
             cliente,
-            descricao: item.tipo || item.descricao || 'MigraÃ§Ã£o',
+            descricao: item.tipo || item.descricao || 'Migração',
             valor: item.valor,
             status: item.status || 'N/D',
             data: formatarDataRelatorio(data),
@@ -14498,9 +13752,9 @@ function aplicarFiltrosRelatorioAvancado() {
             clienteFiltro ? `Cliente: ${clienteFiltro}` : null,
             tipoFiltro !== 'todos' ? `Tipo: ${tipoFiltro}` : null,
             dataInicioValor ? `De: ${dataInicioValor}` : null,
-            dataFimValor ? `AtÃ©: ${dataFimValor}` : null
+            dataFimValor ? `Até: ${dataFimValor}` : null
         ].filter(Boolean).join(' | ');
-        resumo.textContent = `Resultados: ${resultados.length}${filtrosAplicados ? ` â€¢ ${filtrosAplicados}` : ''}`;
+        resumo.textContent = `Resultados: ${resultados.length}${filtrosAplicados ? ` • ${filtrosAplicados}` : ''}`;
     }
     
     const container = document.getElementById('relatorioAvancadoResultados');
@@ -14520,7 +13774,7 @@ function aplicarFiltrosRelatorioAvancado() {
                 ${renderMetaAuditoria(item.tipo, item)}
             </td>
             <td class="py-2 pr-4">${item.descricao}</td>
-            <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `â‚¬${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
+            <td class="py-2 pr-4">${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
             <td class="py-2 pr-4">${item.status}</td>
             <td class="py-2">${item.data}</td>
         </tr>
@@ -14532,7 +13786,7 @@ function aplicarFiltrosRelatorioAvancado() {
                 <tr class="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
                     <th class="py-2 pr-4">Tipo</th>
                     <th class="py-2 pr-4">Cliente</th>
-                    <th class="py-2 pr-4">DescriÃ§Ã£o</th>
+                    <th class="py-2 pr-4">Descrição</th>
                     <th class="py-2 pr-4">Valor</th>
                     <th class="py-2 pr-4">Status</th>
                     <th class="py-2">Data</th>
@@ -14552,7 +13806,7 @@ function exportarRelatorioAvancadoCsv() {
         return;
     }
     
-    const headers = ['Tipo', 'Cliente', 'DescriÃ§Ã£o', 'Valor', 'Status', 'Data'];
+    const headers = ['Tipo', 'Cliente', 'Descrição', 'Valor', 'Status', 'Data'];
     const escapeCsv = (valor) => {
         const texto = valor === null || valor === undefined ? '' : String(valor);
         if (texto.includes(';') || texto.includes('"') || texto.includes('\n')) {
@@ -14581,7 +13835,7 @@ function exportarRelatorioAvancadoCsv() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    mostrarNotificacao('ExportaÃ§Ã£o Excel (CSV) concluÃ­da!', 'success');
+    mostrarNotificacao('Exportação Excel (CSV) concluída!', 'success');
 }
 
 function exportarRelatorioAvancadoPdf() {
@@ -14605,7 +13859,7 @@ function exportarRelatorioAvancadoPdf() {
                 ${renderMetaAuditoria(item.tipo, item)}
             </td>
             <td>${item.descricao}</td>
-            <td>${item.valor !== undefined && item.valor !== '' ? `â‚¬${(parseFloat(item.valor) || 0).toFixed(2)}` : 'â€”'}</td>
+            <td>${item.valor !== undefined && item.valor !== '' ? `€${(parseFloat(item.valor) || 0).toFixed(2)}` : '—'}</td>
             <td>${item.status}</td>
             <td>${item.data}</td>
         </tr>
@@ -14614,7 +13868,7 @@ function exportarRelatorioAvancadoPdf() {
     janela.document.write(`
         <html>
         <head>
-            <title>RelatÃ³rio AvanÃ§ado</title>
+            <title>Relatório Avançado</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
                 h1 { font-size: 20px; margin-bottom: 6px; }
@@ -14625,14 +13879,14 @@ function exportarRelatorioAvancadoPdf() {
             </style>
         </head>
         <body>
-            <h1>RelatÃ³rio AvanÃ§ado</h1>
+            <h1>Relatório Avançado</h1>
             <p>Gerado em ${dataRelatorio}</p>
             <table>
                 <thead>
                     <tr>
                         <th>Tipo</th>
                         <th>Cliente</th>
-                        <th>DescriÃ§Ã£o</th>
+                        <th>Descrição</th>
                         <th>Valor</th>
                         <th>Status</th>
                         <th>Data</th>
@@ -14667,13 +13921,9 @@ function inicializarSecao(secao) {
         }, 100);
     }
     if (secao === 'notificacoes') {
-        function initNotif() {
+        setTimeout(() => {
             inicializarAlertasAutomaticos();
-            aplicarFiltrosNotificacoes();
-            if (typeof lucide !== 'undefined') lucide.createIcons?.();
-        }
-        setTimeout(initNotif, 50);
-        setTimeout(initNotif, 200);
+        }, 100);
     }
     if (secao === 'documentos') {
         setTimeout(() => {
@@ -14709,7 +13959,7 @@ function inicializarSecao(secao) {
         });
         const btnExport = document.getElementById('btnExportBackup');
         if (btnExport) {
-            btnExport.onclick = (typeof window.exportBackup === 'function') ? window.exportBackup : (typeof exportBackupFirestore === 'function' ? exportBackupFirestore : () => mostrarNotificacao('MÃ³dulo backup nÃ£o carregado', 'warning'));
+            btnExport.onclick = (typeof window.exportBackup === 'function') ? window.exportBackup : (typeof exportBackupFirestore === 'function' ? exportBackupFirestore : () => mostrarNotificacao('Módulo backup não carregado', 'warning'));
         }
         const inputImport = document.getElementById('inputImportBackup');
         const btnImport = document.getElementById('btnImportBackup');
@@ -14775,21 +14025,21 @@ function abrirModalEdicaoCliente(cliente) {
     const modal = criarModalEdicaoCliente(cliente);
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('âŒ modalContainer nÃ£o encontrado!');
+        console.error('❌ modalContainer não encontrado!');
         return;
     }
     modalContainer.innerHTML = modal;
     modalContainer.classList.add('show');
     lucide.createIcons();
     
-    // Adicionar listener direto no formulÃ¡rio apÃ³s criÃ¡-lo
+    // Adicionar listener direto no formulário após criá-lo
     setTimeout(() => {
         const form = document.getElementById(`formEditarCliente_${cliente.id}`);
         const btnSalvar = form ? form.querySelector('button[type="submit"]') : null;
         
         if (form) {
             
-            // Adicionar listener no formulÃ¡rio
+            // Adicionar listener no formulário
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -14798,7 +14048,7 @@ function abrirModalEdicaoCliente(cliente) {
             }, false);
             
         } else {
-            console.error('âŒ FormulÃ¡rio nÃ£o encontrado apÃ³s criar modal (versÃ£o criarModalEdicaoCliente)!');
+            console.error('❌ Formulário não encontrado após criar modal (versão criarModalEdicaoCliente)!');
         }
         
         if (btnSalvar) {
@@ -14811,7 +14061,7 @@ function abrirModalEdicaoCliente(cliente) {
                 }
             }, false);
         } else {
-            console.error('âŒ BotÃ£o Salvar nÃ£o encontrado apÃ³s criar modal (versÃ£o criarModalEdicaoCliente)!');
+            console.error('❌ Botão Salvar não encontrado após criar modal (versão criarModalEdicaoCliente)!');
         }
     }, 100);
 }
@@ -14849,32 +14099,32 @@ function abrirModalEdicaoContrato(contrato) {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de ServiÃ§o *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Serviço *</label>
                             <input type="text" id="editarContratoTipo" value="${contrato.tipo || ''}" list="tiposContratoEdicao2" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite ou selecione um tipo">
                             <datalist id="tiposContratoEdicao2">
-                                <option value="AlteraÃ§Ã£o de pactos sociais">
-                                <option value="AnÃ¡lise e revisÃ£o de contratos">
-                                <option value="CessÃ£o de quotas">
-                                <option value="ConstituiÃ§Ã£o de sociedades">
+                                <option value="Alteração de pactos sociais">
+                                <option value="Análise e revisão de contratos">
+                                <option value="Cessão de quotas">
+                                <option value="Constituição de sociedades">
                                 <option value="Contratos de arrendamento">
                                 <option value="Contratos de compra e venda">
-                                <option value="Contratos de prestaÃ§Ã£o de serviÃ§os">
+                                <option value="Contratos de prestação de serviços">
                                 <option value="Contratos de trabalho">
                                 <option value="Pactos sociais">
                                 <option value="Consultoria">
                                 <option value="Assessoria">
-                                <option value="RepresentaÃ§Ã£o">
+                                <option value="Representação">
                                 <option value="Compra e Venda">
                                 <option value="Arrendamento">
-                                <option value="PrestaÃ§Ã£o de ServiÃ§os">
-                                <option value="EmprÃ©stimo">
+                                <option value="Prestação de Serviços">
+                                <option value="Empréstimo">
                                 <option value="Outro">
                             </datalist>
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o *</label>
-                            <textarea id="editarContratoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descreva os serviÃ§os a serem prestados...">${contrato.descricao || ''}</textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
+                            <textarea id="editarContratoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descreva os serviços a serem prestados...">${contrato.descricao || ''}</textarea>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -14888,7 +14138,7 @@ function abrirModalEdicaoContrato(contrato) {
                                 <select id="editarContratoIVA" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="0" ${contrato.iva === 0 ? 'selected' : ''}>0% (Isento)</option>
                                     <option value="6" ${contrato.iva === 6 ? 'selected' : ''}>6% (Reduzida)</option>
-                                    <option value="13" ${contrato.iva === 13 ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                    <option value="13" ${contrato.iva === 13 ? 'selected' : ''}>13% (Intermédia)</option>
                                     <option value="23" ${contrato.iva === 23 ? 'selected' : ''}>23% (Normal)</option>
                                 </select>
                             </div>
@@ -14898,21 +14148,21 @@ function abrirModalEdicaoContrato(contrato) {
                                 <select id="editarContratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente" ${contrato.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                     <option value="em_andamento" ${contrato.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                    <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                    <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
                                 <input type="date" id="editarContratoDataInicio" value="${contrato.dataInicio || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea id="editarContratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre o contrato...">${contrato.observacoes || ''}</textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea id="editarContratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre o contrato...">${contrato.observacoes || ''}</textarea>
                         </div>
                     </div>
                     
@@ -14921,7 +14171,7 @@ function abrirModalEdicaoContrato(contrato) {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar AlteraÃ§Ãµes
+                            Salvar Alterações
                         </button>
                     </div>
                 </form>
@@ -15003,7 +14253,7 @@ function fecharModal() {
         modal.remove();
     });
     
-    // Remover modais especÃ­ficos
+    // Remover modais específicos
     const modalHeranca = document.getElementById('modalEdicaoHeranca');
     if (modalHeranca) {
         modalHeranca.remove();
@@ -15019,7 +14269,7 @@ function fecharModal() {
         modalRegisto.remove();
     }
     
-    // Remover qualquer modal de ediÃ§Ã£o
+    // Remover qualquer modal de edição
     const modaisEdicao = document.querySelectorAll('[id^="modalEdicao"]');
     modaisEdicao.forEach(modal => {
         modal.remove();
@@ -15034,7 +14284,7 @@ function criarModal(tipo) {
         contrato: criarModalContrato(),
         migracao: criarModalMigracao()
     };
-    return modais[tipo] || '<div class="modal-content p-6">Modal nÃ£o encontrado</div>';
+    return modais[tipo] || '<div class="modal-content p-6">Modal não encontrado</div>';
 }
 
 function criarModalEdicaoCliente(cliente) {
@@ -15071,7 +14321,7 @@ function criarModalEdicaoCliente(cliente) {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">EndereÃ§o</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
                             <textarea id="editarClienteEndereco" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${cliente.endereco || ''}</textarea>
                         </div>
                         
@@ -15098,7 +14348,7 @@ function criarModalEdicaoCliente(cliente) {
                             </button>
                             <button type="submit" class="btn btn-primary">
                                 <i data-lucide="save" class="w-4 h-4"></i>
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </div>
@@ -15142,7 +14392,7 @@ function criarModalCliente() {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">EndereÃ§o</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
                             <textarea id="clienteEndereco" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black"></textarea>
                         </div>
                         
@@ -15166,7 +14416,7 @@ function criarModalCliente() {
                                     </label>
                                 `).join('')}
                             </div>
-                            ${(obterConvidadosAtual() || []).filter(c => c.ativo).length === 0 ? '<p class="text-xs text-gray-500">Nenhum convidado ativo. Crie em GestÃ£o de Convidados.</p>' : ''}
+                            ${(obterConvidadosAtual() || []).filter(c => c.ativo).length === 0 ? '<p class="text-xs text-gray-500">Nenhum convidado ativo. Crie em Gestão de Convidados.</p>' : ''}
                         </div>
                         ` : ''}
                     </div>
@@ -15190,7 +14440,7 @@ function criarModalHonorario() {
         <div class="modal show">
             <div class="modal-content p-6" style="max-width: 500px;">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold">Novo HonorÃ¡rio</h3>
+                    <h3 class="text-lg font-semibold">Novo Honorário</h3>
                     <button onclick="fecharModalRobusto()" class="text-gray-500 hover:text-gray-700">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
@@ -15209,7 +14459,7 @@ function criarModalHonorario() {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ServiÃ§o *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Serviço *</label>
                             <input type="text" id="honorarioServico" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
@@ -15239,7 +14489,7 @@ function criarModalHonorario() {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar HonorÃ¡rio
+                            Salvar Honorário
                         </button>
                     </div>
                 </form>
@@ -15272,21 +14522,21 @@ function criarModalContrato() {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de ServiÃ§o *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Serviço *</label>
                             <select id="contratoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Tipo</option>
-                                <option value="AlteraÃ§Ã£o de pactos sociais">AlteraÃ§Ã£o de pactos sociais</option>
-                                <option value="AnÃ¡lise e revisÃ£o de contratos">AnÃ¡lise e revisÃ£o de contratos</option>
-                                <option value="CessÃ£o de quotas">CessÃ£o de quotas</option>
-                                <option value="ConstituiÃ§Ã£o de sociedades">ConstituiÃ§Ã£o de sociedades</option>
+                                <option value="Alteração de pactos sociais">Alteração de pactos sociais</option>
+                                <option value="Análise e revisão de contratos">Análise e revisão de contratos</option>
+                                <option value="Cessão de quotas">Cessão de quotas</option>
+                                <option value="Constituição de sociedades">Constituição de sociedades</option>
                                 <option value="Contratos de arrendamento">Contratos de arrendamento</option>
                                 <option value="Contratos de compra e venda">Contratos de compra e venda</option>
-                                <option value="Contratos de prestaÃ§Ã£o de serviÃ§os">Contratos de prestaÃ§Ã£o de serviÃ§os</option>
+                                <option value="Contratos de prestação de serviços">Contratos de prestação de serviços</option>
                                 <option value="Contratos de trabalho">Contratos de trabalho</option>
                                 <option value="Pactos sociais">Pactos sociais</option>
                                 <option value="Consultoria">Consultoria</option>
                                 <option value="Assessoria">Assessoria</option>
-                                <option value="RepresentaÃ§Ã£o">RepresentaÃ§Ã£o</option>
+                                <option value="Representação">Representação</option>
                                 <option value="Outro">Outro</option>
                             </select>
                         </div>
@@ -15302,7 +14552,7 @@ function criarModalContrato() {
                                 <select id="contratoIVA" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="0">0% (Isento)</option>
                                     <option value="6">6% (Reduzida)</option>
-                                    <option value="13">13% (IntermÃ©dia)</option>
+                                    <option value="13">13% (Intermédia)</option>
                                     <option value="23" selected>23% (Normal)</option>
                                 </select>
                             </div>
@@ -15331,22 +14581,22 @@ function criarModalContrato() {
                                 <select id="contratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente">Pendente</option>
                                     <option value="em_andamento">Em Andamento</option>
-                                    <option value="concluido">ConcluÃ­do</option>
+                                    <option value="concluido">Concluído</option>
                                 </select>
                             </div>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
                                 <input type="date" id="contratoDataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea id="contratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre o contrato..."></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea id="contratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre o contrato..."></textarea>
                         </div>
                     </div>
                     
@@ -15388,32 +14638,32 @@ function criarModalEdicaoContrato(contrato) {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de ServiÃ§o *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Serviço *</label>
                             <input type="text" id="editarContratoTipo" value="${contrato.tipo || ''}" list="tiposContratoEdicao2" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite ou selecione um tipo">
                             <datalist id="tiposContratoEdicao2">
-                                <option value="AlteraÃ§Ã£o de pactos sociais">
-                                <option value="AnÃ¡lise e revisÃ£o de contratos">
-                                <option value="CessÃ£o de quotas">
-                                <option value="ConstituiÃ§Ã£o de sociedades">
+                                <option value="Alteração de pactos sociais">
+                                <option value="Análise e revisão de contratos">
+                                <option value="Cessão de quotas">
+                                <option value="Constituição de sociedades">
                                 <option value="Contratos de arrendamento">
                                 <option value="Contratos de compra e venda">
-                                <option value="Contratos de prestaÃ§Ã£o de serviÃ§os">
+                                <option value="Contratos de prestação de serviços">
                                 <option value="Contratos de trabalho">
                                 <option value="Pactos sociais">
                                 <option value="Consultoria">
                                 <option value="Assessoria">
-                                <option value="RepresentaÃ§Ã£o">
+                                <option value="Representação">
                                 <option value="Compra e Venda">
                                 <option value="Arrendamento">
-                                <option value="PrestaÃ§Ã£o de ServiÃ§os">
-                                <option value="EmprÃ©stimo">
+                                <option value="Prestação de Serviços">
+                                <option value="Empréstimo">
                                 <option value="Outro">
                             </datalist>
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o *</label>
-                            <textarea id="editarContratoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descreva os serviÃ§os a serem prestados...">${contrato.descricao || ''}</textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
+                            <textarea id="editarContratoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descreva os serviços a serem prestados...">${contrato.descricao || ''}</textarea>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -15427,7 +14677,7 @@ function criarModalEdicaoContrato(contrato) {
                                 <select id="editarContratoIVA" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="0" ${contrato.iva === 0 ? 'selected' : ''}>0% (Isento)</option>
                                     <option value="6" ${contrato.iva === 6 ? 'selected' : ''}>6% (Reduzida)</option>
-                                    <option value="13" ${contrato.iva === 13 ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                    <option value="13" ${contrato.iva === 13 ? 'selected' : ''}>13% (Intermédia)</option>
                                     <option value="23" ${contrato.iva === 23 ? 'selected' : ''}>23% (Normal)</option>
                                 </select>
                             </div>
@@ -15444,15 +14694,15 @@ function criarModalEdicaoContrato(contrato) {
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
                                 <input type="date" id="editarContratoDataInicio" value="${contrato.dataInicio || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea id="editarContratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre o contrato...">${contrato.observacoes || ''}</textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea id="editarContratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre o contrato...">${contrato.observacoes || ''}</textarea>
                         </div>
                     </div>
                     
@@ -15469,7 +14719,7 @@ function criarModalEdicaoContrato(contrato) {
                             </button>
                             <button type="submit" class="btn btn-primary">
                                 <i data-lucide="save" class="w-4 h-4"></i>
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </div>
@@ -15486,30 +14736,30 @@ async function salvarCliente(event) {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
     
-    // Validar dados Ãºnicos
+    // Validar dados únicos
     const nome = document.getElementById('clienteNome').value.trim();
     const email = document.getElementById('clienteEmail').value.trim();
     const telefone = document.getElementById('clienteTelefone').value.trim();
     const nif = document.getElementById('clienteNIF').value.trim();
 
     if (!nome || !email || !telefone || !nif) {
-        mostrarNotificacao('Por favor, preencha todos os campos obrigatÃ³rios!', 'warning');
+        mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'warning');
         return;
     }
     if (!validarEmail(email)) {
-        mostrarNotificacao('Email invÃ¡lido. Verifique o formato.', 'error');
+        mostrarNotificacao('Email inválido. Verifique o formato.', 'error');
         return;
     }
     if (!validarTelefone(telefone)) {
-        mostrarNotificacao('Telefone invÃ¡lido. Use apenas nÃºmeros (9 a 15 dÃ­gitos).', 'error');
+        mostrarNotificacao('Telefone inválido. Use apenas números (9 a 15 dígitos).', 'error');
         return;
     }
     if (!validarNIF(nif)) {
-        mostrarNotificacao('NIF invÃ¡lido. Verifique o nÃºmero.', 'error');
+        mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
         return;
     }
     
-    // Verificar se jÃ¡ existe cliente com os mesmos dados
+    // Verificar se já existe cliente com os mesmos dados
     const clienteExistente = clientes.find(c => 
         c.nome.toLowerCase() === nome.toLowerCase() ||
         (email && c.email && c.email.toLowerCase() === email.toLowerCase()) ||
@@ -15518,18 +14768,18 @@ async function salvarCliente(event) {
     );
     
     if (clienteExistente) {
-        let mensagemErro = 'JÃ¡ existe um cliente com:';
+        let mensagemErro = 'Já existe um cliente com:';
         if (clienteExistente.nome.toLowerCase() === nome.toLowerCase()) {
-            mensagemErro += ' â€¢ Nome igual';
+            mensagemErro += ' • Nome igual';
         }
         if (email && clienteExistente.email && clienteExistente.email.toLowerCase() === email.toLowerCase()) {
-            mensagemErro += ' â€¢ Email igual';
+            mensagemErro += ' • Email igual';
         }
         if (telefone && clienteExistente.telefone && clienteExistente.telefone === telefone) {
-            mensagemErro += ' â€¢ Telefone igual';
+            mensagemErro += ' • Telefone igual';
         }
         if (nif && clienteExistente.nif && clienteExistente.nif === nif) {
-            mensagemErro += ' â€¢ NIF igual';
+            mensagemErro += ' • NIF igual';
         }
         
         mostrarNotificacao(mensagemErro, 'error');
@@ -15567,7 +14817,7 @@ async function salvarCliente(event) {
     }
     registrarAuditoria('criar', 'cliente', `Cliente criado: ${cliente.nome}`, null, cliente);
     
-    // Se admin selecionou convidados, adicionar cliente Ã s permissÃµes deles
+    // Se admin selecionou convidados, adicionar cliente às permissões deles
     const convidadosCheck = document.querySelectorAll('.convidadoAutorizarCliente:checked');
     if (convidadosCheck.length > 0 && tipoUsuario === 'admin') {
         const codigosSelecionados = Array.from(convidadosCheck).map(cb => String(cb.value));
@@ -15603,7 +14853,7 @@ async function salvarHonorario(event) {
     const vencimentoHonorario = document.getElementById('honorarioVencimento').value;
     
     if (!clienteHonorario || !servicoHonorario || !vencimentoHonorario || !valorHonorario || valorHonorario <= 0) {
-        mostrarNotificacao('Preencha os campos obrigatÃ³rios do honorÃ¡rio.', 'warning');
+        mostrarNotificacao('Preencha os campos obrigatórios do honorário.', 'warning');
         return;
     }
     
@@ -15633,17 +14883,17 @@ async function salvarHonorario(event) {
             salvarDados('honorarios', honorarios);
         }
     } catch (err) {
-        console.warn('Erro ao criar honorÃ¡rio na nuvem, a guardar localmente:', err);
+        console.warn('Erro ao criar honorário na nuvem, a guardar localmente:', err);
         honorarios.push(honorario);
         salvarDados('honorarios', honorarios);
     }
-    registrarAuditoria('criar', 'honorario', `HonorÃ¡rio criado: ${honorario.cliente}`, null, honorario);
-    mostrarNotificacao('HonorÃ¡rio salvo com sucesso!', 'success');
+    registrarAuditoria('criar', 'honorario', `Honorário criado: ${honorario.cliente}`, null, honorario);
+    mostrarNotificacao('Honorário salvo com sucesso!', 'success');
     
     // Fechar modal imediatamente
     fecharModal();
     
-    // Recarregar seÃ§Ã£o apÃ³s um pequeno delay
+    // Recarregar seção após um pequeno delay
     setTimeout(() => {
         carregarSecao('honorarios');
     }, 100);
@@ -15665,7 +14915,7 @@ async function salvarContrato(event) {
     const dataInicio = document.getElementById('contratoDataInicio').value;
     
     if (!clienteId || !tipoContrato || !dataInicio || !valor || valor <= 0) {
-        mostrarNotificacao('Preencha os campos obrigatÃ³rios do contrato.', 'warning');
+        mostrarNotificacao('Preencha os campos obrigatórios do contrato.', 'warning');
         return;
     }
 
@@ -15703,8 +14953,8 @@ async function salvarContrato(event) {
     }
     registrarAuditoria('criar', 'contrato', `Contrato criado: ${contrato.clienteNome}`, null, contrato);
     
-    // Criar prazo automÃ¡tico para o contrato
-    // Carregar prazos em memÃ³ria antes de adicionar
+    // Criar prazo automático para o contrato
+    // Carregar prazos em memória antes de adicionar
     const prazosSalvos = appStorage.getItem('prazos');
     if (prazosSalvos) {
         prazos = JSON.parse(prazosSalvos);
@@ -15736,7 +14986,7 @@ async function salvarContrato(event) {
     // Fechar modal imediatamente
     fecharModal();
     
-    // Recarregar seÃ§Ã£o apÃ³s um pequeno delay
+    // Recarregar seção após um pequeno delay
     setTimeout(() => {
         carregarSecao('contratos');
     }, 100);
@@ -15752,21 +15002,21 @@ async function atualizarCliente(event, id) {
     try {
         const clienteId = parseIdSafe(id);
         if (clienteId == null || clienteId === '') {
-            console.error('âŒ ID invÃ¡lido:', id);
-            mostrarNotificacao('ID de cliente invÃ¡lido!', 'error');
+            console.error('❌ ID inválido:', id);
+            mostrarNotificacao('ID de cliente inválido!', 'error');
             return false;
         }
         
-        // Verificar se clientes estÃ¡ definido
+        // Verificar se clientes está definido
         if (!clientes || !Array.isArray(clientes)) {
-            console.error('âŒ Array de clientes nÃ£o estÃ¡ definido');
+            console.error('❌ Array de clientes não está definido');
             // Tentar carregar dados
             const clientesAtual = obterClientesAtual();
             if (clientesAtual.length > 0) {
                 clientes = clientesAtual;
                 window.clientes = clientes;
             } else {
-                mostrarNotificacao('Erro: Clientes nÃ£o carregados!', 'error');
+                mostrarNotificacao('Erro: Clientes não carregados!', 'error');
                 return false;
             }
         }
@@ -15774,8 +15024,8 @@ async function atualizarCliente(event, id) {
         const clienteIndex = clientes.findIndex(c => String(c.id) === String(clienteId));
         
         if (clienteIndex === -1) {
-            console.error('âŒ Cliente nÃ£o encontrado com ID:', clienteId);
-            mostrarNotificacao('Cliente nÃ£o encontrado!', 'error');
+            console.error('❌ Cliente não encontrado com ID:', clienteId);
+            mostrarNotificacao('Cliente não encontrado!', 'error');
             return false;
         }
         
@@ -15783,7 +15033,7 @@ async function atualizarCliente(event, id) {
             return false;
         }
         
-        // Obter valores do formulÃ¡rio
+        // Obter valores do formulário
         const nomeInput = document.getElementById('editarClienteNome');
         const emailInput = document.getElementById('editarClienteEmail');
         const telefoneInput = document.getElementById('editarClienteTelefone');
@@ -15792,8 +15042,8 @@ async function atualizarCliente(event, id) {
         const statusInput = document.getElementById('editarClienteStatus');
         
         if (!nomeInput || !emailInput || !telefoneInput || !nifInput) {
-            console.error('âŒ Campos do formulÃ¡rio nÃ£o encontrados');
-            mostrarNotificacao('Erro: FormulÃ¡rio nÃ£o encontrado!', 'error');
+            console.error('❌ Campos do formulário não encontrados');
+            mostrarNotificacao('Erro: Formulário não encontrado!', 'error');
             return false;
         }
         
@@ -15805,26 +15055,26 @@ async function atualizarCliente(event, id) {
         const status = statusInput ? statusInput.value : 'ativo';
         
         
-        // Validar campos obrigatÃ³rios
+        // Validar campos obrigatórios
         if (!nome || !email || !telefone || !nif) {
-            console.error('âŒ Campos obrigatÃ³rios nÃ£o preenchidos');
-            mostrarNotificacao('Por favor, preencha todos os campos obrigatÃ³rios!', 'error');
+            console.error('❌ Campos obrigatórios não preenchidos');
+            mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'error');
             return false;
         }
         if (!validarEmail(email)) {
-            mostrarNotificacao('Email invÃ¡lido. Verifique o formato.', 'error');
+            mostrarNotificacao('Email inválido. Verifique o formato.', 'error');
             return false;
         }
         if (!validarTelefone(telefone)) {
-            mostrarNotificacao('Telefone invÃ¡lido. Use apenas nÃºmeros (9 a 15 dÃ­gitos).', 'error');
+            mostrarNotificacao('Telefone inválido. Use apenas números (9 a 15 dígitos).', 'error');
             return false;
         }
         if (!validarNIF(nif)) {
-            mostrarNotificacao('NIF invÃ¡lido. Verifique o nÃºmero.', 'error');
+            mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
             return false;
         }
         
-        // Verificar se jÃ¡ existe outro cliente com os mesmos dados (excluindo o cliente atual)
+        // Verificar se já existe outro cliente com os mesmos dados (excluindo o cliente atual)
         const clienteExistente = clientes.find(c => 
             String(c.id) !== String(clienteId) && (
                 c.nome.toLowerCase() === nome.toLowerCase() ||
@@ -15835,21 +15085,21 @@ async function atualizarCliente(event, id) {
         );
         
         if (clienteExistente) {
-            let mensagemErro = 'JÃ¡ existe outro cliente com:';
+            let mensagemErro = 'Já existe outro cliente com:';
             if (clienteExistente.nome.toLowerCase() === nome.toLowerCase()) {
-                mensagemErro += ' â€¢ Nome igual';
+                mensagemErro += ' • Nome igual';
             }
             if (email && clienteExistente.email && clienteExistente.email.toLowerCase() === email.toLowerCase()) {
-                mensagemErro += ' â€¢ Email igual';
+                mensagemErro += ' • Email igual';
             }
             if (telefone && clienteExistente.telefone && clienteExistente.telefone === telefone) {
-                mensagemErro += ' â€¢ Telefone igual';
+                mensagemErro += ' • Telefone igual';
             }
             if (nif && clienteExistente.nif && clienteExistente.nif === nif) {
-                mensagemErro += ' â€¢ NIF igual';
+                mensagemErro += ' • NIF igual';
             }
             
-            console.warn('âš ï¸ Cliente duplicado encontrado:', clienteExistente);
+            console.warn('⚠️ Cliente duplicado encontrado:', clienteExistente);
             mostrarNotificacao(mensagemErro, 'error');
             return false;
         }
@@ -15878,18 +15128,18 @@ async function atualizarCliente(event, id) {
             }
             registrarAuditoria('atualizar', 'cliente', `Cliente atualizado: ${clienteAtualizado.nome}`, clienteAntes, clienteAtualizado);
         } catch (saveError) {
-            console.error('âŒ Erro ao salvar:', saveError);
+            console.error('❌ Erro ao salvar:', saveError);
             mostrarNotificacao('Erro ao salvar dados: ' + saveError.message, 'error');
             return false;
         }
         
-        // Mostrar notificaÃ§Ã£o
+        // Mostrar notificação
         mostrarNotificacao('Cliente atualizado com sucesso!', 'success');
         
         // Fechar modal usando fecharModalRobusto para garantir que funciona
         fecharModalRobusto();
         
-        // Recarregar seÃ§Ã£o apÃ³s um pequeno delay
+        // Recarregar seção após um pequeno delay
         setTimeout(() => {
             carregarSecao('clientes');
         }, 300);
@@ -15897,23 +15147,23 @@ async function atualizarCliente(event, id) {
         return true;
         
     } catch (error) {
-        console.error('âŒ Erro ao atualizar cliente:', error);
-        console.error('âŒ Stack trace:', error.stack);
+        console.error('❌ Erro ao atualizar cliente:', error);
+        console.error('❌ Stack trace:', error.stack);
         mostrarNotificacao('Erro ao atualizar cliente: ' + error.message, 'error');
         return false;
     }
 }
 
-// Garantir que atualizarCliente seja globalmente acessÃ­vel
+// Garantir que atualizarCliente seja globalmente acessível
 window.atualizarCliente = atualizarCliente;
 
 async function excluirCliente(id) {
-    if (!confirm('Tem certeza que deseja excluir este cliente? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
-    if (!exigirAdmin('exclusÃ£o de clientes')) return;
+    if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
+    if (!exigirAdmin('exclusão de clientes')) return;
 
     const clienteAntes = clientes.find(c => String(c.id) === String(id));
     if (!clienteAntes) {
-        mostrarNotificacao('Cliente nÃ£o encontrado.', 'error');
+        mostrarNotificacao('Cliente não encontrado.', 'error');
         return;
     }
 
@@ -15926,16 +15176,16 @@ async function excluirCliente(id) {
             clientes = clientes.filter(c => String(c.id) !== String(id));
             atualizarClientesEmMemoria(clientes);
         }
-        registrarAuditoria('excluir', 'cliente', `Cliente excluÃ­do: ${clienteAntes.nome}`, clienteAntes, null);
-        mostrarNotificacao('Cliente excluÃ­do com sucesso!', 'success');
+        registrarAuditoria('excluir', 'cliente', `Cliente excluído: ${clienteAntes.nome}`, clienteAntes, null);
+        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
         fecharModal();
         setTimeout(() => carregarSecao('clientes'), 100);
     } catch (err) {
         console.warn('Erro ao apagar cliente na nuvem:', err);
         clientes = clientes.filter(c => String(c.id) !== String(id));
         atualizarClientesEmMemoria(clientes);
-        registrarAuditoria('excluir', 'cliente', `Cliente excluÃ­do: ${clienteAntes.nome}`, clienteAntes, null);
-        mostrarNotificacao('Cliente excluÃ­do com sucesso!', 'success');
+        registrarAuditoria('excluir', 'cliente', `Cliente excluído: ${clienteAntes.nome}`, clienteAntes, null);
+        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
         fecharModal();
         setTimeout(() => carregarSecao('clientes'), 100);
     }
@@ -15944,7 +15194,7 @@ async function excluirCliente(id) {
 async function excluirClienteDireto(id) {
     
     if (!exigirPermissaoAcao('apagar', 'cliente')) return;
-    if (!confirm('Tem certeza que deseja excluir este cliente? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
 
     let clientesAtual = obterClientesAtual();
     const clientesAtualizados = clientesAtual.filter(c => String(c.id) !== String(id));
@@ -15958,7 +15208,7 @@ async function excluirClienteDireto(id) {
         } else {
             atualizarClientesEmMemoria(clientesAtualizados);
         }
-        mostrarNotificacao('Cliente excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
         setTimeout(() => {
             carregarSecao('clientes');
             if (typeof atualizarListaClientes === 'function') atualizarListaClientes(clientesAtualizados);
@@ -15966,7 +15216,7 @@ async function excluirClienteDireto(id) {
     } catch (err) {
         console.warn('Erro ao apagar na nuvem, a guardar localmente:', err);
         atualizarClientesEmMemoria(clientesAtualizados);
-        mostrarNotificacao('Cliente excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
         setTimeout(() => carregarSecao('clientes'), 100);
     }
 }
@@ -15975,12 +15225,12 @@ async function atualizarContrato(event, id) {
     event.preventDefault();
     const contratoIndex = contratos.findIndex(c => String(c.id) === String(id));
     if (contratoIndex === -1) {
-        mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Contrato não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('editar', 'contrato')) return;
 
-    // Suporta dois modais: editarContrato* (secÃ§Ã£o contratos) ou contrato* (secÃ§Ã£o calendÃ¡rio)
+    // Suporta dois modais: editarContrato* (secção contratos) ou contrato* (secção calendário)
     const useEditar = !!document.getElementById('editarContratoCliente');
     const prefix = useEditar ? 'editarContrato' : 'contrato';
     const sufixoCliente = useEditar ? 'Cliente' : 'ClienteId';
@@ -16031,7 +15281,7 @@ async function atualizarContrato(event, id) {
 }
 
 async function excluirContrato(id) {
-    if (!confirm('Tem certeza que deseja excluir este contrato? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.')) return;
 
     const contratoAntes = contratos.find(c => String(c.id) === String(id));
     const contratosAtualizados = contratos.filter(c => String(c.id) !== String(id));
@@ -16045,16 +15295,16 @@ async function excluirContrato(id) {
             contratos = contratosAtualizados;
             salvarDados('contratos', contratos);
         }
-        if (contratoAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluÃ­do: ${contratoAntes.tipo}`, contratoAntes, null);
-        mostrarNotificacao('Contrato excluÃ­do com sucesso!', 'success');
+        if (contratoAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluído: ${contratoAntes.tipo}`, contratoAntes, null);
+        mostrarNotificacao('Contrato excluído com sucesso!', 'success');
         fecharModal();
         setTimeout(() => carregarSecao('contratos'), 100);
     } catch (err) {
         console.warn('Erro ao apagar contrato na nuvem:', err);
         contratos = contratosAtualizados;
         salvarDados('contratos', contratos);
-        if (contratoAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluÃ­do: ${contratoAntes.tipo}`, contratoAntes, null);
-        mostrarNotificacao('Contrato excluÃ­do com sucesso!', 'success');
+        if (contratoAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluído: ${contratoAntes.tipo}`, contratoAntes, null);
+        mostrarNotificacao('Contrato excluído com sucesso!', 'success');
         fecharModal();
         setTimeout(() => carregarSecao('contratos'), 100);
     }
@@ -16075,7 +15325,7 @@ function ordenarClientes(col) {
     aplicarFiltrosClientes();
 }
 function aplicarFiltrosClientes() {
-    // NÃ£o executar se a secÃ§Ã£o Clientes nÃ£o estÃ¡ visÃ­vel (evita erro ao navegar para Despesas, etc.)
+    // Não executar se a secção Clientes não está visível (evita erro ao navegar para Despesas, etc.)
     if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'clientes') return;
     if (!document.getElementById('listaClientes')) return;
     const busca = document.getElementById('buscaClientes')?.value?.toLowerCase() || '';
@@ -16151,7 +15401,7 @@ function restaurarFiltrosClientes() {
         const o = JSON.parse(s);
         set('buscaClientes', o.busca);
         set('buscaNifClientes', o.buscaNif);
-        // Por defeito mostrar apenas Ativo; evitar "Todos" guardado em sessÃµes antigas
+        // Por defeito mostrar apenas Ativo; evitar "Todos" guardado em sessões antigas
         set('filtroStatusCliente', (o.status && o.status !== '') ? o.status : 'ativo');
         set('filtroDataCliente', o.dataFiltro);
     } catch (e) {
@@ -16183,9 +15433,7 @@ function filtrarHonorarios() {
 }
 
 function aplicarFiltrosHonorarios() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'honorarios') return;
-    if (!document.getElementById('listaHonorarios')) return;
-    const busca = document.getElementById('buscaHonorarios')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaHonorarios')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusHonorario')?.value || '';
     const valorMin = parseFloat(document.getElementById('filtroValorMinHonorario')?.value) || 0;
     const valorMax = parseFloat(document.getElementById('filtroValorMaxHonorario')?.value) || Infinity;
@@ -16193,7 +15441,7 @@ function aplicarFiltrosHonorarios() {
     
     
     let honorariosFiltrados = honorarios.filter(honorario => {
-        // Filtro por busca de texto (nome do cliente, serviÃ§o, valor)
+        // Filtro por busca de texto (nome do cliente, serviço, valor)
         const nomeCliente = (honorario.cliente || honorario.clienteNome || (typeof obterNomeClienteRelatorio === 'function' ? obterNomeClienteRelatorio(honorario) : '') || '').toString().toLowerCase();
         const servico = (honorario.servico || '').toString().toLowerCase();
         const valorStr = (honorario.valor != null ? String(honorario.valor) : '').toLowerCase();
@@ -16256,7 +15504,7 @@ function aplicarFiltrosHonorarios() {
         contador.textContent = honorariosFiltrados.length;
     }
     
-    // Reinicializar Ã­cones Lucide apÃ³s aplicar filtros
+    // Reinicializar ícones Lucide após aplicar filtros
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -16280,8 +15528,11 @@ function restaurarFiltrosHonorarios() {
 }
 
 function limparFiltrosHonorarios() {
-    const els = ['buscaHonorarios','filtroStatusHonorario','filtroValorMinHonorario','filtroValorMaxHonorario','filtroVencimentoHonorario'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaHonorarios').value = '';
+    document.getElementById('filtroStatusHonorario').value = '';
+    document.getElementById('filtroValorMinHonorario').value = '';
+    document.getElementById('filtroValorMaxHonorario').value = '';
+    document.getElementById('filtroVencimentoHonorario').value = '';
     aplicarFiltrosHonorarios();
 }
 
@@ -16300,9 +15551,7 @@ function filtrarContratos() {
 }
 
 function aplicarFiltrosContratos() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'contratos') return;
-    if (!document.getElementById('listaContratos')) return;
-    const busca = document.getElementById('buscaContratos')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaContratos')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusContrato')?.value || '';
     const clienteId = document.getElementById('filtroClienteContrato')?.value || '';
     const valorMin = parseFloat(document.getElementById('filtroValorMinContrato')?.value) || 0;
@@ -16312,8 +15561,8 @@ function aplicarFiltrosContratos() {
     let contratosFiltrados = contratos.filter(contrato => {
         // Filtro por busca de texto
         const matchBusca = !busca || 
-            (contrato.clienteNome || '').toLowerCase().includes(busca) || 
-            (contrato.tipo || '').toLowerCase().includes(busca) ||
+            contrato.clienteNome.toLowerCase().includes(busca) || 
+            contrato.tipo.toLowerCase().includes(busca) ||
             (contrato.observacoes && contrato.observacoes.toLowerCase().includes(busca));
         
         // Filtro por status
@@ -16350,7 +15599,7 @@ function aplicarFiltrosContratos() {
         contador.textContent = contratosFiltrados.length;
     }
     
-    // Reinicializar Ã­cones Lucide apÃ³s aplicar filtros
+    // Reinicializar ícones Lucide após aplicar filtros
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -16375,8 +15624,12 @@ function restaurarFiltrosContratos() {
 }
 
 function limparFiltrosContratos() {
-    const els = ['buscaContratos','filtroStatusContrato','filtroClienteContrato','filtroValorMinContrato','filtroValorMaxContrato','filtroNifContrato'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaContratos').value = '';
+    document.getElementById('filtroStatusContrato').value = '';
+    document.getElementById('filtroClienteContrato').value = '';
+    document.getElementById('filtroValorMinContrato').value = '';
+    document.getElementById('filtroValorMaxContrato').value = '';
+    document.getElementById('filtroNifContrato').value = '';
     aplicarFiltrosContratos();
 }
 
@@ -16399,7 +15652,7 @@ function atualizarListaClientes(clientesFiltrados) {
             <td>
                 <button onclick="mostrarInformacoesCompletasCliente(${JSON.stringify(cliente).replace(/"/g, '&quot;')})" 
                         class="text-blue-600 hover:text-blue-800 font-medium cursor-pointer hover:underline flex items-center gap-1" 
-                        title="Clicar para ver informaÃ§Ãµes completas">
+                        title="Clicar para ver informações completas">
                     <i data-lucide="user" class="w-4 h-4"></i>
                     ${cliente.nome}
                 </button>
@@ -16422,7 +15675,7 @@ function atualizarListaClientes(clientesFiltrados) {
     const verMais = clientesFiltrados.length > limit ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__clientesLimit = (window.__clientesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosClientes();" class="btn btn-secondary text-sm">Ver mais (${clientesFiltrados.length - limit} restantes)</button></td></tr>` : '';
     tbody.innerHTML = rows + verMais;
     
-    // Reinicializar Ã­cones Lucide
+    // Reinicializar ícones Lucide
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -16436,8 +15689,8 @@ function atualizarListaHonorarios(honorariosFiltrados) {
     if (honorariosFiltrados.length === 0) {
         const temFiltros = (document.getElementById('buscaHonorarios')?.value?.trim() || document.getElementById('filtroStatusHonorario')?.value || document.getElementById('filtroValorMinHonorario')?.value || document.getElementById('filtroValorMaxHonorario')?.value || document.getElementById('filtroVencimentoHonorario')?.value);
         const msg = honorarios.length > 0 && temFiltros
-            ? '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorÃ¡rio corresponde aos filtros.</p><button type="button" onclick="limparFiltrosHonorarios()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
-            : '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorÃ¡rio registado.</p><button type="button" onclick="abrirModal(\'honorario\')" class="btn btn-primary text-sm">Adicionar honorÃ¡rio</button></td></tr>';
+            ? '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorário corresponde aos filtros.</p><button type="button" onclick="limparFiltrosHonorarios()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
+            : '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorário registado.</p><button type="button" onclick="abrirModal(\'honorario\')" class="btn btn-primary text-sm">Adicionar honorário</button></td></tr>';
         tbody.innerHTML = msg;
         setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
         return;
@@ -16450,17 +15703,17 @@ function atualizarListaHonorarios(honorariosFiltrados) {
                 ${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}
             </td>
             <td>${honorario.servico}</td>
-            <td>â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
+            <td>€${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</td>
             <td><span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span></td>
             <td>${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</td>
             <td>
-                <button type="button" data-honorario-acao="editar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                <button class="btn-editar-honorario text-blue-600 hover:text-blue-800 mr-2" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-honorario-acao="duplicar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
+                <button class="btn-duplicar-honorario text-green-600 hover:text-green-800 mr-2" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Duplicar">
                     <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-honorario-acao="excluir" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
+                <button class="btn-excluir-honorario text-red-600 hover:text-red-800" data-id="${String(honorario.id).replace(/"/g, '&quot;')}" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -16469,9 +15722,22 @@ function atualizarListaHonorarios(honorariosFiltrados) {
     const verMaisH = honorariosFiltrados.length > limitH ? `<tr><td colspan="6" class="text-center py-3 border-t"><button type="button" onclick="window.__honorariosLimit = (window.__honorariosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHonorarios();" class="btn btn-secondary text-sm">Ver mais (${honorariosFiltrados.length - limitH} restantes)</button></td></tr>` : '';
     tbody.innerHTML = rowsH + verMaisH;
     
-    // Event delegation em document (data-honorario-acao) — evita listeners em elementos dinâmicos
+    // Adicionar event listeners
+    tbody.querySelectorAll('.btn-editar-honorario').forEach(btn => {
+        btn.addEventListener('click', function() { editarHonorarioDireto(this.getAttribute('data-id')); });
+    });
     
-    // Reinicializar Ã­cones Lucide
+    tbody.querySelectorAll('.btn-duplicar-honorario').forEach(btn => {
+        btn.addEventListener('click', function(e) { e.stopPropagation(); duplicarHonorario(this.getAttribute('data-id')); });
+    });
+    
+    tbody.querySelectorAll('.btn-excluir-honorario').forEach(btn => {
+        btn.addEventListener('click', function() {
+            excluirHonorarioDireto(this.getAttribute('data-id'));
+        });
+    });
+    
+    // Reinicializar ícones Lucide
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -16506,24 +15772,24 @@ function atualizarListaContratos(contratosFiltrados) {
                     const valorFormatado = Math.round(valor * 100) / 100;
                     const valorComIVAFormatado = Math.round(valorComIVA * 100) / 100;
                     return `
-                        <div class="text-sm font-bold text-black">â‚¬${valorFormatado.toFixed(2)}</div>
-                        <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${valorComIVAFormatado.toFixed(2)}</div>
+                        <div class="text-sm font-bold text-black">€${valorFormatado.toFixed(2)}</div>
+                        <div class="text-xs font-bold text-red-600">+ IVA: €${valorComIVAFormatado.toFixed(2)}</div>
                     `;
                 })()}
             </td>
-            <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'ConcluÃ­do' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
+            <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'Concluído' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
             <td>${contrato.dataInicio ? new Date(contrato.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
             <td>
-                <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                <button onclick="editarContratoDireto(${JSON.stringify(contrato.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
+                <button onclick="duplicarContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
                     <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
+                <button onclick="abrirAnexosContrato(${JSON.stringify(contrato.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                     <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
+                <button onclick="excluirContratoDireto(${JSON.stringify(contrato.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -16532,7 +15798,7 @@ function atualizarListaContratos(contratosFiltrados) {
     const verMaisC = contratosFiltrados.length > limitC ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__contratosLimit = (window.__contratosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosContratos();" class="btn btn-secondary text-sm">Ver mais (${contratosFiltrados.length - limitC} restantes)</button></td></tr>` : '';
     tbody.innerHTML = rowsC + verMaisC;
     
-    // Reinicializar Ã­cones Lucide apÃ³s atualizar a lista
+    // Reinicializar ícones Lucide após atualizar a lista
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     }, 100);
@@ -16541,7 +15807,7 @@ function atualizarListaContratos(contratosFiltrados) {
 function mostrarNotificacao(mensagem, tipo = 'info') {
     const container = document.getElementById('notificationsContainer');
     if (!container) {
-        // Se nÃ£o hÃ¡ container, criar notificaÃ§Ã£o temporÃ¡ria
+        // Se não há container, criar notificação temporária
         const notificacao = document.createElement('div');
         notificacao.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 transform transition-all duration-300`;
         
@@ -16557,7 +15823,7 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
         
         document.body.appendChild(notificacao);
         
-        // Remover apÃ³s 5 segundos
+        // Remover após 5 segundos
         setTimeout(() => {
             if (notificacao.parentNode) {
                 notificacao.parentNode.removeChild(notificacao);
@@ -16571,7 +15837,8 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
     notification.textContent = mensagem;
     
     container.appendChild(notification);
-    notification.classList.add('show');
+    
+    setTimeout(() => notification.classList.add('show'), 100);
     
     setTimeout(() => {
         notification.classList.remove('show');
@@ -16592,7 +15859,7 @@ function atualizarDataHeader() {
     el.textContent = new Date().toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Mostra contadores (ex: 12) nos itens da sidebar para dar visÃ£o rÃ¡pida dos dados. */
+/** Mostra contadores (ex: 12) nos itens da sidebar para dar visão rápida dos dados. */
 function atualizarContadoresSidebar() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const obterPrazos = typeof obterPrazosAtual === 'function' ? obterPrazosAtual : () => (prazos || []);
@@ -16673,7 +15940,7 @@ function atualizarContadoresSidebar() {
     });
 }
 
-// FunÃ§Ã£o fecharModal duplicada removida
+// Função fecharModal duplicada removida
 
 function editarItem(tipo, id) {
     
@@ -16695,8 +15962,8 @@ function editarItem(tipo, id) {
                 abrirModalEdicaoContrato(contrato);
             }, 100);
         } else {
-            console.error('Contrato nÃ£o encontrado com ID:', id);
-            mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
+            console.error('Contrato não encontrado com ID:', id);
+            mostrarNotificacao('Contrato não encontrado!', 'error');
         }
     } else if (tipo === 'honorario') {
         const honorario = honorarios.find(h => h.id === id);
@@ -16729,7 +15996,7 @@ function editarItem(tipo, id) {
             abrirModalEdicaoPrazo(prazo);
         }
     } else {
-        mostrarNotificacao('Funcionalidade de ediÃ§Ã£o em desenvolvimento', 'info');
+        mostrarNotificacao('Funcionalidade de edição em desenvolvimento', 'info');
     }
 }
 
@@ -16738,12 +16005,12 @@ function excluirItem(tipo, id) {
     if (!exigirPermissaoAcao('apagar', tipo)) {
         return;
     }
-    // Cliente: usa excluirClienteDireto (permite convidados, tem seu prÃ³prio confirm)
+    // Cliente: usa excluirClienteDireto (permite convidados, tem seu próprio confirm)
     if (tipo === 'cliente') {
         excluirClienteDireto(id);
         return;
     }
-    if (!exigirAdmin('exclusÃ£o de dados')) {
+    if (!exigirAdmin('exclusão de dados')) {
         return;
     }
     if (confirm('Tem certeza que deseja excluir este item?')) {
@@ -16754,22 +16021,22 @@ function excluirItem(tipo, id) {
                 apagarHonorarioCloud(id).then(() => {
                     honorarios = honorariosAtualizados;
                     salvarDados('honorarios', honorarios, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'honorario', `HonorÃ¡rio excluÃ­do: ${itemAntes.cliente || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'honorario', `Honorário excluído: ${itemAntes.cliente || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
-                    console.warn('Erro ao apagar honorÃ¡rio na nuvem:', err);
+                    console.warn('Erro ao apagar honorário na nuvem:', err);
                     honorarios = honorariosAtualizados;
                     salvarDados('honorarios', honorarios);
-                    if (itemAntes) registrarAuditoria('excluir', 'honorario', `HonorÃ¡rio excluÃ­do: ${itemAntes.cliente || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'honorario', `Honorário excluído: ${itemAntes.cliente || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             honorarios = honorariosAtualizados;
             salvarDados('honorarios', honorarios);
-            if (itemAntes) registrarAuditoria('excluir', 'honorario', `HonorÃ¡rio excluÃ­do: ${itemAntes.cliente || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'honorario', `Honorário excluído: ${itemAntes.cliente || id}`, itemAntes, null);
         } else if (tipo === 'contrato') {
             const itemAntes = contratos.find(item => String(item.id) === String(id));
             const contratosAtualizados = contratos.filter(item => String(item.id) !== String(id));
@@ -16777,22 +16044,22 @@ function excluirItem(tipo, id) {
                 apagarContratoCloud(id).then(() => {
                     contratos = contratosAtualizados;
                     salvarDados('contratos', contratos, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluÃ­do: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluído: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
                     console.warn('Erro ao apagar contrato na nuvem:', err);
                     contratos = contratosAtualizados;
                     salvarDados('contratos', contratos);
-                    if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluÃ­do: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluído: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             contratos = contratosAtualizados;
             salvarDados('contratos', contratos);
-            if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluÃ­do: ${itemAntes.clienteNome || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'contrato', `Contrato excluído: ${itemAntes.clienteNome || id}`, itemAntes, null);
         } else if (tipo === 'heranca') {
             const itemAntes = herancas.find(item => String(item.id) === String(id));
             const herancasAtualizadas = herancas.filter(item => String(item.id) !== String(id));
@@ -16801,22 +16068,22 @@ function excluirItem(tipo, id) {
                     herancas = herancasAtualizadas;
                     window.herancas = herancas;
                     salvarDados('herancas', herancas, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'heranca', `HeranÃ§a excluÃ­da: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'heranca', `Herança excluída: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
-                    console.warn('Erro ao apagar heranÃ§a na nuvem:', err);
+                    console.warn('Erro ao apagar herança na nuvem:', err);
                     herancas = herancasAtualizadas;
                     salvarDados('herancas', herancas);
-                    if (itemAntes) registrarAuditoria('excluir', 'heranca', `HeranÃ§a excluÃ­da: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'heranca', `Herança excluída: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             herancas = herancasAtualizadas;
             salvarDados('herancas', herancas);
-            if (itemAntes) registrarAuditoria('excluir', 'heranca', `HeranÃ§a excluÃ­da: ${itemAntes?.clienteNome || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'heranca', `Herança excluída: ${itemAntes?.clienteNome || id}`, itemAntes, null);
         } else if (tipo === 'migracao') {
             const itemAntes = migracoes.find(item => String(item.id) === String(id));
             const migracoesAtualizadas = migracoes.filter(item => String(item.id) !== String(id));
@@ -16825,22 +16092,22 @@ function excluirItem(tipo, id) {
                     migracoes = migracoesAtualizadas;
                     window.migracoes = migracoes;
                     salvarDados('migracoes', migracoes, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'migracao', `MigraÃ§Ã£o excluÃ­da: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'migracao', `Migração excluída: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
-                    console.warn('Erro ao apagar migraÃ§Ã£o na nuvem:', err);
+                    console.warn('Erro ao apagar migração na nuvem:', err);
                     migracoes = migracoesAtualizadas;
                     salvarDados('migracoes', migracoes);
-                    if (itemAntes) registrarAuditoria('excluir', 'migracao', `MigraÃ§Ã£o excluÃ­da: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'migracao', `Migração excluída: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             migracoes = migracoesAtualizadas;
             salvarDados('migracoes', migracoes);
-            if (itemAntes) registrarAuditoria('excluir', 'migracao', `MigraÃ§Ã£o excluÃ­da: ${itemAntes?.clienteNome || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'migracao', `Migração excluída: ${itemAntes?.clienteNome || id}`, itemAntes, null);
         } else if (tipo === 'registo') {
             const itemAntes = registos.find(item => String(item.id) === String(id));
             const registosAtualizados = registos.filter(item => String(item.id) !== String(id));
@@ -16849,22 +16116,22 @@ function excluirItem(tipo, id) {
                     registos = registosAtualizados;
                     window.registos = registos;
                     salvarDados('registos', registos, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluÃ­do: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluído: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
                     console.warn('Erro ao apagar registo na nuvem:', err);
                     registos = registosAtualizados;
                     salvarDados('registos', registos);
-                    if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluÃ­do: ${itemAntes.clienteNome || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluído: ${itemAntes.clienteNome || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             registos = registosAtualizados;
             salvarDados('registos', registos);
-            if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluÃ­do: ${itemAntes?.clienteNome || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'registo', `Registo excluído: ${itemAntes?.clienteNome || id}`, itemAntes, null);
         } else if (tipo === 'prazo') {
             const itemAntes = prazos.find(item => String(item.id) === String(id));
             const prazosAtualizados = prazos.filter(item => String(item.id) !== String(id));
@@ -16873,24 +16140,24 @@ function excluirItem(tipo, id) {
                     prazos = prazosAtualizados;
                     window.prazos = prazos;
                     salvarDados('prazos', prazos, { skipCloudSync: true });
-                    if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluÃ­do: ${itemAntes.descricao || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluído: ${itemAntes.descricao || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 }).catch((err) => {
                     console.warn('Erro ao apagar prazo na nuvem:', err);
                     prazos = prazosAtualizados;
                     salvarDados('prazos', prazos);
-                    if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluÃ­do: ${itemAntes.descricao || id}`, itemAntes, null);
-                    mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+                    if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluído: ${itemAntes.descricao || id}`, itemAntes, null);
+                    mostrarNotificacao('Item excluído com sucesso!', 'success');
                     carregarSecao(secaoAtiva);
                 });
                 return;
             }
             prazos = prazosAtualizados;
             salvarDados('prazos', prazos);
-            if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluÃ­do: ${itemAntes?.descricao || id}`, itemAntes, null);
+            if (itemAntes) registrarAuditoria('excluir', 'prazo', `Prazo excluído: ${itemAntes?.descricao || id}`, itemAntes, null);
         }
-        mostrarNotificacao('Item excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Item excluído com sucesso!', 'success');
         carregarSecao(secaoAtiva);
     }
 }
@@ -16902,7 +16169,7 @@ function exportarDados() {
 function importarDados() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     if (tipoUsuario !== 'admin' && tipoUsuario !== 'convidado') {
-        mostrarNotificacao('Acesso restrito: nÃ£o pode importar dados.', 'error');
+        mostrarNotificacao('Acesso restrito: não pode importar dados.', 'error');
         return;
     }
     const input = document.createElement('input');
@@ -16918,18 +16185,14 @@ function importarDados() {
                     if (isCloudReady()) listenerManager.pause();
                     const dados = JSON.parse(e.target.result);
                     if (dados.dados) {
-                        const honorariosNoFich = Array.isArray(dados.dados.honorarios) && dados.dados.honorarios.length > 0;
-                        const incluirHon = !honorariosNoFich || confirm(
-                            'O ficheiro contÃ©m honorÃ¡rios. Incluir na importaÃ§Ã£o?\n\nNÃƒO = mantÃ©m os atuais (evita reaparecimento de itens antigos).'
-                        );
                         clientes = dados.dados.clientes || [];
-                        honorarios = incluirHon ? (dados.dados.honorarios || []) : (Array.isArray(honorarios) ? honorarios : []);
+                        honorarios = dados.dados.honorarios || [];
                         contratos = dados.dados.contratos || [];
                         atualizarClientesEmMemoria(clientes);
-                        if (incluirHon) salvarDados('honorarios', honorarios);
+                        salvarDados('honorarios', honorarios);
                         salvarDados('contratos', contratos);
-                        registrarAuditoria('importar', 'backup', 'ImportaÃ§Ã£o parcial (clientes/honorÃ¡rios/contratos)');
-                        if (typeof logBackup === 'function') logBackup('ImportaÃ§Ã£o parcial (clientes/honorÃ¡rios/contratos)');
+                        registrarAuditoria('importar', 'backup', 'Importação parcial (clientes/honorários/contratos)');
+                        if (typeof logBackup === 'function') logBackup('Importação parcial (clientes/honorários/contratos)');
                         mostrarNotificacao('Dados importados com sucesso!', 'success');
                         reporListeners();
                         carregarSecao(secaoAtiva);
@@ -16951,7 +16214,7 @@ function importarDados() {
 
 function gerarRelatorioClientes() {
     const relatorio = `
-RELATÃ“RIO DE CLIENTES
+RELATÓRIO DE CLIENTES
 ====================
 Data: ${new Date().toLocaleDateString('pt-PT')}
 
@@ -16976,25 +16239,25 @@ function gerarRelatorioFinanceiro() {
     const valorPago = honorariosPagos.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
     
     const relatorio = `
-RELATÃ“RIO FINANCEIRO
+RELATÓRIO FINANCEIRO
 ====================
 Data: ${new Date().toLocaleDateString('pt-PT')}
 
 RESUMO FINANCEIRO:
-- Total de HonorÃ¡rios: ${honorarios.length}
-- Valor Total: â‚¬${(Math.round(valorTotal * 100) / 100).toFixed(2)}
-- Valor Pago: â‚¬${Number(valorPago).toFixed(2)}
-- Valor Pendente: â‚¬${Number(valorTotal - valorPago).toFixed(2)}
+- Total de Honorários: ${honorarios.length}
+- Valor Total: €${(Math.round(valorTotal * 100) / 100).toFixed(2)}
+- Valor Pago: €${Number(valorPago).toFixed(2)}
+- Valor Pendente: €${Number(valorTotal - valorPago).toFixed(2)}
 
-HONORÃRIOS POR STATUS:
+HONORÁRIOS POR STATUS:
 - Pagos: ${honorarios.filter(h => h.status === 'pago').length}
 - Pendentes: ${honorarios.filter(h => isHonorarioEmAberto(h)).length}
 - Vencidos: ${honorarios.filter(h => h.status === 'vencido').length}
 
-DETALHES DOS HONORÃRIOS:
+DETALHES DOS HONORÁRIOS:
 ${honorarios.map((honorario, index) => `
 ${index + 1}. ${honorario.cliente} - ${honorario.servico}
-   Valor: â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}
+   Valor: €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}
    Status: ${formatarStatusHonorario(honorario.status)}
    Vencimento: ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}
 `).join('')}
@@ -17006,10 +16269,10 @@ ${index + 1}. ${honorario.cliente} - ${honorario.servico}
 
 function downloadRelatorio(conteudo, nomeArquivo) {
     const nomePdf = (nomeArquivo || 'relatorio.pdf').replace(/\.txt$/i, '.pdf');
-    textoParaPdf('RelatÃ³rio', conteudo, 'baixar', nomePdf);
+    textoParaPdf('Relatório', conteudo, 'baixar', nomePdf);
 }
 
-// === SISTEMA DE BACKUP AUTOMÃTICO ===
+// === SISTEMA DE BACKUP AUTOMÁTICO ===
 
 const BACKUP_CONFIG = {
     intervaloMs: 15 * 60 * 1000,
@@ -17033,7 +16296,7 @@ function iniciarSistemaBackup() {
         criarBackupAutomatico();
     }, BACKUP_CONFIG.intervaloMs);
     
-    // Backup antes de fechar a pÃ¡gina
+    // Backup antes de fechar a página
     window.addEventListener('beforeunload', () => {
         criarBackupAutomatico();
     });
@@ -17061,19 +16324,19 @@ function criarBackupAutomatico() {
             tipo: 'automatico'
         };
         
-        // Salvar backup (exportaÃ§Ã£o)
+        // Salvar backup (exportação)
         const backupKey = `backup_${Date.now()}`;
         appStorage.setItem(backupKey, JSON.stringify(backup));
         
-        // Manter apenas os Ãºltimos 10 backups
+        // Manter apenas os últimos 10 backups
         limparBackupsAntigos();
         
         ultimoBackup = backup.timestamp;
         verificarDownloadAutomatico(backup);
-        if (typeof logBackup === 'function') logBackup('Backup automÃ¡tico criado: ' + backup.timestamp);
+        if (typeof logBackup === 'function') logBackup('Backup automático criado: ' + backup.timestamp);
         
     } catch (error) {
-        console.error('âŒ Erro ao criar backup automÃ¡tico:', error);
+        console.error('❌ Erro ao criar backup automático:', error);
         registrarErro('criarBackupAutomatico', error);
         if (typeof logBackup === 'function') logBackup('Erro backup: ' + (error?.message || error));
     }
@@ -17103,25 +16366,25 @@ function baixarBackupAutomatico(backup) {
         URL.revokeObjectURL(url);
         ultimoBackupDownload = new Date().toISOString();
         appStorage.setItem('ultimoBackupDownload', ultimoBackupDownload);
-        registrarAuditoria('backup', 'sistema', 'Backup automÃ¡tico com download');
-        if (typeof logBackup === 'function') logBackup('Download automÃ¡tico realizado');
+        registrarAuditoria('backup', 'sistema', 'Backup automático com download');
+        if (typeof logBackup === 'function') logBackup('Download automático realizado');
     } catch (error) {
-        console.error('âŒ Erro ao baixar backup automÃ¡tico:', error);
+        console.error('❌ Erro ao baixar backup automático:', error);
         registrarErro('baixarBackupAutomatico', error);
-        if (typeof logBackup === 'function') logBackup('Erro download automÃ¡tico: ' + (error?.message || error));
+        if (typeof logBackup === 'function') logBackup('Erro download automático: ' + (error?.message || error));
     }
 }
 
 function toggleBackupAutoDownload(ativo) {
     backupAutoDownloadAtivo = !!ativo;
     appStorage.setItem('backupAutoDownloadAtivo', JSON.stringify(backupAutoDownloadAtivo));
-    mostrarNotificacao(`Backup automÃ¡tico com download ${backupAutoDownloadAtivo ? 'ativado' : 'desativado'}.`, 'info');
+    mostrarNotificacao(`Backup automático com download ${backupAutoDownloadAtivo ? 'ativado' : 'desativado'}.`, 'info');
 }
 
 async function ativarPersistenciaExterna() {
-    if (!exigirAdmin('persistÃªncia externa')) return;
+    if (!exigirAdmin('persistência externa')) return;
     if (!('showSaveFilePicker' in window)) {
-        mostrarNotificacao('Seu navegador nÃ£o suporta persistÃªncia externa automÃ¡tica.', 'warning');
+        mostrarNotificacao('Seu navegador não suporta persistência externa automática.', 'warning');
         return;
     }
     try {
@@ -17134,9 +16397,9 @@ async function ativarPersistenciaExterna() {
         appStorage.setItem('persistenciaAtiva', 'true');
         salvarPersistenciaExterna();
         iniciarPersistenciaExterna();
-        mostrarNotificacao('PersistÃªncia externa ativada.', 'success');
+        mostrarNotificacao('Persistência externa ativada.', 'success');
     } catch (error) {
-        console.error('âŒ Erro ao ativar persistÃªncia externa:', error);
+        console.error('❌ Erro ao ativar persistência externa:', error);
         registrarErro('ativarPersistenciaExterna', error);
     }
 }
@@ -17145,7 +16408,7 @@ function desativarPersistenciaExterna() {
     persistenciaAtiva = false;
     appStorage.setItem('persistenciaAtiva', 'false');
     if (persistenciaInterval) clearInterval(persistenciaInterval);
-    mostrarNotificacao('PersistÃªncia externa desativada.', 'info');
+    mostrarNotificacao('Persistência externa desativada.', 'info');
 }
 
 function iniciarPersistenciaExterna() {
@@ -17181,7 +16444,7 @@ async function salvarPersistenciaExterna() {
         persistenciaUltimoSalvamento = new Date().toISOString();
         appStorage.setItem('persistenciaUltimoSalvamento', persistenciaUltimoSalvamento);
     } catch (error) {
-        console.error('âŒ Erro ao salvar persistÃªncia externa:', error);
+        console.error('❌ Erro ao salvar persistência externa:', error);
         registrarErro('salvarPersistenciaExterna', error);
     }
 }
@@ -17211,7 +16474,7 @@ function exportarDadosCompletos() {
     try {
         const tipoUsuario = appStorage.getItem('tipoUsuario');
         if (tipoUsuario !== 'admin' && tipoUsuario !== 'convidado') {
-            mostrarNotificacao('Acesso restrito: nÃ£o pode exportar dados.', 'error');
+            mostrarNotificacao('Acesso restrito: não pode exportar dados.', 'error');
             return;
         }
         const dadosCompletos = {
@@ -17250,18 +16513,18 @@ function exportarDadosCompletos() {
         URL.revokeObjectURL(url);
         
         mostrarNotificacao('Backup exportado com sucesso!', 'success');
-        registrarAuditoria('exportar', 'backup', 'ExportaÃ§Ã£o completa da base de dados');
+        registrarAuditoria('exportar', 'backup', 'Exportação completa da base de dados');
         try { appStorage.setItem('backupExportUltimo', new Date().toISOString()); } catch (e) {}
-        if (typeof logBackup === 'function') logBackup('ExportaÃ§Ã£o completa realizada');
+        if (typeof logBackup === 'function') logBackup('Exportação completa realizada');
     } catch (error) {
-        console.error('âŒ Erro ao exportar dados:', error);
+        console.error('❌ Erro ao exportar dados:', error);
         mostrarNotificacao('Erro ao exportar backup', 'error');
         registrarErro('exportarDadosCompletos', error);
         if (typeof logBackup === 'function') logBackup('Erro exportar: ' + (error?.message || error));
     }
 }
 
-/** Lembrete periÃ³dico (1x por semana) para exportar backup. */
+/** Lembrete periódico (1x por semana) para exportar backup. */
 function verificarLembreteBackup() {
     const CHAVE_EXPORT = 'backupExportUltimo';
     const CHAVE_LEMBRETE = 'backupLembreteUltimaVez';
@@ -17275,26 +16538,26 @@ function verificarLembreteBackup() {
         if (haExportRecent || haLembreteRecent) return;
         appStorage.setItem(CHAVE_LEMBRETE, new Date().toISOString());
         if (typeof mostrarNotificacao === 'function') {
-            mostrarNotificacao('Recomendamos exportar um backup dos seus dados. Use o botÃ£o Exportar no menu.', 'info');
+            mostrarNotificacao('Recomendamos exportar um backup dos seus dados. Use o botão Exportar no menu.', 'info');
         }
     } catch (e) { console.warn('Lembrete backup:', e); }
 }
 
-/** Mostra notificaÃ§Ã£o nativa do browser (reutilizÃ¡vel). secaoAoClique: 'dashboard' | 'tarefas' | 'prazos' | etc. */
+/** Mostra notificação nativa do browser (reutilizável). secaoAoClique: 'dashboard' | 'tarefas' | 'prazos' | etc. */
 function mostrarNotificacaoBrowser(titulo, corpo, tag, secaoAoClique) {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     try {
         const notif = new Notification(titulo, {
             body: corpo,
             tag: tag || 'sistema-legal',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">âš–</text></svg>'
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖</text></svg>'
         });
         const secao = secaoAoClique || 'dashboard';
         notif.onclick = () => { window.focus(); notif.close(); if (typeof carregarSecao === 'function') carregarSecao(secao); };
-    } catch (e) { console.warn('NotificaÃ§Ã£o browser:', e); }
+    } catch (e) { console.warn('Notificação browser:', e); }
 }
 
-/** NotificaÃ§Ã£o nativa do browser para prazos, tarefas e vencimentos do dia (mostra no mÃ¡ximo 1x por dia). */
+/** Notificação nativa do browser para prazos, tarefas e vencimentos do dia (mostra no máximo 1x por dia). */
 function verificarNotificacaoBrowserPrazos() {
     if (typeof Notification === 'undefined') return;
     if (Notification.permission === 'denied') return;
@@ -17320,27 +16583,27 @@ function verificarNotificacaoBrowserPrazos() {
         if (prazosHoje.length) partes.push(`${prazosHoje.length} prazo(s) hoje`);
         if (tarefasHoje.length) partes.push(`${tarefasHoje.length} tarefa(s) hoje`);
         if (prazosVencidos.length) partes.push(`${prazosVencidos.length} prazo(s) vencido(s)`);
-        if (honorariosVencidos.length) partes.push(`${honorariosVencidos.length} honorÃ¡rio(s) vencido(s)`);
+        if (honorariosVencidos.length) partes.push(`${honorariosVencidos.length} honorário(s) vencido(s)`);
         const msg = 'Tem ' + partes.join(', ') + '.';
         const secao = (prazosHoje.length + prazosVencidos.length) > 0 ? 'prazos' : (tarefasHoje.length > 0 ? 'tarefas' : (honorariosVencidos.length > 0 ? 'honorarios' : 'dashboard'));
         const mostrar = () => {
             try {
                 appStorage.setItem(CHAVE_ULTIMA, hojeStr);
-                mostrarNotificacaoBrowser('Sistema Legal â€“ Alertas', msg, 'sistema-legal-alertas', secao);
-            } catch (e) { console.warn('NotificaÃ§Ã£o browser:', e); }
+                mostrarNotificacaoBrowser('Sistema Legal – Alertas', msg, 'sistema-legal-alertas', secao);
+            } catch (e) { console.warn('Notificação browser:', e); }
         };
         if (Notification.permission === 'granted') {
             mostrar();
         } else {
             Notification.requestPermission().then(p => { if (p === 'granted') mostrar(); });
         }
-    } catch (e) { console.warn('Verificar notificaÃ§Ã£o browser:', e); }
+    } catch (e) { console.warn('Verificar notificação browser:', e); }
 }
 
 function importarDadosCompletos() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     if (tipoUsuario !== 'admin' && tipoUsuario !== 'convidado') {
-        mostrarNotificacao('Acesso restrito: nÃ£o pode importar dados.', 'error');
+        mostrarNotificacao('Acesso restrito: não pode importar dados.', 'error');
         return;
     }
     const input = document.createElement('input');
@@ -17359,18 +16622,11 @@ function importarDadosCompletos() {
                 
                 // Validar estrutura do arquivo
                 if (!dadosImportados.dados || !dadosImportados.versao) {
-                    throw new Error('Arquivo de backup invÃ¡lido');
+                    throw new Error('Arquivo de backup inválido');
                 }
                 
-                // Confirmar importaÃ§Ã£o
-                if (confirm('âš ï¸ ATENÃ‡ÃƒO: Esta aÃ§Ã£o irÃ¡ substituir TODOS os dados atuais!\n\nTem certeza que deseja continuar?')) {
-                    const honorariosNoBackup = Array.isArray(dadosImportados.dados.honorarios) && dadosImportados.dados.honorarios.length > 0;
-                    const incluirHonorarios = !honorariosNoBackup || confirm(
-                        'O backup contÃ©m ' + (dadosImportados.dados.honorarios?.length || 0) + ' honorÃ¡rio(s).\n\n' +
-                        'Incluir honorÃ¡rios na importaÃ§Ã£o?\n\n' +
-                        'â€¢ SIM = restaura (pode trazer itens antigos que apagou)\n' +
-                        'â€¢ NÃƒO = mantÃ©m os honorÃ¡rios atuais na nuvem (evita reaparecimento)'
-                    );
+                // Confirmar importação
+                if (confirm('⚠️ ATENÇÃO: Esta ação irá substituir TODOS os dados atuais!\n\nTem certeza que deseja continuar?')) {
                     if (isCloudReady()) { listenerManager.pause(); fezPause = true; }
                     
                     // Criar backup antes de importar
@@ -17378,7 +16634,7 @@ function importarDadosCompletos() {
                     
                     // Importar dados
                     clientes = dadosImportados.dados.clientes || [];
-                    honorarios = incluirHonorarios ? (dadosImportados.dados.honorarios || []) : (Array.isArray(honorarios) ? honorarios : []);
+                    honorarios = dadosImportados.dados.honorarios || [];
                     contratos = dadosImportados.dados.contratos || [];
                     prazos = dadosImportados.dados.prazos || [];
                     notificacoes = dadosImportados.dados.notificacoes || [];
@@ -17386,9 +16642,9 @@ function importarDadosCompletos() {
                     migracoes = dadosImportados.dados.migracoes || [];
                     registos = dadosImportados.dados.registos || [];
                     
-                    // Salvar dados importados (honorarios sÃ³ se foram importados)
+                    // Salvar dados importados
                     atualizarClientesEmMemoria(clientes);
-                    if (incluirHonorarios) salvarDados('honorarios', honorarios);
+                    salvarDados('honorarios', honorarios);
                     salvarDados('contratos', contratos);
                     salvarDados('prazos', prazos);
                     salvarDados('notificacoes', notificacoes);
@@ -17397,16 +16653,16 @@ function importarDadosCompletos() {
                     salvarDados('registos', registos);
                     
                     mostrarNotificacao('Dados importados com sucesso!', 'success');
-                    registrarAuditoria('importar', 'backup', 'ImportaÃ§Ã£o completa da base de dados');
-                    if (typeof logBackup === 'function') logBackup('ImportaÃ§Ã£o completa realizada');
+                    registrarAuditoria('importar', 'backup', 'Importação completa da base de dados');
+                    if (typeof logBackup === 'function') logBackup('Importação completa realizada');
                     
                     reporListeners();
-                    // Recarregar seÃ§Ã£o atual
+                    // Recarregar seção atual
                     carregarSecao(secaoAtiva);
                 }
                 
             } catch (error) {
-                console.error('âŒ Erro ao importar dados:', error);
+                console.error('❌ Erro ao importar dados:', error);
                 mostrarNotificacao('Erro ao importar backup: ' + error.message, 'error');
                 registrarErro('importarDadosCompletos', error);
                 if (typeof logBackup === 'function') logBackup('Erro importar completa: ' + (error?.message || error));
@@ -17440,7 +16696,7 @@ function gerarBackup() {
     const ultimoExport = appStorage.getItem('backupExportUltimo');
     const diasDesdeExport = ultimoExport ? Math.floor((Date.now() - new Date(ultimoExport).getTime()) / (24 * 60 * 60 * 1000)) : null;
     const mostrarLembreteExport = diasDesdeExport === null || diasDesdeExport >= 7;
-    const textoLembrete = diasDesdeExport === null ? 'Nunca exportou um backup.' : `Ãšltima exportaÃ§Ã£o hÃ¡ ${diasDesdeExport} dias.`;
+    const textoLembrete = diasDesdeExport === null ? 'Nunca exportou um backup.' : `Última exportação há ${diasDesdeExport} dias.`;
     
     const urlAtual = typeof location !== 'undefined' ? (location.href || '') : '';
     const urlErrada = urlAtual.includes('mchantre26') || urlAtual.includes('prontes');
@@ -17452,8 +16708,8 @@ function gerarBackup() {
                 <div class="flex items-center gap-3">
                     <i data-lucide="alert-triangle" class="w-8 h-8 text-red-600 flex-shrink-0"></i>
                     <div>
-                        <p class="font-bold text-red-900">URL incorreta â€“ estÃ¡ num site antigo/diferente!</p>
-                        <p class="text-sm text-red-800 mt-1">Use o link correto: <strong>mchantre28</strong> e <strong>prontos</strong> (nÃ£o prontes)</p>
+                        <p class="font-bold text-red-900">URL incorreta – está num site antigo/diferente!</p>
+                        <p class="text-sm text-red-800 mt-1">Use o link correto: <strong>mchantre28</strong> e <strong>prontos</strong> (não prontes)</p>
                         <p class="text-xs text-red-700 mt-1">Correto: https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/</p>
                     </div>
                 </div>
@@ -17474,22 +16730,22 @@ function gerarBackup() {
             </div>
             ` : ''}
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Status da SincronizaÃ§Ã£o</h3>
+                <h3 class="text-lg font-semibold mb-4">Status da Sincronização</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Estado:</span>
                         <span class="font-medium">${statusSync}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltima sincronizaÃ§Ã£o:</span>
+                        <span class="text-gray-600">Última sincronização:</span>
                         <span class="font-medium">${ultimoSyncTexto}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltimo erro:</span>
+                        <span class="text-gray-600">Último erro:</span>
                         <span class="font-medium">${ultimoErroTexto}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltima entidade:</span>
+                        <span class="text-gray-600">Última entidade:</span>
                         <span class="font-medium">${ultimaEntidadeTexto}</span>
                     </div>
                     <div class="flex justify-between">
@@ -17499,7 +16755,7 @@ function gerarBackup() {
                     <div class="pt-2 flex flex-wrap gap-2">
                         <button onclick="forcarSincronizacaoNuvem()" class="btn btn-primary">
                             <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
-                            ForÃ§ar sincronizaÃ§Ã£o agora
+                            Forçar sincronização agora
                         </button>
                         <button onclick="executarMigracaoLocalParaFirebase()" class="btn btn-secondary" title="Migra dados em localStorage/sessionStorage para Firebase e limpa o storage local">
                             <i data-lucide="cloud-upload" class="w-4 h-4"></i>
@@ -17512,7 +16768,7 @@ function gerarBackup() {
                 <h3 class="text-lg font-semibold mb-4">Status do Sistema de Backup</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltimo backup automÃ¡tico:</span>
+                        <span class="text-gray-600">Último backup automático:</span>
                         <span class="font-medium">${ultimoBackupTexto}</span>
                     </div>
                     <div class="flex justify-between">
@@ -17520,41 +16776,41 @@ function gerarBackup() {
                         <span class="font-medium">${backups.length}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">FrequÃªncia:</span>
+                        <span class="text-gray-600">Frequência:</span>
                         <span class="font-medium">${freqTexto}</span>
                     </div>
                 </div>
             </div>
 
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Backup AutomÃ¡tico com Download</h3>
+                <h3 class="text-lg font-semibold mb-4">Backup Automático com Download</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-gray-600">Ativo:</span>
                         <label class="flex items-center gap-2">
                             <input type="checkbox" ${backupAutoDownloadAtivo ? 'checked' : ''} onchange="toggleBackupAutoDownload(this.checked)" />
-                            <span class="text-sm">${backupAutoDownloadAtivo ? 'Sim' : 'NÃ£o'}</span>
+                            <span class="text-sm">${backupAutoDownloadAtivo ? 'Sim' : 'Não'}</span>
                         </label>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltimo download:</span>
+                        <span class="text-gray-600">Último download:</span>
                         <span class="font-medium">${ultimoDownloadTexto}</span>
                     </div>
                     <div class="text-xs text-gray-500">
-                        Intervalo: a cada 24 horas (quando o sistema estÃ¡ aberto)
+                        Intervalo: a cada 24 horas (quando o sistema está aberto)
                     </div>
                 </div>
             </div>
 
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">PersistÃªncia Externa (Ficheiro)</h3>
+                <h3 class="text-lg font-semibold mb-4">Persistência Externa (Ficheiro)</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Status:</span>
                         <span class="font-medium">${persistenciaAtiva ? 'Ativa' : 'Inativa'}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Ãšltimo salvamento:</span>
+                        <span class="text-gray-600">Último salvamento:</span>
                         <span class="font-medium">${ultimoPersistenciaTexto}</span>
                     </div>
                     <div class="flex gap-2">
@@ -17568,13 +16824,13 @@ function gerarBackup() {
                         </button>
                     </div>
                     <p class="text-xs text-gray-500">
-                        Requer um navegador compatÃ­vel. VocÃª precisarÃ¡ escolher o ficheiro.
+                        Requer um navegador compatível. Você precisará escolher o ficheiro.
                     </p>
                 </div>
             </div>
             
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">AÃ§Ãµes de Backup</h3>
+                <h3 class="text-lg font-semibold mb-4">Ações de Backup</h3>
                 <div class="space-y-3">
                     <button onclick="criarBackupAutomatico(); mostrarNotificacao('Backup manual criado!', 'success')" 
                             class="w-full btn btn-primary">
@@ -17586,16 +16842,16 @@ function gerarBackup() {
                         <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                         Exportar Backup Completo
                     </button>
-                    <button id="btnExportBackup" class="w-full btn btn-outline" title="Exporta diretamente do Firestore (mÃ³dulo backup)">
+                    <button id="btnExportBackup" class="w-full btn btn-outline" title="Exporta diretamente do Firestore (módulo backup)">
                         <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
                         Exportar do Firestore
                     </button>
-                    <button onclick="typeof exportarBackupFirestore==='function'?exportarBackupFirestore():mostrarNotificacao('MÃ³dulo backupExport nÃ£o carregado','warning')" 
+                    <button onclick="typeof exportarBackupFirestore==='function'?exportarBackupFirestore():mostrarNotificacao('Módulo backupExport não carregado','warning')" 
                             class="w-full btn btn-secondary">
                         <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
                         Exportar do Firestore (nuvem)
                     </button>
-                    <button onclick="if(typeof exportBackupFromFirestore==='function')exportBackupFromFirestore();else mostrarNotificacao('backupExport.js nÃ£o carregado','warning')" 
+                    <button onclick="if(typeof exportBackupFromFirestore==='function')exportBackupFromFirestore();else mostrarNotificacao('backupExport.js não carregado','warning')" 
                             class="w-full btn btn-primary">
                         <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
                         Exportar do Firestore
@@ -17619,16 +16875,16 @@ function gerarBackup() {
             </div>
 
             <div class="card p-6 border-blue-200 bg-blue-50/50">
-                <h3 class="text-lg font-semibold mb-2">ðŸ”” NotificaÃ§Ãµes do browser</h3>
+                <h3 class="text-lg font-semibold mb-2">🔔 Notificações do browser</h3>
                 <p class="text-sm text-gray-700 mb-3">Receba alertas de prazos e tarefas mesmo com o site em segundo plano.</p>
                 <button onclick="solicitarPermissaoNotificacoes()" class="btn btn-secondary w-full">
                     <i data-lucide="bell" class="w-4 h-4 mr-2"></i>
-                    Ativar notificaÃ§Ãµes
+                    Ativar notificações
                 </button>
             </div>
 
             <div class="card p-6 border-gray-200">
-                <h3 class="text-lg font-semibold mb-4">ðŸ“‹ Logs de Backup</h3>
+                <h3 class="text-lg font-semibold mb-4">📋 Logs de Backup</h3>
                 <div class="space-y-1 max-h-40 overflow-y-auto text-sm mb-3">
                     ${(typeof getBackupLogs === 'function' ? getBackupLogs() : []).slice(-15).reverse().map(l =>
                         '<div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-700">' + (l.message || '') + '</span><span class="text-xs text-gray-500 whitespace-nowrap ml-2">' + (l.timestamp ? new Date(l.timestamp).toLocaleString('pt-PT') : '') + '</span></div>'
@@ -17642,7 +16898,7 @@ function gerarBackup() {
             </div>
 
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">HistÃ³rico de AlteraÃ§Ãµes (Ãšltimas 10)</h3>
+                <h3 class="text-lg font-semibold mb-4">Histórico de Alterações (Últimas 10)</h3>
                 <div class="space-y-2">
                     ${auditoria.length > 0 ? auditoria.map(item => `
                         <div class="flex justify-between items-start p-3 bg-gray-50 rounded">
@@ -17654,7 +16910,7 @@ function gerarBackup() {
                             <span class="text-xs text-gray-500">${item.usuario}</span>
                         </div>
                     `).join('') : `
-                        <div class="text-center py-4 text-sm text-gray-500">Nenhuma alteraÃ§Ã£o registrada</div>
+                        <div class="text-center py-4 text-sm text-gray-500">Nenhuma alteração registrada</div>
                     `}
                 </div>
                 <div class="mt-3">
@@ -17666,9 +16922,9 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-blue-200 bg-blue-50">
-                <h3 class="text-lg font-semibold mb-4 text-blue-800">ðŸ”‘ Alterar senha (Admin)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-blue-800">🔑 Alterar senha (Admin)</h3>
                 <p class="text-sm text-blue-700 mb-4">
-                    Altere a senha de acesso do administrador. Recomendado apÃ³s o primeiro acesso.
+                    Altere a senha de acesso do administrador. Recomendado após o primeiro acesso.
                 </p>
                 <button onclick="abrirModalAlterarSenha()" 
                         class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center">
@@ -17678,9 +16934,9 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-amber-200 bg-amber-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">ðŸ§¹ Limpar base de dados (itens eliminados)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">🧹 Limpar base de dados (itens eliminados)</h3>
                 <p class="text-sm text-amber-800 mb-4">
-                    Remove da base de dados <strong>definitivamente</strong> apenas clientes, convidados, documentos, etc. que jÃ¡ foram "apagados" no sistema. Os dados ativos ficam intactos. Ideal para nÃ£o ver mais criaÃ§Ãµes antigas e convidados eliminados na consola do Firestore.
+                    Remove da base de dados <strong>definitivamente</strong> apenas clientes, convidados, documentos, etc. que já foram "apagados" no sistema. Os dados ativos ficam intactos. Ideal para não ver mais criações antigas e convidados eliminados na consola do Firestore.
                 </p>
                 <button onclick="purgarDocumentosEliminadosFirestore()" 
                         class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center">
@@ -17689,45 +16945,21 @@ function gerarBackup() {
                 </button>
             </div>
             
-            <div class="card p-6 border-teal-200 bg-teal-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-teal-900">ðŸ›¡ï¸ Impedir reaparecimento (prevenÃ§Ã£o)</h3>
-                <p class="text-sm text-teal-800 mb-4">
-                    Remove honorÃ¡rios e tarefas antigos do <strong>armazenamento local</strong> do navegador e marca as migraÃ§Ãµes como concluÃ­das. Assim, ao abrir o sistema noutro dispositivo ou apÃ³s limpar cache, dados antigos nÃ£o voltam a ser enviados para a nuvem. <strong>NÃ£o afeta</strong> os dados no Firestore.
-                </p>
-                <button onclick="limparDadosLocaisHonorariosTarefas()" 
-                        class="w-full bg-teal-600 text-white py-3 px-4 rounded-md hover:bg-teal-700 flex items-center justify-center">
-                    <i data-lucide="shield-check" class="w-4 h-4 mr-2"></i>
-                    Limpar dados locais de honorÃ¡rios e tarefas
-                </button>
-            </div>
-            
-            <div class="card p-6 border-red-200 bg-red-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">ðŸ“‹ Remover honorÃ¡rios e tarefas antigos</h3>
-                <p class="text-sm text-red-800 mb-4">
-                    Se honorÃ¡rios ou tarefas apagados hÃ¡ muito tempo voltaram a aparecer, remova-os definitivamente da nuvem. Apaga <strong>todos</strong> os honorÃ¡rios e tarefas do Firestore. IrreversÃ­vel.
-                </p>
-                <button onclick="purgarHonorariosTarefasFirestore()" 
-                        class="w-full bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 flex items-center justify-center">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Remover todos os honorÃ¡rios e tarefas da nuvem
-                </button>
-            </div>
-            
             <div class="card p-6 border-orange-300 bg-orange-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-orange-900">ðŸ§¹ Manter sÃ³ DACIANA e WILSON</h3>
+                <h3 class="text-lg font-semibold mb-4 text-orange-900">🧹 Manter só DACIANA e WILSON</h3>
                 <p class="text-sm text-orange-800 mb-4">
-                    Apaga <strong>tudo</strong> excepto o cliente DACIANA e o convidado WILSON. Elimina honorÃ¡rios, contratos, prazos e dados fantasma que reaparecem.
+                    Apaga <strong>tudo</strong> excepto o cliente DACIANA e o convidado WILSON. Elimina honorários, contratos, prazos e dados fantasma que reaparecem.
                 </p>
                 <button onclick="limparBaseManterApenasDacianaWilson()" 
                         class="w-full bg-orange-600 text-white py-3 px-4 rounded-md hover:bg-orange-700 flex items-center justify-center">
                     <i data-lucide="user-check" class="w-4 h-4 mr-2"></i>
-                    Limpar base â€“ manter apenas DACIANA e WILSON
+                    Limpar base – manter apenas DACIANA e WILSON
                 </button>
             </div>
             <div class="card p-6 border-amber-300 bg-amber-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">ðŸ”„ Limpar cache do browser (dados antigos reaparecem)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">🔄 Limpar cache do browser (dados antigos reaparecem)</h3>
                 <p class="text-sm text-amber-800 mb-4">
-                    Se vÃª dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A pÃ¡gina recarrega e traz dados atualizados da nuvem.
+                    Se vê dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A página recarrega e traz dados atualizados da nuvem.
                 </p>
                 <button onclick="limparCacheFirestoreERecarregar()" 
                         class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center font-semibold">
@@ -17736,20 +16968,20 @@ function gerarBackup() {
                 </button>
             </div>
             <div class="card p-6 border-red-300 bg-red-100 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">ðŸš¨ ComeÃ§ar do zero absoluto</h3>
+                <h3 class="text-lg font-semibold mb-4 text-red-900">🚨 Começar do zero absoluto</h3>
                 <p class="text-sm text-red-800 mb-4">
-                    Apaga <strong>tudo</strong>: Firestore, faturas, pagamentos, despesas e memÃ³ria. Ideal para nÃ£o ver mais nenhum dado antigo. IrreversÃ­vel.
+                    Apaga <strong>tudo</strong>: Firestore, faturas, pagamentos, despesas e memória. Ideal para não ver mais nenhum dado antigo. Irreversível.
                 </p>
                 <button onclick="comecarDoZeroAbsoluto()" 
                         class="w-full bg-red-700 text-white py-3 px-4 rounded-md hover:bg-red-800 flex items-center justify-center font-semibold">
                     <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    ComeÃ§ar do zero absoluto
+                    Começar do zero absoluto
                 </button>
             </div>
             <div class="card p-6 border-red-200 bg-red-50">
-                <h3 class="text-lg font-semibold mb-4 text-red-800">âš ï¸ Limpeza Profissional (sÃ³ local)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-red-800">⚠️ Limpeza Profissional (só local)</h3>
                 <p class="text-sm text-red-700 mb-4">
-                    Limpa dados locais apenas. Para apagar tudo (incluindo Firestore), use o botÃ£o acima.
+                    Limpa dados locais apenas. Para apagar tudo (incluindo Firestore), use o botão acima.
                 </p>
                 <button onclick="limparDadosParaUsoProfissional()" 
                         class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center justify-center">
@@ -17759,7 +16991,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">InformaÃ§Ãµes do Sistema</h3>
+                <h3 class="text-lg font-semibold mb-4">Informações do Sistema</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Clientes:</span>
@@ -17770,7 +17002,7 @@ function gerarBackup() {
                         <span class="font-medium">${contratos.length}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">HonorÃ¡rios:</span>
+                        <span class="text-gray-600">Honorários:</span>
                         <span class="font-medium">${honorarios.length}</span>
                     </div>
                     <div class="flex justify-between">
@@ -17787,7 +17019,7 @@ function gerarBackup() {
 // === SISTEMA RESTAURADO - SEM LOGIN ===
 
 
-// Carregar usuÃ¡rios (convidados do Firestore)
+// Carregar usuários (convidados do Firestore)
 
 
 // Sistema restaurado - sem login
@@ -17817,7 +17049,7 @@ function mostrarSistema() {
                         <div class="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
                             <i data-lucide="scale" class="h-5 w-5 text-white"></i>
                         </div>
-                        <h1 class="ml-3 text-xl font-bold text-white">Sistema JurÃ­dico</h1>
+                        <h1 class="ml-3 text-xl font-bold text-white">Sistema Jurídico</h1>
                     </div>
                 </div>
                 
@@ -17828,35 +17060,35 @@ function mostrarSistema() {
                     </a>
                     <a href="#" onclick="carregarSecao('clientes')" class="sidebar-item" id="nav-clientes">
                         <i data-lucide="users" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de Clientes
+                        Gestão de Clientes
                     </a>
                     <a href="#" onclick="carregarSecao('honorarios')" class="sidebar-item" id="nav-honorarios">
                         <i data-lucide="dollar-sign" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de HonorÃ¡rios
+                        Gestão de Honorários
                     </a>
                     <a href="#" onclick="carregarSecao('contratos')" class="sidebar-item" id="nav-contratos">
                         <i data-lucide="file-text" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de Contratos
+                        Gestão de Contratos
                     </a>
                     <a href="#" onclick="carregarSecao('herancas')" class="sidebar-item" id="nav-herancas">
                         <i data-lucide="home" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de HeranÃ§as
+                        Gestão de Heranças
                     </a>
                     <a href="#" onclick="carregarSecao('migracao')" class="sidebar-item" id="nav-migracao">
                         <i data-lucide="globe" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de MigraÃ§Ã£o
+                        Gestão de Migração
                     </a>
                     <a href="#" onclick="carregarSecao('registos')" class="sidebar-item" id="nav-registos">
                         <i data-lucide="clipboard" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de Registos
+                        Gestão de Registos
                     </a>
                     <a href="#" onclick="carregarSecao('prazos')" class="sidebar-item" id="nav-prazos">
                         <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de Prazos
+                        Gestão de Prazos
                     </a>
                     <a href="#" onclick="carregarSecao('relatorios')" class="sidebar-item" id="nav-relatorios">
                         <i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i>
-                        GestÃ£o de RelatÃ³rios
+                        Gestão de Relatórios
                     </a>
                     <a href="#" onclick="carregarSecao('backup')" class="sidebar-item" id="nav-backup">
                         <i data-lucide="database" class="w-5 h-5 mr-3"></i>
@@ -17871,7 +17103,7 @@ function mostrarSistema() {
                                 <i data-lucide="user" class="h-4 w-4 text-gray-300"></i>
                             </div>
                             <div class="ml-3">
-                                <p class="text-sm font-medium text-white">${usuarioLogado ? usuarioLogado.nome : 'UsuÃ¡rio'}</p>
+                                <p class="text-sm font-medium text-white">${usuarioLogado ? usuarioLogado.nome : 'Usuário'}</p>
                                 <p class="text-xs text-gray-300">${usuarioLogado ? usuarioLogado.email : ''}</p>
                             </div>
                         </div>
@@ -17883,7 +17115,7 @@ function mostrarSistema() {
                 </div>
             </div>
             
-            <!-- ConteÃºdo Principal -->
+            <!-- Conteúdo Principal -->
             <div class="flex-1 flex flex-col overflow-hidden bg-gray-100">
                 <!-- Header -->
                 <header class="bg-white shadow-sm border-b border-gray-200">
@@ -17891,7 +17123,7 @@ function mostrarSistema() {
                         <div class="flex items-center justify-between">
                             <div>
                                 <h2 id="tituloSecao" class="text-2xl font-bold text-gray-900">Sistema Legal</h2>
-                                <p id="subtituloSecao" class="text-sm text-gray-600">VisÃ£o geral do sistema</p>
+                                <p id="subtituloSecao" class="text-sm text-gray-600">Visão geral do sistema</p>
                             </div>
                             <div class="flex items-center space-x-4">
                                 <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100">
@@ -17902,11 +17134,11 @@ function mostrarSistema() {
                     </div>
                 </header>
                 
-                <!-- ConteÃºdo -->
+                <!-- Conteúdo -->
                 <main class="flex-1 overflow-y-auto">
                     <div class="p-6">
                         <div id="conteudoDinamico">
-                            <!-- ConteÃºdo serÃ¡ carregado aqui -->
+                            <!-- Conteúdo será carregado aqui -->
                         </div>
                     </div>
                 </main>
@@ -17922,14 +17154,14 @@ function mostrarSistema() {
     lucide.createIcons();
 }
 
-// Mostrar modal para criar usuÃ¡rio
+// Mostrar modal para criar usuário
 function mostrarCriarUsuario() {
     const modal = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
             <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Criar Novo UsuÃ¡rio</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Criar Novo Usuário</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -17953,11 +17185,11 @@ function mostrarCriarUsuario() {
                                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de UsuÃ¡rio</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Usuário</label>
                                 <select id="novoTipo" required 
                                         class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500">
                                     <option value="admin">Administrador</option>
-                                    <option value="usuario">UsuÃ¡rio</option>
+                                    <option value="usuario">Usuário</option>
                                 </select>
                             </div>
                         </div>
@@ -17969,7 +17201,7 @@ function mostrarCriarUsuario() {
                             </button>
                             <button type="submit" 
                                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Criar UsuÃ¡rio
+                                Criar Usuário
                             </button>
                         </div>
                     </form>
@@ -17981,7 +17213,7 @@ function mostrarCriarUsuario() {
     lucide.createIcons();
 }
 
-// Criar novo usuÃ¡rio
+// Criar novo usuário
 function criarUsuario(event) {
     event.preventDefault();
     
@@ -17990,9 +17222,9 @@ function criarUsuario(event) {
     const senha = document.getElementById('novaSenha').value;
     const tipo = document.getElementById('novoTipo').value;
     
-    // Verificar se email jÃ¡ existe
+    // Verificar se email já existe
     if (usuarios.find(u => u.email === email)) {
-        mostrarNotificacao('Email jÃ¡ cadastrado', 'error');
+        mostrarNotificacao('Email já cadastrado', 'error');
         return;
     }
     
@@ -18009,12 +17241,12 @@ function criarUsuario(event) {
     usuarios.push(novoUsuario);
     salvarUsuarios();
     
-    mostrarNotificacao('UsuÃ¡rio criado com sucesso!', 'success');
+    mostrarNotificacao('Usuário criado com sucesso!', 'success');
     fecharModal();
 }
 
 
-// === FUNÃ‡ÃƒO GENÃ‰RICA PARA CONVERTER ARQUIVO ===
+// === FUNÇÃO GENÉRICA PARA CONVERTER ARQUIVO ===
 function converterArquivoParaBase64(arquivo, callback) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -18023,7 +17255,7 @@ function converterArquivoParaBase64(arquivo, callback) {
     reader.readAsDataURL(arquivo);
 }
 
-// === FUNÃ‡ÃƒO ESPECÃFICA PARA REGISTOS ===
+// === FUNÇÃO ESPECÍFICA PARA REGISTOS ===
 function adicionarAnexoRegistoReal(event, registoId) {
     event.preventDefault();
     
@@ -18103,7 +17335,7 @@ function abrirAnexosRegisto(registoId) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento</label>
                                     <select id="tipoDocumento" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="toggleTipoPersonalizado('registo')">
                                         <option value="">Selecione o tipo</option>
-                                        <option value="certidao">CertidÃ£o</option>
+                                        <option value="certidao">Certidão</option>
                                         <option value="documento">Documento</option>
                                         <option value="comprovativo">Comprovativo</option>
                                         <option value="outro">Outro</option>
@@ -18119,8 +17351,8 @@ function abrirAnexosRegisto(registoId) {
                                 <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="DescriÃ§Ã£o do documento..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
+                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
                             </div>
                             <div class="flex justify-end space-x-3 mt-4">
                                 <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
@@ -18146,7 +17378,7 @@ function abrirAnexosRegisto(registoId) {
                                             </div>
                                             <div>
                                                 <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} â€¢ ${anexo.tamanho} â€¢ ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
+                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
                                                 ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
                                             </div>
                                         </div>
@@ -18269,7 +17501,7 @@ function abrirAnexosPrazo(prazoId) {
                                         <option value="">Selecione o tipo</option>
                                         <option value="documento">Documento</option>
                                         <option value="comprovativo">Comprovativo</option>
-                                        <option value="certidao">CertidÃ£o</option>
+                                        <option value="certidao">Certidão</option>
                                         <option value="outro">Outro</option>
                                     </select>
                                     <div id="tipoPersonalizadoPrazo" class="mt-2 hidden">
@@ -18283,8 +17515,8 @@ function abrirAnexosPrazo(prazoId) {
                                 <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="DescriÃ§Ã£o do documento..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
+                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
                             </div>
                             <div class="flex justify-end space-x-3 mt-4">
                                 <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
@@ -18310,7 +17542,7 @@ function abrirAnexosPrazo(prazoId) {
                                             </div>
                                             <div>
                                                 <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} â€¢ ${anexo.tamanho} â€¢ ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
+                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
                                                 ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
                                             </div>
                                         </div>
@@ -18394,7 +17626,7 @@ function removerAnexoPrazo(prazoId, anexoId) {
     }
 }
 
-// === SISTEMA DE NOTIFICAÃ‡Ã•ES AUTOMÃTICAS ===
+// === SISTEMA DE NOTIFICAÇÕES AUTOMÁTICAS ===
 
 function iniciarSistemaNotificacoes() {
     verificarHonorariosVencidos();
@@ -18402,7 +17634,7 @@ function iniciarSistemaNotificacoes() {
     verificarLembretesTarefas();
     atualizarBadgeNotificacoes();
     
-    // Verificar a cada 5 minutos (inclui notificaÃ§Ãµes do browser para prazos/tarefas)
+    // Verificar a cada 5 minutos (inclui notificações do browser para prazos/tarefas)
     setInterval(() => {
         verificarHonorariosVencidos();
         verificarPrazosUrgentes();
@@ -18415,46 +17647,17 @@ function iniciarSistemaNotificacoes() {
 function inicializarAlertasAutomaticos() {
     const emailInput = document.getElementById('alertasEmailDestino');
     const whatsappInput = document.getElementById('alertasWhatsAppDestino');
-    const notifEmail = document.getElementById('notificacoesEmailDestino');
-    const notifWhatsApp = document.getElementById('notificacoesWhatsAppDestino');
     if (emailInput) {
         emailInput.value = appStorage.getItem('alertasEmailDestino') || '';
-        emailInput.removeAttribute('disabled');
-        emailInput.removeAttribute('readonly');
         emailInput.addEventListener('change', () => {
-            appStorage.setItem('alertasEmailDestino', emailInput.value.trim());
-        });
-        emailInput.addEventListener('input', () => {
             appStorage.setItem('alertasEmailDestino', emailInput.value.trim());
         });
     }
     if (whatsappInput) {
         whatsappInput.value = appStorage.getItem('alertasWhatsAppDestino') || '';
-        whatsappInput.removeAttribute('disabled');
-        whatsappInput.removeAttribute('readonly');
         whatsappInput.addEventListener('change', () => {
             whatsappInput.value = whatsappInput.value.replace(/\D/g, '');
             appStorage.setItem('alertasWhatsAppDestino', whatsappInput.value.trim());
-        });
-        whatsappInput.addEventListener('input', () => {
-            appStorage.setItem('alertasWhatsAppDestino', whatsappInput.value.trim());
-        });
-    }
-    if (notifEmail) {
-        notifEmail.value = appStorage.getItem('notificacoesEmailDestino') || appStorage.getItem('alertasEmailDestino') || '';
-        notifEmail.removeAttribute('disabled');
-        notifEmail.removeAttribute('readonly');
-        notifEmail.addEventListener('input', () => {
-            appStorage.setItem('notificacoesEmailDestino', notifEmail.value.trim());
-        });
-    }
-    if (notifWhatsApp) {
-        notifWhatsApp.value = appStorage.getItem('notificacoesWhatsAppDestino') || appStorage.getItem('alertasWhatsAppDestino') || '';
-        notifWhatsApp.removeAttribute('disabled');
-        notifWhatsApp.removeAttribute('readonly');
-        notifWhatsApp.addEventListener('input', () => {
-            notifWhatsApp.value = notifWhatsApp.value.replace(/\D/g, '');
-            appStorage.setItem('notificacoesWhatsAppDestino', notifWhatsApp.value.trim());
         });
     }
 }
@@ -18486,10 +17689,10 @@ function gerarResumoAlertasAutomaticos() {
     const linhas = [];
     linhas.push(`Resumo de alertas (${hoje.toLocaleDateString('pt-PT')})`);
     linhas.push('');
-    linhas.push(`HonorÃ¡rios vencidos: ${honorariosVencidos.length}`);
+    linhas.push(`Honorários vencidos: ${honorariosVencidos.length}`);
     honorariosVencidos.slice(0, 10).forEach(h => {
         const data = new Date(h.vencimento);
-        linhas.push(`- ${h.cliente} | â‚¬${(parseFloat(h.valor) || 0).toFixed(2)} | venc. ${data.toLocaleDateString('pt-PT')}`);
+        linhas.push(`- ${h.cliente} | €${(parseFloat(h.valor) || 0).toFixed(2)} | venc. ${data.toLocaleDateString('pt-PT')}`);
     });
     linhas.push('');
     linhas.push(`Prazos vencidos: ${prazosVencidos.length}`);
@@ -18502,227 +17705,36 @@ function gerarResumoAlertasAutomaticos() {
         linhas.push(`- ${p.clienteNome} | ${p.descricao}`);
     });
     linhas.push('');
-    linhas.push(`Prazos em atÃ© 3 dias: ${prazos3Dias.length}`);
+    linhas.push(`Prazos em até 3 dias: ${prazos3Dias.length}`);
     prazos3Dias.slice(0, 10).forEach(p => {
         linhas.push(`- ${p.clienteNome} | ${p.descricao} | ${new Date(p.dataLimite).toLocaleDateString('pt-PT')}`);
     });
     return linhas.join('\n');
 }
 
-/** Gera o resumo de alertas em PDF e guarda no disco. Retorna nome do ficheiro ou null. */
-async function gerarResumoAlertasPDF() {
-    try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
-        const texto = gerarResumoAlertasAutomaticos();
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = 15;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(12);
-        doc.text('Alertas Automáticos - Resumo de Prazos e Honorários', margin, y);
-        y += 10;
-        doc.setFontSize(11);
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 6;
-        const textoComRodape = (texto || '') + '\n' + (typeof obterRodapeDocumento === 'function' ? obterRodapeDocumento() : '');
-        const blocos = textoComRodape.split('\n');
-        blocos.forEach(bloco => {
-            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-            linhas.forEach(linha => {
-                if (y > 280) { doc.addPage(); y = margin; }
-                doc.text(linha, margin, y);
-                y += lineHeight;
-            });
-        });
-        const dataStr = new Date().toISOString().split('T')[0];
-        const nome = `Alertas_Automaticos_${dataStr}.pdf`;
-        doc.save(nome);
-        return nome;
-    } catch (e) {
-        console.error('Erro ao gerar PDF de alertas:', e);
-        mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
-        return null;
-    }
-}
-
-async function baixarAlertasPDF() {
-    const nome = await gerarResumoAlertasPDF();
-    if (nome) mostrarNotificacao('PDF guardado: ' + nome, 'success');
-}
-
-async function enviarAlertasEmail() {
+function enviarAlertasEmail() {
     const destino = (document.getElementById('alertasEmailDestino')?.value || '').trim();
     if (!destino) {
         mostrarNotificacao('Informe o email de destino.', 'warning');
         return;
     }
-    const nome = await gerarResumoAlertasPDF();
-    if (!nome) return;
-    const assunto = `Alertas Automáticos - ${new Date().toLocaleDateString('pt-PT')} (PDF em anexo)`;
-    const corpo = 'Segue em anexo o resumo de prazos e honorários em PDF.\n\nAnexe o ficheiro das suas transferências.';
+    const corpo = gerarResumoAlertasAutomaticos();
+    const assunto = `Alertas Automáticos - ${new Date().toLocaleDateString('pt-PT')}`;
     const link = `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
     window.location.href = link;
-    mostrarNotificacao('PDF guardado. Anexe o ficheiro ao email.', 'info');
 }
 
-async function enviarAlertasWhatsApp() {
+function enviarAlertasWhatsApp() {
     const destino = (document.getElementById('alertasWhatsAppDestino')?.value || '').trim();
     if (!destino) {
         mostrarNotificacao('Informe o número de WhatsApp (com indicativo).', 'warning');
         return;
     }
-    const nome = await gerarResumoAlertasPDF();
-    if (!nome) return;
-    const msg = `Segue em anexo o resumo de prazos e honorários (PDF). Anexe o ficheiro "${nome}" das suas transferências.`;
-    const link = `https://wa.me/${encodeURIComponent(destino)}?text=${encodeURIComponent(msg)}`;
+    const corpo = gerarResumoAlertasAutomaticos();
+    const link = `https://wa.me/${encodeURIComponent(destino)}?text=${encodeURIComponent(corpo)}`;
     window.open(link, '_blank');
-    mostrarNotificacao('PDF guardado. Anexe o ficheiro no WhatsApp.', 'info');
 }
 
-/** Obtém notificações filtradas (mesma lógica dos filtros na página). */
-function obterNotificacoesFiltradasParaExport() {
-    const tipoUsuario = appStorage.getItem('tipoUsuario');
-    const convidadoId = appStorage.getItem('convidadoId');
-    const filtroPrioridade = document.getElementById('filtroPrioridade')?.value || '';
-    const filtroTipo = document.getElementById('filtroTipo')?.value || '';
-    const filtroStatus = document.getElementById('filtroStatus')?.value || '';
-    const filtroPeriodo = document.getElementById('filtroPeriodo')?.value || '';
-
-    let lista = Array.isArray(obterNotificacoesAtual()) ? obterNotificacoesAtual() : [];
-
-    if (tipoUsuario === 'convidado') {
-        const convidados = obterConvidados() || [];
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
-        lista = lista.filter(n =>
-            n.destinatarioId === 'todos' || String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
-            n.tipo === 'cliente_autorizado' || n.tipo === 'documento_anexado' || n.tipo === 'prazo_proximo'
-        );
-    }
-    if (filtroPrioridade) lista = lista.filter(n => n.prioridade === filtroPrioridade);
-    if (filtroTipo) lista = lista.filter(n => n.tipo === filtroTipo);
-    if (filtroStatus === 'nao_lida') lista = lista.filter(n => !n.lida);
-    if (filtroStatus === 'lida') lista = lista.filter(n => n.lida);
-    if (filtroPeriodo) {
-        const agora = new Date();
-        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-        const inicioSemana = new Date(hoje); inicioSemana.setDate(hoje.getDate() - hoje.getDay());
-        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-        lista = lista.filter(n => {
-            if (!n.dataCriacao) return false;
-            const d = new Date(n.dataCriacao);
-            if (filtroPeriodo === 'hoje') return d >= hoje;
-            if (filtroPeriodo === 'semana') return d >= inicioSemana;
-            if (filtroPeriodo === 'mes') return d >= inicioMes;
-            return true;
-        });
-    }
-    return lista;
-}
-
-/** Gera PDF das notificações filtradas e guarda. Retorna nome do ficheiro ou null. */
-async function gerarNotificacoesPDF() {
-    try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
-        const lista = obterNotificacoesFiltradasParaExport();
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = 15;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'bold');
-        doc.setFontSize(14);
-        doc.text('Notificações - Sistema Legal', margin, y);
-        y += 10;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(10);
-        doc.text('Gerado em ' + new Date().toLocaleString('pt-PT') + ' | Total: ' + lista.length + ' notificação(ões)', margin, y);
-        y += 12;
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 5;
-
-        if (lista.length === 0) {
-            doc.setFontSize(11);
-            doc.text('Nenhuma notificação encontrada com os filtros atuais.', margin, y);
-        } else {
-            lista.forEach((n, i) => {
-                if (y > 275) { doc.addPage(); y = margin; }
-                doc.setFont('times', 'bold');
-                doc.setFontSize(10);
-                const titulo = (n.titulo || 'Sem título').substring(0, 60);
-                const linhasTitulo = doc.splitTextToSize(titulo, maxWidth);
-                linhasTitulo.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
-                doc.setFont('times', 'normal');
-                doc.setFontSize(9);
-                const tipo = n.tipo || '-';
-                const prioridade = n.prioridade ? ' [' + n.prioridade + ']' : '';
-                const dataStr = n.dataCriacao ? new Date(n.dataCriacao).toLocaleString('pt-PT') : '-';
-                doc.text(tipo + prioridade + ' | ' + dataStr + (n.lida ? ' [lida]' : ''), margin, y);
-                y += lineHeight + 2;
-                const msg = (n.mensagem || '').substring(0, 200);
-                if (msg) {
-                    const linhas = doc.splitTextToSize(msg, maxWidth);
-                    linhas.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
-                    y += 4;
-                }
-                y += 3;
-            });
-        }
-        y += 4;
-        if (typeof obterRodapeDocumento === 'function') {
-            const rodape = obterRodapeDocumento();
-            if (rodape) { doc.setFontSize(8); doc.text(rodape, margin, y); }
-        }
-        const dataStr = new Date().toISOString().split('T')[0];
-        const nome = 'Notificacoes_' + dataStr + '.pdf';
-        doc.save(nome);
-        return nome;
-    } catch (e) {
-        console.error('Erro ao gerar PDF de notificações:', e);
-        mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
-        return null;
-    }
-}
-
-async function baixarNotificacoesPDF() {
-    const nome = await gerarNotificacoesPDF();
-    if (nome) mostrarNotificacao('PDF guardado: ' + nome, 'success');
-}
-
-async function enviarNotificacoesEmail() {
-    const destino = (document.getElementById('notificacoesEmailDestino')?.value || document.getElementById('alertasEmailDestino')?.value || '').trim();
-    if (!destino) {
-        mostrarNotificacao('Informe o email de destino no card "Notificações em PDF".', 'warning');
-        return;
-    }
-    const nome = await gerarNotificacoesPDF();
-    if (!nome) return;
-    const assunto = 'Notificações - Sistema Legal (' + new Date().toLocaleDateString('pt-PT') + ')';
-    const corpo = 'Segue em anexo o relatório de notificações em PDF.\n\nAnexe o ficheiro das suas transferências.';
-    window.location.href = 'mailto:' + encodeURIComponent(destino) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-    mostrarNotificacao('PDF guardado. Anexe o ficheiro ao email.', 'info');
-}
-
-async function enviarNotificacoesWhatsApp() {
-    const destino = (document.getElementById('notificacoesWhatsAppDestino')?.value || document.getElementById('alertasWhatsAppDestino')?.value || '').trim();
-    if (!destino) {
-        mostrarNotificacao('Informe o número de WhatsApp no card "Notificações em PDF".', 'warning');
-        return;
-    }
-    const nome = await gerarNotificacoesPDF();
-    if (!nome) return;
-    const msg = 'Segue em anexo o relatório de notificações (PDF). Anexe o ficheiro "' + nome + '" das suas transferências.';
-    window.open('https://wa.me/' + destino.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg), '_blank');
-    mostrarNotificacao('PDF guardado. Anexe o ficheiro no WhatsApp.', 'info');
-}
 
 function verificarHonorariosVencidos() {
     const hoje = new Date();
@@ -18731,12 +17743,12 @@ function verificarHonorariosVencidos() {
             if (!h.vencimento) return false;
             const dataVencimento = new Date(h.vencimento);
             if (isNaN(dataVencimento.getTime())) {
-                console.warn('Data de vencimento invÃ¡lida no honorÃ¡rio:', h.vencimento);
+                console.warn('Data de vencimento inválida no honorário:', h.vencimento);
                 return false;
             }
         return dataVencimento < hoje && isHonorarioEmAberto(h);
         } catch (error) {
-            console.warn('Erro ao processar honorÃ¡rio:', h.id, error);
+            console.warn('Erro ao processar honorário:', h.id, error);
             return false;
         }
     });
@@ -18748,7 +17760,7 @@ function verificarHonorariosVencidos() {
             honorarios[index].status = 'vencido';
         }
 
-        // Criar notificaÃ§Ã£o se nÃ£o existir
+        // Criar notificação se não existir
         const notificacaoExistente = obterNotificacoesAtual().find(n => 
             n.tipo === 'honorario' && 
             n.referenciaId === honorario.id && 
@@ -18758,8 +17770,8 @@ function verificarHonorariosVencidos() {
         if (!notificacaoExistente) {
             criarNotificacao({
                 tipo: 'honorario',
-                titulo: 'HonorÃ¡rio Vencido',
-                mensagem: `O honorÃ¡rio de â‚¬${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} do cliente ${honorario.cliente} estÃ¡ vencido desde ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}`,
+                titulo: 'Honorário Vencido',
+                mensagem: `O honorário de €${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)} do cliente ${honorario.cliente} está vencido desde ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}`,
                 prioridade: 'alta',
                 referenciaId: honorario.id,
                 acao: 'ver_honorario'
@@ -18781,7 +17793,7 @@ function verificarPrazosUrgentes() {
             if (!prazo.dataLimite) return;
             const dataLimite = new Date(prazo.dataLimite);
             if (isNaN(dataLimite.getTime())) {
-                console.warn('Data invÃ¡lida no prazo:', prazo.dataLimite);
+                console.warn('Data inválida no prazo:', prazo.dataLimite);
                 return;
             }
             const diasRestantes = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
@@ -18864,7 +17876,7 @@ function verificarLembretesTarefas() {
             criarNotificacao({
                 tipo: 'tarefa',
                 titulo: 'Lembrete de Tarefa',
-                mensagem: msg + ` â€” lembrete para ${dataLembrete.toLocaleString('pt-PT')}`,
+                mensagem: msg + ` — lembrete para ${dataLembrete.toLocaleString('pt-PT')}`,
                 prioridade: tarefa.prioridade || 'media',
                 referenciaId: tarefa.id,
                 acao: 'ver_tarefa'
@@ -18890,7 +17902,7 @@ function criarNotificacao(dados) {
     );
 
     if (notificacaoExistente) {
-        // Se jÃ¡ existe, apenas atualizar a data e mostrar lembrete visual (exceto cliente_autorizado ou suprimirToast)
+        // Se já existe, apenas atualizar a data e mostrar lembrete visual (exceto cliente_autorizado ou suprimirToast)
         notificacaoExistente.dataCriacao = new Date().toISOString();
         salvarDados('notificacoes', listaNotif);
         if (!dados.suprimirToast && dados.tipo !== 'cliente_autorizado') {
@@ -18919,7 +17931,7 @@ function criarNotificacao(dados) {
     listaNotif.unshift(notificacao);
     salvarDados('notificacoes', listaNotif);
     
-    // Mostrar notificaÃ§Ã£o visual (exceto cliente_autorizado ou suprimirToast: o admin jÃ¡ vÃª "PermissÃµes atualizadas")
+    // Mostrar notificação visual (exceto cliente_autorizado ou suprimirToast: o admin já vê "Permissões atualizadas")
     if (!dados.suprimirToast && dados.tipo !== 'cliente_autorizado') {
         mostrarNotificacao(notificacao.titulo, 'warning');
     }
@@ -18937,7 +17949,7 @@ function mostrarLembreteNotificacao(titulo) {
     document.body.appendChild(lembrete);
     lucide.createIcons();
     
-    // Remover apÃ³s 3 segundos
+    // Remover após 3 segundos
     setTimeout(() => {
         if (lembrete.parentNode) {
             lembrete.parentNode.removeChild(lembrete);
@@ -18945,24 +17957,24 @@ function mostrarLembreteNotificacao(titulo) {
     }, 3000);
 }
 
-// === SISTEMA DE TESTE DE NOTIFICAÃ‡Ã•ES ===
+// === SISTEMA DE TESTE DE NOTIFICAÇÕES ===
 
 function criarNotificacaoTeste() {
     const tipos = ['prazo', 'honorario', 'contrato', 'heranca', 'migracao', 'registo'];
     const titulos = [
         'Prazo Vencido',
-        'HonorÃ¡rio Vencido', 
+        'Honorário Vencido', 
         'Contrato Pendente',
-        'HeranÃ§a em Andamento',
-        'MigraÃ§Ã£o Urgente',
+        'Herança em Andamento',
+        'Migração Urgente',
         'Registo Pendente'
     ];
     const mensagens = [
         'O prazo para entrega de documentos vence hoje!',
-        'O honorÃ¡rio de â‚¬500 estÃ¡ vencido hÃ¡ 3 dias',
-        'O contrato precisa ser assinado atÃ© amanhÃ£',
-        'A heranÃ§a estÃ¡ aguardando documentaÃ§Ã£o',
-        'O processo de migraÃ§Ã£o estÃ¡ atrasado',
+        'O honorário de €500 está vencido há 3 dias',
+        'O contrato precisa ser assinado até amanhã',
+        'A herança está aguardando documentação',
+        'O processo de migração está atrasado',
         'O registo precisa ser finalizado esta semana'
     ];
     
@@ -18979,15 +17991,15 @@ function criarNotificacaoTeste() {
         acao: 'ver_detalhes'
     });
     
-    mostrarNotificacao('NotificaÃ§Ã£o de teste criada!', 'success');
+    mostrarNotificacao('Notificação de teste criada!', 'success');
 }
 
-/** Criar notificaÃ§Ã£o de teste associada a um cliente (para ver na ficha do cliente) */
+/** Criar notificação de teste associada a um cliente (para ver na ficha do cliente) */
 function criarNotificacaoTesteParaCliente(clienteId, clienteNome) {
     criarNotificacao({
         tipo: 'prazo',
-        titulo: 'NotificaÃ§Ã£o de teste - ' + (clienteNome || 'Cliente'),
-        mensagem: 'Esta Ã© uma notificaÃ§Ã£o de teste criada para verificar se aparece na ficha do cliente.',
+        titulo: 'Notificação de teste - ' + (clienteNome || 'Cliente'),
+        mensagem: 'Esta é uma notificação de teste criada para verificar se aparece na ficha do cliente.',
         prioridade: 'media',
         referenciaId: clienteId || Date.now(),
         acao: 'ver_detalhes',
@@ -18995,7 +18007,7 @@ function criarNotificacaoTesteParaCliente(clienteId, clienteNome) {
         clienteNome: clienteNome || '',
         cliente: clienteNome || ''
     });
-    mostrarNotificacao('NotificaÃ§Ã£o de teste criada! Feche e reabra a ficha do cliente para ver.', 'success');
+    mostrarNotificacao('Notificação de teste criada! Feche e reabra a ficha do cliente para ver.', 'success');
 }
 window.criarNotificacaoTesteParaCliente = criarNotificacaoTesteParaCliente;
 
@@ -19003,8 +18015,8 @@ function criarNotificacaoPersonalizada() {
     
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('âŒ modalContainer nÃ£o encontrado!');
-        mostrarNotificacao('Erro: Container do modal nÃ£o encontrado!', 'error');
+        console.error('❌ modalContainer não encontrado!');
+        mostrarNotificacao('Erro: Container do modal não encontrado!', 'error');
         return;
     }
     
@@ -19013,7 +18025,7 @@ function criarNotificacaoPersonalizada() {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Criar NotificaÃ§Ã£o Personalizada</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Criar Notificação Personalizada</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -19022,13 +18034,13 @@ function criarNotificacaoPersonalizada() {
                     <form id="formNotificacaoPersonalizada" onsubmit="salvarNotificacaoPersonalizada(event)">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">TÃ­tulo *</label>
-                                <input type="text" id="notificacaoTitulo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite o tÃ­tulo da notificaÃ§Ã£o">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
+                                <input type="text" id="notificacaoTitulo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite o título da notificação">
                             </div>
                             
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Mensagem *</label>
-                                <textarea id="notificacaoMensagem" rows="4" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite a mensagem da notificaÃ§Ã£o"></textarea>
+                                <textarea id="notificacaoMensagem" rows="4" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite a mensagem da notificação"></textarea>
                             </div>
                             
                             <div>
@@ -19036,10 +18048,10 @@ function criarNotificacaoPersonalizada() {
                                 <select id="notificacaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
                                     <option value="prazo">Prazo</option>
-                                    <option value="honorario">HonorÃ¡rio</option>
+                                    <option value="honorario">Honorário</option>
                                     <option value="contrato">Contrato</option>
-                                    <option value="heranca">HeranÃ§a</option>
-                                    <option value="migracao">MigraÃ§Ã£o</option>
+                                    <option value="heranca">Herança</option>
+                                    <option value="migracao">Migração</option>
                                     <option value="registo">Registo</option>
                                     <option value="geral">Geral</option>
                                 </select>
@@ -19049,7 +18061,7 @@ function criarNotificacaoPersonalizada() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                 <select id="notificacaoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="baixa">Baixa</option>
-                                    <option value="media" selected>MÃ©dia</option>
+                                    <option value="media" selected>Média</option>
                                     <option value="alta">Alta</option>
                                     <option value="urgente">Urgente</option>
                                 </select>
@@ -19062,7 +18074,7 @@ function criarNotificacaoPersonalizada() {
                             </button>
                             <button type="submit" class="btn btn-primary">
                                 <i data-lucide="check" class="w-4 h-4"></i>
-                                Criar NotificaÃ§Ã£o
+                                Criar Notificação
                             </button>
                         </div>
                     </form>
@@ -19085,11 +18097,11 @@ function salvarNotificacaoPersonalizada(event) {
     const prioridade = document.getElementById('notificacaoPrioridade').value;
     
     if (!titulo || !mensagem || !tipo) {
-        mostrarNotificacao('Por favor, preencha todos os campos obrigatÃ³rios!', 'error');
+        mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'error');
         return;
     }
     
-    // Carregar notificaÃ§Ãµes
+    // Carregar notificações
     const notificacoesSalvas = appStorage.getItem('notificacoes');
     let notificacoesAtual = notificacoes;
     if (notificacoesSalvas) {
@@ -19108,22 +18120,22 @@ function salvarNotificacaoPersonalizada(event) {
     });
     
     fecharModalRobusto();
-    mostrarNotificacao('NotificaÃ§Ã£o personalizada criada com sucesso!', 'success');
+    mostrarNotificacao('Notificação personalizada criada com sucesso!', 'success');
     
-    // Atualizar UI apÃ³s criaÃ§Ã£o
+    // Atualizar UI após criação
     setTimeout(() => {
         atualizarAposNotificacoes();
     }, 300);
 }
 
-// Garantir que as funÃ§Ãµes sejam globalmente acessÃ­veis
+// Garantir que as funções sejam globalmente acessíveis
 window.salvarNotificacaoPersonalizada = salvarNotificacaoPersonalizada;
 window.criarNotificacaoPersonalizada = criarNotificacaoPersonalizada;
 
 function atualizarAposNotificacoes() {
     atualizarBadgeNotificacoes();
     if (secaoAtiva === 'notificacoes') {
-        carregarSecao('notificacoes');
+        carregarSecao('clientes');
     }
 }
 
@@ -19131,16 +18143,13 @@ function atualizarBadgeNotificacoes() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
     
-    // Filtrar notificaÃ§Ãµes baseado no tipo de usuÃ¡rio (igual ao gerarNotificacoes)
+    // Filtrar notificações baseado no tipo de usuário (igual ao gerarNotificacoes)
     let notificacoesFiltradas = obterNotificacoesAtual();
     
     if (tipoUsuario === 'convidado') {
-        const convidados = obterConvidados();
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
         notificacoesFiltradas = notificacoesFiltradas.filter(n => 
+            n.destinatarioId === parseInt(convidadoId) || 
             n.destinatarioId === 'todos' ||
-            String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
             n.tipo === 'cliente_autorizado' ||
             n.tipo === 'documento_anexado' ||
             n.tipo === 'prazo_proximo'
@@ -19162,7 +18171,7 @@ function atualizarBadgeNotificacoes() {
 
 function marcarComoLida(notificacaoId) {
     const listaNotif = obterNotificacoesAtual();
-    const notificacao = listaNotif.find(n => String(n.id) === String(notificacaoId));
+    const notificacao = listaNotif.find(n => n.id === notificacaoId);
     if (notificacao) {
         notificacao.lida = true;
         salvarDados('notificacoes', listaNotif);
@@ -19175,27 +18184,28 @@ function marcarTodasComoLidas() {
     listaNotif.forEach(n => n.lida = true);
     salvarDados('notificacoes', listaNotif);
     atualizarAposNotificacoes();
-    mostrarNotificacao('Todas as notificaÃ§Ãµes foram marcadas como lidas', 'success');
+    mostrarNotificacao('Todas as notificações foram marcadas como lidas', 'success');
 }
 
 function excluirNotificacao(notificacaoId) {
-    const listaNotif = obterNotificacoesAtual().filter(n => String(n.id) !== String(notificacaoId));
-    // NÃ£o atualizar notificacoes aqui - salvarDados precisa do estado anterior para calcular removidos e excluir do Firestore
+    const listaNotif = obterNotificacoesAtual().filter(n => n.id !== notificacaoId);
+    notificacoes = listaNotif;
+    window.notificacoes = listaNotif;
     salvarDados('notificacoes', listaNotif);
     atualizarAposNotificacoes();
-    mostrarNotificacao('NotificaÃ§Ã£o removida', 'success');
 }
 
 function limparNotificacoes() {
-    if (confirm('Tem certeza que deseja limpar todas as notificaÃ§Ãµes?')) {
-        // NÃ£o atualizar notificacoes antes - salvarDados precisa do estado anterior para excluir do Firestore
-        salvarDados('notificacoes', []);
+    if (confirm('Tem certeza que deseja limpar todas as notificações?')) {
+        notificacoes = [];
+        window.notificacoes = notificacoes;
+        salvarDados('notificacoes', notificacoes);
         atualizarAposNotificacoes();
-        mostrarNotificacao('Todas as notificaÃ§Ãµes foram removidas', 'success');
+        mostrarNotificacao('Todas as notificações foram removidas', 'success');
     }
 }
 
-// === SISTEMA HÃBRIDO DE NOTIFICAÃ‡Ã•ES ===
+// === SISTEMA HÍBRIDO DE NOTIFICAÇÕES ===
 
 function enviarMensagemConvidado() {
     
@@ -19204,15 +18214,15 @@ function enviarMensagemConvidado() {
     const convidadosAtivos = convidados.filter(c => c.ativo);
     
     if (convidadosAtivos.length === 0) {
-        console.warn('âš ï¸ Nenhum convidado ativo encontrado!');
-        mostrarNotificacao('Nenhum convidado ativo encontrado! Crie um convidado na seÃ§Ã£o "GestÃ£o de Convidados" primeiro.', 'warning');
-        // NÃ£o retornar - permitir abrir modal mesmo sem convidados para mostrar mensagem mais clara
+        console.warn('⚠️ Nenhum convidado ativo encontrado!');
+        mostrarNotificacao('Nenhum convidado ativo encontrado! Crie um convidado na seção "Gestão de Convidados" primeiro.', 'warning');
+        // Não retornar - permitir abrir modal mesmo sem convidados para mostrar mensagem mais clara
     }
     
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('âŒ modalContainer nÃ£o encontrado!');
-        mostrarNotificacao('Erro: Container do modal nÃ£o encontrado!', 'error');
+        console.error('❌ modalContainer não encontrado!');
+        mostrarNotificacao('Erro: Container do modal não encontrado!', 'error');
         return;
     }
     
@@ -19230,16 +18240,16 @@ function enviarMensagemConvidado() {
                     <form id="formEnviarMensagemConvidado" onsubmit="salvarMensagemConvidado(event)">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DestinatÃ¡rio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Destinatário *</label>
                                 ${convidadosAtivos.length === 0 ? `
                                     <div class="bg-yellow-50 border border-yellow-200 rounded px-4 py-3 mb-3">
                                         <p class="text-sm text-yellow-800">
                                             <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-2"></i>
-                                            Nenhum convidado ativo encontrado. VÃ¡ para "GestÃ£o de Convidados" para criar um convidado primeiro.
+                                            Nenhum convidado ativo encontrado. Vá para "Gestão de Convidados" para criar um convidado primeiro.
                                         </p>
                                     </div>
                                     <select id="convidadoDestinatario" required disabled class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black bg-gray-100">
-                                        <option value="">Nenhum convidado disponÃ­vel</option>
+                                        <option value="">Nenhum convidado disponível</option>
                                     </select>
                                 ` : `
                                     <select id="convidadoDestinatario" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
@@ -19253,8 +18263,8 @@ function enviarMensagemConvidado() {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">TÃ­tulo *</label>
-                                <input type="text" id="mensagemTitulo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="TÃ­tulo da mensagem">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
+                                <input type="text" id="mensagemTitulo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Título da mensagem">
                             </div>
                             
                             <div>
@@ -19266,7 +18276,7 @@ function enviarMensagemConvidado() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                 <select id="mensagemPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="baixa">Baixa</option>
-                                    <option value="media" selected>MÃ©dia</option>
+                                    <option value="media" selected>Média</option>
                                     <option value="alta">Alta</option>
                                     <option value="urgente">Urgente</option>
                                 </select>
@@ -19279,7 +18289,7 @@ function enviarMensagemConvidado() {
                             </button>
                             <button type="submit" class="btn btn-primary" ${convidadosAtivos.length === 0 ? 'disabled' : ''}>
                                 <i data-lucide="send" class="w-4 h-4"></i>
-                                ${convidadosAtivos.length === 0 ? 'Nenhum Convidado DisponÃ­vel' : 'Enviar Mensagem'}
+                                ${convidadosAtivos.length === 0 ? 'Nenhum Convidado Disponível' : 'Enviar Mensagem'}
                             </button>
                         </div>
                     </form>
@@ -19296,12 +18306,12 @@ function salvarMensagemConvidado(event) {
     event.preventDefault();
     event.stopPropagation();
     
-    // Verificar se hÃ¡ convidados ativos
+    // Verificar se há convidados ativos
     const convidados = obterConvidados();
     const convidadosAtivos = convidados.filter(c => c.ativo);
     
     if (convidadosAtivos.length === 0) {
-        mostrarNotificacao('Nenhum convidado ativo encontrado! Crie um convidado na seÃ§Ã£o "GestÃ£o de Convidados" primeiro.', 'error');
+        mostrarNotificacao('Nenhum convidado ativo encontrado! Crie um convidado na seção "Gestão de Convidados" primeiro.', 'error');
         return;
     }
     
@@ -19311,11 +18321,11 @@ function salvarMensagemConvidado(event) {
     const prioridade = document.getElementById('mensagemPrioridade').value;
     
     if (!destinatarioId || !titulo || !conteudo) {
-        mostrarNotificacao('Por favor, preencha todos os campos obrigatÃ³rios!', 'error');
+        mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'error');
         return;
     }
     
-    // Carregar notificaÃ§Ãµes
+    // Carregar notificações
     const notificacoesSalvas = appStorage.getItem('notificacoes');
     let notificacoesAtual = notificacoes;
     if (notificacoesSalvas) {
@@ -19350,16 +18360,15 @@ function salvarMensagemConvidado(event) {
     }, 300);
 }
 
-// Garantir que as funÃ§Ãµes sejam globalmente acessÃ­veis
+// Garantir que as funções sejam globalmente acessíveis
 window.enviarMensagemConvidado = enviarMensagemConvidado;
 window.salvarMensagemConvidado = salvarMensagemConvidado;
 // Alias para compatibilidade
 window.enviarMensagemConfirmar = salvarMensagemConvidado;
 
-// === FILTROS INTELIGENTES DE NOTIFICAÃ‡Ã•ES ===
+// === FILTROS INTELIGENTES DE NOTIFICAÇÕES ===
 
 function aplicarFiltrosNotificacoes() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'notificacoes') return;
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
     
@@ -19369,16 +18378,13 @@ function aplicarFiltrosNotificacoes() {
     const filtroStatus = document.getElementById('filtroStatus')?.value || '';
     const filtroPeriodo = document.getElementById('filtroPeriodo')?.value || '';
     
-    // Filtrar notificaÃ§Ãµes baseado no tipo de usuÃ¡rio
+    // Filtrar notificações baseado no tipo de usuário
     let notificacoesFiltradas = obterNotificacoesAtual();
     
     if (tipoUsuario === 'convidado') {
-        const convidados = obterConvidados();
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
         notificacoesFiltradas = notificacoesFiltradas.filter(n => 
+            n.destinatarioId === parseInt(convidadoId) || 
             n.destinatarioId === 'todos' ||
-            String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
             n.tipo === 'cliente_autorizado' ||
             n.tipo === 'documento_anexado' ||
             n.tipo === 'prazo_proximo'
@@ -19427,25 +18433,28 @@ function aplicarFiltrosNotificacoes() {
     // Atualizar contador
     const contador = document.getElementById('contadorFiltros');
     if (contador) {
-        contador.textContent = `${notificacoesFiltradas.length} notificaÃ§Ãµes encontradas`;
+        contador.textContent = `${notificacoesFiltradas.length} notificações encontradas`;
     }
     
-    // NotificaÃ§Ãµes agora ficam nos detalhes do cliente
+    // Notificações agora ficam nos detalhes do cliente
     atualizarAposNotificacoes();
 }
 
 function limparFiltrosNotificacoes() {
-    const els = ['filtroPrioridade','filtroTipo','filtroStatus','filtroPeriodo'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('filtroPrioridade').value = '';
+    document.getElementById('filtroTipo').value = '';
+    document.getElementById('filtroStatus').value = '';
+    document.getElementById('filtroPeriodo').value = '';
+    
     atualizarAposNotificacoes();
 }
 
-// === SISTEMA DE COMUNICAÃ‡ÃƒO BIDIRECIONAL ===
+// === SISTEMA DE COMUNICAÇÃO BIDIRECIONAL ===
 
 function responderMensagem(notificacaoId) {
     const notificacao = obterNotificacoesAtual().find(n => n.id === notificacaoId);
     if (!notificacao) {
-        mostrarNotificacao('NotificaÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Notificação não encontrada!', 'error');
         return;
     }
     
@@ -19492,7 +18501,7 @@ function enviarResposta(notificacaoId) {
     const listaNotif = obterNotificacoesAtual();
     const notificacao = listaNotif.find(n => n.id === notificacaoId);
     if (notificacao) {
-        // Inicializar array de respostas se nÃ£o existir
+        // Inicializar array de respostas se não existir
         if (!notificacao.respostas) {
             notificacao.respostas = [];
         }
@@ -19511,7 +18520,7 @@ function enviarResposta(notificacaoId) {
         // Salvar dados
         salvarDados('notificacoes', listaNotif);
         
-        // Criar notificaÃ§Ã£o para o admin sobre a resposta
+        // Criar notificação para o admin sobre a resposta
         const notificacaoAdmin = {
             id: gerarIdImutavel(),
             tipo: 'resposta_convidado',
@@ -19534,10 +18543,10 @@ function enviarResposta(notificacaoId) {
     }
 }
 
-// === VISUALIZAÃ‡ÃƒO DE CONVERSAS PARA ADMIN ===
+// === VISUALIZAÇÃO DE CONVERSAS PARA ADMIN ===
 
 function verConversas() {
-    // Filtrar notificaÃ§Ãµes que tÃªm respostas
+    // Filtrar notificações que têm respostas
     const conversas = obterNotificacoesAtual().filter(n => 
         n.respostas && n.respostas.length > 0 && 
         (n.origem === 'admin' || n.tipo === 'mensagem_admin')
@@ -19608,7 +18617,7 @@ function verConversas() {
 function responderComoAdmin(notificacaoId) {
     const notificacao = obterNotificacoesAtual().find(n => n.id === notificacaoId);
     if (!notificacao) {
-        mostrarNotificacao('NotificaÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Notificação não encontrada!', 'error');
         return;
     }
     
@@ -19655,7 +18664,7 @@ function enviarRespostaAdmin(notificacaoId) {
     const listaNotif = obterNotificacoesAtual();
     const notificacao = listaNotif.find(n => n.id === notificacaoId);
     if (notificacao) {
-        // Inicializar array de respostas se nÃ£o existir
+        // Inicializar array de respostas se não existir
         if (!notificacao.respostas) {
             notificacao.respostas = [];
         }
@@ -19700,14 +18709,14 @@ function atualizarListaPrazos(prazosFiltrados) {
             <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
             <td>${prazo.tipo}</td>
             <td>${prazo.descricao}</td>
-            <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data nÃ£o definida'}</td>
+            <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
             <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
             <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
             <td>
-                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
+                <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
+                <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800 ml-2">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -19715,9 +18724,9 @@ function atualizarListaPrazos(prazosFiltrados) {
     `).join('');
 }
 
-// Sistema de inicializaÃ§Ã£o movido para dentro da verificaÃ§Ã£o de login
+// Sistema de inicialização movido para dentro da verificação de login
 
-// === FUNÃ‡Ã•ES DAS NOVAS SEÃ‡Ã•ES ===
+// === FUNÇÕES DAS NOVAS SEÇÕES ===
 
 function gerarHerancas() {
     const totalHerancas = herancas.length;
@@ -19728,17 +18737,17 @@ function gerarHerancas() {
 
     return `
         <div class="space-y-6">
-            <!-- Header Ãºnico com botÃµes de aÃ§Ã£o -->
+            <!-- Header único com botões de ação -->
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     <button onclick="abrirModalHeranca()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
                         <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                        Nova HeranÃ§a
+                        Nova Herança
                     </button>
                 </div>
             </div>
 
-            <!-- EstatÃ­sticas -->
+            <!-- Estatísticas -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -19783,7 +18792,7 @@ function gerarHerancas() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalHerancas).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${Number(valorTotalHerancas).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -19793,11 +18802,11 @@ function gerarHerancas() {
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaHerancas" placeholder="Buscar heranÃ§as..." 
+                    <input type="text" id="buscaHerancas" placeholder="Buscar heranças..." 
                            class="search-input" onkeyup="filtrarHerancas()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -19805,7 +18814,7 @@ function gerarHerancas() {
                             <option value="">Todos os status</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                         </select>
                     </div>
                     
@@ -19813,14 +18822,14 @@ function gerarHerancas() {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
                         <select id="filtroTipoHeranca" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHerancas()">
                             <option value="">Todos os tipos</option>
-                            <option value="AceitaÃ§Ã£o da heranÃ§a">AceitaÃ§Ã£o da heranÃ§a</option>
-                            <option value="DoaÃ§Ãµes">DoaÃ§Ãµes</option>
+                            <option value="Aceitação da herança">Aceitação da herança</option>
+                            <option value="Doações">Doações</option>
                             <option value="Escrituras de partilha">Escrituras de partilha</option>
-                            <option value="HabilitaÃ§Ã£o de herdeiros">HabilitaÃ§Ã£o de herdeiros</option>
+                            <option value="Habilitação de herdeiros">Habilitação de herdeiros</option>
                             <option value="Partilhas em vida">Partilhas em vida</option>
-                            <option value="Partilhas por Ã³bito">Partilhas por Ã³bito</option>
-                            <option value="Processo de inventÃ¡rio">Processo de inventÃ¡rio</option>
-                            <option value="RenÃºncia Ã  heranÃ§a">RenÃºncia Ã  heranÃ§a</option>
+                            <option value="Partilhas por óbito">Partilhas por óbito</option>
+                            <option value="Processo de inventário">Processo de inventário</option>
+                            <option value="Renúncia à herança">Renúncia à herança</option>
                             <option value="Testamentos">Testamentos</option>
                         </select>
                     </div>
@@ -19838,7 +18847,7 @@ function gerarHerancas() {
                         Limpar Filtros
                     </button>
                     <div class="text-sm text-gray-600">
-                        <span id="contadorHerancas">0</span> heranÃ§as encontradas
+                        <span id="contadorHerancas">0</span> heranças encontradas
                     </div>
                 </div>
             </div>
@@ -19850,17 +18859,17 @@ function gerarHerancas() {
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DescriÃ§Ã£o</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data InÃ­cio</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">AÃ§Ãµes</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
         <tbody id="listaHerancas" class="bg-white divide-y divide-gray-200">
-            <!-- Lista dinÃ¢mica de heranÃ§as -->
+            <!-- Lista dinâmica de heranças -->
         </tbody>
                     </table>
                 </div>
@@ -19877,14 +18886,14 @@ function gerarConvidados() {
 
     return `
         <div class="space-y-6">
-            <!-- Header com botÃµes de aÃ§Ã£o -->
+            <!-- Header com botões de ação -->
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     <button onclick="abrirModalNovoConvidado()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
                         <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>
                         Novo Convidado
                     </button>
-                    <button onclick="enviarMensagemConvidado()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center" title="Enviar notificaÃ§Ã£o ou mensagem para um convidado">
+                    <button onclick="enviarMensagemConvidado()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center" title="Enviar notificação ou mensagem para um convidado">
                         <i data-lucide="send" class="w-4 h-4 mr-2"></i>
                         Enviar para Convidado
                     </button>
@@ -19892,14 +18901,14 @@ function gerarConvidados() {
                         <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i>
                         Ver Conversas
                     </button>
-                    <button onclick="limparConvidadosInativosConfirmado()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center" title="Eliminar convidados desativados hÃ¡ mais de 7 dias">
+                    <button onclick="limparConvidadosInativosConfirmado()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center" title="Eliminar convidados desativados há mais de 7 dias">
                         <i data-lucide="user-minus" class="w-4 h-4 mr-2"></i>
                         Limpar Inativos (7+ dias)
                     </button>
                 </div>
             </div>
 
-            <!-- EstatÃ­sticas -->
+            <!-- Estatísticas -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -19948,11 +18957,11 @@ function gerarConvidados() {
                             <thead>
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CÃ³digo</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clientes Autorizados</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data CriaÃ§Ã£o</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AÃ§Ãµes</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Criação</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="listaConvidados">
@@ -19966,7 +18975,7 @@ function gerarConvidados() {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(convidado.clientesAutorizados || []).length} cliente(s)</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(() => { const d = convidado.dataCriacao || convidado.createdAt; if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? '-' : dt.toLocaleDateString('pt-PT'); })()}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button onclick="abrirModalEditarPermissoes('${String(convidado.codigo || convidado.id).replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar PermissÃµes">
+                                            <button onclick="abrirModalEditarPermissoes('${String(convidado.codigo || convidado.id).replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar Permissões">
                                                 <i data-lucide="settings" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="ativarDesativarConvidado('${convidado.codigo}', ${!convidado.ativo})" class="text-${convidado.ativo ? 'red' : 'green'}-600 hover:text-${convidado.ativo ? 'red' : 'green'}-900 mr-2" title="${convidado.ativo ? 'Desativar' : 'Ativar'}">
@@ -19974,9 +18983,6 @@ function gerarConvidados() {
                                             </button>
                                             <button onclick="copiarCodigoConvidado('${convidado.codigo}')" class="text-gray-600 hover:text-gray-900" title="Copiar Código">
                                                 <i data-lucide="copy" class="w-4 h-4"></i>
-                                            </button>
-                                            <button onclick="enviarConviteConvidado('${(convidado.codigo || '').replace(/'/g, "\\'")}', '${(convidado.nome || '').replace(/'/g, "\\'")}')" class="text-green-600 hover:text-green-900" title="Enviar Convite">
-                                                <i data-lucide="send" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="excluirConvidado('${convidado.codigo || convidado.id}')" class="text-red-600 hover:text-red-900 ml-2" title="Eliminar">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -19993,7 +18999,7 @@ function gerarConvidados() {
     `;
 }
 
-// FUNÃ‡Ã•ES AUXILIARES PARA GESTÃƒO DE CONVIDADOS
+// FUNÇÕES AUXILIARES PARA GESTÃO DE CONVIDADOS
 function abrirModalNovoConvidado() {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -20016,7 +19022,7 @@ function abrirModalNovoConvidado() {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Clientes Autorizados</label>
                         <div id="listaClientesConvidado" class="space-y-2 max-h-40 overflow-y-auto">
-                            <!-- Lista de clientes serÃ¡ carregada aqui -->
+                            <!-- Lista de clientes será carregada aqui -->
                         </div>
                     </div>
                     
@@ -20049,7 +19055,7 @@ function abrirModalNovoConvidado() {
             .map(cb => cb.value);
         
         const novoConvidado = await criarConvidado(nome, clientesSelecionados);
-        mostrarNotificacao(`Convidado criado! CÃ³digo: ${novoConvidado.codigo}`, 'success');
+        mostrarNotificacao(`Convidado criado! Código: ${novoConvidado.codigo}`, 'success');
         fecharModal();
         carregarSecao('convidados');
     });
@@ -20077,7 +19083,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
     const convidado = convidados.find(c => String(c.id) === String(idOuCodigo) || String(c.codigo) === String(idOuCodigo));
     
     if (!convidado) {
-        mostrarNotificacao('Convidado nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Convidado não encontrado!', 'error');
         return;
     }
     
@@ -20087,7 +19093,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900">Editar PermissÃµes - ${convidado.nome}</h3>
+                    <h3 class="text-lg font-semibold text-gray-900">Editar Permissões - ${convidado.nome}</h3>
                     <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
@@ -20097,7 +19103,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Clientes Autorizados</label>
                         <div id="listaClientesEdicao" class="space-y-2 max-h-40 overflow-y-auto">
-                            <!-- Lista de clientes serÃ¡ carregada aqui -->
+                            <!-- Lista de clientes será carregada aqui -->
                         </div>
                     </div>
                     
@@ -20106,7 +19112,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
                             Cancelar
                         </button>
                         <button type="submit" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
-                            Salvar PermissÃµes
+                            Salvar Permissões
                         </button>
                     </div>
                 </form>
@@ -20116,7 +19122,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
     
     document.body.appendChild(modal);
     
-    // Carregar lista de clientes com seleÃ§Ãµes atuais
+    // Carregar lista de clientes com seleções atuais
     carregarClientesParaEdicao(convidado.clientesAutorizados);
     
     document.getElementById('formEditarPermissoes').addEventListener('submit', function(e) {
@@ -20126,7 +19132,7 @@ function abrirModalEditarPermissoes(idOuCodigo) {
         
         
         editarPermissoesConvidado(idOuCodigo, clientesSelecionados);
-        mostrarNotificacao('PermissÃµes atualizadas com sucesso!', 'success');
+        mostrarNotificacao('Permissões atualizadas com sucesso!', 'success');
         fecharModal();
     });
 }
@@ -20159,6 +19165,7 @@ function copiarCodigoConvidado(codigo) {
     navigator.clipboard.writeText(codigo).then(() => {
         mostrarNotificacao('Código copiado para a área de transferência!', 'success');
     }).catch(() => {
+        // Fallback para navegadores mais antigos
         const textArea = document.createElement('textarea');
         textArea.value = codigo;
         document.body.appendChild(textArea);
@@ -20168,175 +19175,6 @@ function copiarCodigoConvidado(codigo) {
         mostrarNotificacao('Código copiado para a área de transferência!', 'success');
     });
 }
-
-/** Gera o texto do convite para um convidado. */
-function gerarTextoConvite(nome, codigo) {
-    const base = (document.querySelector('base')?.href || window.location.origin + '/').replace(/\/$/, '') + '/';
-    const url = base.replace(/\/$/, '');
-    return `Convite - Sistema Legal
-
-Olá ${nome || 'Convidado'},
-
-Foi convidado(a) a aceder ao Sistema Legal com acesso limitado aos seus processos.
-
-Código de acesso: ${codigo}
-
-Para entrar:
-1. Aceda a ${url}
-2. Clique em "Convidado"
-3. Introduza o seu nome e o código acima
-
-Qualquer dúvida, contacte o solicitador.
-
-— Sistema Legal`;
-}
-
-/** Gera o convite em PDF e guarda. Retorna nome do ficheiro ou null. */
-async function gerarConvitePDF(nome, codigo) {
-    try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
-        const texto = gerarTextoConvite(nome, codigo);
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = 15;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(14);
-        doc.text('Convite - Sistema Legal', margin, y);
-        y += 12;
-        doc.setFontSize(11);
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 6;
-        const blocos = texto.split('\n');
-        blocos.forEach(bloco => {
-            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-            linhas.forEach(linha => {
-                if (y > 280) { doc.addPage(); y = margin; }
-                doc.text(linha, margin, y);
-                y += lineHeight;
-            });
-        });
-        const dataStr = new Date().toISOString().split('T')[0];
-        const nomeFicheiro = `Convite_Sistema_Legal_${(nome || 'convidado').replace(/\s+/g, '_')}_${dataStr}.pdf`;
-        doc.save(nomeFicheiro);
-        return nomeFicheiro;
-    } catch (e) {
-        console.error('Erro ao gerar PDF do convite:', e);
-        mostrarNotificacao('Erro ao gerar PDF.', 'error');
-        return null;
-    }
-}
-
-function enviarConviteConvidado(codigo, nome) {
-    const convidados = obterConvidados();
-    const conv = convidados.find(c => String(c.codigo) === String(codigo) || String(c.id) === String(codigo));
-    const nomeConvidado = nome || conv?.nome || 'Convidado';
-
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Enviar Convite</h3>
-                    <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <p class="text-sm text-gray-600 mb-4">Enviar convite com código de acesso para <strong>${nomeConvidado}</strong></p>
-                <form id="formEnviarConvite" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Enviar por</label>
-                        <div class="flex gap-4">
-                            <label class="flex items-center"><input type="radio" name="canalConvite" value="email" checked class="mr-2"> Email</label>
-                            <label class="flex items-center"><input type="radio" name="canalConvite" value="whatsapp" class="mr-2"> WhatsApp</label>
-                        </div>
-                    </div>
-                    <div id="destinoConviteEmail">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
-                        <input type="email" id="conviteEmailDestino" class="w-full px-3 py-2 border rounded-md" placeholder="ex: convidado@email.com">
-                    </div>
-                    <div id="destinoConviteWhatsApp" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
-                        <input type="text" id="conviteWhatsAppDestino" class="w-full px-3 py-2 border rounded-md" placeholder="ex: 351912345678">
-                    </div>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="conviteIncluirPDF" class="mr-2"> Gerar e baixar PDF do convite
-                    </label>
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" onclick="fecharModalRobusto()" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">Cancelar</button>
-                        <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                            <i data-lucide="send" class="w-4 h-4 inline mr-1"></i> Enviar
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
-
-    document.querySelectorAll('input[name="canalConvite"]').forEach(r => {
-        r.addEventListener('change', () => {
-            const isEmail = document.querySelector('input[name="canalConvite"]:checked')?.value === 'email';
-            document.getElementById('destinoConviteEmail').classList.toggle('hidden', !isEmail);
-            document.getElementById('destinoConviteWhatsApp').classList.toggle('hidden', isEmail);
-        });
-    });
-    document.getElementById('destinoConviteWhatsApp').classList.add('hidden');
-
-    document.getElementById('formEnviarConvite').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const canal = document.querySelector('input[name="canalConvite"]:checked')?.value || 'email';
-        const incluirPDF = document.getElementById('conviteIncluirPDF')?.checked || false;
-        const texto = gerarTextoConvite(nomeConvidado, codigo);
-
-        if (incluirPDF) {
-            await gerarConvitePDF(nomeConvidado, codigo);
-            mostrarNotificacao('PDF guardado. Anexe-o ao email ou WhatsApp.', 'success');
-        }
-
-        if (canal === 'email') {
-            const destino = (document.getElementById('conviteEmailDestino')?.value || '').trim();
-            if (!destino) {
-                mostrarNotificacao('Informe o email de destino.', 'warning');
-                return;
-            }
-            const assunto = `Convite - Sistema Legal - ${nomeConvidado}`;
-            const corpo = texto + (incluirPDF ? '\n\n(Ver anexo PDF nas suas transferências para partilhar.)' : '');
-            const link = `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
-            window.location.href = link;
-        } else {
-            const destino = (document.getElementById('conviteWhatsAppDestino')?.value || '').trim();
-            if (!destino) {
-                mostrarNotificacao('Informe o número de WhatsApp (com indicativo).', 'warning');
-                return;
-            }
-            const msg = texto + (incluirPDF ? '\n\n(PDF guardado nas transferências para anexar.)' : '');
-            const link = `https://wa.me/${destino.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
-            window.open(link, '_blank');
-        }
-        fecharModalRobusto();
-    });
-}
-window.enviarConviteConvidado = enviarConviteConvidado;
-
-function enviarConviteDoSeletor() {
-    const sel = document.getElementById('conviteConvidadoNotificacoes');
-    if (!sel || !sel.value) {
-        mostrarNotificacao('Escolha um convidado na lista.', 'warning');
-        return;
-    }
-    const codigo = sel.value;
-    const conv = obterConvidados().find(c => String(c.codigo || c.id) === String(codigo));
-    const nome = conv?.nome || 'Convidado';
-    enviarConviteConvidado(codigo, nome);
-}
-window.enviarConviteDoSeletor = enviarConviteDoSeletor;
 
 function gerarMigracao() {
     
@@ -20356,17 +19194,17 @@ function gerarMigracao() {
 
     return `
         <div class="space-y-6">
-            <!-- Header Ãºnico com botÃµes de aÃ§Ã£o -->
+            <!-- Header único com botões de ação -->
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     <button onclick="abrirModalMigracaoDireto()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
                         <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                        Nova MigraÃ§Ã£o
+                        Nova Migração
                     </button>
                 </div>
             </div>
 
-            <!-- EstatÃ­sticas -->
+            <!-- Estatísticas -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -20411,7 +19249,7 @@ function gerarMigracao() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalMigracoes).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${Number(valorTotalMigracoes).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -20421,11 +19259,11 @@ function gerarMigracao() {
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaMigracoes" placeholder="Buscar migraÃ§Ãµes..." 
+                    <input type="text" id="buscaMigracoes" placeholder="Buscar migrações..." 
                            class="search-input" onkeyup="filtrarMigracoes()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -20433,7 +19271,7 @@ function gerarMigracao() {
                             <option value="">Todos os status</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                         </select>
                     </div>
                     
@@ -20441,11 +19279,11 @@ function gerarMigracao() {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
                         <select id="filtroTipoMigracao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosMigracoes()">
                             <option value="">Todos os tipos</option>
-                            <option value="AutorizaÃ§Ã£o de residÃªncia">AutorizaÃ§Ã£o de residÃªncia</option>
-                            <option value="Certificados de residÃªncia permanente">Certificados de residÃªncia permanente</option>
+                            <option value="Autorização de residência">Autorização de residência</option>
+                            <option value="Certificados de residência permanente">Certificados de residência permanente</option>
                             <option value="Processos de nacionalidade portuguesa">Processos de nacionalidade portuguesa</option>
                             <option value="Reagrupamento familiar">Reagrupamento familiar</option>
-                            <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes">RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                            <option value="Renovação de autorizações">Renovação de autorizações</option>
                             <option value="Vistos D7">Vistos D7</option>
                             <option value="Vistos Gold">Vistos Gold</option>
                             <option value="Vistos para estudantes">Vistos para estudantes</option>
@@ -20467,7 +19305,7 @@ function gerarMigracao() {
                         Limpar Filtros
                     </button>
                     <div class="text-sm text-gray-600">
-                        <span id="contadorMigracoes">0</span> migraÃ§Ãµes encontradas
+                        <span id="contadorMigracoes">0</span> migrações encontradas
                     </div>
                 </div>
             </div>
@@ -20479,13 +19317,13 @@ function gerarMigracao() {
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DescriÃ§Ã£o</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data InÃ­cio</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">AÃ§Ãµes</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="listaMigracoes" class="bg-white divide-y divide-gray-200">
@@ -20495,17 +19333,17 @@ function gerarMigracao() {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                                     <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                                        <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                                        <div class="text-sm font-bold text-black">€${(migracao.valor || 0).toFixed(2)}</div>
+                                        <div class="text-xs font-bold text-red-600">+ IVA: €${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
+                                        <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : 'â€”'}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data nÃ£o definida'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
                                             <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
@@ -20539,7 +19377,7 @@ function gerarRegistos() {
 
     return `
         <div class="space-y-6">
-            <!-- Header Ãºnico com botÃµes de aÃ§Ã£o -->
+            <!-- Header único com botões de ação -->
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     <button onclick="abrirModalRegisto()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
@@ -20549,7 +19387,7 @@ function gerarRegistos() {
                 </div>
             </div>
 
-            <!-- EstatÃ­sticas -->
+            <!-- Estatísticas -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -20594,7 +19432,7 @@ function gerarRegistos() {
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">â‚¬${Number(valorTotalRegistos).toFixed(2)}</p>
+                            <p class="text-2xl font-bold text-gray-900">€${Number(valorTotalRegistos).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -20608,7 +19446,7 @@ function gerarRegistos() {
                            class="search-input" onkeyup="filtrarRegistos()">
                 </div>
                 
-                <!-- Filtros AvanÃ§ados -->
+                <!-- Filtros Avançados -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -20616,7 +19454,7 @@ function gerarRegistos() {
                             <option value="">Todos os status</option>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">ConcluÃ­do</option>
+                            <option value="concluido">Concluído</option>
                         </select>
                     </div>
                     
@@ -20624,15 +19462,15 @@ function gerarRegistos() {
                         <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
                         <select id="filtroTipoRegisto" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosRegistos()">
                             <option value="">Todos os tipos</option>
-                            <option value="AutenticaÃ§Ã£o de documentos">AutenticaÃ§Ã£o de documentos</option>
-                            <option value="CertificaÃ§Ã£o de fotocÃ³pias">CertificaÃ§Ã£o de fotocÃ³pias</option>
+                            <option value="Autenticação de documentos">Autenticação de documentos</option>
+                            <option value="Certificação de fotocópias">Certificação de fotocópias</option>
                             <option value="Documentos para o estrangeiro">Documentos para o estrangeiro</option>
-                            <option value="ProcuraÃ§Ãµes">ProcuraÃ§Ãµes</option>
+                            <option value="Procurações">Procurações</option>
                             <option value="Reconhecimento presencial de assinaturas">Reconhecimento presencial de assinaturas</option>
-                            <option value="Registos automÃ³veis">Registos automÃ³veis</option>
+                            <option value="Registos automóveis">Registos automóveis</option>
                             <option value="Registos comerciais">Registos comerciais</option>
                             <option value="Registos de propriedade">Registos de propriedade</option>
-                            <option value="Termos de autenticaÃ§Ã£o">Termos de autenticaÃ§Ã£o</option>
+                            <option value="Termos de autenticação">Termos de autenticação</option>
                         </select>
                     </div>
                     
@@ -20661,17 +19499,17 @@ function gerarRegistos() {
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DescriÃ§Ã£o</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data InÃ­cio</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">AÃ§Ãµes</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
         <tbody id="listaRegistos" class="bg-white divide-y divide-gray-200">
-            <!-- ConteÃºdo serÃ¡ carregado via atualizarListaRegistos() -->
+            <!-- Conteúdo será carregado via atualizarListaRegistos() -->
         </tbody>
                     </table>
                 </div>
@@ -20681,16 +19519,14 @@ function gerarRegistos() {
 }
 
 
-// === FUNÃ‡Ã•ES DE FILTRO ===
+// === FUNÇÕES DE FILTRO ===
 
 function filtrarHerancas() {
     aplicarFiltrosHerancas();
 }
 
 function aplicarFiltrosHerancas() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'herancas') return;
-    if (!document.getElementById('listaHerancas')) return;
-    const busca = document.getElementById('buscaHerancas')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaHerancas')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusHeranca')?.value || '';
     const tipo = document.getElementById('filtroTipoHeranca')?.value || '';
     const nif = document.getElementById('filtroNifHeranca')?.value || '';
@@ -20719,12 +19555,16 @@ function aplicarFiltrosHerancas() {
     const limitH = Math.max(LISTA_PAGINA_TAMANHO, window.__herancasLimit || LISTA_PAGINA_TAMANHO);
     const mostrarH = herancasFiltradas.slice(0, limitH);
     atualizarListaHerancas(mostrarH, herancasFiltradas.length, limitH);
-    const ch = document.getElementById('contadorHerancas'); if (ch) ch.textContent = herancasFiltradas.length;
+    document.getElementById('contadorHerancas').textContent = herancasFiltradas.length;
 }
 
 function limparFiltrosHerancas() {
-    const els = ['buscaHerancas','filtroStatusHeranca','filtroTipoHeranca','filtroValorMinHeranca','filtroValorMaxHeranca','filtroNifHeranca'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaHerancas').value = '';
+    document.getElementById('filtroStatusHeranca').value = '';
+    document.getElementById('filtroTipoHeranca').value = '';
+    document.getElementById('filtroValorMinHeranca').value = '';
+    document.getElementById('filtroValorMaxHeranca').value = '';
+    document.getElementById('filtroNifHeranca').value = '';
     aplicarFiltrosHerancas();
 }
 
@@ -20733,9 +19573,7 @@ function filtrarMigracoes() {
 }
 
 function aplicarFiltrosMigracoes() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'migracoes') return;
-    if (!document.getElementById('listaMigracoes')) return;
-    const busca = document.getElementById('buscaMigracoes')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaMigracoes')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusMigracao')?.value || '';
     const tipo = document.getElementById('filtroTipoMigracao')?.value || '';
     const valorMin = parseFloat(document.getElementById('filtroValorMinMigracao')?.value) || 0;
@@ -20769,12 +19607,16 @@ function aplicarFiltrosMigracoes() {
     const limitM = Math.max(LISTA_PAGINA_TAMANHO, window.__migracoesLimit || LISTA_PAGINA_TAMANHO);
     const mostrarM = migracoesFiltradas.slice(0, limitM);
     atualizarListaMigracoes(mostrarM, migracoesFiltradas.length, limitM);
-    const cm = document.getElementById('contadorMigracoes'); if (cm) cm.textContent = migracoesFiltradas.length;
+    document.getElementById('contadorMigracoes').textContent = migracoesFiltradas.length;
 }
 
 function limparFiltrosMigracoes() {
-    const els = ['buscaMigracoes','filtroStatusMigracao','filtroTipoMigracao','filtroValorMinMigracao','filtroValorMaxMigracao','filtroNifMigracao'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaMigracoes').value = '';
+    document.getElementById('filtroStatusMigracao').value = '';
+    document.getElementById('filtroTipoMigracao').value = '';
+    document.getElementById('filtroValorMinMigracao').value = '';
+    document.getElementById('filtroValorMaxMigracao').value = '';
+    document.getElementById('filtroNifMigracao').value = '';
     aplicarFiltrosMigracoes();
 }
 
@@ -20783,9 +19625,7 @@ function filtrarRegistos() {
 }
 
 function aplicarFiltrosRegistos() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'registos') return;
-    if (!document.getElementById('listaRegistos')) return;
-    const busca = document.getElementById('buscaRegistos')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaRegistos')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusRegisto')?.value || '';
     const tipo = document.getElementById('filtroTipoRegisto')?.value || '';
     const valorMin = parseFloat(document.getElementById('filtroValorMinRegisto')?.value) || 0;
@@ -20819,12 +19659,16 @@ function aplicarFiltrosRegistos() {
     const limitR = Math.max(LISTA_PAGINA_TAMANHO, window.__registosLimit || LISTA_PAGINA_TAMANHO);
     const mostrarR = registosFiltrados.slice(0, limitR);
     atualizarListaRegistos(mostrarR, registosFiltrados.length, limitR);
-    const cr = document.getElementById('contadorRegistos'); if (cr) cr.textContent = registosFiltrados.length;
+    document.getElementById('contadorRegistos').textContent = registosFiltrados.length;
 }
 
 function limparFiltrosRegistos() {
-    const els = ['buscaRegistos','filtroStatusRegisto','filtroTipoRegisto','filtroValorMinRegisto','filtroValorMaxRegisto','filtroNifRegisto'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaRegistos').value = '';
+    document.getElementById('filtroStatusRegisto').value = '';
+    document.getElementById('filtroTipoRegisto').value = '';
+    document.getElementById('filtroValorMinRegisto').value = '';
+    document.getElementById('filtroValorMaxRegisto').value = '';
+    document.getElementById('filtroNifRegisto').value = '';
     aplicarFiltrosRegistos();
 }
 
@@ -20844,9 +19688,7 @@ function filtrarPrazos() {
 }
 
 function aplicarFiltrosPrazos() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'prazos') return;
-    if (!document.getElementById('listaPrazos')) return;
-    const busca = document.getElementById('buscaPrazos')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaPrazos')?.value.toLowerCase() || '';
     const status = document.getElementById('filtroStatusPrazo')?.value || '';
     const tipo = document.getElementById('filtroTipoPrazo')?.value || '';
     const vencimento = document.getElementById('filtroVencimentoPrazo')?.value || '';
@@ -20855,9 +19697,9 @@ function aplicarFiltrosPrazos() {
     let prazosFiltrados = prazos.filter(prazo => {
         // Filtro por busca de texto
         const matchBusca = !busca || 
-            (prazo.clienteNome || '').toLowerCase().includes(busca) || 
-            (prazo.descricao || '').toLowerCase().includes(busca) ||
-            (prazo.tipo || '').toLowerCase().includes(busca);
+            prazo.clienteNome.toLowerCase().includes(busca) || 
+            prazo.descricao.toLowerCase().includes(busca) ||
+            prazo.tipo.toLowerCase().includes(busca);
         
         // Filtro por status
         const matchStatus = !status || prazo.status === status;
@@ -20914,12 +19756,15 @@ function aplicarFiltrosPrazos() {
     const limitP = Math.max(LISTA_PAGINA_TAMANHO, window.__prazosLimit || LISTA_PAGINA_TAMANHO);
     const mostrarP = prazosFiltrados.slice(0, limitP);
     atualizarListaPrazos(mostrarP, prazosFiltrados.length, limitP);
-    const cp = document.getElementById('contadorPrazos'); if (cp) cp.textContent = prazosFiltrados.length;
+    document.getElementById('contadorPrazos').textContent = prazosFiltrados.length;
 }
 
 function limparFiltrosPrazos() {
-    const els = ['buscaPrazos','filtroStatusPrazo','filtroTipoPrazo','filtroVencimentoPrazo','filtroPrioridadePrazo'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    document.getElementById('buscaPrazos').value = '';
+    document.getElementById('filtroStatusPrazo').value = '';
+    document.getElementById('filtroTipoPrazo').value = '';
+    document.getElementById('filtroVencimentoPrazo').value = '';
+    document.getElementById('filtroPrioridadePrazo').value = '';
     aplicarFiltrosPrazos();
 }
 
@@ -20946,12 +19791,12 @@ function atualizarListaPrazos(prazosFiltrados, total, limit) {
             <td>${prazo.descricao}</td>
             <td>${new Date(prazo.dataLimite).toLocaleDateString('pt-PT')}</td>
             <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
-            <td><span class="status-badge status-${prazo.status}">${prazo.status === 'concluido' ? 'ConcluÃ­do' : prazo.status === 'vencido' ? 'Vencido' : prazo.status === 'cancelado' ? 'Cancelado' : 'Ativo'}</span></td>
+            <td><span class="status-badge status-${prazo.status}">${prazo.status === 'concluido' ? 'Concluído' : prazo.status === 'vencido' ? 'Vencido' : prazo.status === 'cancelado' ? 'Cancelado' : 'Ativo'}</span></td>
             <td>
-                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
+                <button onclick="editarItem('prazo', ${JSON.stringify(prazo.id)})" class="text-blue-600 hover:text-blue-800">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
+                <button onclick="excluirItem('prazo', ${JSON.stringify(prazo.id)})" class="text-red-600 hover:text-red-800 ml-2">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -20960,7 +19805,7 @@ function atualizarListaPrazos(prazosFiltrados, total, limit) {
 }
 
 
-// === FUNÃ‡Ã•ES DE ATUALIZAÃ‡ÃƒO DE LISTAS ===
+// === FUNÇÕES DE ATUALIZAÇÃO DE LISTAS ===
 
 function atualizarListaHerancas(herancasFiltradas, total, limit) {
     total = total ?? herancasFiltradas.length;
@@ -20980,8 +19825,8 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.tipo || 'N/A'}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${heranca.descricao || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${Number(heranca.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">€${Number(heranca.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: €${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${heranca.status || 'pendente'}">${heranca.status || 'Pendente'}</span>
@@ -20989,7 +19834,7 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${heranca.prioridade || 'media'}">${heranca.prioridade || 'media'}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === heranca.entidade)?.nome || heranca.entidade) : 'â€”'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === heranca.entidade)?.nome || heranca.entidade) : '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarHerancaDireto(${JSON.stringify(heranca.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
@@ -21010,7 +19855,7 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
     
     tbody.innerHTML = html;
     
-    // FORÃ‡AR RENDERIZAÃ‡ÃƒO DOS ÃCONES
+    // FORÇAR RENDERIZAÇÃO DOS ÍCONES
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -21034,17 +19879,17 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">€${(migracao.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: €${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
+                <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : 'â€”'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data nÃ£o definida'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarMigracaoSimples(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
@@ -21079,8 +19924,8 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.tipo || 'N/A'}</td>
             <td class="px-6 py-4 text-sm text-gray-500">${registo.descricao || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">â‚¬${Number(registo.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</div>
+                <div class="text-sm font-bold text-black">€${Number(registo.valor || 0).toFixed(2)}</div>
+                <div class="text-xs font-bold text-red-600">+ IVA: €${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${registo.status || 'pendente'}">${registo.status || 'Pendente'}</span>
@@ -21088,7 +19933,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="status-badge status-${registo.prioridade || 'media'}">${registo.prioridade || 'media'}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === registo.entidade)?.nome || registo.entidade) : 'â€”'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === registo.entidade)?.nome || registo.entidade) : '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.dataInicio || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button onclick="editarRegistoDireto(${JSON.stringify(registo.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
@@ -21109,7 +19954,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
     
     tbody.innerHTML = html;
     
-    // FORÃ‡AR RENDERIZAÃ‡ÃƒO DOS ÃCONES
+    // FORÇAR RENDERIZAÇÃO DOS ÍCONES
     setTimeout(() => {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
@@ -21118,7 +19963,7 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
 }
 
 
-// === FUNÃ‡Ã•ES DE MODAL E CRUD ===
+// === FUNÇÕES DE MODAL E CRUD ===
 
 function abrirModalHeranca() {
     const modal = `
@@ -21126,7 +19971,7 @@ function abrirModalHeranca() {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Nova HeranÃ§a</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Nova Herança</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -21146,19 +19991,19 @@ function abrirModalHeranca() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select name="tipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AceitaÃ§Ã£o da heranÃ§a">AceitaÃ§Ã£o da heranÃ§a</option>
-                                    <option value="DoaÃ§Ãµes">DoaÃ§Ãµes</option>
+                                    <option value="Aceitação da herança">Aceitação da herança</option>
+                                    <option value="Doações">Doações</option>
                                     <option value="Escrituras de partilha">Escrituras de partilha</option>
-                                    <option value="HabilitaÃ§Ã£o de herdeiros">HabilitaÃ§Ã£o de herdeiros</option>
+                                    <option value="Habilitação de herdeiros">Habilitação de herdeiros</option>
                                     <option value="Partilhas em vida">Partilhas em vida</option>
-                                    <option value="Partilhas por Ã³bito">Partilhas por Ã³bito</option>
-                                    <option value="Processo de inventÃ¡rio">Processo de inventÃ¡rio</option>
-                                    <option value="RenÃºncia Ã  heranÃ§a">RenÃºncia Ã  heranÃ§a</option>
+                                    <option value="Partilhas por óbito">Partilhas por óbito</option>
+                                    <option value="Processo de inventário">Processo de inventário</option>
+                                    <option value="Renúncia à herança">Renúncia à herança</option>
                                     <option value="Testamentos">Testamentos</option>
-                                    <option value="InventÃ¡rio">InventÃ¡rio</option>
+                                    <option value="Inventário">Inventário</option>
                                     <option value="Partilha">Partilha</option>
                                     <option value="Testamento">Testamento</option>
-                                    <option value="DoaÃ§Ã£o">DoaÃ§Ã£o</option>
+                                    <option value="Doação">Doação</option>
                                 </select>
                             </div>
                             
@@ -21173,7 +20018,7 @@ function abrirModalHeranca() {
                                     <select name="iva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0">0% (Isento)</option>
                                         <option value="6">6% (Reduzida)</option>
-                                        <option value="13">13% (IntermÃ©dia)</option>
+                                        <option value="13">13% (Intermédia)</option>
                                         <option value="23" selected>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -21202,7 +20047,7 @@ function abrirModalHeranca() {
                                     <select name="status" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente">Pendente</option>
                                         <option value="em_andamento">Em Andamento</option>
-                                        <option value="concluido">ConcluÃ­do</option>
+                                        <option value="concluido">Concluído</option>
                                     </select>
                                 </div>
                                 
@@ -21210,14 +20055,14 @@ function abrirModalHeranca() {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa">Baixa</option>
-                                        <option value="media" selected>MÃ©dia</option>
+                                        <option value="media" selected>Média</option>
                                         <option value="alta">Alta</option>
-                                        <option value="critica">CrÃ­tica</option>
+                                        <option value="critica">Crítica</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="InstituiÃ§Ã£o em Portugal">
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
                                         ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                                     </select>
                                 </div>
@@ -21225,14 +20070,14 @@ function abrirModalHeranca() {
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                     <input type="date" name="dataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre a heranÃ§a..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre a herança..."></textarea>
                             </div>
                         </div>
                         
@@ -21241,7 +20086,7 @@ function abrirModalHeranca() {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar HeranÃ§a
+                                Salvar Herança
                             </button>
                         </div>
                     </form>
@@ -21258,7 +20103,7 @@ function criarModalMigracao() {
         <div class="modal show" onclick="fecharModalRobusto()">
             <div class="modal-content p-6" style="max-width: 600px;" onclick="event.stopPropagation()">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold">Nova MigraÃ§Ã£o</h3>
+                    <h3 class="text-lg font-semibold">Nova Migração</h3>
                     <button onclick="fecharModalRobusto()" class="text-gray-500 hover:text-gray-700">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
@@ -21278,11 +20123,11 @@ function criarModalMigracao() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                             <select name="tipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Tipo</option>
-                                <option value="AutorizaÃ§Ã£o de residÃªncia">AutorizaÃ§Ã£o de residÃªncia</option>
-                                <option value="Certificados de residÃªncia permanente">Certificados de residÃªncia permanente</option>
+                                <option value="Autorização de residência">Autorização de residência</option>
+                                <option value="Certificados de residência permanente">Certificados de residência permanente</option>
                                 <option value="Processos de nacionalidade portuguesa">Processos de nacionalidade portuguesa</option>
                                 <option value="Reagrupamento familiar">Reagrupamento familiar</option>
-                                <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes">RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                <option value="Renovação de autorizações">Renovação de autorizações</option>
                                 <option value="Vistos D7">Vistos D7</option>
                                 <option value="Vistos Gold">Vistos Gold</option>
                                 <option value="Vistos para estudantes">Vistos para estudantes</option>
@@ -21292,7 +20137,7 @@ function criarModalMigracao() {
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (â‚¬) *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (€) *</label>
                                 <input type="number" name="valor" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="0.00">
                             </div>
                             
@@ -21306,19 +20151,19 @@ function criarModalMigracao() {
                                 <select name="status" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente">Pendente</option>
                                     <option value="em_andamento">Em Andamento</option>
-                                    <option value="concluido">ConcluÃ­do</option>
+                                    <option value="concluido">Concluído</option>
                                 </select>
                             </div>
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Data de InÃ­cio *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
                             <input type="date" name="dataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre a migraÃ§Ã£o..."></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre a migração..."></textarea>
                         </div>
                     </div>
                     
@@ -21327,7 +20172,7 @@ function criarModalMigracao() {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar MigraÃ§Ã£o
+                            Salvar Migração
                         </button>
                     </div>
                 </form>
@@ -21355,7 +20200,7 @@ function abrirModalMigracaoDireto() {
         <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-bold text-gray-900">Nova MigraÃ§Ã£o</h3>
+                    <h3 class="text-xl font-bold text-gray-900">Nova Migração</h3>
                     <button onclick="document.getElementById('modalNovaMigracao').remove()" class="text-gray-400 hover:text-gray-600">
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
@@ -21375,11 +20220,11 @@ function abrirModalMigracaoDireto() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                             <select name="tipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Tipo</option>
-                                <option value="AutorizaÃ§Ã£o de residÃªncia">AutorizaÃ§Ã£o de residÃªncia</option>
-                                <option value="Certificados de residÃªncia permanente">Certificados de residÃªncia permanente</option>
+                                <option value="Autorização de residência">Autorização de residência</option>
+                                <option value="Certificados de residência permanente">Certificados de residência permanente</option>
                                 <option value="Processos de nacionalidade portuguesa">Processos de nacionalidade portuguesa</option>
                                 <option value="Reagrupamento familiar">Reagrupamento familiar</option>
-                                <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes">RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                <option value="Renovação de autorizações">Renovação de autorizações</option>
                                 <option value="Vistos D7">Vistos D7</option>
                                 <option value="Vistos Gold">Vistos Gold</option>
                                 <option value="Vistos para estudantes">Vistos para estudantes</option>
@@ -21389,7 +20234,7 @@ function abrirModalMigracaoDireto() {
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (â‚¬) *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor (€) *</label>
                                 <input type="number" name="valor" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="0.00">
                             </div>
                             
@@ -21403,7 +20248,7 @@ function abrirModalMigracaoDireto() {
                                 <select name="status" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente">Pendente</option>
                                     <option value="em_andamento">Em Andamento</option>
-                                    <option value="concluido">ConcluÃ­do</option>
+                                    <option value="concluido">Concluído</option>
                                 </select>
                             </div>
                             
@@ -21411,15 +20256,15 @@ function abrirModalMigracaoDireto() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                 <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="baixa">Baixa</option>
-                                    <option value="media" selected>MÃ©dia</option>
+                                    <option value="media" selected>Média</option>
                                     <option value="alta">Alta</option>
-                                    <option value="critica">CrÃ­tica</option>
+                                    <option value="critica">Crítica</option>
                                 </select>
                             </div>
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Data de InÃ­cio *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
                             <input type="date" name="dataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
@@ -21443,8 +20288,8 @@ function abrirModalMigracaoDireto() {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                            <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre a migraÃ§Ã£o..."></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                            <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre a migração..."></textarea>
                         </div>
                     </div>
                     
@@ -21453,7 +20298,7 @@ function abrirModalMigracaoDireto() {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar MigraÃ§Ã£o
+                            Salvar Migração
                         </button>
                     </div>
                 </form>
@@ -21465,7 +20310,7 @@ function abrirModalMigracaoDireto() {
     lucide.createIcons();
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.abrirModalMigracaoDireto = abrirModalMigracaoDireto;
 
 function abrirModalMigracao() {
@@ -21474,7 +20319,7 @@ function abrirModalMigracao() {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Nova MigraÃ§Ã£o</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Nova Migração</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -21494,17 +20339,17 @@ function abrirModalMigracao() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select name="tipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutorizaÃ§Ã£o de residÃªncia">AutorizaÃ§Ã£o de residÃªncia</option>
-                                    <option value="Certificados de residÃªncia permanente">Certificados de residÃªncia permanente</option>
+                                    <option value="Autorização de residência">Autorização de residência</option>
+                                    <option value="Certificados de residência permanente">Certificados de residência permanente</option>
                                     <option value="Processos de nacionalidade portuguesa">Processos de nacionalidade portuguesa</option>
                                     <option value="Reagrupamento familiar">Reagrupamento familiar</option>
-                                    <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes">RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                    <option value="Renovação de autorizações">Renovação de autorizações</option>
                                     <option value="Vistos D7">Vistos D7</option>
                                     <option value="Vistos Gold">Vistos Gold</option>
                                     <option value="Vistos para estudantes">Vistos para estudantes</option>
                                     <option value="Vistos para trabalho">Vistos para trabalho</option>
                                     <option value="Nacionalidade">Nacionalidade</option>
-                                    <option value="ResidÃªncia">ResidÃªncia</option>
+                                    <option value="Residência">Residência</option>
                                     <option value="Visto">Visto</option>
                                     <option value="Reagrupamento">Reagrupamento</option>
                                 </select>
@@ -21521,7 +20366,7 @@ function abrirModalMigracao() {
                                     <select name="iva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0">0% (Isento)</option>
                                         <option value="6">6% (Reduzida)</option>
-                                        <option value="13">13% (IntermÃ©dia)</option>
+                                        <option value="13">13% (Intermédia)</option>
                                         <option value="23" selected>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -21550,7 +20395,7 @@ function abrirModalMigracao() {
                                     <select name="status" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente">Pendente</option>
                                         <option value="em_andamento">Em Andamento</option>
-                                        <option value="concluido">ConcluÃ­do</option>
+                                        <option value="concluido">Concluído</option>
                                     </select>
                                 </div>
                                 
@@ -21558,14 +20403,14 @@ function abrirModalMigracao() {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa">Baixa</option>
-                                        <option value="media" selected>MÃ©dia</option>
+                                        <option value="media" selected>Média</option>
                                         <option value="alta">Alta</option>
-                                        <option value="critica">CrÃ­tica</option>
+                                        <option value="critica">Crítica</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="InstituiÃ§Ã£o em Portugal">
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
                                         ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                                     </select>
                                 </div>
@@ -21573,14 +20418,14 @@ function abrirModalMigracao() {
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                     <input type="date" name="dataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre a migraÃ§Ã£o..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre a migração..."></textarea>
                             </div>
                         </div>
                         
@@ -21589,7 +20434,7 @@ function abrirModalMigracao() {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar MigraÃ§Ã£o
+                                Salvar Migração
                             </button>
                         </div>
                     </form>
@@ -21627,15 +20472,15 @@ function abrirModalRegisto() {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select name="tipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutenticaÃ§Ã£o de documentos">AutenticaÃ§Ã£o de documentos</option>
-                                    <option value="CertificaÃ§Ã£o de fotocÃ³pias">CertificaÃ§Ã£o de fotocÃ³pias</option>
+                                    <option value="Autenticação de documentos">Autenticação de documentos</option>
+                                    <option value="Certificação de fotocópias">Certificação de fotocópias</option>
                                     <option value="Documentos para o estrangeiro">Documentos para o estrangeiro</option>
-                                    <option value="ProcuraÃ§Ãµes">ProcuraÃ§Ãµes</option>
+                                    <option value="Procurações">Procurações</option>
                                     <option value="Reconhecimento presencial de assinaturas">Reconhecimento presencial de assinaturas</option>
-                                    <option value="Registos automÃ³veis">Registos automÃ³veis</option>
+                                    <option value="Registos automóveis">Registos automóveis</option>
                                     <option value="Registos comerciais">Registos comerciais</option>
                                     <option value="Registos de propriedade">Registos de propriedade</option>
-                                    <option value="Termos de autenticaÃ§Ã£o">Termos de autenticaÃ§Ã£o</option>
+                                    <option value="Termos de autenticação">Termos de autenticação</option>
                                 </select>
                             </div>
                             
@@ -21650,7 +20495,7 @@ function abrirModalRegisto() {
                                     <select name="iva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0">0% (Isento)</option>
                                         <option value="6">6% (Reduzida)</option>
-                                        <option value="13">13% (IntermÃ©dia)</option>
+                                        <option value="13">13% (Intermédia)</option>
                                         <option value="23" selected>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -21679,7 +20524,7 @@ function abrirModalRegisto() {
                                     <select name="status" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente">Pendente</option>
                                         <option value="em_andamento">Em Andamento</option>
-                                        <option value="concluido">ConcluÃ­do</option>
+                                        <option value="concluido">Concluído</option>
                                     </select>
                                 </div>
                                 
@@ -21687,14 +20532,14 @@ function abrirModalRegisto() {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select name="prioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa">Baixa</option>
-                                        <option value="media" selected>MÃ©dia</option>
+                                        <option value="media" selected>Média</option>
                                         <option value="alta">Alta</option>
-                                        <option value="critica">CrÃ­tica</option>
+                                        <option value="critica">Crítica</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="InstituiÃ§Ã£o em Portugal">
+                                    <select name="entidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
                                         ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
                                     </select>
                                 </div>
@@ -21702,14 +20547,14 @@ function abrirModalRegisto() {
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                     <input type="date" name="dataInicio" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
-                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ObservaÃ§Ãµes adicionais sobre o registo..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                                <textarea name="observacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre o registo..."></textarea>
                             </div>
                         </div>
                         
@@ -21730,7 +20575,7 @@ function abrirModalRegisto() {
     lucide.createIcons();
 }
 
-// === FUNÃ‡Ã•ES DE SALVAMENTO ===
+// === FUNÇÕES DE SALVAMENTO ===
 
 async function salvarHeranca(event) {
     event.preventDefault();
@@ -21747,7 +20592,7 @@ async function salvarHeranca(event) {
     const novaHeranca = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         tipo: formData.get('tipo'),
         descricao: formData.get('descricao'),
         valor: valor,
@@ -21773,12 +20618,12 @@ async function salvarHeranca(event) {
             salvarDados('herancas', herancas);
         }
     } catch (err) {
-        console.warn('Erro ao criar heranÃ§a na nuvem:', err);
+        console.warn('Erro ao criar herança na nuvem:', err);
         salvarDados('herancas', herancas);
     }
     
-    // Criar prazo automÃ¡tico para a heranÃ§a
-    // Carregar prazos em memÃ³ria antes de adicionar
+    // Criar prazo automático para a herança
+    // Carregar prazos em memória antes de adicionar
     const prazosSalvos = appStorage.getItem('prazos');
     if (prazosSalvos) {
         prazos = JSON.parse(prazosSalvos);
@@ -21788,7 +20633,7 @@ async function salvarHeranca(event) {
     const prazoHeranca = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         descricao: `Prazo para ${novaHeranca.tipo} - ${novaHeranca.descricao}`,
         dataLimite: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 60 dias
         status: 'ativo',
@@ -21804,11 +20649,11 @@ async function salvarHeranca(event) {
     window.prazos = prazos;
     salvarDados('prazos', prazos);
     
-    mostrarNotificacao('HeranÃ§a e prazo criados com sucesso!', 'success');
+    mostrarNotificacao('Herança e prazo criados com sucesso!', 'success');
     fecharModal();
     carregarSecao('herancas');
     
-    // Atualizar lista apÃ³s salvar
+    // Atualizar lista após salvar
     setTimeout(() => {
         if (typeof aplicarFiltrosHerancas === 'function') aplicarFiltrosHerancas();
     }, 200);
@@ -21831,9 +20676,9 @@ async function salvarMigracao(event) {
     const novaMigracao = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         tipo: formData.get('tipo'),
-            descricao: '', // Campo nÃ£o existe no modal de MigraÃ§Ã£o
+            descricao: '', // Campo não existe no modal de Migração
         valor: valor,
         iva: iva,
         percentagem: percentagem,
@@ -21859,11 +20704,11 @@ async function salvarMigracao(event) {
             salvarDados('migracoes', migracoes);
         }
     } catch (err) {
-        console.warn('Erro ao criar migraÃ§Ã£o na nuvem:', err);
+        console.warn('Erro ao criar migração na nuvem:', err);
         salvarDados('migracoes', migracoes);
     }
-    // Criar prazo automÃ¡tico para a migraÃ§Ã£o
-    // Carregar prazos em memÃ³ria antes de adicionar
+    // Criar prazo automático para a migração
+    // Carregar prazos em memória antes de adicionar
     const prazosSalvos = appStorage.getItem('prazos');
     if (prazosSalvos) {
         prazos = JSON.parse(prazosSalvos);
@@ -21873,7 +20718,7 @@ async function salvarMigracao(event) {
     const prazoMigracao = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         descricao: `Prazo para ${novaMigracao.tipo}`,
         dataLimite: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 90 dias
         status: 'ativo',
@@ -21888,7 +20733,7 @@ async function salvarMigracao(event) {
     prazos.push(prazoMigracao);
     window.prazos = prazos;
     salvarDados('prazos', prazos);
-    mostrarNotificacao('Processo de migraÃ§Ã£o e prazo criados com sucesso!', 'success');
+    mostrarNotificacao('Processo de migração e prazo criados com sucesso!', 'success');
     fecharModal();
         
         setTimeout(() => {
@@ -21896,8 +20741,8 @@ async function salvarMigracao(event) {
         }, 100);
         
     } catch (error) {
-        console.error('âŒ Erro ao salvar migraÃ§Ã£o:', error);
-        mostrarNotificacao('Erro ao salvar migraÃ§Ã£o: ' + error.message, 'error');
+        console.error('❌ Erro ao salvar migração:', error);
+        mostrarNotificacao('Erro ao salvar migração: ' + error.message, 'error');
     }
 }
 
@@ -21916,7 +20761,7 @@ async function salvarRegisto(event) {
     const novoRegisto = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         tipo: formData.get('tipo'),
         descricao: formData.get('descricao'),
         valor: valor,
@@ -21946,8 +20791,8 @@ async function salvarRegisto(event) {
         salvarDados('registos', registos);
     }
     
-    // Criar prazo automÃ¡tico para o registo
-    // Carregar prazos em memÃ³ria antes de adicionar
+    // Criar prazo automático para o registo
+    // Carregar prazos em memória antes de adicionar
     const prazosSalvos = appStorage.getItem('prazos');
     if (prazosSalvos) {
         prazos = JSON.parse(prazosSalvos);
@@ -21957,7 +20802,7 @@ async function salvarRegisto(event) {
     const prazoRegisto = {
         id: gerarIdImutavel(),
         clienteId: clienteId,
-        clienteNome: cliente ? cliente.nome : 'Cliente nÃ£o encontrado',
+        clienteNome: cliente ? cliente.nome : 'Cliente não encontrado',
         descricao: `Prazo para ${novoRegisto.tipo} - ${novoRegisto.descricao}`,
         dataLimite: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 dias
         status: 'ativo',
@@ -21976,25 +20821,25 @@ async function salvarRegisto(event) {
     mostrarNotificacao('Registo e prazo criados com sucesso!', 'success');
     fecharModal();
     
-    // FORÃ‡AR RECARREGAMENTO IMEDIATO
+    // FORÇAR RECARREGAMENTO IMEDIATO
     
-    // Recarregar seÃ§Ã£o
+    // Recarregar seção
     setTimeout(() => {
         carregarSecao('registos');
     }, 100);
     
-    // Atualizar lista apÃ³s salvar (usa filtros e paginaÃ§Ã£o)
+    // Atualizar lista após salvar (usa filtros e paginação)
     setTimeout(() => {
         if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos();
     }, 300);
 }
 
-// === FUNÃ‡Ã•ES DE EDIÃ‡ÃƒO E EXCLUSÃƒO ===
+// === FUNÇÕES DE EDIÇÃO E EXCLUSÃO ===
 
 function duplicarHeranca(id) {
     const heranca = obterHerancasAtual().find(h => String(h.id) === String(id));
     if (!heranca) {
-        mostrarNotificacao('HeranÃ§a nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Herança não encontrada!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('criar', 'heranca')) return;
@@ -22020,7 +20865,7 @@ function duplicarHeranca(id) {
             if (parceriaDiv) parceriaDiv.style.display = (heranca.parceria === 'empresa' || heranca.parceria === 'pessoa') ? '' : 'none';
         }
         const titulo = document.querySelector('#modalContainer .modal-content h3');
-        if (titulo) titulo.textContent = 'Duplicar HeranÃ§a';
+        if (titulo) titulo.textContent = 'Duplicar Herança';
         lucide.createIcons();
     }, 150);
 }
@@ -22028,7 +20873,7 @@ function duplicarHeranca(id) {
 function duplicarMigracao(id) {
     const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
     if (!migracao) {
-        mostrarNotificacao('MigraÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Migração não encontrada!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('criar', 'migracao')) return;
@@ -22053,7 +20898,7 @@ function duplicarMigracao(id) {
             if (parceriaDiv) parceriaDiv.style.display = (migracao.parceria === 'empresa' || migracao.parceria === 'pessoa') ? '' : 'none';
         }
         const titulo = document.querySelector('#modalContainer .modal-content h3');
-        if (titulo) titulo.textContent = 'Duplicar MigraÃ§Ã£o';
+        if (titulo) titulo.textContent = 'Duplicar Migração';
         lucide.createIcons();
     }, 150);
 }
@@ -22061,7 +20906,7 @@ function duplicarMigracao(id) {
 function duplicarRegisto(id) {
     const registo = obterRegistosAtual().find(r => String(r.id) === String(id));
     if (!registo) {
-        mostrarNotificacao('Registo nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Registo não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('criar', 'registo')) return;
@@ -22096,7 +20941,7 @@ function editarHeranca(id) {
     if (!heranca) return;
 
     abrirModalHeranca();
-    // Preencher formulÃ¡rio com dados existentes
+    // Preencher formulário com dados existentes
     setTimeout(() => {
         const form = document.getElementById('formHeranca');
         if (form) {
@@ -22111,8 +20956,8 @@ function editarHeranca(id) {
             form.dataInicio.value = heranca.dataInicio || '';
             form.observacoes.value = heranca.observacoes || '';
             
-            // Alterar tÃ­tulo do modal
-            document.querySelector('#modalContainer h3').textContent = 'Editar HeranÃ§a';
+            // Alterar título do modal
+            document.querySelector('#modalContainer h3').textContent = 'Editar Herança';
             
             // Adicionar campo hidden para ID
             const hiddenId = document.createElement('input');
@@ -22143,7 +20988,7 @@ function editarMigracao(id) {
             form.dataInicio.value = migracao.dataInicio || '';
             form.observacoes.value = migracao.observacoes || '';
             
-            document.querySelector('#modalContainer h3').textContent = 'Editar Processo de MigraÃ§Ã£o';
+            document.querySelector('#modalContainer h3').textContent = 'Editar Processo de Migração';
             
             const hiddenId = document.createElement('input');
             hiddenId.type = 'hidden';
@@ -22185,28 +21030,28 @@ function editarRegisto(id) {
 }
 
 function excluirHeranca(id) {
-    if (confirm('Tem certeza que deseja excluir esta heranÃ§a?')) {
-        const listaAtualizada = obterHerancasAtual().filter(h => String(h.id) !== String(id));
-        salvarDados('herancas', listaAtualizada);
-        mostrarNotificacao('HeranÃ§a excluÃ­da com sucesso!', 'success');
+    if (confirm('Tem certeza que deseja excluir esta herança?')) {
+        herancas = herancas.filter(h => h.id !== id);
+        salvarDados('herancas', herancas);
+        mostrarNotificacao('Herança excluída com sucesso!', 'success');
         carregarSecao('herancas');
     }
 }
 
 function excluirMigracao(id) {
-    if (confirm('Tem certeza que deseja excluir este processo de migraÃ§Ã£o?')) {
-        const listaAtualizada = obterMigracoesAtual().filter(m => String(m.id) !== String(id));
-        salvarDados('migracoes', listaAtualizada);
-        mostrarNotificacao('Processo de migraÃ§Ã£o excluÃ­do com sucesso!', 'success');
+    if (confirm('Tem certeza que deseja excluir este processo de migração?')) {
+        migracoes = migracoes.filter(m => m.id !== id);
+        salvarDados('migracoes', migracoes);
+        mostrarNotificacao('Processo de migração excluído com sucesso!', 'success');
         carregarSecao('migracao');
     }
 }
 
 function excluirRegisto(id) {
     if (confirm('Tem certeza que deseja excluir este registo?')) {
-        const listaAtualizada = obterRegistosAtual().filter(r => String(r.id) !== String(id));
-        salvarDados('registos', listaAtualizada);
-        mostrarNotificacao('Registo excluÃ­do com sucesso!', 'success');
+        registos = registos.filter(r => r.id !== id);
+        salvarDados('registos', registos);
+        mostrarNotificacao('Registo excluído com sucesso!', 'success');
         carregarSecao('registos');
     }
 }
@@ -22237,7 +21082,7 @@ function abrirAnexosCliente(clienteId) {
     const cliente = clientes.find(c => c.id === clienteId);
     if (!cliente) return;
     
-    // Inicializar array de anexos se nÃ£o existir
+    // Inicializar array de anexos se não existir
     if (!cliente.anexos) {
         cliente.anexos = [];
     }
@@ -22266,7 +21111,7 @@ function abrirAnexosCliente(clienteId) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento</label>
                                     <select id="tipoDocumento" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="toggleTipoPersonalizado('cliente')">
                                         <option value="">Selecione o tipo</option>
-                                        <option value="identificacao">IdentificaÃ§Ã£o</option>
+                                        <option value="identificacao">Identificação</option>
                                         <option value="contrato">Contrato</option>
                                         <option value="certificado">Certificado</option>
                                         <option value="comprovativo">Comprovativo</option>
@@ -22283,8 +21128,8 @@ function abrirAnexosCliente(clienteId) {
                                 <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="DescriÃ§Ã£o do documento..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
+                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
                             </div>
                             <div class="flex justify-end space-x-3 mt-4">
                                 <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
@@ -22311,7 +21156,7 @@ function abrirAnexosCliente(clienteId) {
                                             </div>
                                             <div>
                                                 <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} â€¢ ${anexo.tamanho} â€¢ ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
+                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
                                                 ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
                                             </div>
                                         </div>
@@ -22394,13 +21239,13 @@ function formatarTamanho(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// FunÃ§Ã£o para formatar valor com IVA incorporado
+// Função para formatar valor com IVA incorporado
 function formatarValorComIva(valor, iva, valorComIva) {
     const valorNum = parseFloat(valor) || 0;
     const ivaNum = parseFloat(iva) || 0;
     const valorComIvaNum = parseFloat(valorComIva) || 0;
     
-    // Calcular valor com IVA se nÃ£o foi fornecido
+    // Calcular valor com IVA se não foi fornecido
     const valorComIvaCalculado = valorComIvaNum > 0 ? valorComIvaNum : valorNum + (valorNum * ivaNum / 100);
     
     const valorFormatado = (Math.round(valorNum * 100) / 100).toFixed(2);
@@ -22408,10 +21253,10 @@ function formatarValorComIva(valor, iva, valorComIva) {
     
     return `
         <div class="flex flex-col">
-            <div class="text-sm font-medium text-gray-900">â‚¬${valorFormatado}</div>
+            <div class="text-sm font-medium text-gray-900">€${valorFormatado}</div>
             <div class="text-xs text-gray-500">
                 <span class="text-gray-400">+ ${ivaNum}% IVA:</span>
-                <span class="font-medium text-gray-700">â‚¬${valorComIvaFormatado}</span>
+                <span class="font-medium text-gray-700">€${valorComIvaFormatado}</span>
             </div>
         </div>
     `;
@@ -22435,7 +21280,7 @@ function visualizarAnexo(anexoId) {
         }
     }
     
-    // Buscar em heranÃ§as
+    // Buscar em heranças
     if (!anexo) {
         const herancasSalvas = appStorage.getItem('herancas');
         if (herancasSalvas) {
@@ -22452,7 +21297,7 @@ function visualizarAnexo(anexoId) {
         }
     }
     
-    // Buscar em migraÃ§Ãµes
+    // Buscar em migrações
     if (!anexo) {
         const migracoesSalvas = appStorage.getItem('migracoes');
         if (migracoesSalvas) {
@@ -22503,7 +21348,7 @@ function visualizarAnexo(anexoId) {
     }
     
     if (!anexo) {
-        mostrarNotificacao('Documento nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Documento não encontrado!', 'error');
         return;
     }
     
@@ -22513,7 +21358,7 @@ function visualizarAnexo(anexoId) {
     const isPDF = extensao === 'pdf';
     const isDocumento = ['doc', 'docx', 'txt', 'rtf'].includes(extensao);
     
-    // Criar modal de visualizaÃ§Ã£o
+    // Criar modal de visualização
     const modal = `
         <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
             <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
@@ -22529,7 +21374,7 @@ function visualizarAnexo(anexoId) {
                         <p><strong>Tipo:</strong> ${anexo.tipo}</p>
                         <p><strong>Tamanho:</strong> ${anexo.tamanho}</p>
                         <p><strong>Data:</strong> ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
-                        ${anexo.descricao ? `<p><strong>DescriÃ§Ã£o:</strong> ${anexo.descricao}</p>` : ''}
+                        ${anexo.descricao ? `<p><strong>Descrição:</strong> ${anexo.descricao}</p>` : ''}
                     </div>
                     
                     <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -22544,7 +21389,7 @@ function visualizarAnexo(anexoId) {
                         ` : isDocumento ? `
                             <div class="text-center py-8">
                                 <i data-lucide="file-text" class="w-16 h-16 mx-auto mb-4 text-blue-600"></i>
-                                <p class="text-gray-600 mb-4">VisualizaÃ§Ã£o nÃ£o disponÃ­vel para este tipo de arquivo</p>
+                                <p class="text-gray-600 mb-4">Visualização não disponível para este tipo de arquivo</p>
                                 <button onclick="baixarAnexo('${anexoId}')" class="btn btn-primary">
                                     <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                                     Baixar Documento
@@ -22553,7 +21398,7 @@ function visualizarAnexo(anexoId) {
                         ` : `
                             <div class="text-center py-8">
                                 <i data-lucide="file" class="w-16 h-16 mx-auto mb-4 text-gray-600"></i>
-                                <p class="text-gray-600 mb-4">VisualizaÃ§Ã£o nÃ£o disponÃ­vel para este tipo de arquivo</p>
+                                <p class="text-gray-600 mb-4">Visualização não disponível para este tipo de arquivo</p>
                                 <button onclick="baixarAnexo('${anexoId}')" class="btn btn-primary">
                                     <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                                     Baixar Arquivo
@@ -22598,7 +21443,7 @@ function baixarAnexo(anexoId) {
         }
     }
     
-    // Buscar em heranÃ§as
+    // Buscar em heranças
     if (!anexo) {
         const herancasSalvas = appStorage.getItem('herancas');
         if (herancasSalvas) {
@@ -22612,7 +21457,7 @@ function baixarAnexo(anexoId) {
         }
     }
     
-    // Buscar em migraÃ§Ãµes
+    // Buscar em migrações
     if (!anexo) {
         const migracoesSalvas = appStorage.getItem('migracoes');
         if (migracoesSalvas) {
@@ -22654,23 +21499,23 @@ function baixarAnexo(anexoId) {
     }
     
     if (!anexo) {
-        console.error('âŒ Anexo nÃ£o encontrado com ID:', anexoId);
-        mostrarNotificacao('Documento nÃ£o encontrado!', 'error');
+        console.error('❌ Anexo não encontrado com ID:', anexoId);
+        mostrarNotificacao('Documento não encontrado!', 'error');
         return;
     }
     
     
     try {
         
-        // Verificar qual campo contÃ©m o conteÃºdo
+        // Verificar qual campo contém o conteúdo
         let conteudoBase64 = anexo.conteudo || anexo.dataURL || anexo.dados;
         
-        // Validar se o conteÃºdo Base64 Ã© vÃ¡lido
+        // Validar se o conteúdo Base64 é válido
         if (!conteudoBase64 || typeof conteudoBase64 !== 'string' || conteudoBase64 === 'simulado') {
-            throw new Error('ConteÃºdo do anexo nÃ£o encontrado ou invÃ¡lido');
+            throw new Error('Conteúdo do anexo não encontrado ou inválido');
         }
         
-        // Verificar se Ã© um data URL vÃ¡lido
+        // Verificar se é um data URL válido
         let base64Content = conteudoBase64;
         if (base64Content.startsWith('data:')) {
             // Extrair apenas a parte Base64 do data URL
@@ -22680,7 +21525,7 @@ function baixarAnexo(anexoId) {
         // Validar formato Base64
         const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
         if (!base64Regex.test(base64Content)) {
-            throw new Error('Formato Base64 invÃ¡lido');
+            throw new Error('Formato Base64 inválido');
         }
         
         // Converter base64 para blob
@@ -22692,10 +21537,10 @@ function baixarAnexo(anexoId) {
         }
         const byteArray = new Uint8Array(byteNumbers);
         
-        // Detectar tipo MIME baseado na extensÃ£o do arquivo
+        // Detectar tipo MIME baseado na extensão do arquivo
         let mimeType = anexo.tipoMime || anexo.tipoArquivo || 'application/octet-stream';
         
-        // Se nÃ£o temos tipo MIME, detectar pela extensÃ£o
+        // Se não temos tipo MIME, detectar pela extensão
         if (!anexo.tipoMime && !anexo.tipoArquivo) {
             const extensao = anexo.nomeArquivo ? anexo.nomeArquivo.split('.').pop().toLowerCase() : '';
             const mimeTypes = {
@@ -22739,15 +21584,15 @@ function baixarAnexo(anexoId) {
         
         mostrarNotificacao('Download iniciado com sucesso!', 'success');
     } catch (error) {
-        console.error('âŒ Erro ao baixar arquivo:', error);
-        console.error('âŒ Detalhes do erro:', error.message);
-        console.error('âŒ ConteÃºdo do anexo (primeiros 100 chars):', anexo.conteudo ? anexo.conteudo.substring(0, 100) : 'N/A');
+        console.error('❌ Erro ao baixar arquivo:', error);
+        console.error('❌ Detalhes do erro:', error.message);
+        console.error('❌ Conteúdo do anexo (primeiros 100 chars):', anexo.conteudo ? anexo.conteudo.substring(0, 100) : 'N/A');
         
         let mensagemErro = 'Erro ao baixar arquivo!';
         if (error.message.includes('Base64')) {
-            mensagemErro = 'Arquivo corrompido - Base64 invÃ¡lido. Tente fazer upload novamente.';
-        } else if (error.message.includes('conteÃºdo')) {
-            mensagemErro = 'ConteÃºdo do arquivo nÃ£o encontrado.';
+            mensagemErro = 'Arquivo corrompido - Base64 inválido. Tente fazer upload novamente.';
+        } else if (error.message.includes('conteúdo')) {
+            mensagemErro = 'Conteúdo do arquivo não encontrado.';
         }
         
         mostrarNotificacao(mensagemErro, 'error');
@@ -22776,7 +21621,7 @@ function removerAnexo(clienteId, anexoId) {
     }
 }
 
-// === SISTEMA DE ANEXOS PARA ÃREAS DE EXECUÃ‡ÃƒO ===
+// === SISTEMA DE ANEXOS PARA ÁREAS DE EXECUÇÃO ===
 
 function abrirAnexosContrato(contratoId) {
     const contrato = contratos.find(c => c.id === contratoId);
@@ -22824,8 +21669,8 @@ function abrirAnexosContrato(contratoId) {
                                 <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="DescriÃ§Ã£o do documento..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
+                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
                             </div>
                             <div class="flex justify-end space-x-3 mt-4">
                                 <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
@@ -22851,7 +21696,7 @@ function abrirAnexosContrato(contratoId) {
                                             </div>
                                             <div>
                                                 <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} â€¢ ${anexo.tamanho} â€¢ ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
+                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
                                                 ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
                                             </div>
                                         </div>
@@ -22939,7 +21784,7 @@ function removerAnexoContrato(contratoId, anexoId) {
     }
 }
 
-// === FUNÃ‡ÃƒO PARA CONTROLAR VISIBILIDADE DO TIPO PERSONALIZADO ===
+// === FUNÇÃO PARA CONTROLAR VISIBILIDADE DO TIPO PERSONALIZADO ===
 
 function toggleTipoPersonalizado(area) {
     const select = document.getElementById('tipoDocumento');
@@ -22962,15 +21807,15 @@ function toggleTipoPersonalizado(area) {
             }
         }
     } else {
-        console.error('âŒ Elementos nÃ£o encontrados:', { select: !!select, divPersonalizado: !!divPersonalizado });
+        console.error('❌ Elementos não encontrados:', { select: !!select, divPersonalizado: !!divPersonalizado });
     }
 }
 
-// === FUNÃ‡Ã•ES PARA PRAZOS ===
+// === FUNÇÕES PARA PRAZOS ===
 
 
-// FUNÃ‡ÃƒO atualizarCliente DUPLICADA REMOVIDA - A FUNÃ‡ÃƒO CORRETA ESTÃ NA LINHA 7675
-// Esta funÃ§Ã£o antiga estava sobrescrevendo a funÃ§Ã£o correta com validaÃ§Ãµes e logs
+// FUNÇÃO atualizarCliente DUPLICADA REMOVIDA - A FUNÇÃO CORRETA ESTÁ NA LINHA 7675
+// Esta função antiga estava sobrescrevendo a função correta com validações e logs
 
 function atualizarPrazo(event, id) {
     event.preventDefault();
@@ -22997,13 +21842,13 @@ function atualizarPrazo(event, id) {
 }
 
 
-// === FUNÃ‡Ã•ES DE MODAL DE EDIÃ‡ÃƒO ===
+// === FUNÇÕES DE MODAL DE EDIÇÃO ===
 
 function abrirModalEdicaoCliente(cliente) {
     
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('modalContainer nÃ£o encontrado!');
+        console.error('modalContainer não encontrado!');
         return;
     }
     
@@ -23041,7 +21886,7 @@ function abrirModalEdicaoCliente(cliente) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">EndereÃ§o</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
                                 <textarea id="editarClienteEndereco" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${cliente.endereco || ''}</textarea>
                             </div>
                             
@@ -23060,7 +21905,7 @@ function abrirModalEdicaoCliente(cliente) {
                                 Cancelar
                             </button>
                             <button type="submit" id="btnSalvarCliente_${cliente.id}" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -23072,14 +21917,14 @@ function abrirModalEdicaoCliente(cliente) {
     modalContainer.innerHTML = modal;
     lucide.createIcons();
     
-    // Adicionar listener direto no formulÃ¡rio apÃ³s criÃ¡-lo
+    // Adicionar listener direto no formulário após criá-lo
     setTimeout(() => {
         const form = document.getElementById(`formEditarCliente_${cliente.id}`);
         const btnSalvar = document.getElementById(`btnSalvarCliente_${cliente.id}`);
         
         if (form) {
             
-            // Adicionar listener no formulÃ¡rio (sem clonar para manter listeners internos)
+            // Adicionar listener no formulário (sem clonar para manter listeners internos)
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -23088,7 +21933,7 @@ function abrirModalEdicaoCliente(cliente) {
             }, false);
             
         } else {
-            console.error('âŒ FormulÃ¡rio nÃ£o encontrado apÃ³s criar modal!');
+            console.error('❌ Formulário não encontrado após criar modal!');
         }
         
         if (btnSalvar) {
@@ -23101,7 +21946,7 @@ function abrirModalEdicaoCliente(cliente) {
                 }
             }, false);
         } else {
-            console.error('âŒ BotÃ£o Salvar nÃ£o encontrado apÃ³s criar modal!');
+            console.error('❌ Botão Salvar não encontrado após criar modal!');
         }
     }, 100);
 }
@@ -23111,12 +21956,12 @@ function abrirModalEdicaoContrato(contrato) {
     // Verificar se o modalContainer existe
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('modalContainer nÃ£o encontrado!');
-        mostrarNotificacao('Erro: Container do modal nÃ£o encontrado!', 'error');
+        console.error('modalContainer não encontrado!');
+        mostrarNotificacao('Erro: Container do modal não encontrado!', 'error');
         return;
     }
     
-    // Limpar qualquer conteÃºdo anterior
+    // Limpar qualquer conteúdo anterior
     modalContainer.innerHTML = '';
     
     const modal = `
@@ -23146,20 +21991,20 @@ function abrirModalEdicaoContrato(contrato) {
                                 <datalist id="tiposContrato">
                                     <option value="Compra e Venda">
                                     <option value="Arrendamento">
-                                    <option value="PrestaÃ§Ã£o de ServiÃ§os">
-                                    <option value="EmprÃ©stimo">
-                                    <option value="AlteraÃ§Ã£o de pactos sociais">
-                                    <option value="AnÃ¡lise e revisÃ£o de contratos">
-                                    <option value="CessÃ£o de quotas">
-                                    <option value="ConstituiÃ§Ã£o de sociedades">
+                                    <option value="Prestação de Serviços">
+                                    <option value="Empréstimo">
+                                    <option value="Alteração de pactos sociais">
+                                    <option value="Análise e revisão de contratos">
+                                    <option value="Cessão de quotas">
+                                    <option value="Constituição de sociedades">
                                     <option value="Contratos de arrendamento">
                                     <option value="Contratos de compra e venda">
-                                    <option value="Contratos de prestaÃ§Ã£o de serviÃ§os">
+                                    <option value="Contratos de prestação de serviços">
                                     <option value="Contratos de trabalho">
                                     <option value="Pactos sociais">
                                     <option value="Consultoria">
                                     <option value="Assessoria">
-                                    <option value="RepresentaÃ§Ã£o">
+                                    <option value="Representação">
                                     <option value="Outro">
                                 </datalist>
                             </div>
@@ -23175,7 +22020,7 @@ function abrirModalEdicaoContrato(contrato) {
                                     <select id="contratoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${contrato.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${contrato.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${contrato.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${contrato.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${contrato.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -23185,14 +22030,14 @@ function abrirModalEdicaoContrato(contrato) {
                                     <select id="contratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${contrato.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${contrato.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                     <input type="date" id="contratoDataInicio" value="${contrato.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 </div>
                                 
@@ -23203,7 +22048,7 @@ function abrirModalEdicaoContrato(contrato) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="contratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${contrato.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -23213,7 +22058,7 @@ function abrirModalEdicaoContrato(contrato) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -23230,19 +22075,19 @@ function abrirModalEdicaoContrato(contrato) {
         const modalElement = modalContainer.querySelector('.fixed.inset-0');
         if (modalElement) {
             
-            // ForÃ§ar visibilidade
+            // Forçar visibilidade
             modalElement.style.display = 'flex';
             modalElement.style.visibility = 'visible';
             modalElement.style.opacity = '1';
             modalElement.style.zIndex = '9999';
             
         } else {
-            console.error('âŒ Modal nÃ£o foi inserido corretamente');
-            mostrarNotificacao('Erro ao abrir modal de ediÃ§Ã£o!', 'error');
+            console.error('❌ Modal não foi inserido corretamente');
+            mostrarNotificacao('Erro ao abrir modal de edição!', 'error');
         }
     } catch (error) {
         console.error('Erro ao inserir modal:', error);
-        mostrarNotificacao('Erro ao abrir modal de ediÃ§Ã£o!', 'error');
+        mostrarNotificacao('Erro ao abrir modal de edição!', 'error');
     }
 }
 
@@ -23250,8 +22095,8 @@ function abrirModalEdicaoHonorario(honorario) {
     
     const modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
-        console.error('âŒ modalContainer nÃ£o encontrado!');
-        mostrarNotificacao('Erro: Container do modal nÃ£o encontrado!', 'error');
+        console.error('❌ modalContainer não encontrado!');
+        mostrarNotificacao('Erro: Container do modal não encontrado!', 'error');
         return;
     }
     
@@ -23260,7 +22105,7 @@ function abrirModalEdicaoHonorario(honorario) {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar HonorÃ¡rio</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Editar Honorário</h3>
                         <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -23274,7 +22119,7 @@ function abrirModalEdicaoHonorario(honorario) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ServiÃ§o *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Serviço *</label>
                                 <input type="text" id="honorarioServico" value="${honorario.servico}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
@@ -23306,7 +22151,7 @@ function abrirModalEdicaoHonorario(honorario) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -23334,7 +22179,7 @@ function abrirModalEdicaoHeranca(heranca) {
         <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-bold text-gray-900">Editar HeranÃ§a</h3>
+                    <h3 class="text-xl font-bold text-gray-900">Editar Herança</h3>
                     <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
@@ -23354,14 +22199,14 @@ function abrirModalEdicaoHeranca(heranca) {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                             <select id="herancaTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Tipo</option>
-                                <option value="AceitaÃ§Ã£o da heranÃ§a" ${heranca.tipo === 'AceitaÃ§Ã£o da heranÃ§a' ? 'selected' : ''}>AceitaÃ§Ã£o da heranÃ§a</option>
-                                <option value="DoaÃ§Ãµes" ${heranca.tipo === 'DoaÃ§Ãµes' ? 'selected' : ''}>DoaÃ§Ãµes</option>
+                                <option value="Aceitação da herança" ${heranca.tipo === 'Aceitação da herança' ? 'selected' : ''}>Aceitação da herança</option>
+                                <option value="Doações" ${heranca.tipo === 'Doações' ? 'selected' : ''}>Doações</option>
                                 <option value="Escrituras de partilha" ${heranca.tipo === 'Escrituras de partilha' ? 'selected' : ''}>Escrituras de partilha</option>
-                                <option value="HabilitaÃ§Ã£o de herdeiros" ${heranca.tipo === 'HabilitaÃ§Ã£o de herdeiros' ? 'selected' : ''}>HabilitaÃ§Ã£o de herdeiros</option>
+                                <option value="Habilitação de herdeiros" ${heranca.tipo === 'Habilitação de herdeiros' ? 'selected' : ''}>Habilitação de herdeiros</option>
                                 <option value="Partilhas em vida" ${heranca.tipo === 'Partilhas em vida' ? 'selected' : ''}>Partilhas em vida</option>
-                                <option value="Partilhas por Ã³bito" ${heranca.tipo === 'Partilhas por Ã³bito' ? 'selected' : ''}>Partilhas por Ã³bito</option>
-                                <option value="Processo de inventÃ¡rio" ${heranca.tipo === 'Processo de inventÃ¡rio' ? 'selected' : ''}>Processo de inventÃ¡rio</option>
-                                <option value="RenÃºncia Ã  heranÃ§a" ${heranca.tipo === 'RenÃºncia Ã  heranÃ§a' ? 'selected' : ''}>RenÃºncia Ã  heranÃ§a</option>
+                                <option value="Partilhas por óbito" ${heranca.tipo === 'Partilhas por óbito' ? 'selected' : ''}>Partilhas por óbito</option>
+                                <option value="Processo de inventário" ${heranca.tipo === 'Processo de inventário' ? 'selected' : ''}>Processo de inventário</option>
+                                <option value="Renúncia à herança" ${heranca.tipo === 'Renúncia à herança' ? 'selected' : ''}>Renúncia à herança</option>
                                 <option value="Testamentos" ${heranca.tipo === 'Testamentos' ? 'selected' : ''}>Testamentos</option>
                             </select>
                         </div>
@@ -23377,7 +22222,7 @@ function abrirModalEdicaoHeranca(heranca) {
                                 <select id="herancaIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="0" ${heranca.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                     <option value="6" ${heranca.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                    <option value="13" ${heranca.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                    <option value="13" ${heranca.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                     <option value="23" ${heranca.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                 </select>
                             </div>
@@ -23387,7 +22232,7 @@ function abrirModalEdicaoHeranca(heranca) {
                                 <select id="herancaStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente" ${heranca.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                     <option value="em_andamento" ${heranca.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                    <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                    <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
                             
@@ -23395,9 +22240,9 @@ function abrirModalEdicaoHeranca(heranca) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                 <select id="herancaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="baixa" ${(heranca.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                    <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                                    <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
                                     <option value="alta" ${(heranca.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
-                                    <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                                    <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                 </select>
                             </div>
                             <div>
@@ -23409,12 +22254,12 @@ function abrirModalEdicaoHeranca(heranca) {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                             <input type="date" id="herancaDataInicio" value="${heranca.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                             <textarea id="herancaObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${heranca.observacoes || ''}</textarea>
                         </div>
                     </div>
@@ -23424,7 +22269,7 @@ function abrirModalEdicaoHeranca(heranca) {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar AlteraÃ§Ãµes
+                            Salvar Alterações
                         </button>
                     </div>
                 </form>
@@ -23458,7 +22303,7 @@ function abrirModalEdicaoMigracao(migracao) {
         <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-bold text-gray-900">Editar MigraÃ§Ã£o</h3>
+                    <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
                     <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
@@ -23478,11 +22323,11 @@ function abrirModalEdicaoMigracao(migracao) {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                             <select id="migracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="">Selecionar Tipo</option>
-                                <option value="AutorizaÃ§Ã£o de residÃªncia" ${migracao.tipo === 'AutorizaÃ§Ã£o de residÃªncia' ? 'selected' : ''}>AutorizaÃ§Ã£o de residÃªncia</option>
-                                <option value="Certificados de residÃªncia permanente" ${migracao.tipo === 'Certificados de residÃªncia permanente' ? 'selected' : ''}>Certificados de residÃªncia permanente</option>
+                                <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
+                                <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
                                 <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
                                 <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes" ${migracao.tipo === 'RenovaÃ§Ã£o de autorizaÃ§Ãµes' ? 'selected' : ''}>RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
                                 <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
                                 <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
                                 <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
@@ -23501,7 +22346,7 @@ function abrirModalEdicaoMigracao(migracao) {
                                 <select id="migracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                     <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                    <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                    <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                     <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                 </select>
                             </div>
@@ -23511,7 +22356,7 @@ function abrirModalEdicaoMigracao(migracao) {
                                 <select id="migracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                     <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                    <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                    <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
                             
@@ -23519,9 +22364,9 @@ function abrirModalEdicaoMigracao(migracao) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                 <select id="migracaoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="baixa" ${(migracao.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                    <option value="media" ${(migracao.prioridade || 'media') === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                                    <option value="media" ${(migracao.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
                                     <option value="alta" ${(migracao.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
-                                    <option value="critica" ${(migracao.prioridade || 'media') === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                                    <option value="critica" ${(migracao.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                 </select>
                             </div>
                             <div>
@@ -23533,12 +22378,12 @@ function abrirModalEdicaoMigracao(migracao) {
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                             <input type="date" id="migracaoDataInicio" value="${migracao.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                             <textarea id="migracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
                         </div>
                     </div>
@@ -23548,7 +22393,7 @@ function abrirModalEdicaoMigracao(migracao) {
                             Cancelar
                         </button>
                         <button type="submit" class="btn btn-primary">
-                            Salvar AlteraÃ§Ãµes
+                            Salvar Alterações
                         </button>
                     </div>
                 </form>
@@ -23602,15 +22447,15 @@ function abrirModalEdicaoRegisto(registo) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="registoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutenticaÃ§Ã£o de documentos" ${registo.tipo === 'AutenticaÃ§Ã£o de documentos' ? 'selected' : ''}>AutenticaÃ§Ã£o de documentos</option>
-                                    <option value="CertificaÃ§Ã£o de fotocÃ³pias" ${registo.tipo === 'CertificaÃ§Ã£o de fotocÃ³pias' ? 'selected' : ''}>CertificaÃ§Ã£o de fotocÃ³pias</option>
+                                    <option value="Autenticação de documentos" ${registo.tipo === 'Autenticação de documentos' ? 'selected' : ''}>Autenticação de documentos</option>
+                                    <option value="Certificação de fotocópias" ${registo.tipo === 'Certificação de fotocópias' ? 'selected' : ''}>Certificação de fotocópias</option>
                                     <option value="Documentos para o estrangeiro" ${registo.tipo === 'Documentos para o estrangeiro' ? 'selected' : ''}>Documentos para o estrangeiro</option>
-                                    <option value="ProcuraÃ§Ãµes" ${registo.tipo === 'ProcuraÃ§Ãµes' ? 'selected' : ''}>ProcuraÃ§Ãµes</option>
+                                    <option value="Procurações" ${registo.tipo === 'Procurações' ? 'selected' : ''}>Procurações</option>
                                     <option value="Reconhecimento presencial de assinaturas" ${registo.tipo === 'Reconhecimento presencial de assinaturas' ? 'selected' : ''}>Reconhecimento presencial de assinaturas</option>
-                                    <option value="Registos automÃ³veis" ${registo.tipo === 'Registos automÃ³veis' ? 'selected' : ''}>Registos automÃ³veis</option>
+                                    <option value="Registos automóveis" ${registo.tipo === 'Registos automóveis' ? 'selected' : ''}>Registos automóveis</option>
                                     <option value="Registos comerciais" ${registo.tipo === 'Registos comerciais' ? 'selected' : ''}>Registos comerciais</option>
                                     <option value="Registos de propriedade" ${registo.tipo === 'Registos de propriedade' ? 'selected' : ''}>Registos de propriedade</option>
-                                    <option value="Termos de autenticaÃ§Ã£o" ${registo.tipo === 'Termos de autenticaÃ§Ã£o' ? 'selected' : ''}>Termos de autenticaÃ§Ã£o</option>
+                                    <option value="Termos de autenticação" ${registo.tipo === 'Termos de autenticação' ? 'selected' : ''}>Termos de autenticação</option>
                                 </select>
                             </div>
                             
@@ -23625,7 +22470,7 @@ function abrirModalEdicaoRegisto(registo) {
                                     <select id="registoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${registo.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${registo.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${registo.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${registo.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${registo.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -23635,7 +22480,7 @@ function abrirModalEdicaoRegisto(registo) {
                                     <select id="registoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${registo.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${registo.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                                 
@@ -23643,9 +22488,9 @@ function abrirModalEdicaoRegisto(registo) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select id="registoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa" ${(registo.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                        <option value="media" ${(registo.prioridade || 'media') === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                                        <option value="media" ${(registo.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
                                         <option value="alta" ${(registo.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
-                                        <option value="critica" ${(registo.prioridade || 'media') === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                                        <option value="critica" ${(registo.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                     </select>
                                 </div>
                                 <div>
@@ -23657,12 +22502,12 @@ function abrirModalEdicaoRegisto(registo) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="registoDataInicio" value="${registo.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="registoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${registo.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -23672,7 +22517,7 @@ function abrirModalEdicaoRegisto(registo) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -23717,7 +22562,7 @@ function abrirModalEdicaoPrazo(prazo) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
                                 <textarea id="prazoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${prazo.descricao}</textarea>
                             </div>
                             
@@ -23731,9 +22576,9 @@ function abrirModalEdicaoPrazo(prazo) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select id="prazoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa" ${prazo.prioridade === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                        <option value="media" ${prazo.prioridade === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                                        <option value="media" ${prazo.prioridade === 'media' ? 'selected' : ''}>Média</option>
                                         <option value="alta" ${prazo.prioridade === 'alta' ? 'selected' : ''}>Alta</option>
-                                        <option value="critica" ${prazo.prioridade === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                                        <option value="critica" ${prazo.prioridade === 'critica' ? 'selected' : ''}>Crítica</option>
                                     </select>
                                 </div>
                             </div>
@@ -23742,7 +22587,7 @@ function abrirModalEdicaoPrazo(prazo) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                 <select id="prazoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="ativo" ${prazo.status === 'ativo' ? 'selected' : ''}>Ativo</option>
-                                    <option value="concluido" ${prazo.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                    <option value="concluido" ${prazo.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     <option value="vencido" ${prazo.status === 'vencido' ? 'selected' : ''}>Vencido</option>
                                     <option value="cancelado" ${prazo.status === 'cancelado' ? 'selected' : ''}>Cancelado</option>
                                 </select>
@@ -23754,7 +22599,7 @@ function abrirModalEdicaoPrazo(prazo) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -23797,8 +22642,8 @@ function abrirModalCriarPrazo(dataInicial) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
                                 <select id="novoPrazoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="contrato">Contrato</option>
-                                    <option value="heranca">HeranÃ§a</option>
-                                    <option value="migracao">MigraÃ§Ã£o</option>
+                                    <option value="heranca">Herança</option>
+                                    <option value="migracao">Migração</option>
                                     <option value="registo">Registo</option>
                                     <option value="prazo">Prazo</option>
                                     <option value="outro">Outro</option>
@@ -23806,7 +22651,7 @@ function abrirModalCriarPrazo(dataInicial) {
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
                                 <textarea id="novoPrazoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black"></textarea>
                             </div>
                             
@@ -23819,9 +22664,9 @@ function abrirModalCriarPrazo(dataInicial) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select id="novoPrazoPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa">Baixa</option>
-                                        <option value="media" selected>MÃ©dia</option>
+                                        <option value="media" selected>Média</option>
                                         <option value="alta">Alta</option>
-                                        <option value="critica">CrÃ­tica</option>
+                                        <option value="critica">Crítica</option>
                                     </select>
                                 </div>
                             </div>
@@ -23830,14 +22675,14 @@ function abrirModalCriarPrazo(dataInicial) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                 <select id="novoPrazoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="ativo" selected>Ativo</option>
-                                    <option value="concluido">ConcluÃ­do</option>
+                                    <option value="concluido">Concluído</option>
                                     <option value="vencido">Vencido</option>
                                     <option value="cancelado">Cancelado</option>
                                 </select>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="novoPrazoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black"></textarea>
                             </div>
                         </div>
@@ -23866,13 +22711,13 @@ function salvarNovoPrazo(event) {
     const clienteId = parseIdSafe(document.getElementById('novoPrazoCliente').value);
     const cliente = clientes.find(c => c.id === clienteId);
     if (!clienteId || !cliente) {
-        mostrarNotificacao('Selecione um cliente vÃ¡lido.', 'warning');
+        mostrarNotificacao('Selecione um cliente válido.', 'warning');
         return;
     }
     const descricao = document.getElementById('novoPrazoDescricao').value.trim();
     const dataLimite = document.getElementById('novoPrazoDataLimite').value;
     if (!descricao || !dataLimite) {
-        mostrarNotificacao('Preencha a descriÃ§Ã£o e a data limite.', 'warning');
+        mostrarNotificacao('Preencha a descrição e a data limite.', 'warning');
         return;
     }
 
@@ -23900,15 +22745,15 @@ function salvarNovoPrazo(event) {
     carregarSecao('calendario');
 }
 
-// === FUNÃ‡Ã•ES DE ATUALIZAÃ‡ÃƒO ===
-// atualizarContrato estÃ¡ definido acima; suporta ambos os modais (editarContrato* e contrato*)
+// === FUNÇÕES DE ATUALIZAÇÃO ===
+// atualizarContrato está definido acima; suporta ambos os modais (editarContrato* e contrato*)
 
 async function atualizarHonorario(event, id) {
     event.preventDefault();
     
     const honorarioIndex = honorarios.findIndex(h => String(h.id) === String(id));
     if (honorarioIndex === -1) {
-        mostrarNotificacao('HonorÃ¡rio nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Honorário não encontrado!', 'error');
         return;
     }
     if (!exigirPermissaoAcao('editar', 'honorario')) return;
@@ -23932,14 +22777,14 @@ async function atualizarHonorario(event, id) {
             honorarios[honorarioIndex] = dados;
             salvarDados('honorarios', honorarios);
         }
-        mostrarNotificacao('HonorÃ¡rio atualizado com sucesso!', 'success');
+        mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
         fecharModal();
         carregarSecao('honorarios');
     } catch (err) {
-        console.warn('Erro ao atualizar honorÃ¡rio na nuvem:', err);
+        console.warn('Erro ao atualizar honorário na nuvem:', err);
         honorarios[honorarioIndex] = dados;
         salvarDados('honorarios', honorarios);
-        mostrarNotificacao('HonorÃ¡rio atualizado com sucesso!', 'success');
+        mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
         fecharModal();
         carregarSecao('honorarios');
     }
@@ -23975,7 +22820,7 @@ function atualizarHeranca(event, id) {
         };
         
         salvarDados('herancas', herancas);
-        mostrarNotificacao('HeranÃ§a atualizada com sucesso!', 'success');
+        mostrarNotificacao('Herança atualizada com sucesso!', 'success');
         
         // Fechar modal explicitamente
         fecharModal();
@@ -23986,12 +22831,12 @@ function atualizarHeranca(event, id) {
         }, 100);
         
     } else {
-        console.error('âŒ HeranÃ§a nÃ£o encontrada com ID:', id);
-        mostrarNotificacao('Erro: HeranÃ§a nÃ£o encontrada!', 'error');
+        console.error('❌ Herança não encontrada com ID:', id);
+        mostrarNotificacao('Erro: Herança não encontrada!', 'error');
     }
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.atualizarHeranca = atualizarHeranca;
 
 function atualizarMigracao(event, id) {
@@ -24024,7 +22869,7 @@ function atualizarMigracao(event, id) {
         };
         
         salvarDados('migracoes', migracoes);
-        mostrarNotificacao('MigraÃ§Ã£o atualizada com sucesso!', 'success');
+        mostrarNotificacao('Migração atualizada com sucesso!', 'success');
         
         fecharModal();
         
@@ -24033,12 +22878,12 @@ function atualizarMigracao(event, id) {
             carregarSecao('migracoes');
         }, 100);
     } else {
-        console.error('âŒ MigraÃ§Ã£o nÃ£o encontrada com ID:', id);
-        mostrarNotificacao('Erro: MigraÃ§Ã£o nÃ£o encontrada!', 'error');
+        console.error('❌ Migração não encontrada com ID:', id);
+        mostrarNotificacao('Erro: Migração não encontrada!', 'error');
     }
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.atualizarMigracao = atualizarMigracao;
 
 function atualizarRegisto(event, id) {
@@ -24089,22 +22934,22 @@ function atualizarRegisto(event, id) {
         }, 100);
         
     } else {
-        console.error('âŒ Registo nÃ£o encontrado com ID:', id);
-        mostrarNotificacao('Erro: Registo nÃ£o encontrado!', 'error');
+        console.error('❌ Registo não encontrado com ID:', id);
+        mostrarNotificacao('Erro: Registo não encontrado!', 'error');
     }
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.atualizarRegisto = atualizarRegisto;
 
-// === FUNÃ‡ÃƒO SIMPLES PARA SALVAR HERANÃ‡A EDITADA ===
+// === FUNÇÃO SIMPLES PARA SALVAR HERANÇA EDITADA ===
 async function salvarHerancaEditada(event, id) {
     event.preventDefault();
     const herancasAtual = obterHerancasAtual();
     const clientesAtual = obterClientesAtual();
     const herancaIndex = herancasAtual.findIndex(h => String(h.id) === String(id));
     if (herancaIndex === -1) {
-        mostrarNotificacao('HeranÃ§a nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Herança não encontrada!', 'error');
         return;
     }
     const clienteId = document.getElementById('editClienteId').value;
@@ -24130,28 +22975,28 @@ async function salvarHerancaEditada(event, id) {
         } else {
             salvarDados('herancas', herancas);
         }
-        mostrarNotificacao('HeranÃ§a atualizada com sucesso!', 'success');
+        mostrarNotificacao('Herança atualizada com sucesso!', 'success');
     } catch (err) {
         salvarDados('herancas', herancas);
-        console.warn('Erro ao atualizar heranÃ§a na nuvem:', err);
-        mostrarNotificacao('HeranÃ§a atualizada localmente.', 'info');
+        console.warn('Erro ao atualizar herança na nuvem:', err);
+        mostrarNotificacao('Herança atualizada localmente.', 'info');
     }
     const modal = document.getElementById('modalEdicaoHeranca');
     if (modal) modal.remove();
     carregarSecao('herancas');
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.salvarHerancaEditada = salvarHerancaEditada;
 
-// === FUNÃ‡ÃƒO PARA SALVAR MIGRAÃ‡ÃƒO EDITADA ===
+// === FUNÇÃO PARA SALVAR MIGRAÇÃO EDITADA ===
 async function salvarMigracaoEditada(event, id) {
     event.preventDefault();
     const migracoesAtual = obterMigracoesAtual();
     const clientesAtual = obterClientesAtual();
     const migracaoIndex = migracoesAtual.findIndex(m => String(m.id) === String(id));
     if (migracaoIndex === -1) {
-        mostrarNotificacao('MigraÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Migração não encontrada!', 'error');
         return;
     }
     const clienteId = document.getElementById('editMigracaoClienteId').value;
@@ -24176,28 +23021,28 @@ async function salvarMigracaoEditada(event, id) {
         } else {
             salvarDados('migracoes', migracoes);
         }
-        mostrarNotificacao('MigraÃ§Ã£o atualizada com sucesso!', 'success');
+        mostrarNotificacao('Migração atualizada com sucesso!', 'success');
     } catch (err) {
         salvarDados('migracoes', migracoes);
-        console.warn('Erro ao atualizar migraÃ§Ã£o na nuvem:', err);
-        mostrarNotificacao('MigraÃ§Ã£o atualizada localmente.', 'info');
+        console.warn('Erro ao atualizar migração na nuvem:', err);
+        mostrarNotificacao('Migração atualizada localmente.', 'info');
     }
     const modal = document.getElementById('modalEdicaoMigracao');
     if (modal) modal.remove();
     setTimeout(() => carregarSecao('migracoes'), 100);
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.salvarMigracaoEditada = salvarMigracaoEditada;
 
-// === FUNÃ‡ÃƒO PARA SALVAR REGISTO EDITADO ===
+// === FUNÇÃO PARA SALVAR REGISTO EDITADO ===
 async function salvarRegistoEditado(event, id) {
     event.preventDefault();
     const registosAtual = obterRegistosAtual();
     const clientesAtual = obterClientesAtual();
     const registoIndex = registosAtual.findIndex(r => String(r.id) === String(id));
     if (registoIndex === -1) {
-        mostrarNotificacao('Registo nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Registo não encontrado!', 'error');
         return;
     }
     const clienteId = document.getElementById('editRegistoClienteId').value;
@@ -24236,12 +23081,12 @@ async function salvarRegistoEditado(event, id) {
     }, 100);
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.salvarRegistoEditado = salvarRegistoEditado;
 
-// === FUNÃ‡ÃƒO PARA CONTROLAR MENU MOBILE ===
-// Nota: primeira definiÃ§Ã£o de toggleSidebar (perto de carregarSecao) tem overlay e body class;
-// esta redefine para manter consistÃªncia - aria-expanded aplicado em ambos os botÃµes de menu
+// === FUNÇÃO PARA CONTROLAR MENU MOBILE ===
+// Nota: primeira definição de toggleSidebar (perto de carregarSecao) tem overlay e body class;
+// esta redefine para manter consistência - aria-expanded aplicado em ambos os botões de menu
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -24279,7 +23124,7 @@ window.addEventListener('resize', function() {
     }
 });
 
-// === FUNÃ‡ÃƒO PARA CONTROLAR VISIBILIDADE DO NOME DA PARCERIA ===
+// === FUNÇÃO PARA CONTROLAR VISIBILIDADE DO NOME DA PARCERIA ===
 
 function toggleParceriaNome(tipo) {
     const parceriaSelect = document.getElementById(`${tipo}Parceria`) || document.querySelector(`select[name="parceria"]`);
@@ -24294,10 +23139,10 @@ function toggleParceriaNome(tipo) {
     }
 }
 
-// === FUNÃ‡Ã•ES ESPECÃFICAS DE EDIÃ‡ÃƒO E EXCLUSÃƒO PARA ÃREAS DE ATUAÃ‡ÃƒO ===
+// === FUNÇÕES ESPECÍFICAS DE EDIÇÃO E EXCLUSÃO PARA ÁREAS DE ATUAÇÃO ===
 
 function editarHeranca(id) {
-    // Buscar heranÃ§a
+    // Buscar herança
     const herancasSalvas = appStorage.getItem('herancas');
     let herancas = [];
     if (herancasSalvas) {
@@ -24326,7 +23171,7 @@ function editarHeranca(id) {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar HeranÃ§a</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Editar Herança</h3>
                         <button onclick="document.getElementById('modalEdicaoHeranca').remove()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -24346,14 +23191,14 @@ function editarHeranca(id) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="editTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AceitaÃ§Ã£o da heranÃ§a" ${heranca.tipo === 'AceitaÃ§Ã£o da heranÃ§a' ? 'selected' : ''}>AceitaÃ§Ã£o da heranÃ§a</option>
-                                    <option value="DoaÃ§Ãµes" ${heranca.tipo === 'DoaÃ§Ãµes' ? 'selected' : ''}>DoaÃ§Ãµes</option>
+                                    <option value="Aceitação da herança" ${heranca.tipo === 'Aceitação da herança' ? 'selected' : ''}>Aceitação da herança</option>
+                                    <option value="Doações" ${heranca.tipo === 'Doações' ? 'selected' : ''}>Doações</option>
                                     <option value="Escrituras de partilha" ${heranca.tipo === 'Escrituras de partilha' ? 'selected' : ''}>Escrituras de partilha</option>
-                                    <option value="HabilitaÃ§Ã£o de herdeiros" ${heranca.tipo === 'HabilitaÃ§Ã£o de herdeiros' ? 'selected' : ''}>HabilitaÃ§Ã£o de herdeiros</option>
+                                    <option value="Habilitação de herdeiros" ${heranca.tipo === 'Habilitação de herdeiros' ? 'selected' : ''}>Habilitação de herdeiros</option>
                                     <option value="Partilhas em vida" ${heranca.tipo === 'Partilhas em vida' ? 'selected' : ''}>Partilhas em vida</option>
-                                    <option value="Partilhas por Ã³bito" ${heranca.tipo === 'Partilhas por Ã³bito' ? 'selected' : ''}>Partilhas por Ã³bito</option>
-                                    <option value="Processo de inventÃ¡rio" ${heranca.tipo === 'Processo de inventÃ¡rio' ? 'selected' : ''}>Processo de inventÃ¡rio</option>
-                                    <option value="RenÃºncia Ã  heranÃ§a" ${heranca.tipo === 'RenÃºncia Ã  heranÃ§a' ? 'selected' : ''}>RenÃºncia Ã  heranÃ§a</option>
+                                    <option value="Partilhas por óbito" ${heranca.tipo === 'Partilhas por óbito' ? 'selected' : ''}>Partilhas por óbito</option>
+                                    <option value="Processo de inventário" ${heranca.tipo === 'Processo de inventário' ? 'selected' : ''}>Processo de inventário</option>
+                                    <option value="Renúncia à herança" ${heranca.tipo === 'Renúncia à herança' ? 'selected' : ''}>Renúncia à herança</option>
                                     <option value="Testamentos" ${heranca.tipo === 'Testamentos' ? 'selected' : ''}>Testamentos</option>
                                 </select>
                             </div>
@@ -24369,7 +23214,7 @@ function editarHeranca(id) {
                                     <select id="editIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${heranca.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${heranca.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${heranca.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${heranca.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${heranca.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -24379,7 +23224,7 @@ function editarHeranca(id) {
                                     <select id="editStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${heranca.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${heranca.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                                 
@@ -24387,20 +23232,20 @@ function editarHeranca(id) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
                                     <select id="editPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="baixa" ${(heranca.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                        <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>MÃ©dia</option>
+                                        <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
                                         <option value="alta" ${(heranca.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
-                                        <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>CrÃ­tica</option>
+                                        <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="editDataInicio" value="${heranca.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="editObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${heranca.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -24410,7 +23255,7 @@ function editarHeranca(id) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -24428,7 +23273,7 @@ function excluirHeranca(id) {
 }
 
 function editarMigracao(id) {
-    // Buscar migraÃ§Ã£o
+    // Buscar migração
     const migracoesSalvas = appStorage.getItem('migracoes');
     let migracoes = [];
     if (migracoesSalvas) {
@@ -24457,7 +23302,7 @@ function editarMigracao(id) {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar MigraÃ§Ã£o</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
                         <button onclick="document.getElementById('modalEdicaoMigracao').remove()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -24477,11 +23322,11 @@ function editarMigracao(id) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="editMigracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutorizaÃ§Ã£o de residÃªncia" ${migracao.tipo === 'AutorizaÃ§Ã£o de residÃªncia' ? 'selected' : ''}>AutorizaÃ§Ã£o de residÃªncia</option>
-                                    <option value="Certificados de residÃªncia permanente" ${migracao.tipo === 'Certificados de residÃªncia permanente' ? 'selected' : ''}>Certificados de residÃªncia permanente</option>
+                                    <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
+                                    <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
                                     <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
                                     <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                    <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes" ${migracao.tipo === 'RenovaÃ§Ã£o de autorizaÃ§Ãµes' ? 'selected' : ''}>RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                    <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
                                     <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
                                     <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
                                     <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
@@ -24500,7 +23345,7 @@ function editarMigracao(id) {
                                     <select id="editMigracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -24510,18 +23355,18 @@ function editarMigracao(id) {
                                     <select id="editMigracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="editMigracaoDataInicio" value="${migracao.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="editMigracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -24531,7 +23376,7 @@ function editarMigracao(id) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -24598,15 +23443,15 @@ function editarRegisto(id) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="editRegistoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutenticaÃ§Ã£o de documentos" ${registo.tipo === 'AutenticaÃ§Ã£o de documentos' ? 'selected' : ''}>AutenticaÃ§Ã£o de documentos</option>
-                                    <option value="CertificaÃ§Ã£o de fotocÃ³pias" ${registo.tipo === 'CertificaÃ§Ã£o de fotocÃ³pias' ? 'selected' : ''}>CertificaÃ§Ã£o de fotocÃ³pias</option>
+                                    <option value="Autenticação de documentos" ${registo.tipo === 'Autenticação de documentos' ? 'selected' : ''}>Autenticação de documentos</option>
+                                    <option value="Certificação de fotocópias" ${registo.tipo === 'Certificação de fotocópias' ? 'selected' : ''}>Certificação de fotocópias</option>
                                     <option value="Documentos para o estrangeiro" ${registo.tipo === 'Documentos para o estrangeiro' ? 'selected' : ''}>Documentos para o estrangeiro</option>
-                                    <option value="ProcuraÃ§Ãµes" ${registo.tipo === 'ProcuraÃ§Ãµes' ? 'selected' : ''}>ProcuraÃ§Ãµes</option>
+                                    <option value="Procurações" ${registo.tipo === 'Procurações' ? 'selected' : ''}>Procurações</option>
                                     <option value="Reconhecimento presencial de assinaturas" ${registo.tipo === 'Reconhecimento presencial de assinaturas' ? 'selected' : ''}>Reconhecimento presencial de assinaturas</option>
-                                    <option value="Registos automÃ³veis" ${registo.tipo === 'Registos automÃ³veis' ? 'selected' : ''}>Registos automÃ³veis</option>
+                                    <option value="Registos automóveis" ${registo.tipo === 'Registos automóveis' ? 'selected' : ''}>Registos automóveis</option>
                                     <option value="Registos comerciais" ${registo.tipo === 'Registos comerciais' ? 'selected' : ''}>Registos comerciais</option>
                                     <option value="Registos de propriedade" ${registo.tipo === 'Registos de propriedade' ? 'selected' : ''}>Registos de propriedade</option>
-                                    <option value="Termos de autenticaÃ§Ã£o" ${registo.tipo === 'Termos de autenticaÃ§Ã£o' ? 'selected' : ''}>Termos de autenticaÃ§Ã£o</option>
+                                    <option value="Termos de autenticação" ${registo.tipo === 'Termos de autenticação' ? 'selected' : ''}>Termos de autenticação</option>
                                 </select>
                             </div>
                             
@@ -24621,7 +23466,7 @@ function editarRegisto(id) {
                                     <select id="editRegistoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${registo.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${registo.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${registo.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${registo.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${registo.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -24631,18 +23476,18 @@ function editarRegisto(id) {
                                     <select id="editRegistoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${registo.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${registo.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="editRegistoDataInicio" value="${registo.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="editRegistoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${registo.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -24652,7 +23497,7 @@ function editarRegisto(id) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -24669,15 +23514,13 @@ function excluirRegisto(id) {
     excluirItem('registo', id);
 }
 
-// === FUNÃ‡Ã•ES DE FILTRO PARA MIGRAÃ‡Ã•ES (duplicada - garante guards) ===
+// === FUNÇÕES DE FILTRO PARA MIGRAÇÕES ===
 function filtrarMigracoes() {
     aplicarFiltrosMigracoes();
 }
 
 function aplicarFiltrosMigracoes() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'migracoes') return;
-    if (!document.getElementById('listaMigracoes')) return;
-    const busca = document.getElementById('buscaMigracoes')?.value?.toLowerCase() || '';
+    const busca = document.getElementById('buscaMigracoes')?.value.toLowerCase() || '';
     const statusFiltro = document.getElementById('filtroStatusMigracao')?.value || '';
     const tipoFiltro = document.getElementById('filtroTipoMigracao')?.value || '';
     const valorMin = parseFloat(document.getElementById('filtroValorMinMigracao')?.value) || 0;
@@ -24710,13 +23553,13 @@ function aplicarFiltrosMigracoes() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
                 <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div class="text-sm font-bold text-black">â‚¬${(migracao.valor || 0).toFixed(2)}</div>
-                    <div class="text-xs font-bold text-red-600">+ IVA: â‚¬${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+                    <div class="text-sm font-bold text-black">€${(migracao.valor || 0).toFixed(2)}</div>
+                    <div class="text-xs font-bold text-red-600">+ IVA: €${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'ConcluÃ­do' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
+                    <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data nÃ£o definida'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
                         <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
@@ -24738,7 +23581,7 @@ function aplicarFiltrosMigracoes() {
         contador.textContent = migracoesFiltradas.length;
     }
 
-    // Recriar Ã­cones
+    // Recriar ícones
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
@@ -24767,11 +23610,11 @@ function limparFiltrosMigracoes() {
 function abrirAnexosMigracao(id) {
     const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
     if (migracao) {
-        abrirModalAnexos('migracao', id, migracao.clienteNome || 'MigraÃ§Ã£o');
+        abrirModalAnexos('migracao', id, migracao.clienteNome || 'Migração');
     }
 }
 
-// === FUNÃ‡ÃƒO DE EDIÃ‡ÃƒO PADRÃƒO ===
+// === FUNÇÃO DE EDIÇÃO PADRÃO ===
 function abrirModalEdicaoMigracao(migracao) {
     
     // Buscar clientes (Firestore)
@@ -24779,7 +23622,7 @@ function abrirModalEdicaoMigracao(migracao) {
     
     if (migracao) {
         fecharModal();
-        // Criar modal com layout padrÃ£o
+        // Criar modal com layout padrão
         const modal = document.createElement('div');
         modal.id = 'modalEdicaoMigracao';
         modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -24793,7 +23636,7 @@ function abrirModalEdicaoMigracao(migracao) {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar MigraÃ§Ã£o</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
                         <button onclick="document.getElementById('modalEdicaoMigracao').remove()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -24813,11 +23656,11 @@ function abrirModalEdicaoMigracao(migracao) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="editMigracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutorizaÃ§Ã£o de residÃªncia" ${migracao.tipo === 'AutorizaÃ§Ã£o de residÃªncia' ? 'selected' : ''}>AutorizaÃ§Ã£o de residÃªncia</option>
-                                    <option value="Certificados de residÃªncia permanente" ${migracao.tipo === 'Certificados de residÃªncia permanente' ? 'selected' : ''}>Certificados de residÃªncia permanente</option>
+                                    <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
+                                    <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
                                     <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
                                     <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                    <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes" ${migracao.tipo === 'RenovaÃ§Ã£o de autorizaÃ§Ãµes' ? 'selected' : ''}>RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                    <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
                                     <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
                                     <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
                                     <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
@@ -24836,7 +23679,7 @@ function abrirModalEdicaoMigracao(migracao) {
                                     <select id="editMigracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -24846,18 +23689,18 @@ function abrirModalEdicaoMigracao(migracao) {
                                     <select id="editMigracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="editMigracaoDataInicio" value="${migracao.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="editMigracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -24867,7 +23710,7 @@ function abrirModalEdicaoMigracao(migracao) {
                                 Cancelar
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -24881,11 +23724,11 @@ function abrirModalEdicaoMigracao(migracao) {
     }
 }
 
-// === FUNÃ‡ÃƒO DE SALVAR PADRÃƒO ===
+// === FUNÇÃO DE SALVAR PADRÃO ===
 function salvarMigracaoEditada(event, id) {
     event.preventDefault();
     
-    // Buscar migraÃ§Ãµes
+    // Buscar migrações
     const migracoesSalvas = appStorage.getItem('migracoes');
     let migracoes = [];
     if (migracoesSalvas) {
@@ -24895,7 +23738,7 @@ function salvarMigracaoEditada(event, id) {
     // Buscar clientes (Firestore)
     const clientes = obterClientesAtual();
     
-    // Encontrar a migraÃ§Ã£o
+    // Encontrar a migração
     const migracaoIndex = migracoes.findIndex(m => m.id == id);
     
     if (migracaoIndex !== -1) {
@@ -24928,7 +23771,7 @@ function salvarMigracaoEditada(event, id) {
         salvarDados('migracoes', migracoes);
         window.migracoes = migracoes;
         
-        mostrarNotificacao('MigraÃ§Ã£o atualizada com sucesso!', 'success');
+        mostrarNotificacao('Migração atualizada com sucesso!', 'success');
         
         // Fechar modal
         const modal = document.getElementById('modalEdicaoMigracao');
@@ -24936,19 +23779,19 @@ function salvarMigracaoEditada(event, id) {
             modal.remove();
         }
         
-        // Recarregar seÃ§Ã£o
+        // Recarregar seção
         setTimeout(() => {
             carregarSecao('migracoes');
         }, 100);
     } else {
-        mostrarNotificacao('Erro: MigraÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Erro: Migração não encontrada!', 'error');
     }
 }
 
-// Tornar funÃ§Ã£o global
+// Tornar função global
 window.salvarMigracaoEditada = salvarMigracaoEditada;
 
-// === FUNÃ‡ÃƒO PARA ANEXOS DE CONTRATOS ===
+// === FUNÇÃO PARA ANEXOS DE CONTRATOS ===
 function abrirAnexosContrato(id) {
     const contrato = contratos.find(c => c.id === id);
     if (contrato) {
@@ -24956,23 +23799,23 @@ function abrirAnexosContrato(id) {
     }
 }
 
-// === FUNÃ‡ÃƒO PARA ANEXOS DE HERANÃ‡AS ===
+// === FUNÇÃO PARA ANEXOS DE HERANÇAS ===
 function abrirAnexosHeranca(id) {
     const heranca = herancas.find(h => h.id === id);
     if (heranca) {
-        abrirModalAnexos('heranca', id, heranca.clienteNome || 'HeranÃ§a');
+        abrirModalAnexos('heranca', id, heranca.clienteNome || 'Herança');
     }
 }
 
-// === FUNÃ‡ÃƒO PARA ANEXOS DE MIGRAÃ‡Ã•ES ===
+// === FUNÇÃO PARA ANEXOS DE MIGRAÇÕES ===
 function abrirAnexosMigracao(id) {
     const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
     if (migracao) {
-        abrirModalAnexos('migracao', id, migracao.clienteNome || 'MigraÃ§Ã£o');
+        abrirModalAnexos('migracao', id, migracao.clienteNome || 'Migração');
     }
 }
 
-// === FUNÃ‡ÃƒO PARA ANEXOS DE REGISTOS ===
+// === FUNÇÃO PARA ANEXOS DE REGISTOS ===
 function abrirAnexosRegisto(id) {
     const registo = registos.find(r => r.id === id);
     if (registo) {
@@ -24980,7 +23823,7 @@ function abrirAnexosRegisto(id) {
     }
 }
 
-// === FUNÃ‡ÃƒO PRINCIPAL PARA ABRIR MODAL DE ANEXOS ===
+// === FUNÇÃO PRINCIPAL PARA ABRIR MODAL DE ANEXOS ===
 function abrirModalAnexos(tipo, id, nome) {
     mostrarNotificacao('Anexos foram removidos do sistema.', 'info');
     return;
@@ -25016,11 +23859,11 @@ function abrirModalAnexos(tipo, id, nome) {
     }
     
     if (!item) {
-        mostrarNotificacao('Item nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Item não encontrado!', 'error');
         return;
     }
     
-    // Inicializar array de anexos se nÃ£o existir
+    // Inicializar array de anexos se não existir
     if (!item.anexos) {
         item.anexos = [];
     }
@@ -25066,8 +23909,8 @@ function abrirModalAnexos(tipo, id, nome) {
                                 <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">DescriÃ§Ã£o (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="DescriÃ§Ã£o do documento..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
+                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
                             </div>
                             <div class="flex justify-end space-x-3 mt-4">
                                 <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
@@ -25094,7 +23937,7 @@ function abrirModalAnexos(tipo, id, nome) {
                                             </div>
                                             <div>
                                                 <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} â€¢ ${anexo.tamanho} â€¢ ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
+                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
                                                 ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
                                             </div>
                                         </div>
@@ -25126,7 +23969,7 @@ function abrirModalAnexos(tipo, id, nome) {
     lucide.createIcons();
 }
 
-// === FUNÃ‡Ã•ES PARA ADICIONAR ANEXOS ===
+// === FUNÇÕES PARA ADICIONAR ANEXOS ===
 function adicionarAnexoContrato(event, contratoId) {
     event.preventDefault();
     
@@ -25217,8 +24060,8 @@ function adicionarAnexoHeranca(event, herancaId) {
             mostrarNotificacao('Documento adicionado com sucesso!', 'success');
             abrirAnexosHeranca(herancaId);
         } else {
-            console.error('âŒ HeranÃ§a nÃ£o encontrada com ID:', herancaId);
-            mostrarNotificacao('HeranÃ§a nÃ£o encontrada!', 'error');
+            console.error('❌ Herança não encontrada com ID:', herancaId);
+            mostrarNotificacao('Herança não encontrada!', 'error');
         }
     });
 }
@@ -25315,7 +24158,7 @@ function adicionarAnexoRegisto(event, registoId) {
     });
 }
 
-// === FUNÃ‡Ã•ES PARA REMOVER ANEXOS ===
+// === FUNÇÕES PARA REMOVER ANEXOS ===
 function removerAnexoContrato(contratoId, anexoId) {
     if (confirm('Tem certeza que deseja remover este documento?')) {
         const contrato = contratos.find(c => c.id === contratoId);
@@ -25367,7 +24210,7 @@ function removerAnexoRegisto(registoId, anexoId) {
     }
 }
 
-// === FUNÃ‡ÃƒO PARA TOGGLE TIPO PERSONALIZADO ===
+// === FUNÇÃO PARA TOGGLE TIPO PERSONALIZADO ===
 function toggleTipoPersonalizado(tipo) {
     const select = document.getElementById('tipoDocumento');
     const divPersonalizado = document.getElementById(`tipoPersonalizado${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
@@ -25379,23 +24222,23 @@ function toggleTipoPersonalizado(tipo) {
     }
 }
 
-/** Lista honorÃ¡rios: APENAS Firestore (global atualizada por ouvirHonorarios). Sem localStorage. */
+/** Lista honorários: APENAS Firestore (global atualizada por ouvirHonorarios). Sem localStorage. */
 function obterHonorariosAtual() {
     return Array.isArray(honorarios) ? honorarios : [];
 }
 
-// === FUNÃ‡Ã•ES DIRETAS PARA CONTRATOS ===
+// === FUNÇÕES DIRETAS PARA CONTRATOS ===
 /** Lista contratos: apenas Firestore (global atualizada por ouvirContratos). Sem localStorage. */
 function obterContratosAtual() {
     return Array.isArray(contratos) ? contratos : [];
 }
 
-/** Lista heranÃ§as: apenas Firestore (global atualizada por ouvirProcessos). Sem localStorage. */
+/** Lista heranças: apenas Firestore (global atualizada por ouvirProcessos). Sem localStorage. */
 function obterHerancasAtual() {
     return Array.isArray(herancas) ? herancas : [];
 }
 
-/** Lista migraÃ§Ãµes: apenas Firestore (global atualizada por ouvirProcessos). Sem localStorage. */
+/** Lista migrações: apenas Firestore (global atualizada por ouvirProcessos). Sem localStorage. */
 function obterMigracoesAtual() {
     return Array.isArray(migracoes) ? migracoes : [];
 }
@@ -25420,13 +24263,13 @@ function editarContratoDireto(id) {
         fecharModal();
         setTimeout(() => abrirModalEdicaoContrato(contrato), 100);
     } else {
-        mostrarNotificacao('Contrato nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Contrato não encontrado!', 'error');
     }
 }
 
 async function excluirContratoDireto(id) {
     if (!exigirPermissaoAcao('apagar', 'contrato')) return;
-    if (!confirm('Tem certeza que deseja excluir este contrato? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.')) return;
 
     let contratosAtual = obterContratosAtual();
     const contratosAtualizados = contratosAtual.filter(c => String(c.id) !== String(id));
@@ -25440,19 +24283,19 @@ async function excluirContratoDireto(id) {
         } else {
             salvarDados('contratos', contratosAtualizados);
         }
-        mostrarNotificacao('Contrato excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Contrato excluído com sucesso!', 'success');
         setTimeout(() => carregarSecao('contratos'), 100);
     } catch (err) {
         console.warn('Erro ao apagar contrato na nuvem, a guardar localmente:', err);
         salvarDados('contratos', contratosAtualizados);
-        mostrarNotificacao('Contrato excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Contrato excluído com sucesso!', 'success');
         setTimeout(() => carregarSecao('contratos'), 100);
     }
 }
 
-// === FUNÃ‡Ã•ES DIRETAS PARA HERANÃ‡AS ===
+// === FUNÇÕES DIRETAS PARA HERANÇAS ===
 async function excluirHerancaDireto(id) {
-    if (!confirm('Tem certeza que deseja excluir esta heranÃ§a? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir esta herança? Esta ação não pode ser desfeita.')) return;
     const herancasAtualizadas = obterHerancasAtual().filter(h => String(h.id) !== String(id));
     try {
         if (isCloudReady()) {
@@ -25465,19 +24308,19 @@ async function excluirHerancaDireto(id) {
             window.herancas = herancas;
             salvarDados('herancas', herancasAtualizadas);
         }
-        mostrarNotificacao('HeranÃ§a excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Herança excluída com sucesso!', 'success');
         carregarSecao('herancas');
     } catch (err) {
-        console.warn('Erro ao apagar heranÃ§a na nuvem:', err);
+        console.warn('Erro ao apagar herança na nuvem:', err);
         herancas = herancasAtualizadas;
         window.herancas = herancas;
         salvarDados('herancas', herancasAtualizadas);
-        mostrarNotificacao('HeranÃ§a excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Herança excluída com sucesso!', 'success');
         carregarSecao('herancas');
     }
 }
 
-// === FUNÃ‡Ã•ES DIRETAS PARA MIGRAÃ‡Ã•ES ===
+// === FUNÇÕES DIRETAS PARA MIGRAÇÕES ===
 function editarMigracaoDireto(id) {
     const migracoesAtual = obterMigracoesAtual();
     const migracao = migracoesAtual.find(m => String(m.id) === String(id));
@@ -25486,7 +24329,7 @@ function editarMigracaoDireto(id) {
         // Fechar qualquer modal existente
         fecharModal();
         
-        // Criar modal simples de ediÃ§Ã£o
+        // Criar modal simples de edição
         const modal = document.createElement('div');
         modal.id = 'modalEdicaoMigracao';
         modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -25502,7 +24345,7 @@ function editarMigracaoDireto(id) {
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar MigraÃ§Ã£o</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
                         <button onclick="document.getElementById('modalEdicaoMigracao').remove()" class="text-gray-400 hover:text-gray-600">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
@@ -25522,11 +24365,11 @@ function editarMigracaoDireto(id) {
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
                                 <select id="editMigracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                     <option value="">Selecionar Tipo</option>
-                                    <option value="AutorizaÃ§Ã£o de residÃªncia" ${migracao.tipo === 'AutorizaÃ§Ã£o de residÃªncia' ? 'selected' : ''}>AutorizaÃ§Ã£o de residÃªncia</option>
-                                    <option value="Certificados de residÃªncia permanente" ${migracao.tipo === 'Certificados de residÃªncia permanente' ? 'selected' : ''}>Certificados de residÃªncia permanente</option>
+                                    <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
+                                    <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
                                     <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
                                     <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                    <option value="RenovaÃ§Ã£o de autorizaÃ§Ãµes" ${migracao.tipo === 'RenovaÃ§Ã£o de autorizaÃ§Ãµes' ? 'selected' : ''}>RenovaÃ§Ã£o de autorizaÃ§Ãµes</option>
+                                    <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
                                     <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
                                     <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
                                     <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
@@ -25545,7 +24388,7 @@ function editarMigracaoDireto(id) {
                                     <select id="editMigracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
                                         <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (IntermÃ©dia)</option>
+                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
                                         <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
                                     </select>
                                 </div>
@@ -25555,18 +24398,18 @@ function editarMigracaoDireto(id) {
                                     <select id="editMigracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                                         <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>ConcluÃ­do</option>
+                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data InÃ­cio *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
                                 <input type="date" id="editMigracaoDataInicio" value="${migracao.dataInicio || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">ObservaÃ§Ãµes</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
                                 <textarea id="editMigracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
                             </div>
                         </div>
@@ -25576,7 +24419,7 @@ function editarMigracaoDireto(id) {
                                 Cancelar
                             </button>
                             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                                Salvar AlteraÃ§Ãµes
+                                Salvar Alterações
                             </button>
                         </div>
                     </form>
@@ -25587,12 +24430,12 @@ function editarMigracaoDireto(id) {
         document.body.appendChild(modal);
         lucide.createIcons();
     } else {
-        mostrarNotificacao('MigraÃ§Ã£o nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Migração não encontrada!', 'error');
     }
 }
 
 async function excluirMigracaoDireto(id) {
-    if (!confirm('Tem certeza que deseja excluir esta migraÃ§Ã£o? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir esta migração? Esta ação não pode ser desfeita.')) return;
     const migracoesAtualizadas = obterMigracoesAtual().filter(m => String(m.id) !== String(id));
     try {
         if (isCloudReady()) {
@@ -25606,50 +24449,50 @@ async function excluirMigracaoDireto(id) {
             salvarDados('migracoes', migracoesAtualizadas);
         }
         
-        mostrarNotificacao('MigraÃ§Ã£o excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Migração excluída com sucesso!', 'success');
         carregarSecao('migracoes');
     } catch (err) {
-        console.warn('Erro ao apagar migraÃ§Ã£o na nuvem:', err);
+        console.warn('Erro ao apagar migração na nuvem:', err);
         migracoes = migracoesAtualizadas;
         salvarDados('migracoes', migracoesAtualizadas);
-        mostrarNotificacao('MigraÃ§Ã£o excluÃ­da com sucesso!', 'success');
+        mostrarNotificacao('Migração excluída com sucesso!', 'success');
         carregarSecao('migracoes');
     }
 }
 
 // === SISTEMA DE IVA TRIMESTRAL ===
 
-// FunÃ§Ã£o para determinar o trimestre atual
+// Função para determinar o trimestre atual
 function obterTrimestreAtual() {
     const agora = new Date();
     const mes = agora.getMonth() + 1; // Janeiro = 1, Dezembro = 12
     
-    if (mes >= 1 && mes <= 3) return 1; // 1Âº Trimestre (Jan-Mar)
-    if (mes >= 4 && mes <= 6) return 2; // 2Âº Trimestre (Abr-Jun)
-    if (mes >= 7 && mes <= 9) return 3; // 3Âº Trimestre (Jul-Set)
-    if (mes >= 10 && mes <= 12) return 4; // 4Âº Trimestre (Out-Dez)
+    if (mes >= 1 && mes <= 3) return 1; // 1º Trimestre (Jan-Mar)
+    if (mes >= 4 && mes <= 6) return 2; // 2º Trimestre (Abr-Jun)
+    if (mes >= 7 && mes <= 9) return 3; // 3º Trimestre (Jul-Set)
+    if (mes >= 10 && mes <= 12) return 4; // 4º Trimestre (Out-Dez)
 }
 
-// FunÃ§Ã£o para obter datas de prazo do IVA
+// Função para obter datas de prazo do IVA
 function obterPrazosIVA(trimestre) {
     const ano = new Date().getFullYear();
     const prazos = {
-        1: { // 1Âº Trimestre
+        1: { // 1º Trimestre
             entrega: `${ano}-05-20`,
             pagamento: `${ano}-05-25`,
-            periodo: 'Janeiro a MarÃ§o'
+            periodo: 'Janeiro a Março'
         },
-        2: { // 2Âº Trimestre
+        2: { // 2º Trimestre
             entrega: `${ano}-07-20`,
             pagamento: `${ano}-07-25`,
             periodo: 'Abril a Junho'
         },
-        3: { // 3Âº Trimestre
+        3: { // 3º Trimestre
             entrega: `${ano}-11-20`,
             pagamento: `${ano}-11-25`,
             periodo: 'Julho a Setembro'
         },
-        4: { // 4Âº Trimestre
+        4: { // 4º Trimestre
             entrega: `${ano + 1}-02-20`,
             pagamento: `${ano + 1}-02-25`,
             periodo: 'Outubro a Dezembro'
@@ -25658,7 +24501,7 @@ function obterPrazosIVA(trimestre) {
     return prazos[trimestre];
 }
 
-// FunÃ§Ã£o para calcular IVA acumulado por trimestre
+// Função para calcular IVA acumulado por trimestre
 function calcularIVATrimestral_REMOVED() {
     const trimestreAtual = obterTrimestreAtual();
     const ano = new Date().getFullYear();
@@ -25678,7 +24521,7 @@ function calcularIVATrimestral_REMOVED() {
     
     // Calcular IVA por trimestre
     const ivaPorTrimestre = {
-        1: { valor: 0, itens: 0, periodo: 'Janeiro a MarÃ§o' },
+        1: { valor: 0, itens: 0, periodo: 'Janeiro a Março' },
         2: { valor: 0, itens: 0, periodo: 'Abril a Junho' },
         3: { valor: 0, itens: 0, periodo: 'Julho a Setembro' },
         4: { valor: 0, itens: 0, periodo: 'Outubro a Dezembro' }
@@ -25705,12 +24548,12 @@ function calcularIVATrimestral_REMOVED() {
     return { ivaPorTrimestre, trimestreAtual };
 }
 
-// FunÃ§Ã£o para criar prazos automÃ¡ticos de IVA
+// Função para criar prazos automáticos de IVA
 function criarPrazosIVA() {
     const trimestreAtual = obterTrimestreAtual();
     const prazos = obterPrazosIVA(trimestreAtual);
     
-    // Verificar se jÃ¡ existem prazos de IVA para este trimestre
+    // Verificar se já existem prazos de IVA para este trimestre
     const prazosSalvos = appStorage.getItem('prazos');
     let prazosExistentes = [];
     if (prazosSalvos) prazosExistentes = JSON.parse(prazosSalvos);
@@ -25723,13 +24566,13 @@ function criarPrazosIVA() {
         p.tipo === 'iva_pagamento' && p.dataLimite === prazos.pagamento
     );
     
-    // Criar prazo de entrega se nÃ£o existir
+    // Criar prazo de entrega se não existir
     if (!prazoEntregaExiste) {
         const prazoEntrega = {
             id: gerarIdImutavel(),
             clienteId: 0,
             clienteNome: 'Sistema',
-            descricao: `Entrega da declaraÃ§Ã£o de IVA - ${prazos.periodo}`,
+            descricao: `Entrega da declaração de IVA - ${prazos.periodo}`,
             dataLimite: prazos.entrega,
             status: 'ativo',
             tipo: 'iva_entrega',
@@ -25740,7 +24583,7 @@ function criarPrazosIVA() {
         prazosExistentes.push(prazoEntrega);
     }
     
-    // Criar prazo de pagamento se nÃ£o existir
+    // Criar prazo de pagamento se não existir
     if (!prazoPagamentoExiste) {
         const prazoPagamento = {
             id: gerarIdImutavel(),
@@ -25762,7 +24605,7 @@ function criarPrazosIVA() {
     window.prazos = prazosExistentes;
 }
 
-// === FUNÃ‡Ã•ES DE IVA TRIMESTRAL ===
+// === FUNÇÕES DE IVA TRIMESTRAL ===
 
 function obterTrimestreAtual() {
     const agora = new Date();
@@ -25815,14 +24658,14 @@ function obterPrazosIVA(trimestre) {
     const mesInicio = (trimestre - 1) * 3;
     const mesFim = mesInicio + 2;
     
-    // Prazo de entrega: atÃ© o dia 10 do segundo mÃªs apÃ³s o fim do trimestre
+    // Prazo de entrega: até o dia 10 do segundo mês após o fim do trimestre
     const dataEntrega = new Date(anoAtual, mesFim + 2, 10);
     
-    // Prazo de pagamento: atÃ© o dia 15 do segundo mÃªs apÃ³s o fim do trimestre
+    // Prazo de pagamento: até o dia 15 do segundo mês após o fim do trimestre
     const dataPagamento = new Date(anoAtual, mesFim + 2, 15);
     
     const periodos = {
-        1: 'Janeiro-MarÃ§o',
+        1: 'Janeiro-Março',
         2: 'Abril-Junho',
         3: 'Julho-Setembro',
         4: 'Outubro-Dezembro'
@@ -25841,7 +24684,7 @@ function criarPrazosIVA() {
     const prazosIVA = obterPrazosIVA(trimestreAtual);
     // const { ivaPorTrimestre } = calcularIVATrimestral(); // REMOVIDO
     
-    // Verificar se jÃ¡ existe um prazo de IVA para este trimestre
+    // Verificar se já existe um prazo de IVA para este trimestre
     const prazoExistente = prazos.find(p => 
         p.tipo === 'iva_trimestral' && 
         p.trimestre === trimestreAtual &&
@@ -25849,7 +24692,7 @@ function criarPrazosIVA() {
     );
     
     if (prazoExistente) {
-        mostrarNotificacao('JÃ¡ existe um prazo de IVA para este trimestre!', 'warning');
+        mostrarNotificacao('Já existe um prazo de IVA para este trimestre!', 'warning');
         return;
     }
     
@@ -25857,10 +24700,10 @@ function criarPrazosIVA() {
     const prazoEntrega = {
         id: gerarIdImutavel(),
         clienteId: null,
-        clienteNome: 'Autoridade TributÃ¡ria',
+        clienteNome: 'Autoridade Tributária',
         tipo: 'iva_trimestral',
         trimestre: trimestreAtual,
-        descricao: `Entrega da DeclaraÃ§Ã£o de IVA - ${prazosIVA.periodo}`,
+        descricao: `Entrega da Declaração de IVA - ${prazosIVA.periodo}`,
         dataLimite: prazosIVA.entrega.split('T')[0],
         status: 'ativo',
         prioridade: 'alta',
@@ -25871,10 +24714,10 @@ function criarPrazosIVA() {
     const prazoPagamento = {
         id: gerarIdImutavel(),
         clienteId: null,
-        clienteNome: 'Autoridade TributÃ¡ria',
+        clienteNome: 'Autoridade Tributária',
         tipo: 'iva_trimestral',
         trimestre: trimestreAtual,
-        descricao: `Pagamento do IVA - ${prazosIVA.periodo} (â‚¬${ivaPorTrimestre[trimestreAtual].valor.toFixed(2)})`,
+        descricao: `Pagamento do IVA - ${prazosIVA.periodo} (€${ivaPorTrimestre[trimestreAtual].valor.toFixed(2)})`,
         dataLimite: prazosIVA.pagamento.split('T')[0],
         status: 'ativo',
         prioridade: 'alta',
@@ -25887,13 +24730,13 @@ function criarPrazosIVA() {
     
     mostrarNotificacao('Prazos de IVA criados com sucesso!', 'success');
     
-    // Recarregar a seÃ§Ã£o de prazos se estiver ativa
+    // Recarregar a seção de prazos se estiver ativa
     if (secaoAtiva === 'prazos') {
         carregarSecao('prazos');
     }
 }
 
-// FunÃ§Ã£o para gerar relatÃ³rio de IVA trimestral
+// Função para gerar relatório de IVA trimestral
 
 
 
@@ -25902,10 +24745,10 @@ async function salvarHonorarioEditado(event, id) {
     event.preventDefault();
     let honorarios = obterHonorariosAtual();
     
-    // Converter ID para number se necessÃ¡rio
+    // Converter ID para number se necessário
     const idNum = parseIdSafe(id) ?? id;
     
-    // Tentar diferentes tipos de comparaÃ§Ã£o
+    // Tentar diferentes tipos de comparação
     let honorarioIndex = honorarios.findIndex(h => h.id == idNum);
     if (honorarioIndex === -1) {
         honorarioIndex = honorarios.findIndex(h => h.id == id);
@@ -25935,16 +24778,16 @@ async function salvarHonorarioEditado(event, id) {
             }
             window.honorarios = honorarios;
         } catch (err) {
-            console.warn('Erro ao atualizar honorÃ¡rio na nuvem:', err);
+            console.warn('Erro ao atualizar honorário na nuvem:', err);
             honorarios[honorarioIndex] = dados;
             salvarDados('honorarios', honorarios);
         }
         const modal = document.getElementById('modalEdicaoHonorario');
         if (modal) modal.remove();
-        mostrarNotificacao('HonorÃ¡rio atualizado com sucesso!', 'success');
+        mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
         setTimeout(() => carregarSecao('honorarios'), 100);
     } else {
-        mostrarNotificacao('Erro: HonorÃ¡rio nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Erro: Honorário não encontrado!', 'error');
     }
 }
 
@@ -25973,27 +24816,27 @@ async function salvarHonorarioEditadoSimples(id) {
             }
             window.honorarios = honorarios;
         } catch (err) {
-            console.warn('Erro ao atualizar honorÃ¡rio na nuvem:', err);
+            console.warn('Erro ao atualizar honorário na nuvem:', err);
             honorarios[honorarioIndex] = dados;
             salvarDados('honorarios', honorarios);
         }
-        mostrarNotificacao('HonorÃ¡rio atualizado com sucesso!', 'success');
+        mostrarNotificacao('Honorário atualizado com sucesso!', 'success');
         const modal = document.getElementById('modalEdicaoHonorario');
         if (modal) modal.remove();
         setTimeout(() => carregarSecao('honorarios'), 100);
     } else {
-        mostrarNotificacao('Erro: HonorÃ¡rio nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Erro: Honorário não encontrado!', 'error');
     }
 }
 
-// === FUNÃ‡Ã•ES DIRETAS PARA REGISTOS ===
+// === FUNÇÕES DIRETAS PARA REGISTOS ===
 function editarRegistoDireto(id) {
     const registo = obterRegistosAtual().find(r => String(r.id) === String(id));
     if (registo) {
         fecharModal();
         setTimeout(() => abrirModalEdicaoRegisto(registo), 100);
     } else {
-        mostrarNotificacao('Registo nÃ£o encontrado!', 'error');
+        mostrarNotificacao('Registo não encontrado!', 'error');
     }
 }
 
@@ -26002,13 +24845,13 @@ function abrirAnexosRegisto(id) {
     if (registo) {
         abrirModalAnexos('registo', id, registo.clienteNome || 'Registo');
     } else {
-        console.error('âŒ Registo nÃ£o encontrado com ID:', id);
-        mostrarNotificacao('Registo nÃ£o encontrado!', 'error');
+        console.error('❌ Registo não encontrado com ID:', id);
+        mostrarNotificacao('Registo não encontrado!', 'error');
     }
 }
 
 async function excluirRegistoDireto(id) {
-    if (!confirm('Tem certeza que deseja excluir este registo? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir este registo? Esta ação não pode ser desfeita.')) return;
     const registosAtualizados = obterRegistosAtual().filter(r => String(r.id) !== String(id));
     try {
         if (isCloudReady()) {
@@ -26021,40 +24864,40 @@ async function excluirRegistoDireto(id) {
             window.registos = registos;
             salvarDados('registos', registosAtualizados);
         }
-        mostrarNotificacao('Registo excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Registo excluído com sucesso!', 'success');
         carregarSecao('registos');
         setTimeout(() => { if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos(); }, 150);
     } catch (err) {
         console.warn('Erro ao apagar registo na nuvem:', err);
         registos = registosAtualizados;
         salvarDados('registos', registosAtualizados);
-        mostrarNotificacao('Registo excluÃ­do com sucesso!', 'success');
+        mostrarNotificacao('Registo excluído com sucesso!', 'success');
         carregarSecao('registos');
     }
 }
 
-// === FUNÃ‡Ã•ES PARA HERANÃ‡AS (evitar duplicata - usar obterHerancasAtual) ===
+// === FUNÇÕES PARA HERANÇAS (evitar duplicata - usar obterHerancasAtual) ===
 function editarHerancaDireto(id) {
     const heranca = obterHerancasAtual().find(h => String(h.id) === String(id));
     if (heranca) {
         fecharModal();
         setTimeout(() => abrirModalEdicaoHeranca(heranca), 100);
     } else {
-        mostrarNotificacao('HeranÃ§a nÃ£o encontrada!', 'error');
+        mostrarNotificacao('Herança não encontrada!', 'error');
     }
 }
 
 function abrirAnexosHeranca(id) {
     const heranca = obterHerancasAtual().find(h => String(h.id) === String(id));
     if (heranca) {
-        abrirModalAnexos('heranca', id, heranca.clienteNome || 'HeranÃ§a');
+        abrirModalAnexos('heranca', id, heranca.clienteNome || 'Herança');
     } else {
-        console.error('âŒ HeranÃ§a nÃ£o encontrada com ID:', id);
-        mostrarNotificacao('HeranÃ§a nÃ£o encontrada!', 'error');
+        console.error('❌ Herança não encontrada com ID:', id);
+        mostrarNotificacao('Herança não encontrada!', 'error');
     }
 }
 
-// Tornar funÃ§Ãµes globais
+// Tornar funções globais
 window.abrirAnexosContrato = abrirAnexosContrato;
 window.abrirAnexosHeranca = abrirAnexosHeranca;
 window.abrirAnexosMigracao = abrirAnexosMigracao;
@@ -26070,9 +24913,9 @@ window.removerAnexoContrato = removerAnexoContrato;
 window.removerAnexoHeranca = removerAnexoHeranca;
 window.removerAnexoMigracao = removerAnexoMigracao;
 
-if (typeof editarRegistoDireto !== 'function') console.error('editarRegistoDireto nÃ£o definida');
-if (typeof abrirAnexosRegisto !== 'function') console.error('abrirAnexosRegisto nÃ£o definida');
-if (typeof excluirRegistoDireto !== 'function') console.error('excluirRegistoDireto nÃ£o definida');
+if (typeof editarRegistoDireto !== 'function') console.error('editarRegistoDireto não definida');
+if (typeof abrirAnexosRegisto !== 'function') console.error('abrirAnexosRegisto não definida');
+if (typeof excluirRegistoDireto !== 'function') console.error('excluirRegistoDireto não definida');
 window.removerAnexoRegisto = removerAnexoRegisto;
 window.toggleTipoPersonalizado = toggleTipoPersonalizado;
 window.atualizarContrato = atualizarContrato;

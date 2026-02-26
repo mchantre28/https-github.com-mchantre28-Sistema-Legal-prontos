@@ -4,6 +4,16 @@
 
 ---
 
+## Como funciona (resumo)
+
+**Entidades** são o catálogo de instituições com quem a solicitadora trabalha: Finanças (AT), IRN, Conservatórias, IMT, Câmaras Municipais, Segurança Social, Embaixadas, etc. São apenas referências — não guardam interações. Na primeira utilização o sistema pode popular automaticamente com a lista predefinida.
+
+**Integrações externas** são as interações reais com essas entidades: cada documento representa um pedido, uma consulta, uma reclamação, um envio de documentação, etc. Está sempre ligado a uma entidade, um cliente e um processo. Guarda estado (enviado, pendente, concluído), datas, canal (online, presencial, email), anexos enviados/recebidos.
+
+**Logs de integrações** fazem auditoria de todas as alterações.
+
+---
+
 ## 1. COLEÇÃO: `entidades`
 
 Registo de todas as entidades externas com quem a solicitadora interage (Finanças, IRN, IMT, etc.).

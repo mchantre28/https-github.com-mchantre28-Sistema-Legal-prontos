@@ -23,6 +23,7 @@ async function run() {
       iban: 'PT50 0193 0000 10514937886 86',
       titulo: 'Dra.',
       cedula: '9738',
+      sede: 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa',
     },
     cliente: {
       nome: 'Suleimane Djane',
@@ -44,7 +45,7 @@ async function run() {
       },
     ],
     percentagemRetencao: 23,
-    observacoes: 'Artigo 16.º, n.º 6 do CIVA',
+    observacoes: 'Artigo n.º 53',
     incluirRecibo: true,
     numeroSequence: 1,
     template: 'simple',

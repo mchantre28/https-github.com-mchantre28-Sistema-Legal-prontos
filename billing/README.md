@@ -94,21 +94,21 @@ Gera `billing/exemplo-fatura.pdf` com o caso AIMA (500€, 23% retenção, 385�
 | `invoice.pdf.ts` | Geração de PDF com Puppeteer |
 | `invoice.service.ts` | Serviço principal `createInvoice` |
 | `invoice.example.ts` | Exemplo completo |
-| `logo.svg` / `logo.png` | Logo da solicitadora (opcional) |
+| `assets/logo-solicitadora.png` | Logo da solicitadora (opcional) |
 
 ## Logo e cabeçalho
 
 O topo de cada fatura mostra automaticamente:
-- **Logo** (se `logoPath` ou `emitente.logoBase64` forem definidos)
+- **Logo** (se existir em `assets/logo-solicitadora.png` ou `.svg`, ou se passar `logoPath`)
 - **Dados da solicitadora**: nome, contribuinte, Tlm, Email, IBAN
 - **V/ n.º contribuinte** do cliente
 
-Para usar a sua logo, coloque `logo.png`, `logo.jpg` ou `logo.svg` na pasta `billing/`, ou passe `logoPath` ao criar a fatura:
+Para usar a sua logo, coloque o ficheiro em `assets/logo-solicitadora.png` (ou `.svg`), ou passe `logoPath` ao criar a fatura:
 
 ```typescript
 await createInvoice({
   emitente: { nome: '...', nif: '...', /* ... */ iban: 'PT50 ...' },
-  logoPath: 'billing/logo.png',  // opcional
+  logoPath: 'caminho/para/logo.png',  // opcional
   cliente: { /* ... */ },
   itens: [ /* ... */ ],
 });

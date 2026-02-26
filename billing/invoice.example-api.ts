@@ -56,7 +56,7 @@ const exampleInvoice: InvoiceAPI = {
     ivaLiquidated: 0,
     retention: 115,
   },
-  observations: 'Artigo 16.º, n.º 6 do CIVA',
+  observations: 'Artigo n.º 53',
 };
 
 async function run() {

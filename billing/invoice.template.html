@@ -1,30 +1,24 @@
 <div class="invoice-body">
   <div class="invoice-container">
-    <!-- Header: Logotipo + Dados da Solicitadora -->
+    <!-- Header: Logotipo (esquerda) + Dados da Solicitadora (direita), igual ao documento de referência -->
     <header class="header">
       {{#if logo}}
-      <img src="{{logo}}" class="logo" alt="Logotipo da Solicitadora" />
+      <img src="{{logo}}" class="logo" alt="Ana Paula Medina Solicitadora" loading="eager" decoding="sync" />
       {{/if}}
       <div class="issuer-info">
         <h2>{{#if issuer.titulo}}{{issuer.titulo}} {{/if}}{{issuer.name}}</h2>
         {{#if issuer.nif}}<p>NIF: {{issuer.nif}}</p>{{/if}}
-        {{#if issuer.cedula}}<p>Cédula n.º {{issuer.cedula}}</p>{{/if}}
         {{#if issuer.phone}}<p>Tlm: {{issuer.phone}}</p>{{/if}}
         {{#if issuer.email}}<p>Email: {{issuer.email}}</p>{{/if}}
-        {{#if issuer.sede}}<p>Sede: {{issuer.sede}}</p>{{/if}}
         {{#if issuer.iban}}<p>IBAN: {{issuer.iban}}</p>{{/if}}
-        {{#if cliente.nif}}<p class="client-nif">V/ n.º contribuinte: {{formatNif cliente.nif}}</p>{{/if}}
-      </div>
-      <div class="invoice-meta">
-        <h2 class="doc-type">FATURA</h2>
-        {{#if atcud}}<p class="atcud">ATCUD: {{atcud}}</p>{{/if}}
-        <p class="invoice-number">Nº {{numero}}</p>
-        <p class="invoice-date">Data: {{formatDate dataEmissao}}</p>
-        {{#if dataVencimento}}<p class="invoice-due">Vencimento: {{formatDate dataVencimento}}</p>{{/if}}
-        {{#if termoPagamento}}<p class="termo-pagamento">Termos: {{termoPagamento}}</p>{{/if}}
-        {{#if localEmissao}}<p class="local-emissao">Local: {{localEmissao}}</p>{{/if}}
+        {{#if issuer.sede}}<p>Sede: {{issuer.sede}}</p>{{/if}}
       </div>
     </header>
+    <hr class="header-divider" />
+    <div class="doc-title-block">
+      <h2 class="doc-type">{{#if recibo}}Fatura/Recibo {{numero}}{{else}}Fatura {{numero}}{{/if}}</h2>
+      <p class="doc-date">Data: {{formatDate dataEmissao}}</p>
+    </div>
 
     {{#if hasCaseMeta}}
     <!-- Tipo de caso / Entidade / Área / Processo -->
@@ -42,7 +36,7 @@
 
     <!-- Dados do cliente -->
     <section class="client-section">
-      <h3 class="section-title">Cliente / Contribuinte</h3>
+      <h3 class="section-title">Cliente</h3>
       <div class="client-block">
         <p class="client-name">{{cliente.nome}}</p>
         {{#if cliente.numeroCliente}}<p class="client-detail">Nº cliente: {{cliente.numeroCliente}}</p>{{/if}}
@@ -90,49 +84,51 @@
       </table>
     </section>
 
-    <!-- Totais (alinhados à direita) -->
+    <!-- Totais (caixa à direita: Serviços/Produtos, Despesas, IVA, Total, Valor a Pagar) -->
     <section class="totals-section">
       <div class="totals">
         <table class="totals-table">
         <tr>
-          <td>Subtotal</td>
-          <td class="right">{{formatCurrency totais.subtotal}}</td>
+          <td>Serviços/Produtos</td>
+          <td class="right">{{formatCurrency subtotalServicos}}</td>
         </tr>
+        {{#if hasDespesas}}
+        <tr>
+          <td>Despesas</td>
+          <td class="right">{{formatCurrency subtotalDespesas}}</td>
+        </tr>
+        {{/if}}
         <tr>
           <td>IVA</td>
           <td class="right">{{formatCurrency totais.iva}}</td>
         </tr>
         <tr class="total-row">
-          <td>Total com IVA</td>
-          <td class="right">{{formatCurrency totais.totalComIva}}</td>
-        </tr>
-        {{#if totais.retencao}}
-        <tr>
-          <td>Retenção na fonte ({{percentagemRetencao}}%)</td>
-          <td class="right">- {{formatCurrency totais.retencao}}</td>
+          <td><strong>Total</strong></td>
+          <td class="right"><strong>{{formatCurrency totais.totalComIva}}</strong></td>
         </tr>
         <tr class="amount-due-row">
-          <td><strong>Valor a pagar</strong></td>
+          <td><strong>Valor a Pagar</strong></td>
           <td class="right"><strong>{{formatCurrency totais.valorAPagar}}</strong></td>
         </tr>
-        {{else}}
-        <tr class="amount-due-row">
-          <td><strong>Valor a pagar</strong></td>
-          <td class="right"><strong>{{formatCurrency totais.valorAPagar}}</strong></td>
-        </tr>
-        {{/if}}
       </table>
       </div>
     </section>
+
+    <!-- Menções legais (Art.53 CIVA, retenção CIRS) -->
+    {{#if mencoesLegais}}
+    <section class="legal-mentions-section">
+      <p class="legal-mentions">{{mencoesLegais}}</p>
+    </section>
+    {{/if}}
 
     <!-- Recibo integrado -->
     {{#if recibo}}
     <section class="receipt-section">
       <h3 class="section-title">Recibo</h3>
       <div class="receipt-block">
-        <p><strong>Nº Recibo:</strong> {{recibo.numero}}</p>
+        <p><strong>Nº:</strong> {{recibo.numero}}</p>
         <p><strong>Data:</strong> {{formatDate recibo.data}}</p>
-        <p><strong>Valor recebido:</strong> {{formatCurrency recibo.valorRecebido}}</p>
+        <p><strong>Valor Recebido:</strong> {{formatCurrency recibo.valorRecebido}}</p>
         {{#if recibo.formaPagamento}}<p><strong>Forma de pagamento:</strong> {{recibo.formaPagamento}}</p>{{/if}}
         {{#if recibo.referencia}}<p><strong>Referência:</strong> {{recibo.referencia}}</p>{{/if}}
         {{#if recibo.localPagamento}}<p><strong>Local:</strong> {{recibo.localPagamento}}</p>{{/if}}
