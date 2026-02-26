@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Legal - Gestão Jurídica</title>
     <meta name="theme-color" content="#111827">
-    <link rel="manifest" href="manifest.json">
+    <!-- Manifest só em http(s) para evitar CORS ao abrir por file:// -->
+    <script>
+      (function(){if(location.protocol==='http:'||location.protocol==='https:'){var l=document.createElement('link');l.rel='manifest';l.href='manifest.json';document.head.appendChild(l);}})();
+    </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖</text></svg>" type="image/svg+xml">
     
     <!-- Meta Tags Básicas -->
@@ -16,7 +19,15 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js: cdnjs primeiro; se 404, fallback para jsdelivr -->
+    <script>
+      (function(){
+        var done = false;
+        function loadFallback(){ if(done)return; done=true; var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'; s.crossOrigin='anonymous'; document.head.appendChild(s); }
+        window.__chartJsFallback = loadFallback;
+      })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" onerror="window.__chartJsFallback&&window.__chartJsFallback()"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@gh-pages/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -34,11 +45,16 @@
         document.head.insertBefore(b, document.head.firstChild);
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=6">
     <script src="logo-data.js"></script>
 
 </head>
 <body class="bg-gray-100">
+    <script>
+      (function(){ function rm(){ var el=document.getElementById('sidebar-logo'); if(el&&el.parentNode){ el.parentNode.removeChild(el); } }
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',rm); } else { rm(); } setTimeout(rm,100);
+      })();
+    </script>
     <!-- Link de saltar para leitores de ecrã (acessibilidade) -->
     <a href="#conteudoDinamico" class="skip-link">Saltar para conteúdo principal</a>
     <!-- Sistema de Notificações: abaixo do header para não sobrepor o indicador laranja "A sincronizar..." -->
@@ -49,7 +65,7 @@
         <i data-lucide="menu" class="w-5 h-5" aria-hidden="true"></i>
     </button>
 
-    <!-- Sidebar -->
+    <!-- Sidebar (sem quadro da logo: apenas título e menu) -->
     <div class="sidebar" id="sidebar">
         <div class="p-6">
             <h2 class="text-white text-xl font-bold mb-6">Sistema Legal</h2>
@@ -133,7 +149,7 @@
             </nav>
         </div>
     </div>
-    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
 
     <!-- Menu Mobile -->
     <button id="menuHamburguer" class="fixed top-4 left-4 z-50 lg:hidden bg-black text-white p-2 rounded" aria-label="Abrir menu" aria-expanded="false">
