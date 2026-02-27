@@ -103,6 +103,8 @@
       font-weight: 700;
       font-size: 12pt;
       margin: 0 0 var(--spacing-sm) 0;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
 
     .issuer-block p {
@@ -223,6 +225,7 @@
       max-width: 100%;
       margin-left: auto;
       margin-right: 0;
+      margin-top: var(--spacing-md);
       margin-bottom: 0;
     }
 
@@ -415,7 +418,7 @@
     }
 
     /* ============================================
-       IMPRESSÃO — TUDO NUMA ÚNICA FOLHA A4
+       IMPRESSÃO — UMA ÚNICA FOLHA A4 (compacto, profissional)
        ============================================ */
     @media print {
       .action-bar {
@@ -423,117 +426,150 @@
       }
 
       html, body {
-        background: white;
+        background: white !important;
         overflow: visible !important;
-        width: 100%;
-        margin: 0;
-        padding: 0;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 9pt !important;
       }
 
       .doc-page {
-        max-width: none;
-        width: 100%;
+        max-width: none !important;
+        width: 100% !important;
         min-height: 0 !important;
-        padding: 10mm 12mm !important;
-        margin: 0;
-        box-shadow: none;
-        box-sizing: border-box;
+        height: auto !important;
+        padding: 8mm 10mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
         overflow: visible !important;
+        page-break-inside: avoid !important;
       }
 
       .header {
-        margin-bottom: 10px !important;
-        padding-bottom: 8px !important;
+        margin-bottom: 6px !important;
+        padding-bottom: 6px !important;
       }
 
       .doc-title-block {
-        margin-bottom: 10px !important;
+        margin-bottom: 6px !important;
+      }
+
+      .doc-title-block .doc-title {
+        font-size: 11pt !important;
+      }
+
+      .doc-title-block .doc-date {
+        font-size: 9pt !important;
       }
 
       .client-section {
-        margin-bottom: 10px !important;
+        margin-bottom: 6px !important;
       }
 
       .client-section .section-title,
       .receipt-section .section-title,
       .notes-section .section-title {
-        margin-bottom: 4px !important;
+        margin-bottom: 2px !important;
+        font-size: 9pt !important;
       }
 
       .services-and-totals {
-        margin-bottom: 10px !important;
-        page-break-inside: avoid;
+        margin-bottom: 6px !important;
+        page-break-inside: avoid !important;
+      }
+
+      .services-section {
+        margin-bottom: 6px !important;
+      }
+
+      .totals-section {
+        margin-left: auto !important;
+        margin-top: 8px !important;
       }
 
       .data-table th,
       .data-table td {
-        padding: 4px 6px !important;
-        font-size: 9.5pt !important;
+        padding: 3px 5px !important;
+        font-size: 8.5pt !important;
       }
 
       .totals-table td {
-        padding: 4px 8px !important;
-        font-size: 9.5pt !important;
-      }
-
-      .totals-section {
-        margin-left: auto;
+        padding: 3px 6px !important;
+        font-size: 9pt !important;
       }
 
       .receipt-section {
-        margin-bottom: 10px !important;
+        margin-bottom: 6px !important;
       }
 
       .receipt-block {
-        padding: 6px 0 !important;
+        padding: 4px 0 !important;
+      }
+
+      .receipt-block p {
+        font-size: 9pt !important;
+        margin: 2px 0 !important;
       }
 
       .notes-section {
-        margin-bottom: 10px !important;
+        margin-bottom: 6px !important;
+      }
+
+      .notes-block {
+        padding: 4px 6px !important;
+        font-size: 8.5pt !important;
       }
 
       .footer-qr {
-        margin-top: 10px !important;
-        padding-top: 8px !important;
+        margin-top: 6px !important;
+        padding-top: 4px !important;
+        min-height: 80px !important;
+        page-break-inside: avoid !important;
         overflow: visible !important;
       }
 
       .logo-wrap img {
-        max-width: 200px !important;
-        max-height: 90px !important;
+        max-width: 160px !important;
+        max-height: 72px !important;
       }
 
       .issuer-block,
-      .client-block p,
-      .receipt-block p,
-      .notes-block {
-        font-size: 9.5pt !important;
+      .issuer-block p,
+      .client-block p {
+        font-size: 9pt !important;
+        margin: 2px 0 !important;
       }
 
-      .doc-title-block .doc-title {
-        font-size: 12pt !important;
+      .issuer-block .issuer-name {
+        font-size: 10.5pt !important;
       }
 
       .qrcode-placeholder {
-        width: 90px !important;
-        height: 90px !important;
-        min-width: 90px !important;
-        min-height: 90px !important;
+        width: 80px !important;
+        height: 80px !important;
+        min-width: 80px !important;
+        min-height: 80px !important;
         overflow: visible !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
 
       .qrcode-placeholder img {
-        width: 90px !important;
-        height: 90px !important;
+        width: 80px !important;
+        height: 80px !important;
         object-fit: contain !important;
+      }
+
+      .qrcode-placeholder .qr-fallback {
+        display: none !important;
       }
     }
 
     @page {
       size: A4 portrait;
-      margin: 10mm;
+      margin: 8mm;
     }
   </style>
 </head>
@@ -547,9 +583,9 @@
         <img src="assets/ana.jpg" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
       </div>
       <div class="issuer-block">
-        <p class="issuer-name" data-field="issuer.name">Dra. Ana Paula Medina</p>
-        <p>NIF: <span data-field="issuer.nif">288 132 335</span></p>
-        <p>Tlm: <span data-field="issuer.phone">938057340</span></p>
+        <p class="issuer-name" data-field="issuer.name">Solicitadora Ana Paula Medina</p>
+        <p>Contribuinte n.º <span data-field="issuer.nif">288 132 335</span></p>
+        <p>Tlm: <span data-field="issuer.phone">+351 938057340</span></p>
         <p>Email: <span data-field="issuer.email">anapaulamedina09738@osae.pt</span></p>
         <p>IBAN: <span data-field="issuer.iban">PT50 0193 0000 10514937886 86</span></p>
         <p>Sede: <span data-field="issuer.morada">Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa</span></p>
