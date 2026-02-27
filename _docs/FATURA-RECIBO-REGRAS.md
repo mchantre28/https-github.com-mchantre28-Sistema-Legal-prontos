@@ -29,3 +29,7 @@
 - Confirmação se o valor foi recebido (para o bloco Recibo)
 
 Quando o utilizador fornecer estes dados, gerar o documento completo seguindo o `TEMPLATE-FATURA-RECIBO.md`.
+
+## Sincronizar template para o site
+
+Após alterar `billing/fatura-recibo-template-exato.html`, executar `npm run sync-fatura` para copiar para `projetos/sistema-legal/fatura-recibo.html` (para o deploy). Depois fazer commit e push.

@@ -2,6 +2,16 @@
 
 Módulo completo para gerar faturas e recibos integrados em PDF, com suporte a ATCUD, retenção na fonte, IVA e QR Code.
 
+## Sincronizar template da fatura com o site (sistema-legal)
+
+Quando alterares `billing/fatura-recibo-template-exato.html`, corre o script para copiar a versão atualizada para `projetos/sistema-legal/fatura-recibo.html` (para o deploy do site):
+
+```bash
+npm run sync-fatura
+```
+
+Depois faz commit e push para incluir as duas versões no GitHub.
+
 ## Requisitos
 
 - Node.js >= 18

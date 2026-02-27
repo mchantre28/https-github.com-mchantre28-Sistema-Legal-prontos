@@ -5,6 +5,7 @@
   "main": "backend/app.js",
   "type": "module",
   "scripts": {
+    "sync-fatura": "node scripts/sync-fatura-sistema-legal.mjs",
     "billing:example": "node node_modules/tsx/dist/cli.mjs billing/invoice.example.ts",
     "billing:example-api": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-api.ts",
     "billing:example-simple": "node node_modules/tsx/dist/cli.mjs billing/invoice.example-simple.ts",
