@@ -3,6 +3,9 @@
   "name": "sistema-legal",
   "rootDirectory": "projetos/sistema-legal",
   "builds": [{"src": "index.html", "use": "@vercel/static"}],
-  "routes": [{"src": "/(.*)", "dest": "/index.html"}],
+  "routes": [
+    {"src": "/fatura-recibo.html", "dest": "/fatura-recibo.html"},
+    {"src": "/(.*)", "dest": "/index.html"}
+  ],
   "headers": [{"source": "/(.*)", "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]}]
 }
