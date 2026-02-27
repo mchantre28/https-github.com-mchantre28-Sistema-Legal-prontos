@@ -4,13 +4,11 @@ Módulo completo para gerar faturas e recibos integrados em PDF, com suporte a A
 
 ## Sincronizar template da fatura com o site (sistema-legal)
 
-Quando alterares `billing/fatura-recibo-template-exato.html`, corre o script para copiar a versão atualizada para `projetos/sistema-legal/fatura-recibo.html` (para o deploy do site):
+O template em `billing/fatura-recibo-template-exato.html` é a única fonte. Quando fazes **push** para o GitHub (após alterar este ficheiro), a GitHub Action **sync-fatura** corre automaticamente e atualiza `projetos/sistema-legal/fatura-recibo.html`, para o site em produção ficar igual.
 
-```bash
-npm run sync-fatura
-```
+**Fluxo:** editar o template → commit → push para o GitHub. Ver o resultado no site (não é preciso testar noutro local).
 
-Depois faz commit e push para incluir as duas versões no GitHub.
+(Opcional: para incluir a cópia no mesmo commit, podes correr `npm run sync-fatura` antes do commit.)
 
 ## Requisitos
 

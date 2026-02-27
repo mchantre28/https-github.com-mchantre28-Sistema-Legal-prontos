@@ -1,0 +1,39 @@
+# Sincroniza billing/fatura-recibo-template-exato.html → projetos/sistema-legal/fatura-recibo.html
+# Assim, o site (deploy) fica sempre atualizado quando alteras o template. Só precisas de fazer push para o GitHub.
+name: Sync Fatura para o site
+
+on:
+  push:
+    paths:
+      - 'billing/fatura-recibo-template-exato.html'
+      - 'scripts/sync-fatura-sistema-legal.mjs'
+    branches: [main, master]
+
+jobs:
+  sync:
+    name: Copiar template para sistema-legal
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sincronizar fatura
+        run: node scripts/sync-fatura-sistema-legal.mjs
+
+      - name: Commit e push se houve alterações
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add projetos/sistema-legal/fatura-recibo.html
+          if git diff --staged --quiet; then
+            echo "Nenhuma alteração em fatura-recibo.html"
+          else
+            git commit -m "chore: sync fatura-recibo do template (GitHub Action)"
+            git push
+          fi

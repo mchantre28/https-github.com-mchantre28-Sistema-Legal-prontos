@@ -32,4 +32,4 @@ Quando o utilizador fornecer estes dados, gerar o documento completo seguindo o 
 
 ## Sincronizar template para o site
 
-Após alterar `billing/fatura-recibo-template-exato.html`, executar `npm run sync-fatura` para copiar para `projetos/sistema-legal/fatura-recibo.html` (para o deploy). Depois fazer commit e push.
+Ao fazeres push para o GitHub (depois de alterar `billing/fatura-recibo-template-exato.html`), a GitHub Action atualiza automaticamente `projetos/sistema-legal/fatura-recibo.html`. O resultado vê-se só no site; não é preciso testar noutro local.
