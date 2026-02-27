@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Fatura/Recibo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="document">
+
+    <!-- LOGO -->
+    <div class="logo-container">
+        <img src="../assets/ana.jpg" class="logo" alt="Ana Paula Medina Solicitadora">
+    </div>
+
+    <!-- DADOS DA PROFISSIONAL -->
+    <div class="issuer">
+        <strong>{{issuer_nome}}</strong><br>
+        NIF: {{issuer_nif}}<br>
+        Tlm: {{issuer_telefone}}<br>
+        Email: {{issuer_email}}<br>
+        IBAN: {{issuer_iban}}<br>
+        Sede: {{issuer_morada}}
+    </div>
+
+    <!-- TÍTULO -->
+    <h1 class="title">Fatura/Recibo {{numeroDocumento}}</h1>
+    <div class="date">Data: {{dataDocumento}}</div>
+
+    <!-- CLIENTE -->
+    <h2 class="section-title">CLIENTE</h2>
+    <div class="box">
+        <strong>{{cliente_nome}}</strong><br>
+        NIF: {{cliente_nif}}<br>
+        {{cliente_morada}}
+    </div>
+
+    <!-- SERVIÇOS -->
+    <h2 class="section-title">SERVIÇOS</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Descrição</th>
+                <th>Art.</th>
+                <th>Qtd</th>
+                <th>Incidência</th>
+                <th>Preço Unit.</th>
+                <th>IVA %</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each servicos}}
+            <tr>
+                <td>{{descricao}}</td>
+                <td>{{artigo}}</td>
+                <td>{{quantidade}}</td>
+                <td>{{incidencia}}</td>
+                <td>{{precoUnit}}</td>
+                <td>{{iva}}</td>
+                <td>{{total}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+
+    <!-- DESPESAS -->
+    <h2 class="section-title">DESPESAS</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>IVA %</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each despesas}}
+            <tr>
+                <td>{{descricao}}</td>
+                <td>{{valor}}</td>
+                <td>{{iva}}</td>
+                <td>{{total}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+
+    <!-- RESUMO -->
+    <div class="summary">
+        <div class="row"><span>Serviços/Produtos:</span> <strong>{{totalServicos}}</strong></div>
+        <div class="row"><span>Despesas:</span> <strong>{{totalDespesas}}</strong></div>
+        <div class="row"><span>IVA:</span> <strong>{{totalIVA}}</strong></div>
+        <div class="row total"><span>Total:</span> <strong>{{totalGeral}}</strong></div>
+        <div class="row total"><span>Valor a Pagar:</span> <strong>{{valorAPagar}}</strong></div>
+    </div>
+
+    <!-- RECIBO -->
+    <h2 class="section-title">RECIBO</h2>
+    <div class="box">
+        Nº: {{numeroDocumento}}<br>
+        Data: {{dataDocumento}}<br>
+        Valor Recebido: <strong>{{valorAPagar}}</strong>
+    </div>
+
+    <!-- OBSERVAÇÕES -->
+    <h2 class="section-title">OBSERVAÇÕES</h2>
+    <div class="box">
+        {{observacoes}}
+    </div>
+
+    <!-- QR CODE (https://www.anapaulamedinasolicitadora.pt/) -->
+    <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=https%3A%2F%2Fwww.anapaulamedinasolicitadora.pt%2F" class="qrcode" alt="QR Code — anapaulamedinasolicitadora.pt">
+    </div>
+
+</div>
+
+</body>
+</html>

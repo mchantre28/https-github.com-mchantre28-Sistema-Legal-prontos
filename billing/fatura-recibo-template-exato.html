@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fatura/Recibo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <!--
+    Template Fatura/Recibo — Adaptável a qualquer cliente, áreas de atuação e serviços.
+    Cabeçalho à esquerda, logo à direita. QR code visível. Preencher via window.INVOICE_DATA ou data-*.
+  -->
+  <style>
+    /* ============================================
+       VARIÁVEIS E RESET
+       ============================================ */
+    :root {
+      --color-text: #222;
+      --color-text-muted: #4a4a4a;
+      --color-border: #dcdcdc;
+      --color-bg: #ffffff;
+      --font-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 12px;
+      --spacing-lg: 18px;
+      --spacing-xl: 24px;
+      --page-width: 210mm;
+      --page-height: 297mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    /* ============================================
+       BASE — A4 VERTICAL, MARGENS E TIPOGRAFIA
+       ============================================ */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
+      font-size: 11pt;
+      line-height: 1.45;
+      color: var(--color-text);
+      background: var(--color-bg);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      overflow-x: visible;
+    }
+
+    html {
+      overflow-x: visible;
+    }
+
+    .doc-page {
+      max-width: var(--page-width);
+      min-height: var(--page-height);
+      margin: 0 auto;
+      padding: 18mm 20mm;
+      background: var(--color-bg);
+      overflow: visible;
+    }
+
+    /* ============================================
+       1) CABEÇALHO — LOGO À ESQUERDA, DADOS À DIREITA
+       ============================================ */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--spacing-xl);
+      margin-bottom: var(--spacing-xl);
+      padding-bottom: var(--spacing-lg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .logo-wrap {
+      flex-shrink: 0;
+      text-align: left;
+    }
+
+    .logo-wrap img {
+      max-width: 260px;
+      width: auto;
+      height: auto;
+      max-height: 120px;
+      object-fit: contain;
+      display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    .issuer-block {
+      flex: 1;
+      text-align: right;
+      font-size: 10.5pt;
+      min-width: 0;
+    }
+
+    .issuer-block .issuer-name {
+      font-weight: 700;
+      font-size: 12pt;
+      margin: 0 0 var(--spacing-sm) 0;
+    }
+
+    .issuer-block p {
+      margin: var(--spacing-xs) 0;
+      color: var(--color-text);
+    }
+
+
+    /* ============================================
+       2) TÍTULO DO DOCUMENTO
+       ============================================ */
+    .doc-title-block {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .doc-title-block .doc-title {
+      margin: 0 0 var(--spacing-xs) 0;
+      font-size: 14pt;
+      font-weight: 700;
+    }
+
+    .doc-title-block .doc-date {
+      margin: 0;
+      font-size: 10.5pt;
+      color: var(--color-text-muted);
+    }
+
+    /* ============================================
+       3) DADOS DO CLIENTE
+       ============================================ */
+    .client-section {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .section-title {
+      margin: 0 0 var(--spacing-sm) 0;
+      font-size: 10.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--color-text);
+    }
+
+    .client-block p {
+      margin: var(--spacing-xs) 0;
+      font-size: 10.5pt;
+    }
+
+    .client-block .client-name {
+      font-weight: 600;
+    }
+
+    /* ============================================
+       4) TABELA DE SERVIÇOS (em cima) + RESUMO (abaixo, à direita)
+       ============================================ */
+    .services-and-totals {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .services-section {
+      width: 100%;
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .services-section .section-title {
+      display: none;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+    }
+
+    .data-table th,
+    .data-table td {
+      padding: 6px 8px;
+      border: 1px solid var(--color-border);
+      text-align: left;
+    }
+
+    .data-table th {
+      background: #f8f8f8;
+      font-weight: 700;
+      font-size: 9.5pt;
+    }
+
+    .data-table .col-center {
+      text-align: center;
+    }
+
+    .data-table .col-right {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* ============================================
+       5) TABELA DE DESPESAS
+       ============================================ */
+    .expenses-section {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .expenses-section.hidden {
+      display: none;
+    }
+
+    .expenses-section .data-table tbody:empty ~ thead {
+      display: none;
+    }
+
+    /* ============================================
+       6) RESUMO / TOTAL — abaixo da tabela de itens, alinhado à direita
+       ============================================ */
+    .totals-section {
+      width: 280px;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: 0;
+      margin-bottom: 0;
+    }
+
+    .totals-section .section-title {
+      display: none;
+    }
+
+    .totals-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10.5pt;
+    }
+
+    .totals-table td {
+      padding: 8px 12px;
+      border: 1px solid var(--color-border);
+      vertical-align: middle;
+    }
+
+    .totals-table td:first-child {
+      background: #f5f5f5;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .totals-table td.col-right {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: var(--color-text);
+    }
+
+    .totals-table .row-total td {
+      font-weight: 700;
+      background: #f5f5f5;
+    }
+
+    .totals-table .row-pay td {
+      font-weight: 700;
+      background: #e5e5e5;
+      color: var(--color-text);
+    }
+
+    .totals-table .row-despesas.hidden-row {
+      display: none;
+    }
+
+    /* ============================================
+       7) RECIBO
+       ============================================ */
+    .receipt-section {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .receipt-block {
+      padding: var(--spacing-md) 0;
+      border-top: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .receipt-block p {
+      margin: var(--spacing-xs) 0;
+      font-size: 10.5pt;
+    }
+
+    /* ============================================
+       8) OBSERVAÇÕES
+       ============================================ */
+    .notes-section {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .notes-section.hidden {
+      display: none;
+    }
+
+    .notes-block {
+      padding: var(--spacing-md);
+      border: 1px solid var(--color-border);
+      background: #fafafa;
+      font-size: 10.5pt;
+    }
+
+    .notes-block:empty {
+      display: none;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* ============================================
+       9) QR CODE — CANTO INFERIOR DIREITO (sempre visível)
+       ============================================ */
+    .footer-qr {
+      margin-top: var(--spacing-xl);
+      padding-top: var(--spacing-lg);
+      padding-right: 0;
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-start;
+      overflow: visible;
+      min-height: 122px;
+    }
+
+    .qrcode-placeholder {
+      width: 120px;
+      height: 120px;
+      min-width: 120px;
+      min-height: 120px;
+      flex-shrink: 0;
+      border: 1px solid var(--color-border);
+      background: #e8e8e8;
+      display: block;
+      position: relative;
+      box-sizing: border-box;
+      overflow: visible;
+    }
+
+    .qrcode-placeholder img {
+      display: block;
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .qrcode-placeholder img[src=""],
+    .qrcode-placeholder img:not([src]) {
+      display: none !important;
+    }
+
+    .qrcode-placeholder .qr-fallback {
+      font-size: 10pt;
+      color: #555;
+      text-align: center;
+      padding: 8px;
+      display: block;
+    }
+
+    .qrcode-placeholder .qr-fallback[style*="display: none"] {
+      display: none !important;
+    }
+
+    /* ============================================
+       BARRA DE AÇÕES — Imprimir e Download (oculta na impressão)
+       ============================================ */
+    .action-bar {
+      margin-top: var(--spacing-xl);
+      padding: var(--spacing-md) 0;
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-md);
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .action-bar .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+
+    .action-bar .btn-print {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .action-bar .btn-print:hover {
+      background: #1d4ed8;
+    }
+
+    .action-bar .btn-download {
+      background: #059669;
+      color: #fff;
+    }
+
+    .action-bar .btn-download:hover {
+      background: #047857;
+    }
+
+    .action-bar .hint {
+      color: var(--color-text-muted);
+      font-size: 11px;
+    }
+
+    /* ============================================
+       IMPRESSÃO — TUDO NUMA ÚNICA FOLHA A4
+       ============================================ */
+    @media print {
+      .action-bar {
+        display: none !important;
+      }
+
+      html, body {
+        background: white;
+        overflow: visible !important;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      .doc-page {
+        max-width: none;
+        width: 100%;
+        min-height: 0 !important;
+        padding: 10mm 12mm !important;
+        margin: 0;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow: visible !important;
+      }
+
+      .header {
+        margin-bottom: 10px !important;
+        padding-bottom: 8px !important;
+      }
+
+      .doc-title-block {
+        margin-bottom: 10px !important;
+      }
+
+      .client-section {
+        margin-bottom: 10px !important;
+      }
+
+      .client-section .section-title,
+      .receipt-section .section-title,
+      .notes-section .section-title {
+        margin-bottom: 4px !important;
+      }
+
+      .services-and-totals {
+        margin-bottom: 10px !important;
+        page-break-inside: avoid;
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 4px 6px !important;
+        font-size: 9.5pt !important;
+      }
+
+      .totals-table td {
+        padding: 4px 8px !important;
+        font-size: 9.5pt !important;
+      }
+
+      .totals-section {
+        margin-left: auto;
+      }
+
+      .receipt-section {
+        margin-bottom: 10px !important;
+      }
+
+      .receipt-block {
+        padding: 6px 0 !important;
+      }
+
+      .notes-section {
+        margin-bottom: 10px !important;
+      }
+
+      .footer-qr {
+        margin-top: 10px !important;
+        padding-top: 8px !important;
+        overflow: visible !important;
+      }
+
+      .logo-wrap img {
+        max-width: 200px !important;
+        max-height: 90px !important;
+      }
+
+      .issuer-block,
+      .client-block p,
+      .receipt-block p,
+      .notes-block {
+        font-size: 9.5pt !important;
+      }
+
+      .doc-title-block .doc-title {
+        font-size: 12pt !important;
+      }
+
+      .qrcode-placeholder {
+        width: 90px !important;
+        height: 90px !important;
+        min-width: 90px !important;
+        min-height: 90px !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .qrcode-placeholder img {
+        width: 90px !important;
+        height: 90px !important;
+        object-fit: contain !important;
+      }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-page">
+    <!-- ========================= -->
+    <!-- 1) CABEÇALHO: logo esq., dados dir. (igual à fatura de referência) -->
+    <!-- ========================= -->
+    <header class="header">
+      <div class="logo-wrap">
+        <img src="../assets/ana.jpg" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
+      </div>
+      <div class="issuer-block">
+        <p class="issuer-name" data-field="issuer.name">Dra. Ana Paula Medina</p>
+        <p>NIF: <span data-field="issuer.nif">288 132 335</span></p>
+        <p>Tlm: <span data-field="issuer.phone">938057340</span></p>
+        <p>Email: <span data-field="issuer.email">anapaulamedina09738@osae.pt</span></p>
+        <p>IBAN: <span data-field="issuer.iban">PT50 0193 0000 10514937886 86</span></p>
+        <p>Sede: <span data-field="issuer.morada">Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa</span></p>
+      </div>
+    </header>
+
+    <!-- ========================= -->
+    <!-- 2) TÍTULO DO DOCUMENTO    -->
+    <!-- ========================= -->
+    <div class="doc-title-block">
+      <h1 class="doc-title" data-field="doc.title">Fatura/Recibo FAT-20260223-001</h1>
+      <p class="doc-date">Data: <span data-field="doc.date">23/02/2026</span></p>
+    </div>
+
+    <!-- ========================= -->
+    <!-- 3) CLIENTE                -->
+    <!-- ========================= -->
+    <section class="client-section">
+      <h2 class="section-title">Cliente</h2>
+      <div class="client-block">
+        <p class="client-name" data-field="client.nome">Suleimane Djane</p>
+        <p>NIF: <span data-field="client.nif">326 238 557</span></p>
+        <p data-field="client.morada">Rua Dr. Estevão Vasconcelos, 64</p>
+        <p data-field="client.codigoPostal">8500-590 Portimão</p>
+      </div>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4) TABELA DE SERVIÇOS (em cima) + RESUMO (abaixo, à direita) -->
+    <!-- ========================= -->
+    <div class="services-and-totals">
+      <section class="services-section">
+        <h2 class="section-title">Serviços</h2>
+        <table class="data-table" role="grid">
+          <thead>
+            <tr>
+              <th>Descrição</th>
+              <th class="col-center">Art.</th>
+              <th class="col-center">Qtd</th>
+              <th class="col-center">Incidência</th>
+              <th class="col-right">Preço Unit.</th>
+              <th class="col-center">IVA %</th>
+              <th class="col-right">Total</th>
+            </tr>
+          </thead>
+          <tbody id="services-tbody">
+            <tr>
+              <td data-field="service.descricao">Assessoria Jurídica - AIMA</td>
+              <td class="col-center" data-field="service.art">7</td>
+              <td class="col-center" data-field="service.qtd">1</td>
+              <td class="col-center" data-field="service.incidencia">isento</td>
+              <td class="col-right" data-field="service.precoUnit">500,00 €</td>
+              <td class="col-center" data-field="service.iva">0%</td>
+              <td class="col-right" data-field="service.total">500,00 €</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="totals-section">
+        <table class="totals-table" role="grid">
+          <tr>
+            <td>Serviços/Produtos</td>
+            <td class="col-right" data-field="totals.servicos">500,00 €</td>
+          </tr>
+          <tr class="row-despesas" id="row-despesas">
+            <td>Despesas</td>
+            <td class="col-right" data-field="totals.despesas">15,00 €</td>
+          </tr>
+          <tr>
+            <td>IVA</td>
+            <td class="col-right" data-field="totals.iva">0,00 €</td>
+          </tr>
+          <tr class="row-total">
+            <td>Total</td>
+            <td class="col-right" data-field="totals.total">515,00 €</td>
+          </tr>
+          <tr class="row-pay">
+            <td>Valor a Pagar</td>
+            <td class="col-right" data-field="totals.valorPagar">515,00 €</td>
+          </tr>
+        </table>
+      </section>
+    </div>
+
+    <!-- ========================= -->
+    <!-- 5) TABELA DE DESPESAS (oculta se vazia) -->
+    <!-- ========================= -->
+    <section class="expenses-section hidden" id="expenses-section">
+      <h2 class="section-title">Despesas</h2>
+      <table class="data-table" role="grid">
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th class="col-right">Valor</th>
+            <th class="col-center">IVA %</th>
+            <th class="col-right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="expenses-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7) RECIBO                  -->
+    <!-- ========================= -->
+    <section class="receipt-section">
+      <h2 class="section-title">Recibo</h2>
+      <div class="receipt-block">
+        <p><strong>Nº:</strong> <span data-field="recibo.numero">REC-20260223-001</span></p>
+        <p><strong>Data:</strong> <span data-field="recibo.data">23/02/2026</span></p>
+        <p><strong>Valor Recebido:</strong> <span data-field="recibo.valorRecebido">385,00 €</span></p>
+      </div>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8) OBSERVAÇÕES             -->
+    <!-- ========================= -->
+    <section class="notes-section" id="notes-section">
+      <h2 class="section-title">Observações</h2>
+      <div class="notes-block" data-field="observacoes" id="notes-block">Artigo 16.º, n.º 6 do CIVA</div>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9) QR CODE (sempre visível) -->
+    <!-- ========================= -->
+    <div class="footer-qr">
+      <div class="qrcode-placeholder" id="qrcode-container" role="img" aria-label="QR Code da fatura">
+        <!-- Imagem do QR: https://www.anapaulamedinasolicitadora.pt/ — override via INVOICE_DATA.qrcodeSrc -->
+        <img id="invoice-qrcode" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=https%3A%2F%2Fwww.anapaulamedinasolicitadora.pt%2F" alt="QR Code — anapaulamedinasolicitadora.pt" width="120" height="120" />
+        <span class="qr-fallback" id="qr-fallback">QR Code</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-bar" id="action-bar">
+    <button type="button" class="btn btn-print" id="btn-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button type="button" class="btn btn-download" id="btn-download">Download (HTML)</button>
+    <span class="hint">Ou use Ctrl+P para imprimir ou guardar como PDF.</span>
+  </div>
+
+  <script>
+    var DEFAULT_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent('https://www.anapaulamedinasolicitadora.pt/');
+    /**
+     * Preencher o documento a partir de window.INVOICE_DATA.
+     * Defina INVOICE_DATA antes de carregar a página ou chame invoiceApplyData(data).
+     *
+     * Estrutura esperada:
+     * {
+     *   issuer: { name, nif, phone, email, iban, morada?, logo? },
+     *   doc: { title, date },
+     *   client: { nome, nif, morada, codigoPostal? },
+     *   services: [ { descricao, art, qtd, incidencia, precoUnit, iva, total } ],
+     *   expenses?: [ { descricao, valor, iva, total } ],
+     *   totals: { servicos, despesas?, iva, total, valorPagar },
+     *   recibo: { numero, data, valorRecebido },
+     *   observacoes?: string,
+     *   qrcodeSrc?: string
+     * }
+     */
+    function invoiceApplyData(data) {
+      if (!data) return;
+
+      function setText(selector, value) {
+        var el = document.querySelector(selector);
+        if (el && value != null && value !== '') el.textContent = value;
+      }
+
+      function setAttr(selector, attr, value) {
+        var el = document.querySelector(selector);
+        if (el && value != null && value !== '') el.setAttribute(attr, value);
+      }
+
+      if (data.issuer) {
+        var i = data.issuer;
+        setText('[data-field="issuer.name"]', i.name);
+        setText('[data-field="issuer.nif"]', i.nif);
+        setText('[data-field="issuer.phone"]', i.phone);
+        setText('[data-field="issuer.email"]', i.email);
+        setText('[data-field="issuer.iban"]', i.iban);
+        setText('[data-field="issuer.morada"]', i.morada);
+        if (i.logo) setAttr('[data-field="issuer.logo"]', 'src', i.logo);
+      }
+
+      if (data.doc) {
+        setText('[data-field="doc.title"]', data.doc.title);
+        setText('[data-field="doc.date"]', data.doc.date);
+      }
+
+      if (data.client) {
+        var c = data.client;
+        setText('[data-field="client.nome"]', c.nome);
+        setText('[data-field="client.nif"]', c.nif);
+        setText('[data-field="client.morada"]', c.morada);
+        var cpEl = document.querySelector('[data-field="client.codigoPostal"]');
+        if (cpEl) {
+          cpEl.textContent = c.codigoPostal != null ? c.codigoPostal : '';
+          cpEl.closest('p').style.display = (c.codigoPostal != null && c.codigoPostal !== '') ? '' : 'none';
+        }
+      }
+
+      var tbody = document.getElementById('services-tbody');
+      if (data.services && Array.isArray(data.services) && tbody) {
+        tbody.innerHTML = '';
+        data.services.forEach(function(s) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + (s.descricao || '') + '</td>' +
+            '<td class="col-center">' + (s.art != null ? s.art : '') + '</td>' +
+            '<td class="col-center">' + (s.qtd != null ? s.qtd : '') + '</td>' +
+            '<td class="col-center">' + (s.incidencia || '') + '</td>' +
+            '<td class="col-right">' + (s.precoUnit != null ? s.precoUnit : '') + '</td>' +
+            '<td class="col-center">' + (s.iva != null ? s.iva : '') + '</td>' +
+            '<td class="col-right">' + (s.total != null ? s.total : '') + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+
+      var expTbody = document.getElementById('expenses-tbody');
+      var expSection = document.getElementById('expenses-section');
+      if (data.expenses && Array.isArray(data.expenses)) {
+        if (data.expenses.length === 0 && expSection) expSection.classList.add('hidden');
+        else if (expTbody) {
+          if (expSection) expSection.classList.remove('hidden');
+          expTbody.innerHTML = '';
+          data.expenses.forEach(function(e) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td>' + (e.descricao || '') + '</td>' +
+              '<td class="col-right">' + (e.valor != null ? e.valor : '') + '</td>' +
+              '<td class="col-center">' + (e.iva != null ? e.iva : '') + '</td>' +
+              '<td class="col-right">' + (e.total != null ? e.total : '') + '</td>';
+            expTbody.appendChild(tr);
+          });
+        }
+      }
+
+      if (data.totals) {
+        var t = data.totals;
+        setText('[data-field="totals.servicos"]', t.servicos);
+        setText('[data-field="totals.despesas"]', t.despesas);
+        setText('[data-field="totals.iva"]', t.iva);
+        setText('[data-field="totals.total"]', t.total);
+        setText('[data-field="totals.valorPagar"]', t.valorPagar);
+        var rowDesp = document.getElementById('row-despesas');
+        if (rowDesp) {
+          var hasDespesas = t.despesas != null && t.despesas !== '' && t.despesas !== '0,00 €';
+          rowDesp.classList.toggle('hidden-row', !hasDespesas);
+        }
+      }
+
+      if (data.recibo) {
+        var r = data.recibo;
+        setText('[data-field="recibo.numero"]', r.numero);
+        setText('[data-field="recibo.data"]', r.data);
+        setText('[data-field="recibo.valorRecebido"]', r.valorRecebido);
+      }
+
+      var notesBlock = document.getElementById('notes-block');
+      var notesSection = document.getElementById('notes-section');
+      if (data.observacoes != null && data.observacoes !== '') {
+        if (notesBlock) notesBlock.textContent = data.observacoes;
+        if (notesSection) notesSection.classList.remove('hidden');
+      } else if (data.observacoes === '') {
+        if (notesSection) notesSection.classList.add('hidden');
+      }
+
+      var qrImg = document.getElementById('invoice-qrcode');
+      var qrFallback = document.getElementById('qr-fallback');
+      var qrSrc = (data.qrcodeSrc && data.qrcodeSrc !== '') ? data.qrcodeSrc : DEFAULT_QR_URL;
+      if (qrImg) {
+        qrImg.src = qrSrc;
+        qrImg.style.display = 'block';
+      }
+      if (qrFallback) qrFallback.style.display = 'none';
+    }
+
+    if (window.INVOICE_DATA) {
+      document.addEventListener('DOMContentLoaded', function() {
+        invoiceApplyData(window.INVOICE_DATA);
+      });
+    }
+
+    /** Download da fatura como ficheiro HTML */
+    document.addEventListener('DOMContentLoaded', function() {
+      var btn = document.getElementById('btn-download');
+      if (!btn) return;
+      btn.addEventListener('click', function() {
+        var titleEl = document.querySelector('[data-field="doc.title"]');
+        var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
+        var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.html';
+        if (!fileName || fileName === '.html') fileName = 'fatura-recibo.html';
+        var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      });
+    });
+  </script>
+</body>
+</html>
