@@ -14167,8 +14167,13 @@ function buildINVOICE_DATA(dados) {
     const servicos = itens.filter(i => !/emolumentos|certidão|taxa|despesa/i.test((i.descricao || '')));
     const listaServicos = servicos.length ? servicos : [itens[0] || { descricao: 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || 0, valorTotal: fatura.valorTotal || 0 }];
     const subtotalServicos = listaServicos.reduce((s, i) => s + (parseFloat(i.valorTotal || i.precoUnitario) || 0), 0);
-    const despesas = (fatura.despesas || []).map(d => ({ valorTotal: parseFloat(d.valor || d.valorTotal || 0) }));
-    const subtotalDespesas = despesas.reduce((s, d) => s + (d.valorTotal || 0), 0);
+    const despesasBruto = (fatura.despesas || []).map(d => ({
+        descricao: d.descricao || d.tipo || 'Despesa',
+        valorNum: parseFloat(d.valor || d.valorTotal || 0)
+    }));
+    const despesasPadrao = Array.isArray((sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao))) ? (sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao) || []) : [];
+    const listaDespesas = despesasBruto.length ? despesasBruto : despesasPadrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorNum: parseFloat(d.valor || 0) }));
+    const subtotalDespesas = listaDespesas.reduce((s, d) => s + (d.valorNum || 0), 0);
     const totalGeral = parseFloat(fatura.valorTotal || fatura.valor || 0) || (subtotalServicos + subtotalDespesas);
     const retencao = parseFloat(fatura.retencao || 0);
     const valorPagar = totalGeral - retencao;
@@ -14210,6 +14215,12 @@ function buildINVOICE_DATA(dados) {
             iva: '0%',
             total: fmt(i.valorTotal || i.precoUnitario)
         })),
+        expenses: listaDespesas.map(d => ({
+            descricao: d.descricao || '',
+            valor: fmt(d.valorNum),
+            iva: '0%',
+            total: fmt(d.valorNum)
+        })),
         totals: {
             servicos: fmt(subtotalServicos),
             despesas: subtotalDespesas ? fmt(subtotalDespesas) : '0,00 €',
@@ -14223,7 +14234,7 @@ function buildINVOICE_DATA(dados) {
             data: fmtDate(fatura.dataEmissao || fatura.data),
             valorRecebido: fmt(valorRecebido)
         },
-        observacoes: fatura.notas || 'Artigo 16.º, n.º 6 do CIVA',
+        observacoes: fatura.notas || 'Artigo n.º 53 CIVA',
         qrcodeSrc: qrSrc
     };
 }

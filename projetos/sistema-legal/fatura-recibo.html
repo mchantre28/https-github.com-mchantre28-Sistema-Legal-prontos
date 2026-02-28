@@ -303,8 +303,6 @@
 
     .receipt-block {
       padding: var(--spacing-md) 0;
-      border-top: 1px solid var(--color-border);
-      border-bottom: 1px solid var(--color-border);
     }
 
     .receipt-block p {
@@ -325,8 +323,6 @@
 
     .notes-block {
       padding: var(--spacing-md);
-      border: 1px solid var(--color-border);
-      background: #fafafa;
       font-size: 10.5pt;
     }
 
@@ -422,6 +418,15 @@
 
     .action-bar .btn-print:hover {
       background: #1d4ed8;
+    }
+
+    .action-bar .btn-pdf {
+      background: #dc2626;
+      color: #fff;
+    }
+
+    .action-bar .btn-pdf:hover {
+      background: #b91c1c;
     }
 
     .action-bar .btn-download {
@@ -617,6 +622,7 @@
         <p>Tlm: <span data-field="issuer.phone">938057340</span></p>
         <p>Email: <span data-field="issuer.email">anapaulamedina09738@osae.pt</span></p>
         <p>IBAN: <span data-field="issuer.iban">PT50 0193 0000 10514937886 86</span></p>
+        <p>Sede: <span data-field="issuer.morada">Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa</span></p>
       </div>
     </header>
 
@@ -674,9 +680,9 @@
       </section>
 
     <!-- ========================= -->
-    <!-- 4b) TABELA DE DESPESAS (oculta se vazia) -->
+    <!-- 4b) TABELA DE DESPESAS (sempre visível) -->
     <!-- ========================= -->
-    <section class="expenses-section hidden" id="expenses-section">
+    <section class="expenses-section" id="expenses-section">
       <h2 class="section-title">Despesas</h2>
       <table class="data-table" role="grid">
         <thead>
@@ -737,7 +743,7 @@
     <!-- ========================= -->
     <section class="notes-section" id="notes-section">
       <h2 class="section-title">Observações</h2>
-      <div class="notes-block" data-field="observacoes" id="notes-block">Artigo 16.º, n.º 6 do CIVA</div>
+      <div class="notes-block" data-field="observacoes" id="notes-block">Artigo n.º 53 CIVA</div>
     </section>
 
     <!-- ========================= -->
@@ -752,11 +758,13 @@
   </div>
 
   <div class="action-bar" id="action-bar">
-    <button type="button" class="btn btn-print" id="btn-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button type="button" class="btn btn-print" id="btn-print" onclick="window.print()">Imprimir</button>
+    <button type="button" class="btn btn-pdf" id="btn-pdf">Guardar PDF</button>
     <button type="button" class="btn btn-download" id="btn-download">Download (HTML)</button>
-    <span class="hint">Ou use Ctrl+P para imprimir ou guardar como PDF.</span>
+    <span class="hint">Ou use Ctrl+P para imprimir. Guardar PDF descarrega o ficheiro para o computador.</span>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" id="html2pdf-script"></script>
   <script>
     var DEFAULT_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent('https://www.anapaulamedinasolicitadora.pt/');
     /**
@@ -796,6 +804,7 @@
         setText('[data-field="issuer.phone"]', i.phone);
         setText('[data-field="issuer.email"]', i.email);
         setText('[data-field="issuer.iban"]', i.iban);
+        if (i.morada != null) setText('[data-field="issuer.morada"]', i.morada);
         if (i.subtitle != null) setText('[data-field="issuer.subtitle"]', i.subtitle);
         var logoEl = document.querySelector('[data-field="issuer.logo"]');
         if (logoEl) {
@@ -942,26 +951,60 @@
       aplicarDadosQuandoPronto();
     }
 
-    /** Download da fatura como ficheiro HTML */
+    /** Guardar PDF no computador */
     document.addEventListener('DOMContentLoaded', function() {
+      var btnPdf = document.getElementById('btn-pdf');
+      if (btnPdf) {
+        btnPdf.addEventListener('click', function() {
+          var el = document.querySelector('.doc-page');
+          if (!el) el = document.body;
+          var titleEl = document.querySelector('[data-field="doc.title"]');
+          var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
+          var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.pdf';
+          if (!fileName || fileName === '.pdf') fileName = 'fatura-recibo.pdf';
+          if (typeof html2pdf !== 'undefined') {
+            btnPdf.disabled = true;
+            btnPdf.textContent = 'A gerar PDF…';
+            html2pdf().set({
+              margin: 10,
+              filename: fileName,
+              image: { type: 'jpeg', quality: 0.98 },
+              html2canvas: { scale: 2, useCORS: true },
+              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(el).save().then(function() {
+              btnPdf.disabled = false;
+              btnPdf.textContent = 'Guardar PDF';
+            }).catch(function() {
+              btnPdf.disabled = false;
+              btnPdf.textContent = 'Guardar PDF';
+              if (typeof window.print === 'function') window.print();
+            });
+          } else {
+            window.print();
+          }
+        });
+      }
+
+      /** Download da fatura como ficheiro HTML */
       var btn = document.getElementById('btn-download');
-      if (!btn) return;
-      btn.addEventListener('click', function() {
-        var titleEl = document.querySelector('[data-field="doc.title"]');
-        var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
-        var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.html';
-        if (!fileName || fileName === '.html') fileName = 'fatura-recibo.html';
-        var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = fileName;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
-      });
+      if (btn) {
+        btn.addEventListener('click', function() {
+          var titleEl = document.querySelector('[data-field="doc.title"]');
+          var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
+          var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.html';
+          if (!fileName || fileName === '.html') fileName = 'fatura-recibo.html';
+          var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+          var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = fileName;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(a.href);
+        });
+      }
     });
   </script>
 </body>
