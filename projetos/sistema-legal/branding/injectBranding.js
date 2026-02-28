@@ -30,7 +30,7 @@
 
   function getBaseUrl() {
     var base = (document.querySelector('base') && document.querySelector('base').href) || (window.location.origin + window.location.pathname);
-    return base.replace(/\/[^/]*$/, '/');
+    return base.charAt(base.length - 1) === '/' ? base : base + '/';
   }
 
   function blobToDataUrl(blob) {
@@ -44,8 +44,8 @@
 
   function loadLogoFromAsset() {
     var base = getBaseUrl();
-    // SVG primeiro (melhor qualidade), depois PNG
-    var paths = ['assets/ana.svg', 'assets/logo-solicitadora.svg', 'assets/ana.png', BRANDING.logoPathPng];
+    // ana.png existe em sistema-legal/assets/; tentar primeiro para evitar 404 no GitHub Pages
+    var paths = ['assets/ana.png', BRANDING.logoPathPng, 'assets/ana.svg', 'assets/logo-solicitadora.svg'];
     if (BRANDING.logoPathFallback) paths.push(BRANDING.logoPathFallback);
     var idx = 0;
     function tryNext() {

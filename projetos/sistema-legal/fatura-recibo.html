@@ -286,7 +286,6 @@
       padding: 10px 12px;
     }
 
-    .totals-table .row-retencao.hidden-row,
     .totals-table .row-despesas.hidden-row {
       display: none;
     }
@@ -605,7 +604,6 @@
     <header class="header">
       <div class="logo-wrap">
         <img src="" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
-        <p class="logo-subtitle" data-field="issuer.subtitle">ANA PAULA MEDINA SOLICITADORA</p>
       </div>
       <div class="issuer-block">
         <p class="issuer-name" data-field="issuer.name">Dra. Ana Paula Medina</p>
@@ -669,38 +667,8 @@
         </table>
       </section>
 
-      <section class="totals-section">
-        <table class="totals-table" role="grid">
-          <tr>
-            <td>Serviços/Produtos</td>
-            <td class="col-right" data-field="totals.servicos">500,00 €</td>
-          </tr>
-          <tr class="row-despesas" id="row-despesas">
-            <td>Despesas</td>
-            <td class="col-right" data-field="totals.despesas">15,00 €</td>
-          </tr>
-          <tr>
-            <td>IVA</td>
-            <td class="col-right" data-field="totals.iva">0,00 €</td>
-          </tr>
-          <tr class="row-total">
-            <td>Total</td>
-            <td class="col-right" data-field="totals.total">500,00 €</td>
-          </tr>
-          <tr class="row-retencao" id="row-retencao">
-            <td>Retenção na fonte (23%)</td>
-            <td class="col-right" data-field="totals.retencao">- 115,00 €</td>
-          </tr>
-          <tr class="row-pay">
-            <td>Valor a Pagar</td>
-            <td class="col-right" data-field="totals.valorPagar">385,00 €</td>
-          </tr>
-        </table>
-      </section>
-    </div>
-
     <!-- ========================= -->
-    <!-- 5) TABELA DE DESPESAS (oculta se vazia) -->
+    <!-- 4b) TABELA DE DESPESAS (oculta se vazia) -->
     <!-- ========================= -->
     <section class="expenses-section hidden" id="expenses-section">
       <h2 class="section-title">Despesas</h2>
@@ -716,6 +684,35 @@
         <tbody id="expenses-tbody"></tbody>
       </table>
     </section>
+
+    <!-- ========================= -->
+    <!-- 4c) RESUMO (Serviços, Despesas, IVA, Total, Valor a Pagar) -->
+    <!-- ========================= -->
+    <section class="totals-section">
+      <table class="totals-table" role="grid">
+        <tr>
+          <td>Serviços/Produtos</td>
+          <td class="col-right" data-field="totals.servicos">500,00 €</td>
+        </tr>
+        <tr class="row-despesas" id="row-despesas">
+          <td>Despesas</td>
+          <td class="col-right" data-field="totals.despesas">15,00 €</td>
+        </tr>
+        <tr>
+          <td>IVA</td>
+          <td class="col-right" data-field="totals.iva">0,00 €</td>
+        </tr>
+        <tr class="row-total">
+          <td>Total</td>
+          <td class="col-right" data-field="totals.total">515,00 €</td>
+        </tr>
+        <tr class="row-pay">
+          <td>Valor a Pagar</td>
+          <td class="col-right" data-field="totals.valorPagar">515,00 €</td>
+        </tr>
+      </table>
+    </section>
+    </div>
 
     <!-- ========================= -->
     <!-- 7) RECIBO                  -->
@@ -865,17 +862,11 @@
         setText('[data-field="totals.despesas"]', t.despesas);
         setText('[data-field="totals.iva"]', t.iva);
         setText('[data-field="totals.total"]', t.total);
-        setText('[data-field="totals.retencao"]', t.retencao);
         setText('[data-field="totals.valorPagar"]', t.valorPagar);
         var rowDesp = document.getElementById('row-despesas');
         if (rowDesp) {
           var hasDespesas = t.despesas != null && t.despesas !== '' && t.despesas !== '0,00 €';
           rowDesp.classList.toggle('hidden-row', !hasDespesas);
-        }
-        var rowRet = document.getElementById('row-retencao');
-        if (rowRet) {
-          var hasRetencao = t.retencao != null && t.retencao !== '';
-          rowRet.classList.toggle('hidden-row', !hasRetencao);
         }
       }
 
