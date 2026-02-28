@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Legal - Gestão Jurídica</title>
+    <!-- No GitHub Pages: redirecionar para a app atualizada (projetos/sistema-legal) -->
+    <script>
+      (function(){
+        if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+        if (/\/projetos\/sistema-legal(\/|$)/.test(location.pathname)) return;
+        var base = (location.pathname || '/').replace(/\/index\.html$/i, '').replace(/\/$/, '') || '';
+        location.replace(location.origin + base + '/projetos/sistema-legal/');
+      })();
+    </script>
     <meta name="theme-color" content="#111827">
     <!-- Manifest só em http(s) para evitar CORS ao abrir por file:// -->
     <script>
@@ -147,6 +156,9 @@
                 Histórico
             </a>
             </nav>
+            <div class="mt-6 pt-4 border-t border-gray-600 flex justify-center">
+                <a href="https://www.anapaulamedinasolicitadora.pt/" target="_blank" rel="noopener" aria-label="Site — anapaulamedinasolicitadora.pt"><img src="qr-anapaulamedinasolicitadora.png" alt="QR Code site" width="80" height="80" class="rounded"></a>
+            </div>
         </div>
     </div>
     <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
