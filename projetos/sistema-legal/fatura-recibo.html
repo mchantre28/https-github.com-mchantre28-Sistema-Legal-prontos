@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Logo: carregar localmente para o iframe/janela ter sempre a imagem (evita falha por tamanho no sessionStorage). -->
+  <script src="logo-data.js"></script>
   <!--
     Template Fatura/Recibo — Fonte única no repo (billing/). Cabeçalho à esquerda, logo à direita.
     Preencher via window.INVOICE_DATA ou data-*. Sync para sistema-legal via GitHub Action.
@@ -597,7 +599,7 @@
     <!-- ========================= -->
     <header class="header">
       <div class="logo-wrap">
-        <img src="assets/ana.jpg" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
+        <img src="" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
         <p class="logo-subtitle" data-field="issuer.subtitle">ANA PAULA MEDINA SOLICITADORA</p>
       </div>
       <div class="issuer-block">
@@ -787,7 +789,11 @@
         setText('[data-field="issuer.email"]', i.email);
         setText('[data-field="issuer.iban"]', i.iban);
         if (i.subtitle != null) setText('[data-field="issuer.subtitle"]', i.subtitle);
-        if (i.logo) setAttr('[data-field="issuer.logo"]', 'src', i.logo);
+        var logoEl = document.querySelector('[data-field="issuer.logo"]');
+        if (logoEl) {
+          var logoSrc = (i.logo && i.logo.trim()) ? i.logo : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
+          logoEl.src = logoSrc || 'assets/High-resolution%20SVG-.png';
+        }
       }
 
       if (data.doc) {
