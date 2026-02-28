@@ -6127,7 +6127,8 @@ function configurarEventos() {
         e.preventDefault();
         e.stopPropagation();
         try {
-            if (acao === 'baixar') baixarDocumento(id);
+            if (acao === 'abrir') abrirDocumento(id);
+            else if (acao === 'baixar') baixarDocumento(id);
             else if (acao === 'imprimir') imprimirDocumento(id);
             else if (acao === 'excluir') excluirDocumento(id);
         } catch (err) {
@@ -8588,7 +8589,7 @@ function renderDocumentosClienteModal(documentos, termo) {
                             ${documentoMaisRecente && doc === documentoMaisRecente ? `<span style="margin-left: 6px; font-size: 11px; color: #0f766e; font-weight: 600;">Mais recente</span>` : ''}<br>
                             <span style="color: #6b7280; font-size: 14px;">${doc.descricao || 'Sem descrição'}</span><br>
                             <span style="color: #6b7280; font-size: 12px;">Data: ${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : 'N/D'}</span>
-                            ${doc.conteudo ? `
+                            ${(doc.conteudo || (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html'))) ? `
                                 <div style="margin-top: 6px;">
                                     <button onclick="abrirDocumentoClienteModal(${docIdx})" style="font-size: 12px; color: #2563eb; text-decoration: underline; background: transparent; border: none; padding: 0; cursor: pointer;">
                                         Abrir documento
@@ -12933,12 +12934,12 @@ function gerarHtmlFaturaBilling(dados) {
         const q = parseFloat(i.quantidade || 1);
         const p = parseFloat(i.precoUnitario || i.valorTotal || 0);
         const t = parseFloat(i.valorTotal || 0) || p * q;
-        return `<tr><td>${(i.descricao || '').substring(0, 50)}</td><td>7</td><td>${q.toFixed(2)}</td><td>isento</td><td>${fmt(p)}</td><td>0%</td><td>${fmt(t)}</td></tr>`;
+        return `<tr><td>${(i.descricao || '').substring(0, 80)}</td><td class="center">7</td><td class="center">${q.toFixed(0)}</td><td class="center">isento</td><td class="right">${fmt(p)}</td><td class="center">0%</td><td class="right">${fmt(t)}</td></tr>`;
     }).join('');
 
     const rowsDespesas = despesas.map(i => {
         const t = parseFloat(i.valorTotal || i.precoUnitario || 0);
-        return `<tr><td>${(i.descricao || '').substring(0, 50)}</td><td>${fmt(i.precoUnitario || i.valorTotal || 0)}</td><td>0%</td><td>${fmt(t)}</td></tr>`;
+        return `<tr><td>${(i.descricao || '').substring(0, 80)}</td><td class="right">${fmt(i.precoUnitario || i.valorTotal || 0)}</td><td class="center">0%</td><td class="right">${fmt(t)}</td></tr>`;
     }).join('');
 
     let observacoes = fatura.notas || 'Artigo n.º 53 CIVA';
@@ -12955,84 +12956,98 @@ function gerarHtmlFaturaBilling(dados) {
         : `<tr><td>${numero}</td><td>${fmtDate(dataEmissao)}</td><td>${fmt(valorAPagar)}</td><td>0,00 ${EURO_HTML}</td></tr>`;
 
     const b = typeof window.BRANDING !== 'undefined' ? window.BRANDING : {};
-    const headerH = (b.headerHeight != null) ? b.headerHeight : 110;
-    const logoW = (b.logoWidth != null) ? b.logoWidth : 190;
     const docStyles = (b.documentStyles != null) ? b.documentStyles : '';
-    const fontStack = (b.fontFamily != null) ? b.fontFamily : "'Inter','Lato','Roboto','Segoe UI',Arial,sans-serif";
-    const lineH = (b.lineHeight != null) ? b.lineHeight : 1.35;
-    const padMm = (b.marginMm != null) ? b.marginMm : 25;
-    const padPx = Math.round(padMm * 3.78) + 'px';
-    // Estilo de referência: cabeçalhos cinza claro, logo AP nítida (130px), sem Desconto/Und.medida, IVA sempre 0,00 €, Valor a Pagar em cinza (#374151). Não alterar estrutura.
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Fatura/Recibo ${numero}</title><style>
+    const geradoEm = new Date().toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    /* Estrutura igual à imagem: simples, preto e branco, logo legível no quadrado cinza, emitente à direita */
+    const billingCss = `
 ${docStyles ? docStyles + '\n' : ''}
-html,body,.invoice-body{font-family:${fontStack};font-size:12px;color:#1a1a1a;margin:0;padding:${padPx};background:#fff!important;line-height:${lineH}}
-.invoice-container{max-width:210mm;margin:0 auto;background:#fff}
-.action-bar{margin-top:24px;padding:14px 0;border-top:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:11px;background:#f8fafc;border-radius:6px;padding-left:12px}
-@media print{.action-bar{display:none!important}.invoice-container{page-break-inside:avoid;max-height:none}body,.invoice-body{padding:15px 20px!important;margin:0!important}html,body{height:auto;overflow:visible}.header{margin-bottom:10px;padding-bottom:8px}.client-section,.doc-info{margin-bottom:12px}.items{margin-bottom:10px}.totals-wrap,.recibo-block,.observacoes-section{margin-bottom:12px}.footer{margin-top:14px;padding-top:8px}}
-.header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:15px;padding-bottom:10px;border-bottom:1px solid #aaa;box-sizing:border-box}
-.header-left{flex-shrink:0}
-.branding-logo,.logo{width:220px;max-width:220px;min-width:220px;height:auto;flex-shrink:0;display:block;object-fit:contain}
-.issuer-info{text-align:right;min-width:180px}
-.issuer-info .firma,.issuer-info h1{font-size:16px;font-weight:600;margin:0 0 6px;color:#222}
-.issuer-info .titulo{display:none}
-.issuer-info p{margin:2px 0;font-size:11px;color:#222}
-.divider{margin:12px 0;border:none;border-top:1px solid #aaa}
-.doc-info{margin-bottom:18px;text-align:left}
-.doc-info h3{margin:0 0 4px;font-size:15px;font-weight:600;color:#222}
-.doc-info .doc-meta{font-size:11px;color:#222;margin:0}
-.totals .total-row td,.totals .pay-row td{background:#e5e7eb;font-weight:700}
-.client-section{margin-bottom:18px}
-.client-section h4{margin:0 0 6px;font-size:12px;font-weight:600;color:#222}
-.client-section p{margin:2px 0;font-size:11px}
-.client-section p.client-name{font-size:inherit;font-weight:600;color:#222}
-.items{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:15px}
-.items th{background:#f5f5f5;color:#222;border:1px solid #ccc;padding:6px 8px;text-align:left}
-.items td{border:1px solid #ccc;padding:6px 8px}
-.items tbody tr:nth-child(even){background:#fafafa}
-.despesas-title,.section-title{margin:12px 0 6px;font-size:12px;font-weight:600;color:#222}
-.totals-wrap{display:flex;justify-content:flex-end;margin-bottom:18px}
-.totals{min-width:220px;border-collapse:collapse;font-size:11px}
-.totals td{padding:5px 12px;border:1px solid #ccc}
-.totals td:first-child{background:#f8f8f8}
-.totals .total-row td{font-weight:bold}
-.totals .pay-row td{font-size:13px;font-weight:bold;background:#f0f0f0;color:#222}
-.recibo-block{margin-bottom:18px}
-.recibo-block h4{margin:0 0 6px;font-size:12px;font-weight:600}
-.recibo-block p{margin:2px 0;font-size:11px}
-.observacoes-section{margin-bottom:20px}
-.observacoes-section h4{margin:0 0 6px;font-size:12px;font-weight:600}
-.observacoes-section .obs-text{margin:6px 0;font-size:11px;color:#374151}
-.footer{text-align:right;margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb}
-.qrcode{width:90px;height:90px;border:1px solid #e5e7eb;border-radius:4px}
-@media print{.client-section,.doc-info,.items,.totals-wrap,.recibo-block,.observacoes-section{page-break-inside:avoid}}
-</style></head><body class="invoice-body"><div class="invoice-container">
-<div class="header">
-<div class="header-left">${logoHtml}
+.invoice-body{margin:0;padding:24px 32px;font-family:Arial,sans-serif;font-size:12px;line-height:1.35;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.invoice-container{max-width:210mm;margin:0 auto}
+.action-bar{margin-top:20px;padding:12px;border-top:1px solid #000;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;background:#fff;color:#000}
+@media print{.action-bar{display:none!important}.invoice-container{page-break-inside:avoid}body,.invoice-body{padding:24px 32px!important;margin:0!important}html,body{height:auto;overflow:visible}}
+.header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:0;padding-bottom:12px;border-bottom:1px solid #000}
+.header-left{flex-shrink:0;background:#e8e8e8;padding:10px;border:1px solid #999;box-sizing:border-box}
+.branding-logo,.logo{width:220px;max-width:220px;height:auto;object-fit:contain;display:block;image-rendering:crisp-edges}
+.issuer-info{flex:1;text-align:right;min-width:200px}
+.issuer-info h2{margin:0 0 6px 0;font-size:18px;font-weight:700;color:#000}
+.issuer-info p{margin:3px 0;font-size:11px;color:#000}
+.doc-title-block{text-align:left;margin-bottom:16px}
+.doc-title-block .doc-type{margin:0 0 2px 0;font-size:15pt;font-weight:700;color:#000}
+.doc-title-block .doc-date{margin:0;font-size:11pt;color:#000}
+.client-section{margin-bottom:14px}
+.section-title{margin:0 0 6px 0;font-size:11pt;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:#000}
+.client-block{padding:0;margin-top:2px}
+.client-name{margin:0 0 2px 0;font-weight:600;color:#000;font-size:12px}
+.client-detail,.client-address{margin:2px 0;font-size:11pt;color:#000}
+.items-section{margin-bottom:14px}
+.items-table{width:100%;border-collapse:collapse;font-size:11pt;color:#000}
+.items-table th,.items-table td{padding:6px 8px;border:1px solid #000}
+.items-table th{background:#fff;font-weight:600;text-align:left;color:#000}
+.items-table tbody tr:nth-child(even){background:#fafafa}
+.items-table td{color:#000}
+.totals-section{margin-bottom:14px}
+.totals{display:flex;justify-content:flex-end;width:100%}
+.totals-table{min-width:220px;width:100%;border-collapse:collapse;font-size:11pt;color:#000}
+.totals-table td{padding:5px 10px;border:1px solid #000}
+.totals-table td:first-child{background:#fff}
+.totals-table .right{text-align:right;font-variant-numeric:tabular-nums}
+.totals-table .total-row td{font-weight:700;background:#fff;color:#000}
+.totals-table .amount-due-row td{font-weight:700;background:#fff;color:#000;font-size:11pt}
+.receipt-section{margin-bottom:14px}
+.receipt-block{padding:12px 0;background:#fff;border:none;border-top:1px solid #000;border-bottom:1px solid #000}
+.receipt-block p{margin:3px 0;font-size:11pt;color:#000}
+.notes-section{margin-bottom:14px}
+.notes-block{padding:12px 0;background:#fff;border:none;white-space:pre-wrap;font-size:11pt;color:#000}
+.footer{text-align:right;margin-top:24px;padding-top:12px;border-top:1px solid #000;color:#000}
+.qrcode{width:90px;height:90px;object-fit:contain;border:1px solid #000}
+@media print{.client-section,.doc-title-block,.items-section,.totals-section,.receipt-section,.notes-section{page-break-inside:avoid}}
+`;
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-store,no-cache"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Fatura/Recibo ${numero}</title><style>${billingCss}</style></head><body class="invoice-body"><div class="invoice-container">
+<header class="header">
+  <div class="header-left">${logoHtml}</div>
+  <div class="issuer-info">
+    <h2>${(sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina')}</h2>
+    ${sol.nif ? `<p>NIF: ${fmtNif(sol.nif)}</p>` : ''}<p>Tlm: ${sol.contacto || ''}</p><p>Email: ${sol.email || ''}</p><p>IBAN: ${sol.iban || ''}</p><p>Sede: ${sol.sede || ''}</p>
+  </div>
+</header>
+<div class="doc-title-block">
+  <h2 class="doc-type">Fatura/Recibo ${numero}</h2>
+  <p class="doc-date">Data: ${fmtDate(dataEmissao)}</p>
 </div>
-<div class="issuer-info">
-<div class="firma">${(sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina')}</div>
-${sol.nif ? `<p>NIF: ${fmtNif(sol.nif)}</p>` : ''}<p>Tlm: ${sol.contacto || ''}</p><p>Email: ${sol.email || ''}</p><p>IBAN: ${sol.iban || ''}</p><p>Sede: ${sol.sede || ''}</p>
-</div></div>
-<div class="doc-info"><h3>Fatura/Recibo ${numero}</h3><p class="doc-meta">Data: ${fmtDate(dataEmissao)}</p></div>
-<div class="client-section"><h4>Cliente</h4><p class="client-name nome-fatura">${cliente.nome || ''}</p>
-${cliente.nif || cliente.documento ? `<p>NIF: ${fmtNif(cliente.nif || cliente.documento)}</p>` : ''}
-<p>${(cliente.morada || cliente.endereco || '').toString().replace(/\n/g, ', ')}</p>
-<p>${(cliente.codigoPostal || '')} ${(cliente.localidade || '')}</p></div>
-<table class="items"><thead><tr><th>Descrição</th><th>Art.</th><th>Qtd</th><th>Incidência</th><th>Preço Unit.</th><th>IVA %</th><th>Total</th></tr></thead><tbody>${rowsServicos}</tbody></table>
-${despesas.length ? `<h4 class="despesas-title">Despesas</h4><table class="items despesas-table"><thead><tr><th>Descrição</th><th>Valor</th><th>IVA %</th><th>Total</th></tr></thead><tbody>${rowsDespesas}</tbody></table>` : ''}
-<div class="totals-wrap"><table class="totals">
-<tr><td>Serviços/Produtos</td><td>${fmt(subtotalServicos)}</td></tr>
-${despesas.length ? `<tr><td>Despesas</td><td>${fmt(subtotalDespesas)}</td></tr>` : ''}
-<tr><td>IVA</td><td>0,00 ${EURO_HTML}</td></tr>
-<tr class="total-row"><td>Total</td><td>${fmt(totalComIva)}</td></tr>
-<tr class="pay-row"><td>Valor a Pagar</td><td>${fmt(valorAPagar)}</td></tr></table></div>
-${incluirRecibo ? `<div class="recibo-block"><h4 class="section-title">Recibo</h4><p><strong>Nº:</strong> ${numero}</p><p><strong>Data:</strong> ${fmtDate(dataEmissao)}</p><p><strong>Valor Recebido:</strong> ${fmt(valorAPagar)}</p></div>` : ''}
-<div class="observacoes-section"><h4>Observações</h4><p class="obs-text">${observacoes}</p></div>
-<div class="footer"><img src="${qrSrc}" class="qrcode" alt="QR Code"/></div>
+<section class="client-section">
+  <h3 class="section-title">Cliente</h3>
+  <div class="client-block">
+    <p class="client-name">${cliente.nome || ''}</p>
+    ${cliente.nif || cliente.documento ? `<p class="client-detail">NIF: ${fmtNif(cliente.nif || cliente.documento)}</p>` : ''}
+    <p class="client-address">${(cliente.morada || cliente.endereco || '').toString().replace(/\n/g, ', ')}</p>
+    <p class="client-address">${(cliente.codigoPostal || '')} ${(cliente.localidade || '')}</p>
+  </div>
+</section>
+<section class="items-section">
+  <table class="items-table">
+    <thead><tr><th>Descrição</th><th>Art.</th><th>Qtd</th><th>Incidência</th><th>Preço Unit.</th><th>IVA %</th><th>Total</th></tr></thead>
+    <tbody>${rowsServicos}</tbody>
+  </table>
+</section>
+${despesas.length ? `<section class="items-section"><h3 class="section-title">Despesas</h3><table class="items-table"><thead><tr><th>Descrição</th><th>Valor</th><th>IVA %</th><th>Total</th></tr></thead><tbody>${rowsDespesas}</tbody></table></section>` : ''}
+<section class="totals-section">
+  <div class="totals">
+    <table class="totals-table">
+      <tr><td>Serviços/Produtos</td><td class="right">${fmt(subtotalServicos)}</td></tr>
+      ${despesas.length ? `<tr><td>Despesas</td><td class="right">${fmt(subtotalDespesas)}</td></tr>` : ''}
+      <tr><td>IVA</td><td class="right">0,00 ${EURO_HTML}</td></tr>
+      <tr class="total-row"><td><strong>Total</strong></td><td class="right"><strong>${fmt(totalComIva)}</strong></td></tr>
+      <tr class="amount-due-row"><td><strong>Valor a Pagar</strong></td><td class="right"><strong>${fmt(valorAPagar)}</strong></td></tr>
+    </table>
+  </div>
+</section>
+${incluirRecibo ? `<section class="receipt-section"><h3 class="section-title">Recibo</h3><div class="receipt-block"><p><strong>Nº:</strong> ${numero}</p><p><strong>Data:</strong> ${fmtDate(dataEmissao)}</p><p><strong>Valor Recebido:</strong> ${fmt(valorAPagar)}</p></div></section>` : ''}
+<section class="notes-section"><h3 class="section-title">Observações</h3><div class="notes-block">${observacoes}</div></section>
+<div class="footer"><img src="${qrSrc}" class="qrcode" alt="QR Code"/><p style="margin-top:8px;font-size:10px;color:#000">Gerado em: ${geradoEm}</p></div>
 <div class="action-bar">
-<button type="button" onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">Imprimir / Guardar PDF</button>
-<button type="button" onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Fechar</button>
-<span style="color:#6b7280;margin-left:8px">Ou use Ctrl+P para imprimir. Feche esta janela quando terminar.</span>
+  <button type="button" onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">Imprimir / Guardar PDF</button>
+  <button type="button" onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">Fechar</button>
+  <span style="color:#6b7280;margin-left:8px">Ou use Ctrl+P para imprimir. Feche esta janela quando terminar.</span>
 </div></div></body></html>`;
 }
 
@@ -13108,9 +13123,14 @@ function toggleCamposProcuracaoAima() {
 /** Atualiza a área de texto com o conteúdo do modelo selecionado (permite adaptar antes de gerar PDF). */
 function atualizarPreviewTemplateDocumento() {
     const modeloId = document.getElementById('templateModelo')?.value || '';
+    const wrapTexto = document.getElementById('templateConteudoWrap');
+    const wrapFatura = document.getElementById('templatePreviewFaturaWrap');
+    const iframeFatura = document.getElementById('templatePreviewFatura');
     if (!modeloId) {
         const ta = document.getElementById('templateConteudoAdaptavel');
         if (ta) ta.value = '';
+        if (wrapTexto) wrapTexto.classList.remove('hidden');
+        if (wrapFatura) wrapFatura.classList.add('hidden');
         return;
     }
     const dados = obterDadosTemplateDocumento(true);
@@ -13127,9 +13147,38 @@ function atualizarPreviewTemplateDocumento() {
     if (!dadosPreview.cliente) {
         dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
     }
-    const conteudo = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
-    const ta = document.getElementById('templateConteudoAdaptavel');
-    if (ta) ta.value = conteudo;
+    if (modeloId === 'fatura_recibo' && dadosPreview.fatura && typeof gerarHtmlFaturaBilling === 'function') {
+        try {
+            dadosPreview.qrBase64 = '';
+            const html = gerarHtmlFaturaBilling(dadosPreview);
+            if (wrapTexto) wrapTexto.classList.add('hidden');
+            if (wrapFatura) wrapFatura.classList.remove('hidden');
+            if (iframeFatura && html) {
+                const doc = iframeFatura.contentDocument || iframeFatura.contentWindow.document;
+                doc.open();
+                doc.write(html);
+                doc.close();
+            }
+        } catch (e) {
+            console.warn('Preview fatura falhou, a mostrar texto:', e);
+            if (wrapFatura) wrapFatura.classList.add('hidden');
+            if (wrapTexto) wrapTexto.classList.remove('hidden');
+            const conteudo = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
+            const ta = document.getElementById('templateConteudoAdaptavel');
+            if (ta) ta.value = conteudo;
+        }
+    } else {
+        if (wrapFatura) wrapFatura.classList.add('hidden');
+        if (wrapTexto) wrapTexto.classList.remove('hidden');
+        const ta = document.getElementById('templateConteudoAdaptavel');
+        if (ta) {
+            if (modeloId === 'fatura_recibo') {
+                ta.value = dadosPreview.fatura ? '' : 'Selecione uma fatura na lista acima para ver a pré-visualização em formato profissional.';
+            } else {
+                ta.value = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
+            }
+        }
+    }
     setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
 }
 
@@ -13854,7 +13903,13 @@ function gerarDocumentos() {
                     </div>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Adaptar texto antes de gerar PDF</label>
-                        <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
+                        <div id="templateConteudoWrap">
+                            <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
+                        </div>
+                        <div id="templatePreviewFaturaWrap" class="hidden">
+                            <iframe id="templatePreviewFatura" style="width:100%;height:520px;border:1px solid #d1d5db;border-radius:6px;background:#fff;" title="Pré-visualização da fatura"></iframe>
+                            <p class="text-xs text-gray-500 mt-1">Fatura em formato profissional. Use «PDF / Imprimir» ou «Guardar no cliente» conforme necessário.</p>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário. Os dados da solicitadora estão em DADOS_SOLICITADORA no script.js</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -14011,7 +14066,10 @@ function renderizarListaDocumentos(lista) {
                     <div class="text-xs text-gray-400">${doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleString('pt-PT') : ''}</div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button type="button" data-documento-acao="baixar" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800" title="Guardar ficheiro HTML no computador">
+                    <button type="button" data-documento-acao="abrir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800" title="Abrir documento">
+                        <i data-lucide="external-link" class="w-4 h-4" style="pointer-events:none"></i>
+                    </button>
+                    <button type="button" data-documento-acao="baixar" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800" title="Guardar ficheiro no computador">
                         <i data-lucide="download" class="w-4 h-4" style="pointer-events:none"></i>
                     </button>
                     <button type="button" data-documento-acao="imprimir" data-documento-id="${String(doc.id).replace(/"/g, '&quot;')}" class="text-gray-600 hover:text-gray-800" title="Abrir e imprimir (ou guardar PDF)">
@@ -14094,11 +14152,11 @@ function uploadDocumento() {
     reader.readAsDataURL(arquivo);
 }
 
-/** Abre HTML numa nova janela (usa Blob URL para renderizar corretamente). */
+/** Abre HTML numa nova janela (usa Blob URL para renderizar corretamente). Nome fixo para reutilizar a mesma janela e atualizar o conteúdo. */
 function abrirHtmlNovaJanela(html, autoPrint) {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const janela = window.open(url, '_blank', 'noopener,noreferrer');
+    const janela = window.open(url, 'FaturaRecibo', 'noopener,noreferrer');
     if (!janela) {
         URL.revokeObjectURL(url);
         return null;
@@ -14210,6 +14268,16 @@ function baixarDocumento(id) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+/** Abre o documento numa nova janela (ver conteúdo). Admin e convidado têm o mesmo acesso. */
+function abrirDocumento(id) {
+    const doc = obterDocumentosAtual().find(d => String(d.id) === String(id));
+    if (!doc) {
+        mostrarNotificacao('Documento não encontrado.', 'error');
+        return;
+    }
+    abrirDocumentoEmNovaAba(doc);
 }
 
 function imprimirDocumento(id) {
