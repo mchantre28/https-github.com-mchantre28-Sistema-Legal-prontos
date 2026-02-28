@@ -68,15 +68,8 @@
   }
 
   setLogoEmpty();
-  if (typeof window.location !== 'undefined' && window.location.protocol === 'file:') {
-    // Abrir por file://: fetch dá CORS. A logo vem do logo-data.js (carregado a seguir).
-  } else {
-    loadLogoFromAsset().then(function(ok) {
-      if (!ok && (!window.LOGO_DATA_URI || !window.LOGO_DATA_URI.length) && typeof console !== 'undefined' && console.warn) {
-        console.warn('Branding: coloque a logo em assets/ana.png ou assets/logo-solicitadora.png');
-      }
-    });
-  }
+  // A logo é definida por logo-data.js (carregado a seguir no index e no fatura-recibo). Evitar fetch aqui para não gerar 404 na consola.
+  // Se precisar de fallback por fetch: loadLogoFromAsset().then(...)
 
   window.BRANDING = BRANDING;
 
