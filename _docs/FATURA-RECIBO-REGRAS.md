@@ -9,7 +9,7 @@
 5. **Tabela de Despesas** — Descrição, Valor, IVA %, Total  
 6. **Resumo Financeiro** — Serviços/Produtos, Despesas, IVA, Total, Valor a Pagar  
 7. **Recibo** — Número, Data, Valor Recebido  
-8. **Observações** — Texto livre (ex.: Artigo n.º 53 CIVA)
+8. **Observações** — Texto livre (ex.: Artigo n.º 53 do CIVA)
 
 ## Regras
 

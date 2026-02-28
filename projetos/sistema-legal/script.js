@@ -4646,7 +4646,7 @@ async function gerarFaturaAutomatica(honorarioId) {
         itens: itensFatura,
         despesas: despesasArray,
         observacoes: descricaoServico,
-        notas: 'Artigo n.º 53 CIVA'
+        notas: 'Artigo n.º 53 do CIVA'
     };
     
     // Guardar fatura (Firestore ou localStorage)
@@ -12883,7 +12883,7 @@ function gerarConteudoFaturaRecibo(dados) {
         '',
         'Artigo 7 Honorários: ' + valorBase.toFixed(2) + '  |  Impostos: ' + iva.toFixed(2) + '  |  Total: ' + valorTotal.toFixed(2),
         '',
-        'Artigo n.º 53 CIVA',
+        'Artigo n.º 53 do CIVA',
         '',
         'Recibos:',
         ...(pagamentos.length > 0 ? pagamentos.map((p, i) => `  Recibo REC ${ano}REC${String(i + 1).padStart(3, '0')}/1 | ${(p.dataPagamento || p.data || '').toString().split('T')[0]} | Valor Recebido: ${(parseFloat(p.valor) || 0).toFixed(2)} | Retenção: ${retencao.toFixed(2)}`) : ['  (Nenhum recibo registado)']),
@@ -12942,8 +12942,8 @@ function gerarHtmlFaturaBilling(dados) {
         return `<tr><td>${(i.descricao || '').substring(0, 80)}</td><td class="right">${fmt(i.precoUnitario || i.valorTotal || 0)}</td><td class="center">0%</td><td class="right">${fmt(t)}</td></tr>`;
     }).join('');
 
-    let observacoes = fatura.notas || 'Artigo n.º 53 CIVA';
-    if (observacoes.includes('Artigo n.º 53') && !observacoes.includes('CIVA')) observacoes = 'Artigo n.º 53 CIVA';
+    let observacoes = fatura.notas || 'Artigo n.º 53 do CIVA';
+    if (observacoes.includes('Artigo n.º 53') && !observacoes.includes('do CIVA')) observacoes = 'Artigo n.º 53 do CIVA';
     const pagamentosLista = Array.isArray(dados.pagamentos) ? dados.pagamentos : [];
     const ano = new Date().getFullYear();
     const rowsRecibos = pagamentosLista.length > 0
@@ -14155,14 +14155,15 @@ function uploadDocumento() {
     reader.readAsDataURL(arquivo);
 }
 
-/** Converte dados da fatura (fatura, cliente, solicitadora, pagamentos) para INVOICE_DATA do template fatura-recibo.html */
+/** Converte dados da fatura para INVOICE_DATA do template fatura-recibo.html.
+ *  Cálculos validados: total = subtotal serviços + subtotal despesas; valor a pagar = total - retenção; valor recebido = soma dos pagamentos. */
 function buildINVOICE_DATA(dados) {
     const fatura = dados.fatura;
     const cliente = dados.cliente || {};
     const sol = dados.solicitadora || DADOS_SOLICITADORA || {};
     const fmt = (v) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(parseFloat(v) || 0);
     const fmtNif = (n) => (n || '').replace(/\s/g, '').replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
-    const fmtDate = (d) => (d || '').toString().split('T')[0].split('-').reverse().join('/');
+    const fmtDate = (d) => { const s = (d || '').toString().split('T')[0]; if (!s || s.length < 10) return ''; const [y, m, day] = s.split('-'); return day && m && y ? `${day}/${m}/${y}` : s.split('-').reverse().join('/'); };
     const itens = fatura.itens || [{ descricao: fatura.observacoes || 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || fatura.valor || 0, valorTotal: fatura.valorTotal || fatura.valor || 0 }];
     const servicos = itens.filter(i => !/emolumentos|certidão|taxa|despesa/i.test((i.descricao || '')));
     const listaServicos = servicos.length ? servicos : [itens[0] || { descricao: 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || 0, valorTotal: fatura.valorTotal || 0 }];
@@ -14174,7 +14175,7 @@ function buildINVOICE_DATA(dados) {
     const despesasPadrao = Array.isArray((sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao))) ? (sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao) || []) : [];
     const listaDespesas = despesasBruto.length ? despesasBruto : despesasPadrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorNum: parseFloat(d.valor || 0) }));
     const subtotalDespesas = listaDespesas.reduce((s, d) => s + (d.valorNum || 0), 0);
-    const totalGeral = parseFloat(fatura.valorTotal || fatura.valor || 0) || (subtotalServicos + subtotalDespesas);
+    const totalGeral = subtotalServicos + subtotalDespesas;
     const retencao = parseFloat(fatura.retencao || 0);
     const valorPagar = totalGeral - retencao;
     const pagamentosLista = Array.isArray(dados.pagamentos) ? dados.pagamentos : [];
@@ -14234,7 +14235,7 @@ function buildINVOICE_DATA(dados) {
             data: fmtDate(fatura.dataEmissao || fatura.data),
             valorRecebido: fmt(valorRecebido)
         },
-        observacoes: fatura.notas || 'Artigo n.º 53 CIVA',
+        observacoes: fatura.notas || 'Artigo n.º 53 do CIVA',
         qrcodeSrc: qrSrc
     };
 }

@@ -46,7 +46,9 @@
        ============================================ */
     body {
       margin: 0;
-      padding: 0;
+      padding: 24px;
+      width: 100%;
+      min-width: 100%;
       font-family: var(--font-sans);
       font-size: 11pt;
       line-height: 1.45;
@@ -55,20 +57,92 @@
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
       overflow-x: visible;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
     }
 
     html {
       overflow-x: visible;
+      width: 100%;
     }
 
     .doc-page {
-      max-width: var(--page-width);
-      min-height: var(--page-height);
-      margin: 0 auto;
+      width: var(--page-width);
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
       padding: 18mm 20mm;
       background: var(--color-bg);
       overflow: visible;
+      text-align: left;
+      box-sizing: border-box;
     }
+
+    /* PDF: conteúdo desde o topo, página cheia, uma só página */
+    body.pdf-export .action-bar {
+      display: none !important;
+    }
+    body.pdf-export {
+      padding: 0;
+      margin: 0;
+      min-height: 0;
+    }
+    body.pdf-export .doc-page {
+      padding: 12mm 16mm;
+      margin: 0 auto;
+      width: 210mm;
+      max-width: 210mm;
+      box-sizing: border-box;
+    }
+    body.pdf-export .header {
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+    }
+    body.pdf-export .issuer-block p,
+    body.pdf-export .client-block p {
+      margin: 2px 0;
+      font-size: 10pt;
+      line-height: 1.35;
+    }
+    body.pdf-export .issuer-name { font-size: 12pt; margin-bottom: 4px; }
+    body.pdf-export .doc-title-block { margin-bottom: 8px; }
+    body.pdf-export .doc-title { font-size: 12pt; margin: 0 0 2px; }
+    body.pdf-export .doc-date { font-size: 10pt; }
+    body.pdf-export .section-title { margin: 6px 0 3px; font-size: 10pt; }
+    body.pdf-export .client-section,
+    body.pdf-export .services-and-totals,
+    body.pdf-export .expenses-section,
+    body.pdf-export .totals-section,
+    body.pdf-export .receipt-section,
+    body.pdf-export .notes-section { margin-bottom: 8px; }
+    body.pdf-export .data-table th,
+    body.pdf-export .data-table td { padding: 4px 6px; font-size: 9.5pt; }
+    body.pdf-export .totals-table td { padding: 5px 8px; font-size: 10pt; }
+    body.pdf-export .receipt-block p,
+    body.pdf-export .notes-block { font-size: 10pt; margin: 2px 0; line-height: 1.35; }
+    body.pdf-export .receipt-block,
+    body.pdf-export .notes-block { padding: 4px 0; }
+    body.pdf-export .footer-qr {
+      margin-top: 8px;
+      padding-top: 6px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    body.pdf-export .qrcode-placeholder {
+      width: 90px;
+      height: 90px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    body.pdf-export .qrcode-placeholder img {
+      width: 90px;
+      height: 90px;
+    }
+    body.pdf-export .logo-wrap img { max-height: 96px; max-width: 200px; }
 
     /* ============================================
        1) CABEÇALHO — LOGO À ESQUERDA, DADOS À DIREITA
@@ -89,10 +163,10 @@
     }
 
     .logo-wrap img {
-      max-width: 260px;
+      max-width: 240px;
       width: auto;
       height: auto;
-      max-height: 120px;
+      max-height: 110px;
       object-fit: contain;
       display: block;
       image-rendering: -webkit-optimize-contrast;
@@ -133,6 +207,7 @@
        ============================================ */
     .doc-title-block {
       margin-bottom: var(--spacing-xl);
+      text-align: left;
     }
 
     .doc-title-block .doc-title {
@@ -159,8 +234,9 @@
       font-size: 10.5pt;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.05em;
       color: var(--color-text);
+      text-align: left;
     }
 
     .client-block p {
@@ -238,14 +314,13 @@
     }
 
     /* ============================================
-       6) RESUMO / TOTAL — abaixo da tabela de itens, alinhado à direita
+       6) RESUMO / VALOR A PAGAR — à direita
        ============================================ */
     .totals-section {
       width: 280px;
       max-width: 100%;
       flex-shrink: 0;
-      margin: 0;
-      align-self: flex-end;
+      margin: 0 0 0 auto;
     }
 
     .totals-section .section-title {
@@ -391,14 +466,19 @@
        BARRA DE AÇÕES — Imprimir e Download (oculta na impressão)
        ============================================ */
     .action-bar {
+      width: var(--page-width);
+      max-width: 100%;
       margin-top: var(--spacing-xl);
-      padding: var(--spacing-md) 0;
+      margin-left: auto;
+      margin-right: auto;
+      padding: var(--spacing-md) 20mm 0;
       border-top: 1px solid var(--color-border);
       display: flex;
       flex-wrap: wrap;
       gap: var(--spacing-md);
       align-items: center;
       font-size: 12px;
+      box-sizing: border-box;
     }
 
     .action-bar .btn {
@@ -458,19 +538,25 @@
         margin: 0 !important;
         padding: 0 !important;
         font-size: 9pt !important;
+        display: block !important;
+        min-height: auto !important;
+        justify-content: unset !important;
+        align-items: unset !important;
       }
 
       .doc-page {
-        max-width: none !important;
+        max-width: 210mm !important;
         width: 100% !important;
         min-height: 0 !important;
         height: auto !important;
         padding: 8mm 10mm !important;
-        margin: 0 !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
         box-shadow: none !important;
         box-sizing: border-box !important;
         overflow: visible !important;
         page-break-inside: avoid !important;
+        text-align: left !important;
       }
 
       .header {
@@ -519,7 +605,7 @@
 
       .totals-section {
         align-self: flex-end !important;
-        margin-left: 0 !important;
+        margin-left: auto !important;
         margin-top: 8px !important;
       }
 
@@ -619,7 +705,7 @@
       <div class="issuer-block">
         <p class="issuer-name" data-field="issuer.name">Dra. Ana Paula Medina</p>
         <p>NIF: <span data-field="issuer.nif">288 132 335</span></p>
-        <p>Tlm: <span data-field="issuer.phone">938057340</span></p>
+        <p>Tlm.: <span data-field="issuer.phone">938057340</span></p>
         <p>Email: <span data-field="issuer.email">anapaulamedina09738@osae.pt</span></p>
         <p>IBAN: <span data-field="issuer.iban">PT50 0193 0000 10514937886 86</span></p>
         <p>Sede: <span data-field="issuer.morada">Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa</span></p>
@@ -727,27 +813,27 @@
     </div>
 
     <!-- ========================= -->
-    <!-- 7) RECIBO                  -->
+    <!-- 6) RECIBO                  -->
     <!-- ========================= -->
     <section class="receipt-section">
       <h2 class="section-title">Recibo</h2>
       <div class="receipt-block">
-        <p><strong>Nº:</strong> <span data-field="recibo.numero">REC-20260223-001</span></p>
+        <p><strong>N.º:</strong> <span data-field="recibo.numero">REC-20260223-001</span></p>
         <p><strong>Data:</strong> <span data-field="recibo.data">23/02/2026</span></p>
-        <p><strong>Valor Recebido:</strong> <span data-field="recibo.valorRecebido">385,00 €</span></p>
+        <p><strong>Valor recebido:</strong> <span data-field="recibo.valorRecebido">385,00 €</span></p>
       </div>
     </section>
 
     <!-- ========================= -->
-    <!-- 8) OBSERVAÇÕES             -->
+    <!-- 7) OBSERVAÇÕES (por último) -->
     <!-- ========================= -->
     <section class="notes-section" id="notes-section">
       <h2 class="section-title">Observações</h2>
-      <div class="notes-block" data-field="observacoes" id="notes-block">Artigo n.º 53 CIVA</div>
+      <div class="notes-block" data-field="observacoes" id="notes-block">Artigo n.º 53 do CIVA</div>
     </section>
 
     <!-- ========================= -->
-    <!-- 9) QR CODE (canto inferior direito) -->
+    <!-- 8) QR CODE (canto inferior direito) -->
     <!-- ========================= -->
     <div class="footer-qr">
       <div class="qrcode-placeholder" id="qrcode-container" role="img" aria-label="QR Code da fatura">
@@ -758,10 +844,9 @@
   </div>
 
   <div class="action-bar" id="action-bar">
-    <button type="button" class="btn btn-print" id="btn-print" onclick="window.print()">Imprimir</button>
     <button type="button" class="btn btn-pdf" id="btn-pdf">Guardar PDF</button>
-    <button type="button" class="btn btn-download" id="btn-download">Download (HTML)</button>
-    <span class="hint">Ou use Ctrl+P para imprimir. Guardar PDF descarrega o ficheiro para o computador.</span>
+    <button type="button" class="btn btn-print" id="btn-print" onclick="window.print()">Imprimir</button>
+    <span class="hint">Guardar PDF: descarrega a fatura em .pdf para o computador (para entregar ao cliente). Imprimir: abre o diálogo de impressão.</span>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" id="html2pdf-script"></script>
@@ -771,14 +856,14 @@
      * Preencher o documento a partir de window.INVOICE_DATA.
      * Defina INVOICE_DATA antes de carregar a página ou chame invoiceApplyData(data).
      *
-     * Estrutura esperada:
+     * Estrutura: Cabeçalho | Emissor | Cliente | Serviços | Despesas | Totais | Recibo | Observações.
      * {
      *   issuer: { name, nif, phone, email, iban, morada?, logo? },
      *   doc: { title, date },
      *   client: { nome, nif, morada, codigoPostal? },
      *   services: [ { descricao, art, qtd, incidencia, precoUnit, iva, total } ],
-     *   expenses?: [ { descricao, valor, iva, total } ],
-     *   totals: { servicos, despesas?, iva, total, valorPagar },
+     *   expenses: [ { descricao, valor, iva, total } ],
+     *   totals: { servicos, despesas, iva, total, valorPagar },
      *   recibo: { numero, data, valorRecebido },
      *   observacoes?: string,
      *   qrcodeSrc?: string
@@ -854,11 +939,10 @@
 
       var expTbody = document.getElementById('expenses-tbody');
       var expSection = document.getElementById('expenses-section');
-      if (data.expenses && Array.isArray(data.expenses)) {
-        if (data.expenses.length === 0 && expSection) expSection.classList.add('hidden');
-        else if (expTbody) {
-          if (expSection) expSection.classList.remove('hidden');
-          expTbody.innerHTML = '';
+      if (expSection) expSection.classList.remove('hidden');
+      if (expTbody) {
+        expTbody.innerHTML = '';
+        if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
           data.expenses.forEach(function(e) {
             var tr = document.createElement('tr');
             tr.innerHTML =
@@ -965,46 +1049,34 @@
           if (typeof html2pdf !== 'undefined') {
             btnPdf.disabled = true;
             btnPdf.textContent = 'A gerar PDF…';
+            window.scrollTo(0, 0);
+            if (el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'instant' });
+            document.body.classList.add('pdf-export');
+            setTimeout(function() {
             html2pdf().set({
-              margin: 10,
+              margin: 6,
               filename: fileName,
               image: { type: 'jpeg', quality: 0.98 },
               html2canvas: { scale: 2, useCORS: true },
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+              pageBreak: { mode: 'avoid-all', avoid: ['header', 'section', 'table', '.header', '.doc-page', '.footer-qr', '.qrcode-placeholder', '#qrcode-container'] }
             }).from(el).save().then(function() {
+              document.body.classList.remove('pdf-export');
               btnPdf.disabled = false;
               btnPdf.textContent = 'Guardar PDF';
             }).catch(function() {
+              document.body.classList.remove('pdf-export');
               btnPdf.disabled = false;
               btnPdf.textContent = 'Guardar PDF';
               if (typeof window.print === 'function') window.print();
             });
+            }, 100);
           } else {
             window.print();
           }
         });
       }
 
-      /** Download da fatura como ficheiro HTML */
-      var btn = document.getElementById('btn-download');
-      if (btn) {
-        btn.addEventListener('click', function() {
-          var titleEl = document.querySelector('[data-field="doc.title"]');
-          var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
-          var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.html';
-          if (!fileName || fileName === '.html') fileName = 'fatura-recibo.html';
-          var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-          var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = fileName;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(a.href);
-        });
-      }
     });
   </script>
 </body>
