@@ -13120,68 +13120,58 @@ function toggleCamposProcuracaoAima() {
     }
 }
 
-/** Atualiza a área de texto com o conteúdo do modelo selecionado (permite adaptar antes de gerar PDF). */
+/** Atualiza a pré-visualização: para Fatura/Recibo usa só o iframe do template; para outros modelos usa a textarea. */
 function atualizarPreviewTemplateDocumento() {
     const modeloId = document.getElementById('templateModelo')?.value || '';
-    const wrapTexto = document.getElementById('templateConteudoWrap');
-    const wrapFatura = document.getElementById('templatePreviewFaturaWrap');
+    const areaOutros = document.getElementById('templateAreaOutros');
+    const areaFatura = document.getElementById('templateAreaFatura');
+    const placeholderFatura = document.getElementById('templateFaturaPlaceholder');
     const iframeFatura = document.getElementById('templatePreviewFatura');
-    var ta = document.getElementById('templateConteudoAdaptavel');
-
-    function mostrarTexto() {
-        if (wrapTexto) { wrapTexto.classList.remove('hidden'); wrapTexto.style.display = ''; }
-        if (wrapFatura) { wrapFatura.classList.add('hidden'); wrapFatura.style.display = 'none'; }
-    }
-    function mostrarIframeFatura() {
-        if (wrapTexto) { wrapTexto.classList.add('hidden'); wrapTexto.style.display = 'none'; }
-        if (wrapFatura) { wrapFatura.classList.remove('hidden'); wrapFatura.style.display = 'block'; }
-    }
+    const ta = document.getElementById('templateConteudoAdaptavel');
 
     if (!modeloId) {
+        if (areaOutros) areaOutros.classList.remove('hidden');
+        if (areaFatura) areaFatura.classList.add('hidden');
         if (ta) ta.value = '';
-        mostrarTexto();
+        setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
         return;
-    }
-    const dados = obterDadosTemplateDocumento(true);
-    const dadosPreview = dados || {
-        cliente: null,
-        fatura: null,
-        modeloId,
-        numeroProcesso: document.getElementById('templateNumeroProcesso')?.value?.trim() || '',
-        objetoProcuracao: document.getElementById('templateObjetoProcuracao')?.value?.trim() || '',
-        pagamentos: [],
-        hoje: new Date(),
-        solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}
-    };
-    if (!dadosPreview.cliente) {
-        dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
     }
 
     if (modeloId === 'fatura_recibo') {
+        if (areaOutros) areaOutros.classList.add('hidden');
+        if (areaFatura) areaFatura.classList.remove('hidden');
         if (ta) ta.value = '';
-        mostrarTexto();
-        if (dadosPreview.fatura && typeof buildINVOICE_DATA === 'function') {
-            try {
-                dadosPreview.qrBase64 = '';
-                var invoiceData = buildINVOICE_DATA(dadosPreview);
+        var dados = obterDadosTemplateDocumento(true);
+        var fatura = dados && dados.fatura;
+        if (placeholderFatura) placeholderFatura.style.display = fatura ? 'none' : 'block';
+        if (iframeFatura) {
+            if (fatura && typeof buildINVOICE_DATA === 'function') {
                 try {
-                    sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
-                } catch (err) {}
-                mostrarIframeFatura();
-                if (iframeFatura) {
+                    if (!dados.qrBase64) dados.qrBase64 = '';
+                    var invoiceData = buildINVOICE_DATA(dados);
+                    try { sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData)); } catch (e) {}
                     var url = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
                     iframeFatura.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+                    iframeFatura.style.display = 'block';
+                } catch (e) {
+                    console.warn('Preview fatura:', e);
+                    iframeFatura.src = '';
+                    iframeFatura.style.display = 'none';
+                    if (placeholderFatura) { placeholderFatura.style.display = 'block'; placeholderFatura.textContent = 'Erro ao carregar. Selecione a fatura novamente.'; }
                 }
-            } catch (e) {
-                console.warn('Preview fatura falhou:', e);
-                if (ta) ta.value = 'Pré-visualização em formato profissional. Use «PDF / Imprimir» para abrir a fatura.';
+            } else {
+                iframeFatura.src = '';
+                iframeFatura.style.display = 'none';
             }
-        } else {
-            if (ta) ta.value = 'Selecione uma fatura na lista acima para ver a pré-visualização em formato profissional.';
         }
     } else {
-        mostrarTexto();
-        if (ta) ta.value = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
+        if (areaOutros) areaOutros.classList.remove('hidden');
+        if (areaFatura) areaFatura.classList.add('hidden');
+        if (iframeFatura) { iframeFatura.src = ''; iframeFatura.style.display = 'none'; }
+        if (placeholderFatura) placeholderFatura.style.display = 'block';
+        var dadosOutros = obterDadosTemplateDocumento(true) || { cliente: { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' }, modeloId, numeroProcesso: '', objetoProcuracao: '', hoje: new Date(), solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {} };
+        if (!dadosOutros.cliente) dadosOutros.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
+        if (ta) ta.value = gerarConteudoTemplateDocumento(dadosOutros.modeloId, dadosOutros);
     }
     setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
 }
@@ -13439,39 +13429,45 @@ async function gerarTemplateDocumento(acao) {
     const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
     if (acao === 'baixar' || acao === 'imprimir') {
-        if (dados.modeloId === 'fatura_recibo' && dados.fatura && typeof abrirFaturaReciboComTemplate === 'function') {
+        if (dados.modeloId === 'fatura_recibo') {
+            if (!dados.fatura) {
+                mostrarNotificacao('Selecione uma fatura na lista acima.', 'warning');
+                return;
+            }
+            if (typeof abrirFaturaReciboComTemplate !== 'function') {
+                mostrarNotificacao('Erro: função de fatura não disponível. Recarregue a página (Ctrl+F5).', 'error');
+                return;
+            }
             try {
-                let qrBase64 = '';
-                const tempDiv = document.createElement('div');
+                var qrBase64 = '';
+                var tempDiv = document.createElement('div');
                 tempDiv.style.cssText = 'position:fixed;left:-9999px;opacity:0;pointer-events:none;';
                 try {
                     if (typeof QRCode !== 'undefined') {
                         document.body.appendChild(tempDiv);
-                        const fatura = dados.fatura;
-                        const numero = fatura.numero || fatura.id || 'FAT-';
-                        const sol = dados.solicitadora || DADOS_SOLICITADORA || {};
-                        const siteUrl = (sol.websiteUrl || DADOS_SOLICITADORA?.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
-                        const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
-                        new QRCode(tempDiv, { text: qrData, width: 128, height: 128 });
-                        const canvas = tempDiv.querySelector('canvas');
+                        var fatura = dados.fatura;
+                        var numero = fatura.numero || fatura.id || 'FAT-';
+                        var sol = dados.solicitadora || (typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {});
+                        var siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
+                        new QRCode(tempDiv, { text: siteUrl + '/?fatura=' + encodeURIComponent(numero), width: 128, height: 128 });
+                        var canvas = tempDiv.querySelector('canvas');
                         if (canvas) qrBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
                     }
                 } finally {
                     if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
                 }
                 dados.qrBase64 = qrBase64;
-                const janela = abrirFaturaReciboComTemplate(dados, acao === 'imprimir');
+                var janela = abrirFaturaReciboComTemplate(dados, acao === 'imprimir');
                 if (janela) {
-                    mostrarNotificacao('Fatura aberta no template do projeto. Use Ctrl+P para imprimir ou guardar PDF.', 'success');
+                    mostrarNotificacao('Fatura aberta numa nova janela. Use Ctrl+P para imprimir ou guardar como PDF.', 'success');
                 } else {
                     mostrarNotificacao('Permita abrir janelas (pop-up) para este site e tente novamente.', 'warning');
                 }
-                return;
             } catch (e) {
                 console.warn('Fatura template falhou:', e);
                 mostrarNotificacao('Erro ao abrir a fatura. Tente recarregar a página (Ctrl+F5).', 'error');
-                return;
             }
+            return;
         }
         try {
             const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
@@ -13904,16 +13900,20 @@ function gerarDocumentos() {
                             <textarea id="templateObjetoProcuracao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black text-sm" placeholder="Deixe vazio para usar o texto padrão AIMA. Ou escreva o objeto da procuração..." onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()"></textarea>
                         </div>
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" id="templateAreaOutros">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Adaptar texto antes de gerar PDF</label>
                         <div id="templateConteudoWrap">
                             <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
                         </div>
-                        <div id="templatePreviewFaturaWrap" class="hidden">
-                            <iframe id="templatePreviewFatura" style="width:100%;height:520px;border:1px solid #d1d5db;border-radius:6px;background:#fff;" title="Pré-visualização da fatura"></iframe>
-                            <p class="text-xs text-gray-500 mt-1">Fatura em formato profissional. Use «PDF / Imprimir» ou «Guardar no cliente» conforme necessário.</p>
-                        </div>
                         <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário. Os dados da solicitadora estão em DADOS_SOLICITADORA no script.js</p>
+                    </div>
+                    <div class="mb-4 hidden" id="templateAreaFatura">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Fatura / Recibo</label>
+                        <div id="templatePreviewFaturaWrap">
+                            <p id="templateFaturaPlaceholder" class="text-sm text-gray-500 py-6 text-center border border-dashed border-gray-300 rounded-lg bg-gray-50">Selecione uma fatura na lista acima para ver a pré-visualização.</p>
+                            <iframe id="templatePreviewFatura" style="width:100%;height:520px;border:1px solid #d1d5db;border-radius:6px;background:#fff;display:none;" title="Pré-visualização da fatura"></iframe>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Use «PDF» ou «PDF / Imprimir» para abrir a fatura numa nova janela e guardar como PDF. «Guardar no cliente» para associar aos documentos do cliente.</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button onclick="gerarTemplateDocumento('baixar')" class="btn btn-secondary">
