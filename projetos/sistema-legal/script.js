@@ -13126,11 +13126,20 @@ function atualizarPreviewTemplateDocumento() {
     const wrapTexto = document.getElementById('templateConteudoWrap');
     const wrapFatura = document.getElementById('templatePreviewFaturaWrap');
     const iframeFatura = document.getElementById('templatePreviewFatura');
+    var ta = document.getElementById('templateConteudoAdaptavel');
+
+    function mostrarTexto() {
+        if (wrapTexto) { wrapTexto.classList.remove('hidden'); wrapTexto.style.display = ''; }
+        if (wrapFatura) { wrapFatura.classList.add('hidden'); wrapFatura.style.display = 'none'; }
+    }
+    function mostrarIframeFatura() {
+        if (wrapTexto) { wrapTexto.classList.add('hidden'); wrapTexto.style.display = 'none'; }
+        if (wrapFatura) { wrapFatura.classList.remove('hidden'); wrapFatura.style.display = 'block'; }
+    }
+
     if (!modeloId) {
-        const ta = document.getElementById('templateConteudoAdaptavel');
         if (ta) ta.value = '';
-        if (wrapTexto) wrapTexto.classList.remove('hidden');
-        if (wrapFatura) wrapFatura.classList.add('hidden');
+        mostrarTexto();
         return;
     }
     const dados = obterDadosTemplateDocumento(true);
@@ -13147,36 +13156,32 @@ function atualizarPreviewTemplateDocumento() {
     if (!dadosPreview.cliente) {
         dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
     }
-    if (modeloId === 'fatura_recibo' && dadosPreview.fatura && typeof buildINVOICE_DATA === 'function') {
-        try {
-            dadosPreview.qrBase64 = '';
-            const invoiceData = buildINVOICE_DATA(dadosPreview);
+
+    if (modeloId === 'fatura_recibo') {
+        if (ta) ta.value = '';
+        mostrarTexto();
+        if (dadosPreview.fatura && typeof buildINVOICE_DATA === 'function') {
             try {
-                sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
-            } catch (err) {}
-            if (wrapTexto) wrapTexto.classList.add('hidden');
-            if (wrapFatura) wrapFatura.classList.remove('hidden');
-            if (iframeFatura) {
-                iframeFatura.src = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
+                dadosPreview.qrBase64 = '';
+                var invoiceData = buildINVOICE_DATA(dadosPreview);
+                try {
+                    sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
+                } catch (err) {}
+                mostrarIframeFatura();
+                if (iframeFatura) {
+                    var url = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
+                    iframeFatura.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+                }
+            } catch (e) {
+                console.warn('Preview fatura falhou:', e);
+                if (ta) ta.value = 'Pré-visualização em formato profissional. Use «PDF / Imprimir» para abrir a fatura.';
             }
-        } catch (e) {
-            console.warn('Preview fatura falhou, a mostrar texto:', e);
-            if (wrapFatura) wrapFatura.classList.add('hidden');
-            if (wrapTexto) wrapTexto.classList.remove('hidden');
-            const ta = document.getElementById('templateConteudoAdaptavel');
-            if (ta) ta.value = 'Selecione uma fatura na lista acima para ver a pré-visualização.';
+        } else {
+            if (ta) ta.value = 'Selecione uma fatura na lista acima para ver a pré-visualização em formato profissional.';
         }
     } else {
-        if (wrapFatura) wrapFatura.classList.add('hidden');
-        if (wrapTexto) wrapTexto.classList.remove('hidden');
-        const ta = document.getElementById('templateConteudoAdaptavel');
-        if (ta) {
-            if (modeloId === 'fatura_recibo') {
-                ta.value = dadosPreview.fatura ? '' : 'Selecione uma fatura na lista acima para ver a pré-visualização em formato profissional.';
-            } else {
-                ta.value = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
-            }
-        }
+        mostrarTexto();
+        if (ta) ta.value = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
     }
     setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
 }
@@ -14284,20 +14289,50 @@ function obterHtmlFaturaParaDocumento(doc) {
     return typeof gerarHtmlFaturaBilling === 'function' ? gerarHtmlFaturaBilling(dados) : '';
 }
 
-/** Mostra a fatura num overlay dentro do modal (sem sair da base de dados). */
+/** Mostra a fatura num overlay com o template profissional (fatura-recibo.html). */
 function mostrarFaturaNoModal(faturaId) {
-    const doc = { faturaId };
-    const html = obterHtmlFaturaParaDocumento(doc);
-    if (!html) { mostrarNotificacao('Fatura não encontrada.', 'error'); return; }
+    const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
+    const fatura = faturas.find(f => String(f.id) === String(faturaId));
+    if (!fatura) { mostrarNotificacao('Fatura não encontrada.', 'error'); return; }
+    const cliente = (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(fatura.clienteId, fatura.clienteNome) : null) || clientes.find(c => String(c.id) === String(fatura.clienteId));
+    const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(fatura.id));
+    var qrBase64 = '';
+    try {
+        if (typeof QRCode !== 'undefined') {
+            const tempDiv = document.createElement('div');
+            tempDiv.style.cssText = 'position:fixed;left:-9999px;opacity:0;';
+            document.body.appendChild(tempDiv);
+            const numero = fatura.numero || fatura.id || 'FAT-';
+            const sol = DADOS_SOLICITADORA || {};
+            const siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
+            new QRCode(tempDiv, { text: siteUrl + '/?fatura=' + encodeURIComponent(numero), width: 128, height: 128 });
+            const canvas = tempDiv.querySelector('canvas');
+            if (canvas) qrBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+            document.body.removeChild(tempDiv);
+        }
+    } catch (e) {}
+    const dados = { fatura, cliente: cliente || {}, solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}, pagamentos: pagamentosFatura, qrBase64 };
+    if (typeof buildINVOICE_DATA !== 'function') { mostrarNotificacao('Erro ao preparar a fatura.', 'error'); return; }
+    var invoiceData;
+    try {
+        invoiceData = buildINVOICE_DATA(dados);
+    } catch (e) {
+        mostrarNotificacao('Erro ao preparar a fatura.', 'error');
+        return;
+    }
+    try {
+        sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
+    } catch (err) {}
+    const url = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
     const overlay = document.createElement('div');
     overlay.id = 'overlayFaturaModal';
     overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;background:rgba(0,0,0,0.85)!important;z-index:100000!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important;box-sizing:border-box!important';
     overlay.innerHTML = `
         <div style="background:white;border-radius:12px;max-width:800px;width:100%;max-height:95vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
             <div style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;">
-                <span style="font-weight:600;color:#1f2937;">Fatura</span>
+                <span style="font-weight:600;color:#1f2937;">Fatura / Recibo</span>
                 <div style="display:flex;gap:8px;">
-                    <button type="button" id="btnImprimirFaturaOverlay" style="padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Imprimir</button>
+                    <button type="button" id="btnImprimirFaturaOverlay" style="padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Imprimir / Guardar PDF</button>
                     <button type="button" id="btnFecharFaturaOverlay" style="padding:6px 14px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Fechar</button>
                 </div>
             </div>
@@ -14307,11 +14342,8 @@ function mostrarFaturaNoModal(faturaId) {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
     const iframe = overlay.querySelector('#iframeFaturaModal');
-    const docFrame = iframe.contentDocument || iframe.contentWindow.document;
-    docFrame.open();
-    docFrame.write(html);
-    docFrame.close();
-    overlay.querySelector('#btnImprimirFaturaOverlay').onclick = () => { try { iframe.contentWindow.print(); } catch (e) { mostrarNotificacao('Use os botões dentro da fatura para imprimir.', 'info'); } };
+    iframe.src = url;
+    overlay.querySelector('#btnImprimirFaturaOverlay').onclick = () => { try { if (iframe.contentWindow) iframe.contentWindow.print(); } catch (e) { mostrarNotificacao('Use Imprimir / Guardar PDF quando a fatura terminar de carregar.', 'info'); } };
     overlay.querySelector('#btnFecharFaturaOverlay').onclick = () => overlay.remove();
 }
 window.mostrarFaturaNoModal = mostrarFaturaNoModal;
@@ -14352,18 +14384,8 @@ function baixarDocumento(id) {
         return;
     }
     if (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html')) {
-        const html = obterHtmlFaturaParaDocumento(doc);
-        if (!html) { mostrarNotificacao('Fatura não encontrada.', 'error'); return; }
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = doc.nomeArquivo || `fatura_${doc.faturaId || 'fatura'}.html`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        mostrarNotificacao('Fatura guardada no seu computador.', 'success');
+        abrirFaturaGuardadaComoHtml(doc, false);
+        mostrarNotificacao('Fatura aberta numa nova janela. Use Ctrl+P para imprimir ou guardar como PDF.', 'success');
         return;
     }
     if (!doc.conteudo) {
