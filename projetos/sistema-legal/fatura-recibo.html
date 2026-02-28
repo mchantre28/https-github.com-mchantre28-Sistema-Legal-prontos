@@ -908,6 +908,7 @@
     function aplicarDadosQuandoPronto() {
       if (window.INVOICE_DATA) {
         invoiceApplyData(window.INVOICE_DATA);
+        garantirLogoSempre();
         return;
       }
       try {
@@ -918,12 +919,26 @@
           sessionStorage.removeItem('INVOICE_DATA_TEMP');
         }
       } catch (e) { console.warn('INVOICE_DATA_TEMP:', e); }
+      garantirLogoSempre();
       window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'INVOICE_DATA' && event.data.data) {
           invoiceApplyData(event.data.data);
+          garantirLogoSempre();
+        }
+        if (event.data && event.data.type === 'INVOICE_LOGO' && event.data.logo) {
+          garantirLogoSempre(event.data.logo);
         }
       });
     }
+    /** Garantir que a logo aparece (usa LOGO_DATA_URI ou uri passada pela janela pai). */
+    function garantirLogoSempre(uri) {
+      var logoEl = document.querySelector('[data-field="issuer.logo"]');
+      if (!logoEl) return;
+      var src = (uri && uri.trim()) || (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
+      if (src && (!logoEl.src || logoEl.src.indexOf('data:') !== 0)) logoEl.src = src;
+    }
+    setTimeout(function() { garantirLogoSempre(); }, 100);
+    setTimeout(function() { garantirLogoSempre(); }, 500);
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', aplicarDadosQuandoPronto);
     } else {

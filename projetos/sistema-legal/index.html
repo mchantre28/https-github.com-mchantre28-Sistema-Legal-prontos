@@ -35,23 +35,20 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
-    <!-- Corrigir caminhos no GitHub Pages (base = diretório da página atual). -->
+    <!-- Corrigir caminhos no GitHub Pages: base + scripts locais com URL absoluta (evita 404). -->
     <script>
       (function(){
         var p = location.pathname || '/';
-        var dir;
-        if (p === '/' || p === '') dir = '/';
-        else if (p.endsWith('/')) dir = p;
-        else if (/\.\w+$/.test(p)) dir = p.replace(/\/[^/]*$/, '/');
-        else dir = p + '/';
+        var dir = (p === '/' || p === '') ? '/' : (p.endsWith('/') ? p : (/\.\w+$/.test(p) ? p.replace(/\/[^/]*$/, '/') : p + '/'));
+        var base = location.origin + dir;
         var b = document.createElement('base');
-        b.href = location.origin + dir;
+        b.href = base;
         document.head.insertBefore(b, document.head.firstChild);
+        document.write('<script src="' + base + 'branding/injectBranding.js"><\/script>');
+        document.write('<script src="' + base + 'logo-data.js"><\/script>');
       })();
     </script>
     <link rel="stylesheet" href="styles.css?v=6">
-    <script src="branding/injectBranding.js"></script>
-    <script src="logo-data.js"></script>
 
 </head>
 <body class="bg-gray-100">

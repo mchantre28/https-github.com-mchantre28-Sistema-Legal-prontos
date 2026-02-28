@@ -14179,6 +14179,7 @@ function buildINVOICE_DATA(dados) {
     const siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
     const qrSrc = dados.qrBase64 ? ('data:image/png;base64,' + dados.qrBase64) : ('https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(siteUrl + '/?fatura=' + encodeURIComponent(fatura.numero || fatura.id || '')));
 
+    var logoUri = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : (sol.logo || '');
     return {
         issuer: {
             name: (sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina'),
@@ -14187,7 +14188,8 @@ function buildINVOICE_DATA(dados) {
             email: sol.email || 'anapaulamedina09738@osae.pt',
             iban: sol.iban || 'PT50 0193 0000 10514937886 86',
             morada: sol.sede || '',
-            subtitle: 'ANA PAULA MEDINA SOLICITADORA'
+            subtitle: 'ANA PAULA MEDINA SOLICITADORA',
+            logo: logoUri
         },
         doc: {
             title: 'Fatura/Recibo ' + (fatura.numero || fatura.id || 'FAT'),
@@ -14238,11 +14240,30 @@ function abrirFaturaReciboComTemplate(dados, autoPrint) {
     try {
         sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
     } catch (e) { console.warn('sessionStorage:', e); }
+    var logoUri = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : (invoiceData.issuer && invoiceData.issuer.logo ? invoiceData.issuer.logo : '');
     const url = getFaturaReciboUrl();
     const janela = window.open(url, 'FaturaRecibo', 'noopener,noreferrer');
     if (!janela) return null;
+    if (logoUri) {
+        janela.addEventListener('load', function enviarLogo() {
+            try { janela.postMessage({ type: 'INVOICE_LOGO', logo: logoUri }, window.location.origin); } catch (e) {}
+        });
+    }
     if (autoPrint) {
-        janela.addEventListener('load', () => { setTimeout(() => { try { janela.print(); } catch (e) {} }, 600); });
+        var handler = function(e) {
+            if (e.data && e.data.type === 'INVOICE_READY_TO_PRINT' && e.source === janela) {
+                window.removeEventListener('message', handler);
+                try { janela.print(); } catch (err) {}
+            }
+        };
+        window.addEventListener('message', handler);
+        janela.addEventListener('load', function() {
+            setTimeout(function() {
+                if (janela.closed) return;
+                window.removeEventListener('message', handler);
+                try { janela.print(); } catch (e) {}
+            }, 2500);
+        });
     }
     janela.focus();
     return janela;
