@@ -35,11 +35,15 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
-    <!-- Corrigir caminhos no GitHub Pages (project site em subpasta ex: user.github.io/repo/) -->
+    <!-- Corrigir caminhos no GitHub Pages (base = diretório da página atual). -->
     <script>
       (function(){
         var p = location.pathname || '/';
-        var dir = p === '/' || p === '' ? '/' : (p.endsWith('/') ? p : (p.lastIndexOf('/') > 0 ? p.substring(0, p.lastIndexOf('/') + 1) : p + '/'));
+        var dir;
+        if (p === '/' || p === '') dir = '/';
+        else if (p.endsWith('/')) dir = p;
+        else if (/\.\w+$/.test(p)) dir = p.replace(/\/[^/]*$/, '/');
+        else dir = p + '/';
         var b = document.createElement('base');
         b.href = location.origin + dir;
         document.head.insertBefore(b, document.head.firstChild);

@@ -7,8 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <!-- Logo: carregar localmente para o iframe/janela ter sempre a imagem (evita falha por tamanho no sessionStorage). -->
-  <script src="logo-data.js"></script>
+  <!-- Logo: URL absoluta para o mesmo diretório (evita 404 ao abrir em nova janela). -->
+  <script>
+    (function(){
+      var base = document.location.href.replace(/[#?].*$/, '').replace(/[^/]+$/, '');
+      document.write('<script src="' + base + 'logo-data.js"><\/script>');
+    })();
+  </script>
   <!--
     Template Fatura/Recibo — Fonte única no repo (billing/). Cabeçalho à esquerda, logo à direita.
     Preencher via window.INVOICE_DATA ou data-*. Sync para sistema-legal via GitHub Action.
@@ -793,6 +798,11 @@
         if (logoEl) {
           var logoSrc = (i.logo && i.logo.trim()) ? i.logo : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
           logoEl.src = logoSrc || 'assets/High-resolution%20SVG-.png';
+          function sinalizarProntoParaImprimir() {
+            if (window.opener) window.opener.postMessage({ type: 'INVOICE_READY_TO_PRINT' }, '*');
+          }
+          if (logoEl.complete) sinalizarProntoParaImprimir();
+          else { logoEl.onload = sinalizarProntoParaImprimir; logoEl.onerror = sinalizarProntoParaImprimir; }
         }
       }
 
