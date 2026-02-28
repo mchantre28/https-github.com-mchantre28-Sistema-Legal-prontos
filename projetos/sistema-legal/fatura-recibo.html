@@ -103,8 +103,16 @@
       font-weight: 700;
       font-size: 12pt;
       margin: 0 0 var(--spacing-sm) 0;
-      text-transform: uppercase;
       letter-spacing: 0.02em;
+    }
+
+    .logo-wrap .logo-subtitle {
+      margin: var(--spacing-xs) 0 0 0;
+      font-size: 9.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
     }
 
     .issuer-block p {
@@ -158,15 +166,18 @@
     }
 
     /* ============================================
-       4) TABELA DE SERVIÇOS (em cima) + RESUMO (abaixo, à direita)
+       4) TABELA DE SERVIÇOS + RESUMO LADO A LADO (como referência)
        ============================================ */
     .services-and-totals {
+      display: flex;
+      gap: var(--spacing-xl);
+      align-items: flex-start;
       margin-bottom: var(--spacing-xl);
     }
 
     .services-section {
-      width: 100%;
-      margin-bottom: var(--spacing-lg);
+      flex: 1;
+      min-width: 0;
     }
 
     .services-section .section-title {
@@ -222,11 +233,8 @@
        ============================================ */
     .totals-section {
       width: 280px;
-      max-width: 100%;
-      margin-left: auto;
-      margin-right: 0;
-      margin-top: var(--spacing-md);
-      margin-bottom: 0;
+      flex-shrink: 0;
+      margin: 0;
     }
 
     .totals-section .section-title {
@@ -265,10 +273,13 @@
 
     .totals-table .row-pay td {
       font-weight: 700;
-      background: #e5e5e5;
+      font-size: 11pt;
+      background: #e8e8e8;
       color: var(--color-text);
+      padding: 10px 12px;
     }
 
+    .totals-table .row-retencao.hidden-row,
     .totals-table .row-despesas.hidden-row {
       display: none;
     }
@@ -476,8 +487,14 @@
       }
 
       .services-and-totals {
+        display: flex !important;
+        gap: 12px !important;
         margin-bottom: 6px !important;
         page-break-inside: avoid !important;
+      }
+
+      .logo-wrap .logo-subtitle {
+        font-size: 8pt !important;
       }
 
       .services-section {
@@ -581,14 +598,14 @@
     <header class="header">
       <div class="logo-wrap">
         <img src="assets/ana.jpg" alt="Ana Paula Medina Solicitadora" data-field="issuer.logo" />
+        <p class="logo-subtitle" data-field="issuer.subtitle">ANA PAULA MEDINA SOLICITADORA</p>
       </div>
       <div class="issuer-block">
-        <p class="issuer-name" data-field="issuer.name">Solicitadora Ana Paula Medina</p>
-        <p>Contribuinte n.º <span data-field="issuer.nif">288 132 335</span></p>
-        <p>Tlm: <span data-field="issuer.phone">+351 938057340</span></p>
+        <p class="issuer-name" data-field="issuer.name">Dra. Ana Paula Medina</p>
+        <p>NIF: <span data-field="issuer.nif">288 132 335</span></p>
+        <p>Tlm: <span data-field="issuer.phone">938057340</span></p>
         <p>Email: <span data-field="issuer.email">anapaulamedina09738@osae.pt</span></p>
         <p>IBAN: <span data-field="issuer.iban">PT50 0193 0000 10514937886 86</span></p>
-        <p>Sede: <span data-field="issuer.morada">Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa</span></p>
       </div>
     </header>
 
@@ -661,11 +678,15 @@
           </tr>
           <tr class="row-total">
             <td>Total</td>
-            <td class="col-right" data-field="totals.total">515,00 €</td>
+            <td class="col-right" data-field="totals.total">500,00 €</td>
+          </tr>
+          <tr class="row-retencao" id="row-retencao">
+            <td>Retenção na fonte (23%)</td>
+            <td class="col-right" data-field="totals.retencao">- 115,00 €</td>
           </tr>
           <tr class="row-pay">
             <td>Valor a Pagar</td>
-            <td class="col-right" data-field="totals.valorPagar">515,00 €</td>
+            <td class="col-right" data-field="totals.valorPagar">385,00 €</td>
           </tr>
         </table>
       </section>
@@ -765,7 +786,7 @@
         setText('[data-field="issuer.phone"]', i.phone);
         setText('[data-field="issuer.email"]', i.email);
         setText('[data-field="issuer.iban"]', i.iban);
-        setText('[data-field="issuer.morada"]', i.morada);
+        if (i.subtitle != null) setText('[data-field="issuer.subtitle"]', i.subtitle);
         if (i.logo) setAttr('[data-field="issuer.logo"]', 'src', i.logo);
       }
 
@@ -828,11 +849,17 @@
         setText('[data-field="totals.despesas"]', t.despesas);
         setText('[data-field="totals.iva"]', t.iva);
         setText('[data-field="totals.total"]', t.total);
+        setText('[data-field="totals.retencao"]', t.retencao);
         setText('[data-field="totals.valorPagar"]', t.valorPagar);
         var rowDesp = document.getElementById('row-despesas');
         if (rowDesp) {
           var hasDespesas = t.despesas != null && t.despesas !== '' && t.despesas !== '0,00 €';
           rowDesp.classList.toggle('hidden-row', !hasDespesas);
+        }
+        var rowRet = document.getElementById('row-retencao');
+        if (rowRet) {
+          var hasRetencao = t.retencao != null && t.retencao !== '';
+          rowRet.classList.toggle('hidden-row', !hasRetencao);
         }
       }
 
