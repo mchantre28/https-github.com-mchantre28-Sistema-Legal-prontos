@@ -9,9 +9,9 @@
     logoPath: 'assets/logo-solicitadora.png',
     logoPathPng: 'assets/logo-solicitadora.png',
     logoPathFallback: '../../assets/logo-solicitadora.png',
-    logoWidth: 190,
-    logoWidthMin: 180,
-    logoWidthMax: 200,
+    logoWidth: 220,
+    logoWidthMin: 200,
+    logoWidthMax: 240,
     logoMarginBottom: 14,
     headerHeight: 110,
     headerHeightMin: 100,
@@ -44,8 +44,8 @@
 
   function loadLogoFromAsset() {
     var base = getBaseUrl();
-    // Tentar ana.png (fatura) e depois logo-solicitadora.png
-    var paths = ['assets/ana.png', BRANDING.logoPathPng];
+    // SVG primeiro (melhor qualidade), depois PNG
+    var paths = ['assets/ana.svg', 'assets/logo-solicitadora.svg', 'assets/ana.png', BRANDING.logoPathPng];
     if (BRANDING.logoPathFallback) paths.push(BRANDING.logoPathFallback);
     var idx = 0;
     function tryNext() {
@@ -72,8 +72,8 @@
     // Abrir por file://: fetch dá CORS. A logo vem do logo-data.js (carregado a seguir).
   } else {
     loadLogoFromAsset().then(function(ok) {
-      if (!ok && typeof console !== 'undefined' && console.warn) {
-        console.warn('Branding: coloque a logo em assets/logo-solicitadora.png');
+      if (!ok && (!window.LOGO_DATA_URI || !window.LOGO_DATA_URI.length) && typeof console !== 'undefined' && console.warn) {
+        console.warn('Branding: coloque a logo em assets/ana.png ou assets/logo-solicitadora.png');
       }
     });
   }
@@ -98,7 +98,7 @@
     var title = BRANDING.firmTitle;
     var placeholder = '<div class="branding-logo-placeholder">' + name + '<br/><span>' + title + '</span></div>';
     return uri
-      ? '<img src="' + uri.replace(/"/g, '&quot;') + '" class="branding-logo" alt="' + name + ' - ' + title + '" loading="eager" decoding="sync" style="width:190px;height:auto;display:block;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges"/>'
+      ? '<img src="' + uri.replace(/"/g, '&quot;') + '" class="branding-logo" alt="' + name + ' - ' + title + '" loading="eager" decoding="sync" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges"/>'
       : placeholder;
   };
 
