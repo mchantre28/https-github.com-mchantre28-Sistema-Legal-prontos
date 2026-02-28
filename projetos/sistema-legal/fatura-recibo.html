@@ -889,17 +889,30 @@
       if (qrFallback) qrFallback.style.display = 'none';
     }
 
-    if (window.INVOICE_DATA) {
-      document.addEventListener('DOMContentLoaded', function() {
+    function aplicarDadosQuandoPronto() {
+      if (window.INVOICE_DATA) {
         invoiceApplyData(window.INVOICE_DATA);
+        return;
+      }
+      try {
+        var guardado = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('INVOICE_DATA_TEMP');
+        if (guardado) {
+          var data = JSON.parse(guardado);
+          invoiceApplyData(data);
+          sessionStorage.removeItem('INVOICE_DATA_TEMP');
+        }
+      } catch (e) { console.warn('INVOICE_DATA_TEMP:', e); }
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'INVOICE_DATA' && event.data.data) {
+          invoiceApplyData(event.data.data);
+        }
       });
     }
-
-    window.addEventListener('message', function(event) {
-      if (event.data && event.data.type === 'INVOICE_DATA' && event.data.data) {
-        invoiceApplyData(event.data.data);
-      }
-    });
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', aplicarDadosQuandoPronto);
+    } else {
+      aplicarDadosQuandoPronto();
+    }
 
     /** Download da fatura como ficheiro HTML */
     document.addEventListener('DOMContentLoaded', function() {

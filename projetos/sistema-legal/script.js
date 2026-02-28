@@ -13151,15 +13151,13 @@ function atualizarPreviewTemplateDocumento() {
         try {
             dadosPreview.qrBase64 = '';
             const invoiceData = buildINVOICE_DATA(dadosPreview);
+            try {
+                sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
+            } catch (err) {}
             if (wrapTexto) wrapTexto.classList.add('hidden');
             if (wrapFatura) wrapFatura.classList.remove('hidden');
             if (iframeFatura) {
-                iframeFatura.src = 'fatura-recibo.html';
-                iframeFatura.onload = function() {
-                    try {
-                        iframeFatura.contentWindow.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
-                    } catch (e) { console.warn('Preview postMessage:', e); }
-                };
+                iframeFatura.src = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
             }
         } catch (e) {
             console.warn('Preview fatura falhou, a mostrar texto:', e);
@@ -14223,19 +14221,24 @@ function buildINVOICE_DATA(dados) {
     };
 }
 
+/** URL do template fatura-recibo.html (funciona na raiz do repo ou dentro de projetos/sistema-legal). */
+function getFaturaReciboUrl() {
+    const path = window.location.pathname || '';
+    return path.indexOf('projetos/sistema-legal') !== -1 ? 'fatura-recibo.html' : 'projetos/sistema-legal/fatura-recibo.html';
+}
+
 /** Abre o template fatura-recibo.html com os dados da fatura (fonte única do projeto). */
 function abrirFaturaReciboComTemplate(dados, autoPrint) {
     const invoiceData = buildINVOICE_DATA(dados);
-    const janela = window.open('fatura-recibo.html', 'FaturaRecibo', 'noopener,noreferrer');
+    try {
+        sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
+    } catch (e) { console.warn('sessionStorage:', e); }
+    const url = getFaturaReciboUrl();
+    const janela = window.open(url, 'FaturaRecibo', 'noopener,noreferrer');
     if (!janela) return null;
-    const send = () => {
-        try {
-            janela.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
-            if (autoPrint) setTimeout(() => { try { janela.print(); } catch (e) {} }, 800);
-        } catch (e) { console.warn('postMessage fatura:', e); }
-    };
-    janela.addEventListener('load', send);
-    if (janela.document.readyState === 'complete') send();
+    if (autoPrint) {
+        janela.addEventListener('load', () => { setTimeout(() => { try { janela.print(); } catch (e) {} }, 600); });
+    }
     janela.focus();
     return janela;
 }
