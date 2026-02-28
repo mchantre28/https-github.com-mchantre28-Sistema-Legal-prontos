@@ -13147,25 +13147,26 @@ function atualizarPreviewTemplateDocumento() {
     if (!dadosPreview.cliente) {
         dadosPreview.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
     }
-    if (modeloId === 'fatura_recibo' && dadosPreview.fatura && typeof gerarHtmlFaturaBilling === 'function') {
+    if (modeloId === 'fatura_recibo' && dadosPreview.fatura && typeof buildINVOICE_DATA === 'function') {
         try {
             dadosPreview.qrBase64 = '';
-            const html = gerarHtmlFaturaBilling(dadosPreview);
+            const invoiceData = buildINVOICE_DATA(dadosPreview);
             if (wrapTexto) wrapTexto.classList.add('hidden');
             if (wrapFatura) wrapFatura.classList.remove('hidden');
-            if (iframeFatura && html) {
-                const doc = iframeFatura.contentDocument || iframeFatura.contentWindow.document;
-                doc.open();
-                doc.write(html);
-                doc.close();
+            if (iframeFatura) {
+                iframeFatura.src = 'fatura-recibo.html';
+                iframeFatura.onload = function() {
+                    try {
+                        iframeFatura.contentWindow.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
+                    } catch (e) { console.warn('Preview postMessage:', e); }
+                };
             }
         } catch (e) {
             console.warn('Preview fatura falhou, a mostrar texto:', e);
             if (wrapFatura) wrapFatura.classList.add('hidden');
             if (wrapTexto) wrapTexto.classList.remove('hidden');
-            const conteudo = gerarConteudoTemplateDocumento(dadosPreview.modeloId, dadosPreview);
             const ta = document.getElementById('templateConteudoAdaptavel');
-            if (ta) ta.value = conteudo;
+            if (ta) ta.value = 'Selecione uma fatura na lista acima para ver a pré-visualização.';
         }
     } else {
         if (wrapFatura) wrapFatura.classList.add('hidden');
@@ -13435,7 +13436,7 @@ async function gerarTemplateDocumento(acao) {
     const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
     if (acao === 'baixar' || acao === 'imprimir') {
-        if (dados.modeloId === 'fatura_recibo' && dados.fatura && typeof gerarHtmlFaturaBilling === 'function') {
+        if (dados.modeloId === 'fatura_recibo' && dados.fatura && typeof abrirFaturaReciboComTemplate === 'function') {
             try {
                 let qrBase64 = '';
                 const tempDiv = document.createElement('div');
@@ -13456,17 +13457,16 @@ async function gerarTemplateDocumento(acao) {
                     if (tempDiv.parentNode) tempDiv.parentNode.removeChild(tempDiv);
                 }
                 dados.qrBase64 = qrBase64;
-                const html = gerarHtmlFaturaBilling(dados);
-                const janela = typeof abrirHtmlNovaJanela === 'function' ? abrirHtmlNovaJanela(html, acao === 'imprimir') : null;
+                const janela = abrirFaturaReciboComTemplate(dados, acao === 'imprimir');
                 if (janela) {
-                    mostrarNotificacao('Fatura aberta noutra janela. Use Ctrl+P para imprimir/guardar PDF.', 'success');
+                    mostrarNotificacao('Fatura aberta no template do projeto. Use Ctrl+P para imprimir ou guardar PDF.', 'success');
                 } else {
-                    mostrarNotificacao('Permita abrir janelas (pop-up) para este site e tente novamente. A fatura só pode ser impressa no formato correto numa nova janela.', 'warning');
+                    mostrarNotificacao('Permita abrir janelas (pop-up) para este site e tente novamente.', 'warning');
                 }
-                return; // Nunca usar fallback PDF (FAC/texto) para fatura — manter sempre layout HTML com logo nítida
+                return;
             } catch (e) {
-                console.warn('Fatura HTML falhou:', e);
-                mostrarNotificacao('Erro ao gerar a fatura. Tente recarregar a página (Ctrl+F5).', 'error');
+                console.warn('Fatura template falhou:', e);
+                mostrarNotificacao('Erro ao abrir a fatura. Tente recarregar a página (Ctrl+F5).', 'error');
                 return;
             }
         }
@@ -14152,6 +14152,94 @@ function uploadDocumento() {
     reader.readAsDataURL(arquivo);
 }
 
+/** Converte dados da fatura (fatura, cliente, solicitadora, pagamentos) para INVOICE_DATA do template fatura-recibo.html */
+function buildINVOICE_DATA(dados) {
+    const fatura = dados.fatura;
+    const cliente = dados.cliente || {};
+    const sol = dados.solicitadora || DADOS_SOLICITADORA || {};
+    const fmt = (v) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(parseFloat(v) || 0);
+    const fmtNif = (n) => (n || '').replace(/\s/g, '').replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+    const fmtDate = (d) => (d || '').toString().split('T')[0].split('-').reverse().join('/');
+    const itens = fatura.itens || [{ descricao: fatura.observacoes || 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || fatura.valor || 0, valorTotal: fatura.valorTotal || fatura.valor || 0 }];
+    const servicos = itens.filter(i => !/emolumentos|certidão|taxa|despesa/i.test((i.descricao || '')));
+    const listaServicos = servicos.length ? servicos : [itens[0] || { descricao: 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || 0, valorTotal: fatura.valorTotal || 0 }];
+    const subtotalServicos = listaServicos.reduce((s, i) => s + (parseFloat(i.valorTotal || i.precoUnitario) || 0), 0);
+    const despesas = (fatura.despesas || []).map(d => ({ valorTotal: parseFloat(d.valor || d.valorTotal || 0) }));
+    const subtotalDespesas = despesas.reduce((s, d) => s + (d.valorTotal || 0), 0);
+    const totalGeral = parseFloat(fatura.valorTotal || fatura.valor || 0) || (subtotalServicos + subtotalDespesas);
+    const retencao = parseFloat(fatura.retencao || 0);
+    const valorPagar = totalGeral - retencao;
+    const pagamentosLista = Array.isArray(dados.pagamentos) ? dados.pagamentos : [];
+    const valorRecebido = pagamentosLista.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0) || valorPagar;
+    const dataStr = (fatura.dataEmissao || fatura.data || '').toString().replace(/-/g, '').slice(0, 8);
+    const numeroRecibo = 'REC-' + (dataStr || new Date().toISOString().slice(0, 10).replace(/-/g, '')) + '-' + (fatura.id || '001').toString().slice(-3).padStart(3, '0');
+    const siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
+    const qrSrc = dados.qrBase64 ? ('data:image/png;base64,' + dados.qrBase64) : ('https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(siteUrl + '/?fatura=' + encodeURIComponent(fatura.numero || fatura.id || '')));
+
+    return {
+        issuer: {
+            name: (sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina'),
+            nif: fmtNif(sol.nif || '288132335'),
+            phone: (sol.contacto || '').replace(/^\+?351\s*/, '') || '938057340',
+            email: sol.email || 'anapaulamedina09738@osae.pt',
+            iban: sol.iban || 'PT50 0193 0000 10514937886 86',
+            morada: sol.sede || '',
+            subtitle: 'ANA PAULA MEDINA SOLICITADORA'
+        },
+        doc: {
+            title: 'Fatura/Recibo ' + (fatura.numero || fatura.id || 'FAT'),
+            date: fmtDate(fatura.dataEmissao || fatura.data)
+        },
+        client: {
+            nome: cliente.nome || '',
+            nif: fmtNif(cliente.nif || cliente.documento),
+            morada: (cliente.morada || cliente.endereco || '').toString().replace(/\n/g, ', '),
+            codigoPostal: (cliente.codigoPostal || '') + (cliente.localidade ? ' ' + cliente.localidade : '')
+        },
+        services: listaServicos.map(i => ({
+            descricao: i.descricao || '',
+            art: '7',
+            qtd: String(parseFloat(i.quantidade || 1)),
+            incidencia: 'isento',
+            precoUnit: fmt(i.precoUnitario || i.valorTotal),
+            iva: '0%',
+            total: fmt(i.valorTotal || i.precoUnitario)
+        })),
+        totals: {
+            servicos: fmt(subtotalServicos),
+            despesas: subtotalDespesas ? fmt(subtotalDespesas) : '0,00 €',
+            iva: '0,00 €',
+            total: fmt(totalGeral),
+            retencao: retencao ? '-' + fmt(retencao) : '',
+            valorPagar: fmt(valorPagar)
+        },
+        recibo: {
+            numero: numeroRecibo,
+            data: fmtDate(fatura.dataEmissao || fatura.data),
+            valorRecebido: fmt(valorRecebido)
+        },
+        observacoes: fatura.notas || 'Artigo 16.º, n.º 6 do CIVA',
+        qrcodeSrc: qrSrc
+    };
+}
+
+/** Abre o template fatura-recibo.html com os dados da fatura (fonte única do projeto). */
+function abrirFaturaReciboComTemplate(dados, autoPrint) {
+    const invoiceData = buildINVOICE_DATA(dados);
+    const janela = window.open('fatura-recibo.html', 'FaturaRecibo', 'noopener,noreferrer');
+    if (!janela) return null;
+    const send = () => {
+        try {
+            janela.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
+            if (autoPrint) setTimeout(() => { try { janela.print(); } catch (e) {} }, 800);
+        } catch (e) { console.warn('postMessage fatura:', e); }
+    };
+    janela.addEventListener('load', send);
+    if (janela.document.readyState === 'complete') send();
+    janela.focus();
+    return janela;
+}
+
 /** Abre HTML numa nova janela (usa Blob URL para renderizar corretamente). Nome fixo para reutilizar a mesma janela e atualizar o conteúdo. */
 function abrirHtmlNovaJanela(html, autoPrint) {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -14225,16 +14313,33 @@ function mostrarFaturaNoModal(faturaId) {
 }
 window.mostrarFaturaNoModal = mostrarFaturaNoModal;
 
-/** Abre fatura numa nova janela e mostra o diálogo de impressão (permite imprimir ou guardar PDF). */
+/** Abre fatura numa nova janela usando o template fatura-recibo.html do projeto. */
 async function abrirFaturaGuardadaComoHtml(doc, autoPrint) {
-    const html = obterHtmlFaturaParaDocumento(doc);
-    if (!html) { mostrarNotificacao('Fatura não encontrada. Pode ter sido eliminada.', 'error'); return; }
-    const janela = abrirHtmlNovaJanela(html, autoPrint);
+    const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
+    const fatura = faturas.find(f => String(f.id) === String(doc.faturaId));
+    if (!fatura) { mostrarNotificacao('Fatura não encontrada. Pode ter sido eliminada.', 'error'); return; }
+    const cliente = (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(fatura.clienteId, fatura.clienteNome) : null) || clientes.find(c => String(c.id) === String(fatura.clienteId));
+    const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(fatura.id));
+    let qrBase64 = '';
+    if (typeof QRCode !== 'undefined') {
+        const tempDiv = document.createElement('div');
+        document.body.appendChild(tempDiv);
+        const numero = fatura.numero || fatura.id || 'FAT-';
+        const sol = DADOS_SOLICITADORA || {};
+        const siteUrl = (sol.websiteUrl || 'https://www.anapaulamedinasolicitadora.pt/').replace(/\/$/, '');
+        const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
+        new QRCode(tempDiv, { text: qrData, width: 128, height: 128 });
+        const canvas = tempDiv.querySelector('canvas');
+        if (canvas) qrBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+        document.body.removeChild(tempDiv);
+    }
+    const dados = { fatura, cliente: cliente || {}, solicitadora: DADOS_SOLICITADORA || {}, pagamentos: pagamentosFatura, qrBase64 };
+    const janela = typeof abrirFaturaReciboComTemplate === 'function' ? abrirFaturaReciboComTemplate(dados, autoPrint) : null;
     if (!janela) {
         mostrarNotificacao('Permita abrir a janela para imprimir a fatura.', 'warning');
         return;
     }
-    mostrarNotificacao('Use o diálogo de impressão para imprimir ou guardar como PDF.', 'success');
+    mostrarNotificacao('Fatura aberta no template do projeto. Use Ctrl+P para imprimir ou guardar como PDF.', 'success');
 }
 
 function baixarDocumento(id) {

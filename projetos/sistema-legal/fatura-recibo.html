@@ -895,6 +895,12 @@
       });
     }
 
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'INVOICE_DATA' && event.data.data) {
+        invoiceApplyData(event.data.data);
+      }
+    });
+
     /** Download da fatura como ficheiro HTML */
     document.addEventListener('DOMContentLoaded', function() {
       var btn = document.getElementById('btn-download');
