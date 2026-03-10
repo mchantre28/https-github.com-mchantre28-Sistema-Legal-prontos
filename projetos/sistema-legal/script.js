@@ -961,6 +961,40 @@ async function criarFaturaCloud(fatura) {
     return { ...fatura, id };
 }
 
+/** Apagar fatura no Firestore (elimina o documento). */
+async function apagarFaturaCloud(id) {
+    if (!isCloudReady()) throw new Error('Firestore não disponível');
+    await firestoreDb.collection('faturas').doc(String(id)).delete();
+}
+
+/** Apagar uma fatura (cloud ou local). Atualiza a lista e a UI. */
+async function apagarFatura(id) {
+    if (!id || String(id).trim() === '') {
+        mostrarNotificacao('Selecione uma fatura para apagar.', 'warning');
+        return;
+    }
+    if (!confirm('Tem a certeza que deseja apagar esta fatura? Esta ação não pode ser desfeita.')) return;
+    try {
+        if (isCloudReady()) {
+            await apagarFaturaCloud(id);
+            if (Array.isArray(window.faturas)) window.faturas = (window.faturas || []).filter(f => String(f.id) !== String(id));
+        } else {
+            const faturas = obterFaturas().filter(f => String(f.id) !== String(id));
+            appStorage.setItem('faturas', JSON.stringify(faturas));
+            if (typeof window.faturas !== 'undefined') window.faturas = faturas;
+        }
+        mostrarNotificacao('Fatura apagada.', 'success');
+        const sel = document.getElementById('templateFatura');
+        if (sel) sel.value = '';
+        if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
+        if (typeof atualizarPreviewTemplateDocumento === 'function') atualizarPreviewTemplateDocumento();
+    } catch (e) {
+        console.warn('Erro ao apagar fatura:', e);
+        mostrarNotificacao('Erro ao apagar fatura: ' + (e?.message || e), 'error');
+    }
+}
+window.apagarFatura = apagarFatura;
+
 /** Escuta honorários em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirHonorarios(callback) {
     if (!isCloudReady()) return () => {};
@@ -3395,10 +3429,6 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
-    // PWA: registar Service Worker para instalação e uso offline básico
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
     // Aguardar limpeza do cache Firestore (após zero absoluto) antes de iniciar listeners
     if (window.__promiseCacheFirestoreLimpo) {
         await window.__promiseCacheFirestoreLimpo;
@@ -4614,12 +4644,9 @@ async function gerarFaturaAutomatica(honorarioId) {
     const processoTipo = honorario.processoTipo || 'migracoes';
     const processoId = honorario.processoId || honorario.referenciaId;
 
+    /** Despesas apenas as associadas ao processo (se houver); não incluir despesas padrão automaticamente. */
     const despesasProcesso = processoId && Array.isArray(window.despesas) ? (window.despesas || []).filter(d => !d.anulado && !d.deleted && String(d.processoId) === String(processoId) && (d.processoTipo || 'herancas') === processoTipo) : [];
-    const despesasPadrao = (DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao) ? DADOS_SOLICITADORA.despesasPadrao : [];
-    const despesasArray = [
-        ...(Array.isArray(despesasPadrao) ? despesasPadrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valor: parseFloat(d.valor || 0) })) : []),
-        ...despesasProcesso.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valor: parseFloat(d.valor || 0) }))
-    ];
+    const despesasArray = despesasProcesso.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valor: parseFloat(d.valor || 0) }));
     const totalDespesas = despesasArray.reduce((s, d) => s + (d.valor || 0), 0);
     const valorTotal = valorBase + totalDespesas;
 
@@ -9280,7 +9307,7 @@ function gerarDashboard() {
             <!-- Alertas e Resumos Inteligentes -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸš¨ Alertas Urgentes</h3>
+                    <h3 class="text-lg font-semibold mb-4">Alertas Urgentes</h3>
                     <div class="space-y-3">
                         ${honorariosParaMostrar.filter(h => {
                             if (!h.vencimento) return false;
@@ -9311,7 +9338,7 @@ function gerarDashboard() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">â° Prazos Próximos</h3>
+                    <h3 class="text-lg font-semibold mb-4">Prazos Próximos</h3>
                     ${proximoPrazo ? `
                         <div class="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                             <p class="text-xs text-blue-600 mb-1">Próximo prazo</p>
@@ -9349,7 +9376,7 @@ function gerarDashboard() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“Š Resumo Financeiro</h3>
+                    <h3 class="text-lg font-semibold mb-4">Resumo Financeiro</h3>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                             <span class="text-green-800 font-medium">Honorários Pagos</span>
@@ -9379,7 +9406,7 @@ function gerarDashboard() {
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ Comparativo Mensal</h3>
+                    <h3 class="text-lg font-semibold mb-4">Comparativo Mensal</h3>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
                             <div>
@@ -12904,13 +12931,10 @@ function gerarHtmlFaturaBilling(dados) {
     const fmtDate = (d) => (d || '').toString().split('T')[0].split('-').reverse().join('/');
 
     const itensRaw = fatura.itens || [{ descricao: fatura.observacoes || 'Assessoria Jurídica', quantidade: 1, precoUnitario: fatura.valorTotal || fatura.valor || 0, taxaIva: 0, ivaPercent: 0, valorTotal: fatura.valorTotal || fatura.valor || 0 }];
+    /** Apenas despesas explicitamente da fatura — não incluir despesas automaticamente. */
     const despesasFromArray = (fatura.despesas || []).map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorTotal: parseFloat(d.valor || d.valorTotal || 0), precoUnitario: parseFloat(d.valor || d.valorTotal || 0) }));
     const despesasFromItens = itensRaw.filter(i => /emolumentos|certidão|certidao|taxa|despesa/i.test((i.descricao || '')));
-    let despesas = despesasFromArray.length ? despesasFromArray : despesasFromItens.map(i => ({ descricao: i.descricao, valorTotal: parseFloat(i.valorTotal || i.precoUnitario || 0), precoUnitario: parseFloat(i.precoUnitario || i.valorTotal || 0) }));
-    if (despesas.length === 0 && Array.isArray((sol.despesasPadrao || DADOS_SOLICITADORA?.despesasPadrao))) {
-        const padrao = (sol.despesasPadrao || DADOS_SOLICITADORA?.despesasPadrao || []);
-        despesas = padrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorTotal: parseFloat(d.valor || 0), precoUnitario: parseFloat(d.valor || 0) }));
-    }
+    const despesas = despesasFromArray.length ? despesasFromArray : despesasFromItens.map(i => ({ descricao: i.descricao, valorTotal: parseFloat(i.valorTotal || i.precoUnitario || 0), precoUnitario: parseFloat(i.precoUnitario || i.valorTotal || 0) }));
     const servicos = itensRaw.filter(i => !/emolumentos|certidão|certidao|taxa|despesa/i.test((i.descricao || '')));
     if (servicos.length === 0 && itensRaw.length) servicos.push(itensRaw[0]);
 
@@ -13192,7 +13216,7 @@ function obterDadosTemplateDocumento(apenasPreview) {
         }
         const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
         const fatura = faturaId ? faturas.find(f => String(f.id) === String(faturaId)) : null;
-        const cliente = fatura && fatura.clienteId ? clientes.find(c => String(c.id) === String(fatura.clienteId)) : { nome: 'N/D', nif: 'N/D', morada: 'N/D', endereco: '' };
+        const cliente = fatura ? (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(fatura.clienteId, fatura.clienteNome) : null) || clientes.find(c => String(c.id) === String(fatura.clienteId)) || { nome: fatura.clienteNome || 'N/D', nif: 'N/D', morada: 'N/D', endereco: '' } : { nome: 'N/D', nif: 'N/D', morada: 'N/D', endereco: '' };
         const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(faturaId));
         return { faturaId, fatura, cliente, clienteId: fatura?.clienteId, processoTipo, modeloId, numeroProcesso, objetoProcuracao, hoje: new Date(), solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {}, pagamentos: pagamentosFatura };
     }
@@ -13873,6 +13897,7 @@ function gerarDocumentos() {
                                 ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
                             </select>
                             <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? Vá a <strong>Honorários</strong> e clique em <strong>Gerar faturas</strong>.</p>
+                            <button type="button" id="btnApagarFaturaSelecionada" onclick="if(document.getElementById('templateFatura').value){apagarFatura(document.getElementById('templateFatura').value);}else{mostrarNotificacao('Selecione uma fatura para apagar.', 'warning');}" class="mt-2 text-sm text-red-600 hover:text-red-800 hover:underline focus:outline-none" title="Apagar a fatura selecionada da lista">Apagar fatura selecionada</button>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
@@ -14172,8 +14197,8 @@ function buildINVOICE_DATA(dados) {
         descricao: d.descricao || d.tipo || 'Despesa',
         valorNum: parseFloat(d.valor || d.valorTotal || 0)
     }));
-    const despesasPadrao = Array.isArray((sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao))) ? (sol.despesasPadrao || (typeof DADOS_SOLICITADORA !== 'undefined' && DADOS_SOLICITADORA && DADOS_SOLICITADORA.despesasPadrao) || []) : [];
-    const listaDespesas = despesasBruto.length ? despesasBruto : despesasPadrao.map(d => ({ descricao: d.descricao || d.tipo || 'Despesa', valorNum: parseFloat(d.valor || 0) }));
+    /** Apenas despesas desta fatura — sem misturar despesas padrão de outros contextos. */
+    const listaDespesas = despesasBruto;
     const subtotalDespesas = listaDespesas.reduce((s, d) => s + (d.valorNum || 0), 0);
     const totalGeral = subtotalServicos + subtotalDespesas;
     const retencao = parseFloat(fatura.retencao || 0);

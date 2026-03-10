@@ -183,6 +183,9 @@ svg.lucide-paperclip {
     background: #3b82f6;
 }
 
+/* Quadro branco da logo na sidebar: não mostrar (espaço como estava) */
+#sidebar-logo { display: none !important; visibility: hidden !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+
 .sidebar { 
     background: var(--primary-color) !important; 
     min-height: 100vh !important;

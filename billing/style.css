@@ -1,0 +1,104 @@
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+}
+
+.document {
+    width: 800px;
+    margin: auto;
+    padding: 40px;
+}
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.logo {
+    height: 80px;
+    object-fit: contain;
+}
+
+.issuer {
+    font-size: 14px;
+    line-height: 20px;
+    margin-bottom: 25px;
+}
+
+.title {
+    text-align: center;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    font-size: 22px;
+}
+
+.date {
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 14px;
+}
+
+.section-title {
+    font-size: 16px;
+    margin-top: 25px;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+.box {
+    border: 1px solid #dcdcdc;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 20px;
+    margin-bottom: 15px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+.table th {
+    background: #f5f5f5;
+    border: 1px solid #dcdcdc;
+    padding: 8px;
+    font-size: 14px;
+}
+
+.table td {
+    border: 1px solid #dcdcdc;
+    padding: 8px;
+    font-size: 14px;
+}
+
+.summary {
+    width: 300px;
+    margin-left: auto;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.summary .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.summary .total {
+    font-weight: bold;
+}
+
+.qr-container {
+    margin-top: 40px;
+    text-align: right;
+}
+
+.qrcode {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+}

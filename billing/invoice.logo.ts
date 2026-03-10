@@ -13,11 +13,12 @@ const rootDir = path.resolve(__dirname, '..');
 
 let cachedLogo: string | null = null;
 
-// Fatura: ana.png; outros usos: logo-solicitadora.
+// Ordem: SVG primeiro (vetorial = melhor qualidade), depois PNG.
 const LOGO_CANDIDATES = [
+  path.resolve(rootDir, 'assets', 'ana.svg'),
+  path.resolve(rootDir, 'assets', 'logo-solicitadora.svg'),
   path.resolve(rootDir, 'assets', 'ana.png'),
   path.resolve(rootDir, 'assets', 'logo-solicitadora.png'),
-  path.resolve(rootDir, 'assets', 'logo-solicitadora.svg'),
 ];
 
 /**

@@ -3236,10 +3236,6 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
-    // PWA: registar Service Worker para instalação e uso offline básico
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
     // Aguardar limpeza do cache Firestore (após zero absoluto) antes de iniciar listeners
     if (window.__promiseCacheFirestoreLimpo) {
         await window.__promiseCacheFirestoreLimpo;

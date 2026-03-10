@@ -24,7 +24,7 @@
   margin: 0;
   padding: 25px 35px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--color-text);
   background: var(--color-bg);
@@ -46,12 +46,13 @@
   gap: 20px;
   margin-bottom: 0;
   padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .logo {
-  width: 190px;
-  max-width: 190px;
-  min-width: 190px;
+  width: 220px;
+  max-width: 220px;
+  min-width: 220px;
   height: auto;
   object-fit: contain;
   flex-shrink: 0;
@@ -72,32 +73,32 @@
 }
 
 .doc-title-block {
-  text-align: center;
+  text-align: left;
   margin-bottom: var(--spacing-lg);
 }
 
 .doc-title-block .doc-type {
   margin: 0 0 var(--spacing-xs) 0;
-  font-size: 14pt;
+  font-size: 16pt;
   font-weight: 700;
 }
 
 .doc-title-block .doc-date {
   margin: 0;
-  font-size: 10pt;
+  font-size: 11pt;
   color: var(--color-text-muted);
 }
 
 .issuer-info h2 {
   margin: 0 0 var(--spacing-sm) 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
 }
 
 .issuer-info p {
   margin: var(--spacing-xs) 0;
-  font-size: 10pt;
+  font-size: 11px;
   color: var(--color-text-muted);
 }
 
@@ -141,7 +142,7 @@
 
 .section-title {
   margin: 0 0 var(--spacing-sm) 0;
-  font-size: 10pt;
+  font-size: 11pt;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -162,7 +163,7 @@
 .client-address,
 .client-contact {
   margin: var(--spacing-xs) 0;
-  font-size: 10pt;
+  font-size: 11pt;
 }
 
 .item-ref {
@@ -178,7 +179,7 @@
 .items-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10pt;
+  font-size: 11pt;
 }
 
 .items-table th,
@@ -224,7 +225,7 @@
 .totals-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10pt;
+  font-size: 11pt;
 }
 
 .totals-table td {
@@ -266,6 +267,7 @@
 
 .receipt-block p {
   margin: var(--spacing-xs) 0;
+  font-size: 11pt;
 }
 
 /* Menções legais */
@@ -274,7 +276,7 @@
 }
 
 .legal-mentions {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-muted);
   font-style: italic;
 }

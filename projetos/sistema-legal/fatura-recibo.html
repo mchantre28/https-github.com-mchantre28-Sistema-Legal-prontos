@@ -716,8 +716,8 @@
     <!-- 2) TÍTULO DO DOCUMENTO    -->
     <!-- ========================= -->
     <div class="doc-title-block">
-      <h1 class="doc-title" data-field="doc.title">Fatura/Recibo FAT-20260223-001</h1>
-      <p class="doc-date">Data: <span data-field="doc.date">23/02/2026</span></p>
+      <h1 class="doc-title" data-field="doc.title">Fatura/Recibo FAT-2026-192522</h1>
+      <p class="doc-date">Data: <span data-field="doc.date">27/02/2026</span></p>
     </div>
 
     <!-- ========================= -->
@@ -726,10 +726,10 @@
     <section class="client-section">
       <h2 class="section-title">Cliente</h2>
       <div class="client-block">
-        <p class="client-name" data-field="client.nome">Suleimane Djane</p>
-        <p>NIF: <span data-field="client.nif">326 238 557</span></p>
-        <p data-field="client.morada">Rua Dr. Estevão Vasconcelos, 64</p>
-        <p data-field="client.codigoPostal">8500-590 Portimão</p>
+        <p class="client-name" data-field="client.nome">Lurdes Paulo Ufala</p>
+        <p>NIF: <span data-field="client.nif">305 309 625</span></p>
+        <p data-field="client.morada">R. Alm. Reis, n.º 192, Olhão</p>
+        <p data-field="client.codigoPostal">8700-363 Olhão</p>
       </div>
     </section>
 
@@ -753,13 +753,13 @@
           </thead>
           <tbody id="services-tbody">
             <tr>
-              <td data-field="service.descricao">Assessoria Jurídica - AIMA</td>
+              <td data-field="service.descricao">Consulta Jurídica</td>
               <td class="col-center" data-field="service.art">7</td>
               <td class="col-center" data-field="service.qtd">1</td>
               <td class="col-center" data-field="service.incidencia">isento</td>
-              <td class="col-right" data-field="service.precoUnit">500,00 €</td>
+              <td class="col-right" data-field="service.precoUnit">60,00 €</td>
               <td class="col-center" data-field="service.iva">0%</td>
-              <td class="col-right" data-field="service.total">500,00 €</td>
+              <td class="col-right" data-field="service.total">60,00 €</td>
             </tr>
           </tbody>
         </table>
@@ -779,7 +779,14 @@
             <th class="col-right">Total</th>
           </tr>
         </thead>
-        <tbody id="expenses-tbody"></tbody>
+        <tbody id="expenses-tbody">
+          <tr>
+            <td>Emolumentos / Certidão</td>
+            <td class="col-right">15,00 €</td>
+            <td class="col-center">0%</td>
+            <td class="col-right">15,00 €</td>
+          </tr>
+        </tbody>
       </table>
     </section>
 
@@ -790,11 +797,11 @@
       <table class="totals-table" role="grid">
         <tr>
           <td>Serviços/Produtos</td>
-          <td class="col-right" data-field="totals.servicos">500,00 €</td>
+          <td class="col-right" data-field="totals.servicos">60,00 €</td>
         </tr>
-        <tr class="row-despesas" id="row-despesas">
+        <tr class="row-despesas hidden-row" id="row-despesas">
           <td>Despesas</td>
-          <td class="col-right" data-field="totals.despesas">15,00 €</td>
+          <td class="col-right" data-field="totals.despesas">0,00 €</td>
         </tr>
         <tr>
           <td>IVA</td>
@@ -802,11 +809,11 @@
         </tr>
         <tr class="row-total">
           <td>Total</td>
-          <td class="col-right" data-field="totals.total">515,00 €</td>
+          <td class="col-right" data-field="totals.total">60,00 €</td>
         </tr>
         <tr class="row-pay">
           <td>Valor a Pagar</td>
-          <td class="col-right" data-field="totals.valorPagar">515,00 €</td>
+          <td class="col-right" data-field="totals.valorPagar">60,00 €</td>
         </tr>
       </table>
     </section>
@@ -818,9 +825,9 @@
     <section class="receipt-section">
       <h2 class="section-title">Recibo</h2>
       <div class="receipt-block">
-        <p><strong>N.º:</strong> <span data-field="recibo.numero">REC-20260223-001</span></p>
-        <p><strong>Data:</strong> <span data-field="recibo.data">23/02/2026</span></p>
-        <p><strong>Valor recebido:</strong> <span data-field="recibo.valorRecebido">385,00 €</span></p>
+        <p><strong>N.º:</strong> <span data-field="recibo.numero">REC-20260227-001</span></p>
+        <p><strong>Data:</strong> <span data-field="recibo.data">27/02/2026</span></p>
+        <p><strong>Valor recebido:</strong> <span data-field="recibo.valorRecebido">60,00 €</span></p>
       </div>
     </section>
 
@@ -939,10 +946,11 @@
 
       var expTbody = document.getElementById('expenses-tbody');
       var expSection = document.getElementById('expenses-section');
-      if (expSection) expSection.classList.remove('hidden');
+      var hasExpenses = data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0;
+      if (expSection) expSection.classList.toggle('hidden', !hasExpenses);
       if (expTbody) {
         expTbody.innerHTML = '';
-        if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
+        if (hasExpenses) {
           data.expenses.forEach(function(e) {
             var tr = document.createElement('tr');
             tr.innerHTML =
