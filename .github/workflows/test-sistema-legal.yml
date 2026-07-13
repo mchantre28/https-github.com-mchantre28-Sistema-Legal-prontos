@@ -32,13 +32,25 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: projetos/sistema-legal/package-lock.json
+          cache-dependency-path: |
+            projetos/sistema-legal/package-lock.json
+            projetos/sistema-legal/backend/package-lock.json
 
-      - run: npm ci || npm install
+      - name: Instalar dependências frontend
+        run: npm ci || npm install
+
+      - name: Instalar dependências backend
+        run: npm ci || npm install
+        working-directory: projetos/sistema-legal/backend
+
+      - name: Popular base de dados (seed)
+        run: npm run seed
+        working-directory: projetos/sistema-legal/backend
 
       - run: npx playwright install --with-deps chromium
 
-      - run: npx playwright test --reporter=html --reporter=github
+      - name: Executar testes E2E
+        run: npx playwright test --reporter=html --reporter=github
         env:
           CI: true
 
