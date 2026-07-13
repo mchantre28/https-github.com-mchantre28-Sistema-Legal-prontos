@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sistema-legal-api
+    runtime: node
+    rootDir: projetos/sistema-legal/backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: JWT_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: sistema-legal-data
+      mountPath: /opt/render/project/src/projetos/sistema-legal/backend/data
+      sizeGB: 1

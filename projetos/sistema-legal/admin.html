@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Legal — Área Administrativa</title>
+    <meta name="theme-color" content="#111827">
+    <!-- Em produção: descomentar e definir URL da API (ex.: https://sistema-legal-api.up.railway.app) -->
+    <!-- <meta name="api-base-url" content="https://SUA-API.exemplo.com"> -->
+    <link rel="stylesheet" href="styles.css?v=7">
+</head>
+<body class="admin-page">
+    <div id="loading" class="admin-loading" style="min-height:100vh;justify-content:center;">
+        <span class="admin-spinner"></span>
+        A verificar sessão...
+    </div>
+
+    <div id="dashboard" class="hidden">
+        <header class="admin-header">
+            <div class="admin-header-inner">
+                <div>
+                    <h1>Sistema Legal</h1>
+                    <p class="admin-header-subtitle">Área Administrativa</p>
+                </div>
+                <div class="admin-header-actions">
+                    <span id="adminNome" class="admin-user-name">Ana Paula Medina</span>
+                    <button type="button" id="btnDarkMode" class="btn btn-secondary btn-sm" title="Alternar modo escuro">
+                        Modo escuro
+                    </button>
+                    <a href="index.html" class="btn btn-info btn-sm admin-link-sistema">Sistema completo</a>
+                    <button type="button" id="btnLogout" class="btn btn-error btn-sm">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            <section class="card p-6">
+                <h2 class="admin-section-title">Lista de processos</h2>
+                <p class="admin-section-desc">Todos os processos registados no sistema, com respetivo cliente.</p>
+
+                <div id="processosLoading" class="admin-loading">
+                    <span class="admin-spinner"></span>
+                    A carregar processos...
+                </div>
+
+                <div id="processosTabelaWrap" class="table-responsive hidden">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>N.º processo</th>
+                                <th>Título</th>
+                                <th>Estado</th>
+                                <th>Cliente (email)</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processosBody"></tbody>
+                    </table>
+                </div>
+
+                <p id="processosVazio" class="hidden admin-section-desc">Não existem processos registados.</p>
+                <p id="processosErro" class="hidden admin-msg admin-msg-erro"></p>
+            </section>
+
+            <section class="card p-6">
+                <h2 class="admin-section-title">Novo processo</h2>
+                <p class="admin-section-desc">Associe o processo a um cliente existente através do email.</p>
+
+                <form id="formNovoProcesso" novalidate>
+                    <div class="form-grid form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="clienteEmail">Email do cliente</label>
+                            <input type="email" id="clienteEmail" name="cliente_email" class="form-control" required
+                                list="listaClientesApi" placeholder="cliente@sistema-legal.pt" autocomplete="off">
+                            <datalist id="listaClientesApi"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="numeroProcesso">N.º processo</label>
+                            <input type="text" id="numeroProcesso" name="numero_processo" class="form-control" required
+                                maxlength="50" placeholder="Ex.: HER-2026-0002">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="tituloProcesso">Título</label>
+                            <input type="text" id="tituloProcesso" name="titulo" class="form-control" required
+                                maxlength="200" placeholder="Ex.: Herança — Espólio de...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="estadoProcesso">Estado</label>
+                            <select id="estadoProcesso" name="estado" class="form-control">
+                                <option value="em_tramitacao">Em tramitação</option>
+                                <option value="pendente">Pendente</option>
+                                <option value="aberto">Aberto</option>
+                                <option value="concluido">Concluído</option>
+                                <option value="arquivado">Arquivado</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="descricaoProcesso">Descrição</label>
+                        <textarea id="descricaoProcesso" name="descricao" class="form-control" rows="3"
+                            placeholder="Descrição do processo (opcional)"></textarea>
+                    </div>
+
+                    <p id="formProcessoErro" class="hidden admin-msg admin-msg-erro"></p>
+                    <p id="formProcessoSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+
+                    <button type="submit" id="btnCriarProcesso" class="btn btn-primary">
+                        Criar processo
+                    </button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <div id="modalTramite" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTramiteTitulo">
+        <div class="modal-content admin-modal">
+            <div class="admin-modal-header">
+                <div>
+                    <h3 id="modalTramiteTitulo" class="admin-modal-title">Novo trâmite</h3>
+                    <p id="modalProcessoInfo" class="admin-modal-meta"></p>
+                </div>
+                <button type="button" id="btnFecharModal" class="btn btn-secondary btn-sm" aria-label="Fechar">✕</button>
+            </div>
+
+            <form id="formNovoTramite" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="dataTramite">Data</label>
+                    <input type="date" id="dataTramite" name="data_tramite" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tituloTramite">Título</label>
+                    <input type="text" id="tituloTramite" name="titulo" class="form-control" required maxlength="200"
+                        placeholder="Ex.: Pedido de certidão">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="descricaoTramite">Descrição</label>
+                    <textarea id="descricaoTramite" name="descricao" class="form-control" rows="3"
+                        placeholder="Detalhe do trâmite (opcional)"></textarea>
+                </div>
+
+                <p id="formTramiteErro" class="hidden admin-msg admin-msg-erro"></p>
+                <p id="formTramiteSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+
+                <button type="submit" id="btnCriarTramite" class="btn btn-primary">Registar trâmite</button>
+            </form>
+
+            <div id="documentosSecao" class="admin-docs-secao">
+                <h4 class="admin-section-title" style="font-size:0.9375rem;">Documentos do processo</h4>
+                <div id="documentosLista" class="admin-docs-lista">
+                    <div id="documentosLoading" class="admin-loading">
+                        <span class="admin-spinner"></span>
+                        A carregar documentos...
+                    </div>
+                </div>
+
+                <form id="formNovoDocumento" enctype="multipart/form-data" novalidate>
+                    <div class="form-group">
+                        <label class="form-label" for="ficheiroDocumento">Ficheiro</label>
+                        <input type="file" id="ficheiroDocumento" name="file" class="form-control"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <p class="admin-section-desc" style="margin:0.375rem 0 0;">PDF, DOC, DOCX, JPG ou PNG — máximo 10 MB.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="nomeDocumento">Nome de exibição <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+                        <input type="text" id="nomeDocumento" name="nome_ficheiro" class="form-control" maxlength="255"
+                            placeholder="Usa o nome do ficheiro se vazio">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="urlDocumento">URL externa <span style="font-weight:400;color:#9ca3af;">(alternativa ao upload)</span></label>
+                        <input type="url" id="urlDocumento" name="url_ficheiro" class="form-control" placeholder="https://...">
+                    </div>
+                    <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:500;">
+                        <input type="checkbox" id="visivelCliente" name="visivel_cliente" checked>
+                        Visível ao cliente
+                    </label>
+
+                    <p id="formDocErro" class="hidden admin-msg admin-msg-erro"></p>
+                    <p id="formDocSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+
+                    <button type="submit" id="btnCriarDocumento" class="btn btn-info btn-sm">Adicionar documento</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEditarProcesso" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalEditarTitulo">
+        <div class="modal-content admin-modal">
+            <div class="admin-modal-header">
+                <div>
+                    <h3 id="modalEditarTitulo" class="admin-modal-title">Editar processo</h3>
+                    <p id="modalEditarInfo" class="admin-modal-meta"></p>
+                </div>
+                <button type="button" id="btnFecharModalEditar" class="btn btn-secondary btn-sm" aria-label="Fechar">✕</button>
+            </div>
+
+            <form id="formEditarProcesso" novalidate>
+                <input type="hidden" id="editarProcessoId" name="id">
+                <div class="form-grid form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="editarNumeroProcesso">N.º processo</label>
+                        <input type="text" id="editarNumeroProcesso" class="form-control" required maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editarTituloProcesso">Título</label>
+                        <input type="text" id="editarTituloProcesso" class="form-control" required maxlength="200">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editarEstadoProcesso">Estado</label>
+                        <select id="editarEstadoProcesso" class="form-control">
+                            <option value="em_tramitacao">Em tramitação</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="aberto">Aberto</option>
+                            <option value="concluido">Concluído</option>
+                            <option value="arquivado">Arquivado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="editarDescricaoProcesso">Descrição</label>
+                    <textarea id="editarDescricaoProcesso" class="form-control" rows="3"></textarea>
+                </div>
+
+                <p id="formEditarErro" class="hidden admin-msg admin-msg-erro"></p>
+                <p id="formEditarSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+
+                <button type="submit" id="btnGuardarProcesso" class="btn btn-primary">Guardar alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="api.js?v=3"></script>
+    <script src="auth-guard.js?v=1"></script>
+    <script src="admin.js?v=2"></script>
+</body>
+</html>

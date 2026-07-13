@@ -1,0 +1,604 @@
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const { getDb } = require('./database');
+
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'sistema-legal-dev-secret-alterar-em-producao';
+const JWT_EXPIRES_IN = '8h';
+
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']);
+const ALLOWED_MIMES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+]);
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+function sanitizeFilename(originalName) {
+  const base = path.basename(String(originalName || 'ficheiro'));
+  const ext = path.extname(base).toLowerCase();
+  const stem = path.basename(base, ext)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'ficheiro';
+  const safeExt = ALLOWED_EXTENSIONS.has(ext) ? ext : '';
+  const unique = Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex');
+  return unique + '-' + stem + safeExt;
+}
+
+const uploadStorage = multer.diskStorage({
+  destination(_req, _file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename(_req, file, cb) {
+    cb(null, sanitizeFilename(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter(_req, file, cb) {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return cb(new Error('Tipo de ficheiro não permitido. Use PDF, DOC, DOCX, JPG ou PNG.'));
+    }
+    if (file.mimetype && !ALLOWED_MIMES.has(file.mimetype)) {
+      return cb(new Error('Tipo MIME do ficheiro não permitido.'));
+    }
+    cb(null, true);
+  },
+});
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+function sanitizeUser(row) {
+  if (!row) return null;
+  const { password_hash, ...user } = row;
+  return user;
+}
+
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ erro: 'Token de autenticação em falta.' });
+  }
+
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ erro: 'Token inválido ou expirado.' });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user.perfil !== 'admin') {
+    return res.status(403).json({ erro: 'Acesso reservado a administradores.' });
+  }
+  next();
+}
+
+function getProcessoIfAllowed(db, processoId, user) {
+  const id = Number(processoId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { erro: 'ID de processo inválido.', status: 400 };
+  }
+
+  const processo = db.prepare('SELECT * FROM processos WHERE id = ?').get(id);
+  if (!processo) return { erro: 'Processo não encontrado.', status: 404 };
+  if (user.perfil === 'cliente' && processo.cliente_id !== user.id) {
+    return { erro: 'Sem permissão para aceder a este processo.', status: 403 };
+  }
+  return { processo };
+}
+
+// --- Auth ---
+
+app.post('/api/login', (req, res) => {
+  const { email, password, perfil } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ erro: 'Email e password são obrigatórios.' });
+  }
+
+  const perfilPedido = perfil != null ? String(perfil).trim().toLowerCase() : '';
+
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM utilizadores WHERE email = ?').get(email.trim().toLowerCase());
+
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ erro: 'Credenciais inválidas.' });
+  }
+
+  if (perfilPedido && user.perfil !== perfilPedido) {
+    return res.status(403).json({
+      erro: perfilPedido === 'admin'
+        ? 'Esta conta não tem perfil de administrador.'
+        : perfilPedido === 'cliente'
+          ? 'Esta conta não tem perfil de cliente.'
+          : 'O perfil selecionado não corresponde a esta conta.',
+    });
+  }
+
+  const payload = {
+    id: user.id,
+    nome: user.nome,
+    email: user.email,
+    perfil: user.perfil,
+  };
+
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+  res.json({
+    token,
+    utilizador: payload,
+  });
+});
+
+app.get('/api/me', authMiddleware, (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, nome, email, perfil, created_at FROM utilizadores WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(404).json({ erro: 'Utilizador não encontrado.' });
+  }
+  res.json({ utilizador: user });
+});
+
+// --- Clientes (utilizadores com perfil cliente) ---
+
+app.get('/api/clientes', authMiddleware, requireAdmin, (req, res) => {
+  const db = getDb();
+  const clientes = db.prepare(`
+    SELECT id, nome, email, perfil, created_at
+    FROM utilizadores
+    WHERE perfil = 'cliente'
+    ORDER BY nome ASC
+  `).all();
+  res.json({ clientes });
+});
+
+// --- Processos ---
+
+app.get('/api/processos', authMiddleware, (req, res) => {
+  const db = getDb();
+  let rows;
+
+  if (req.user.perfil === 'admin') {
+    rows = db.prepare(`
+      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome
+      FROM processos p
+      INNER JOIN utilizadores u ON u.id = p.cliente_id
+      ORDER BY p.updated_at DESC
+    `).all();
+  } else {
+    rows = db.prepare('SELECT * FROM processos WHERE cliente_id = ? ORDER BY updated_at DESC').all(req.user.id);
+  }
+
+  res.json({ processos: rows });
+});
+
+app.get('/api/processos/:id', authMiddleware, (req, res) => {
+  const db = getDb();
+  const { processo, erro, status } = getProcessoIfAllowed(db, Number(req.params.id), req.user);
+  if (erro) return res.status(status).json({ erro });
+  res.json({ processo });
+});
+
+app.post('/api/processos', authMiddleware, requireAdmin, (req, res) => {
+  const { numero_processo, titulo, descricao, estado, cliente_id, cliente_email } = req.body || {};
+
+  if (!numero_processo || !titulo) {
+    return res.status(400).json({ erro: 'numero_processo e titulo são obrigatórios.' });
+  }
+
+  const db = getDb();
+  let resolvedClienteId = cliente_id ? Number(cliente_id) : null;
+
+  if (!resolvedClienteId && cliente_email) {
+    const clienteByEmail = db.prepare(
+      'SELECT id FROM utilizadores WHERE email = ? AND perfil = ?'
+    ).get(String(cliente_email).trim().toLowerCase(), 'cliente');
+    if (!clienteByEmail) {
+      return res.status(400).json({ erro: 'Cliente não encontrado com o email indicado.' });
+    }
+    resolvedClienteId = clienteByEmail.id;
+  }
+
+  if (!resolvedClienteId) {
+    return res.status(400).json({ erro: 'cliente_email ou cliente_id é obrigatório.' });
+  }
+
+  const cliente = db.prepare('SELECT id FROM utilizadores WHERE id = ? AND perfil = ?').get(resolvedClienteId, 'cliente');
+  if (!cliente) {
+    return res.status(400).json({ erro: 'cliente_id inválido (utilizador cliente não encontrado).' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO processos (numero_processo, titulo, descricao, estado, cliente_id)
+      VALUES (@numero_processo, @titulo, @descricao, @estado, @cliente_id)
+    `).run({
+      numero_processo: String(numero_processo).trim(),
+      titulo: String(titulo).trim(),
+      descricao: descricao || '',
+      estado: estado || 'aberto',
+      cliente_id: resolvedClienteId,
+    });
+
+    const processo = db.prepare(`
+      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome
+      FROM processos p
+      INNER JOIN utilizadores u ON u.id = p.cliente_id
+      WHERE p.id = ?
+    `).get(result.lastInsertRowid);
+    res.status(201).json({ processo });
+  } catch (err) {
+    if (String(err.message).includes('UNIQUE')) {
+      return res.status(409).json({ erro: 'Já existe um processo com este número.' });
+    }
+    throw err;
+  }
+});
+
+app.put('/api/processos/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM processos WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ erro: 'Processo não encontrado.' });
+  }
+
+  const { numero_processo, titulo, descricao, estado, cliente_id } = req.body || {};
+
+  try {
+    db.prepare(`
+      UPDATE processos SET
+        numero_processo = COALESCE(@numero_processo, numero_processo),
+        titulo = COALESCE(@titulo, titulo),
+        descricao = COALESCE(@descricao, descricao),
+        estado = COALESCE(@estado, estado),
+        cliente_id = COALESCE(@cliente_id, cliente_id),
+        updated_at = datetime('now')
+      WHERE id = @id
+    `).run({
+      id,
+      numero_processo: numero_processo != null ? String(numero_processo).trim() : null,
+      titulo: titulo != null ? String(titulo).trim() : null,
+      descricao: descricao != null ? descricao : null,
+      estado: estado != null ? estado : null,
+      cliente_id: cliente_id != null ? cliente_id : null,
+    });
+
+    const processo = db.prepare('SELECT * FROM processos WHERE id = ?').get(id);
+    res.json({ processo });
+  } catch (err) {
+    if (String(err.message).includes('UNIQUE')) {
+      return res.status(409).json({ erro: 'Já existe um processo com este número.' });
+    }
+    throw err;
+  }
+});
+
+app.delete('/api/processos/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const result = db.prepare('DELETE FROM processos WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return res.status(404).json({ erro: 'Processo não encontrado.' });
+  }
+  res.json({ sucesso: true });
+});
+
+// --- Trâmites ---
+
+app.get('/api/tramites', authMiddleware, (req, res) => {
+  const db = getDb();
+  const processoId = req.query.processo_id ? Number(req.query.processo_id) : null;
+
+  if (processoId) {
+    const { processo, erro, status } = getProcessoIfAllowed(db, processoId, req.user);
+    if (erro) return res.status(status).json({ erro });
+
+    const tramites = db.prepare('SELECT * FROM tramites WHERE processo_id = ? ORDER BY data_tramite ASC, id ASC').all(processoId);
+    return res.json({ tramites });
+  }
+
+  if (req.user.perfil === 'admin') {
+    const tramites = db.prepare('SELECT * FROM tramites ORDER BY data_tramite DESC').all();
+    return res.json({ tramites });
+  }
+
+  const tramites = db.prepare(`
+    SELECT t.* FROM tramites t
+    INNER JOIN processos p ON p.id = t.processo_id
+    WHERE p.cliente_id = ?
+    ORDER BY t.data_tramite DESC
+  `).all(req.user.id);
+
+  res.json({ tramites });
+});
+
+app.get('/api/tramites/:id', authMiddleware, (req, res) => {
+  const db = getDb();
+  const tramite = db.prepare('SELECT * FROM tramites WHERE id = ?').get(Number(req.params.id));
+  if (!tramite) {
+    return res.status(404).json({ erro: 'Trâmite não encontrado.' });
+  }
+
+  const { erro, status } = getProcessoIfAllowed(db, tramite.processo_id, req.user);
+  if (erro) return res.status(status).json({ erro });
+
+  res.json({ tramite });
+});
+
+app.post('/api/tramites', authMiddleware, requireAdmin, (req, res) => {
+  const { processo_id, data_tramite, titulo, descricao } = req.body || {};
+
+  if (!processo_id || !data_tramite || !titulo) {
+    return res.status(400).json({ erro: 'processo_id, data_tramite e titulo são obrigatórios.' });
+  }
+
+  const db = getDb();
+  const processo = db.prepare('SELECT id FROM processos WHERE id = ?').get(processo_id);
+  if (!processo) {
+    return res.status(400).json({ erro: 'processo_id inválido.' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO tramites (processo_id, data_tramite, titulo, descricao)
+    VALUES (@processo_id, @data_tramite, @titulo, @descricao)
+  `).run({
+    processo_id,
+    data_tramite,
+    titulo: String(titulo).trim(),
+    descricao: descricao || '',
+  });
+
+  const tramite = db.prepare('SELECT * FROM tramites WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json({ tramite });
+});
+
+app.put('/api/tramites/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM tramites WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ erro: 'Trâmite não encontrado.' });
+  }
+
+  const { data_tramite, titulo, descricao } = req.body || {};
+
+  db.prepare(`
+    UPDATE tramites SET
+      data_tramite = COALESCE(@data_tramite, data_tramite),
+      titulo = COALESCE(@titulo, titulo),
+      descricao = COALESCE(@descricao, descricao)
+    WHERE id = @id
+  `).run({
+    id,
+    data_tramite: data_tramite != null ? data_tramite : null,
+    titulo: titulo != null ? String(titulo).trim() : null,
+    descricao: descricao != null ? descricao : null,
+  });
+
+  const tramite = db.prepare('SELECT * FROM tramites WHERE id = ?').get(id);
+  res.json({ tramite });
+});
+
+app.delete('/api/tramites/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const result = db.prepare('DELETE FROM tramites WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return res.status(404).json({ erro: 'Trâmite não encontrado.' });
+  }
+  res.json({ sucesso: true });
+});
+
+// --- Documentos ---
+
+app.get('/api/documentos', authMiddleware, (req, res) => {
+  const db = getDb();
+  const processoId = req.query.processo_id ? Number(req.query.processo_id) : null;
+
+  if (processoId) {
+    const { processo, erro, status } = getProcessoIfAllowed(db, processoId, req.user);
+    if (erro) return res.status(status).json({ erro });
+
+    let documentos;
+    if (req.user.perfil === 'admin') {
+      documentos = db.prepare('SELECT * FROM documentos WHERE processo_id = ? ORDER BY created_at DESC').all(processoId);
+    } else {
+      documentos = db.prepare('SELECT * FROM documentos WHERE processo_id = ? AND visivel_cliente = 1 ORDER BY created_at DESC').all(processoId);
+    }
+    return res.json({ documentos });
+  }
+
+  if (req.user.perfil === 'admin') {
+    const documentos = db.prepare('SELECT * FROM documentos ORDER BY created_at DESC').all();
+    return res.json({ documentos });
+  }
+
+  const documentos = db.prepare(`
+    SELECT d.* FROM documentos d
+    INNER JOIN processos p ON p.id = d.processo_id
+    WHERE p.cliente_id = ? AND d.visivel_cliente = 1
+    ORDER BY d.created_at DESC
+  `).all(req.user.id);
+
+  res.json({ documentos });
+});
+
+app.get('/api/documentos/:id', authMiddleware, (req, res) => {
+  const db = getDb();
+  const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(Number(req.params.id));
+  if (!documento) {
+    return res.status(404).json({ erro: 'Documento não encontrado.' });
+  }
+
+  const { erro, status } = getProcessoIfAllowed(db, documento.processo_id, req.user);
+  if (erro) return res.status(status).json({ erro });
+
+  if (req.user.perfil === 'cliente' && !documento.visivel_cliente) {
+    return res.status(403).json({ erro: 'Documento não visível para o cliente.' });
+  }
+
+  res.json({ documento });
+});
+
+app.post('/api/documentos', authMiddleware, requireAdmin, (req, res) => {
+  const { processo_id, nome_ficheiro, url_ficheiro, visivel_cliente } = req.body || {};
+
+  if (!processo_id || !nome_ficheiro || !url_ficheiro) {
+    return res.status(400).json({ erro: 'processo_id, nome_ficheiro e url_ficheiro são obrigatórios.' });
+  }
+
+  const db = getDb();
+  const processo = db.prepare('SELECT id FROM processos WHERE id = ?').get(processo_id);
+  if (!processo) {
+    return res.status(400).json({ erro: 'processo_id inválido.' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO documentos (processo_id, nome_ficheiro, url_ficheiro, visivel_cliente)
+    VALUES (@processo_id, @nome_ficheiro, @url_ficheiro, @visivel_cliente)
+  `).run({
+    processo_id,
+    nome_ficheiro: String(nome_ficheiro).trim(),
+    url_ficheiro: String(url_ficheiro).trim(),
+    visivel_cliente: visivel_cliente ? 1 : 0,
+  });
+
+  const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json({ documento });
+});
+
+app.post('/api/documentos/upload', authMiddleware, requireAdmin, (req, res) => {
+  upload.single('file')(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ erro: 'Ficheiro demasiado grande. O limite é 10 MB.' });
+      }
+      return res.status(400).json({ erro: 'Erro no envio do ficheiro: ' + err.message });
+    }
+    if (err) {
+      return res.status(400).json({ erro: err.message || 'Erro no envio do ficheiro.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ erro: 'Ficheiro em falta.' });
+    }
+
+    const processoId = Number(req.body.processo_id);
+    if (!processoId) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ erro: 'processo_id é obrigatório.' });
+    }
+
+    const db = getDb();
+    const processo = db.prepare('SELECT id FROM processos WHERE id = ?').get(processoId);
+    if (!processo) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ erro: 'processo_id inválido.' });
+    }
+
+    const nomeCustom = req.body.nome_ficheiro ? String(req.body.nome_ficheiro).trim() : '';
+    const nomeFicheiro = nomeCustom || req.file.originalname || req.file.filename;
+    const urlFicheiro = '/uploads/' + req.file.filename;
+    const visivelCliente = req.body.visivel_cliente === '1' || req.body.visivel_cliente === 'true' || req.body.visivel_cliente === true;
+
+    try {
+      const result = db.prepare(`
+        INSERT INTO documentos (processo_id, nome_ficheiro, url_ficheiro, visivel_cliente)
+        VALUES (@processo_id, @nome_ficheiro, @url_ficheiro, @visivel_cliente)
+      `).run({
+        processo_id: processoId,
+        nome_ficheiro: nomeFicheiro,
+        url_ficheiro: urlFicheiro,
+        visivel_cliente: visivelCliente ? 1 : 0,
+      });
+
+      const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(result.lastInsertRowid);
+      res.status(201).json({ documento });
+    } catch (insertErr) {
+      fs.unlink(req.file.path, () => {});
+      throw insertErr;
+    }
+  });
+});
+
+app.put('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM documentos WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ erro: 'Documento não encontrado.' });
+  }
+
+  const { nome_ficheiro, url_ficheiro, visivel_cliente } = req.body || {};
+
+  db.prepare(`
+    UPDATE documentos SET
+      nome_ficheiro = COALESCE(@nome_ficheiro, nome_ficheiro),
+      url_ficheiro = COALESCE(@url_ficheiro, url_ficheiro),
+      visivel_cliente = COALESCE(@visivel_cliente, visivel_cliente)
+    WHERE id = @id
+  `).run({
+    id,
+    nome_ficheiro: nome_ficheiro != null ? String(nome_ficheiro).trim() : null,
+    url_ficheiro: url_ficheiro != null ? String(url_ficheiro).trim() : null,
+    visivel_cliente: visivel_cliente != null ? (visivel_cliente ? 1 : 0) : null,
+  });
+
+  const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(id);
+  res.json({ documento });
+});
+
+app.delete('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const db = getDb();
+  const result = db.prepare('DELETE FROM documentos WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return res.status(404).json({ erro: 'Documento não encontrado.' });
+  }
+  res.json({ sucesso: true });
+});
+
+// --- Health ---
+
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', servico: 'sistema-legal-api' });
+});
+
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ erro: 'Erro interno do servidor.' });
+});
+
+app.listen(PORT, () => {
+  getDb();
+  console.log(`Sistema Legal API a correr em http://localhost:${PORT}`);
+  console.log('Endpoints: POST /api/login, GET /api/processos, GET /api/tramites, GET /api/documentos');
+});

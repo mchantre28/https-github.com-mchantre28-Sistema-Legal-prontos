@@ -6,3 +6,11 @@ playwright/.cache/
 
 # Node
 node_modules/
+
+# Backend SQLite
+backend/data/*.db
+backend/data/*.db-*
+
+# Ficheiros carregados (manter pasta uploads/)
+backend/uploads/*
+!backend/uploads/.gitkeep

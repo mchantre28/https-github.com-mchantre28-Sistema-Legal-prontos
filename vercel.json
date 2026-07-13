@@ -2,10 +2,21 @@
   "version": 2,
   "name": "sistema-legal",
   "rootDirectory": "projetos/sistema-legal",
-  "builds": [{"src": "index.html", "use": "@vercel/static"}],
   "routes": [
-    {"src": "/fatura-recibo.html", "dest": "/fatura-recibo.html"},
-    {"src": "/(.*)", "dest": "/index.html"}
+    { "src": "/admin\\.html", "dest": "/admin.html" },
+    { "src": "/cliente\\.html", "dest": "/cliente.html" },
+    { "src": "/fatura-recibo\\.html", "dest": "/fatura-recibo.html" },
+    { "src": "/(.*\\.(css|js|png|jpg|jpeg|svg|ico|json|html|pdf|woff2?))", "dest": "/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ],
-  "headers": [{"source": "/(.*)", "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]}]
+  "headers": [
+    {
+      "source": "/(.*\\.(css|js|png|jpg|jpeg|svg|ico|woff2?))",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(.*\\.html)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    }
+  ]
 }

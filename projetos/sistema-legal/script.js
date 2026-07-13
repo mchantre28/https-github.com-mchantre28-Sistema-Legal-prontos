@@ -63,6 +63,14 @@ function parseJsonSafe(raw, fallback = []) {
     }
 }
 
+/** Evita bloqueio indefinido em operações assíncronas (ex.: Firestore offline). */
+function executarComTimeout(promise, ms, fallback) {
+    return Promise.race([
+        Promise.resolve(promise).catch(() => fallback),
+        new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+    ]);
+}
+
 // SISTEMA DE LOGIN
 const USUARIO_PADRAO = 'admin';
 const SENHA_PADRAO = 'APM2024!';
@@ -198,7 +206,7 @@ function abrirModalAtalhos() {
                     <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">Esc</td><td class="py-2 pl-3">Fechar modal</td></tr>
                     <tr><td class="py-2 font-mono bg-gray-50 px-2 rounded">?</td><td class="py-2 pl-3">Abrir este painel</td></tr>
                 </table>
-                <p class="text-xs text-gray-500 mt-4">No Mac use âŒ˜ em vez de Ctrl.</p>
+                <p class="text-xs text-gray-500 mt-4">No Mac use ⌘ em vez de Ctrl.</p>
             </div>
         </div>
     `;
@@ -912,19 +920,6 @@ async function atualizarHonorarioCloud(id, dados) {
 async function apagarHonorarioCloud(id) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     await firestoreDb.collection('honorarios').doc(String(id)).delete();
-}
-
-/** Criar pagamento no Firestore e atualizar fatura (somaPagamentos, estado). */
-async function criarPagamentoCloud(pagamento) {
-    if (!isCloudReady()) throw new Error('Firestore não disponível');
-    const faturaId = pagamento.faturaId;
-    if (!faturaId) throw new Error('faturaId obrigatório');
-    const id = pagamento.id || gerarIdImutavel();
-    const prep = prepararPagamentoParaFirestore({ ...pagamento, id });
-    const payload = { ...prep, id, anulado: false, deleted: false };
-    await firestoreDb.collection('pagamentos').doc(String(id)).set(payload, { merge: true });
-    await atualizarFaturaAposPagamento(faturaId);
-    return { ...pagamento, id };
 }
 
 /** Recalcula somaPagamentos na fatura e atualiza estado (pago/pendente). */
@@ -1785,40 +1780,6 @@ function obterHashDadosSecao(secao) {
     } catch (e) { return ''; }
 }
 
-/** Hash simples dos dados da secção — usado em visibilitychange para evitar re-render desnecessário */
-function obterHashDadosSecao(secao) {
-    try {
-        const getLista = (ent) => {
-            const map = {
-                clientes: () => obterClientesAtual(),
-                honorarios: () => honorarios,
-                contratos: () => contratos,
-                prazos: () => prazos,
-                notificacoes: () => notificacoes,
-                tarefas: () => tarefas,
-                documentos: () => documentos,
-                herancas: () => herancas,
-                migracoes: () => migracoes,
-                registos: () => registos
-            };
-            return typeof map[ent] === 'function' ? map[ent]() : [];
-        };
-        if (secao === 'dashboard') {
-            const parts = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas'].map(ent => {
-                const arr = Array.isArray(getLista(ent)) ? getLista(ent) : [];
-                return `${ent}:${arr.length}`;
-            });
-            return 'dashboard:' + parts.join(';');
-        }
-        const lista = getLista(secao);
-        const arr = Array.isArray(lista) ? lista : [];
-        const ids = arr.slice(0, 10).map(i => (i && (i.id ?? i._id))).filter(Boolean);
-        return `${secao}:${arr.length}:${ids.join(',')}`;
-    } catch (e) {
-        return '';
-    }
-}
-
 function obterListaGlobal(entidade) {
     if (entidade === 'clientes') return obterClientesAtual();
     if (entidade === 'honorarios') return honorarios;
@@ -2388,8 +2349,12 @@ async function obterConvidadoPorCodigoCloud(codigo) {
 async function lerSessaoFirestore() {
     if (!firestoreDb) return null;
     try {
-        const doc = await firestoreDb.collection('sistema').doc('sessao').get();
-        if (!doc.exists) return null;
+        const doc = await executarComTimeout(
+            firestoreDb.collection('sistema').doc('sessao').get(),
+            3000,
+            null
+        );
+        if (!doc || !doc.exists) return null;
         const d = doc.data();
         const updatedAt = d?.updatedAt ? new Date(d.updatedAt).getTime() : 0;
         const maxIdade = 7 * 24 * 60 * 60 * 1000; // 7 dias
@@ -2522,21 +2487,141 @@ window.exportBackupFromFirestore = exportarBackupFirestore;
     }
 })();
 
-async function verificarLogin() {
-    const sessao = await lerSessaoFirestore();
-    if (sessao && (sessao.tipoUsuario === 'admin' || sessao.tipoUsuario === 'convidado')) {
-        window.__tipoUsuario = sessao.tipoUsuario;
-        window.__usuarioNome = sessao.usuarioNome;
-        appStorage.setItem('usuarioLogado', 'true');
-        appStorage.setItem('tipoUsuario', sessao.tipoUsuario);
-        appStorage.setItem('usuarioNome', sessao.usuarioNome);
-        if (sessao.convidadoId) appStorage.setItem('convidadoId', sessao.convidadoId);
-        return true;
+/** Aplica sessão local/Firestore após login (API ou legado). */
+async function aplicarSessaoLogin(tipoUsuario, usuarioNome, convidadoId, apiUser) {
+    appStorage.setItem('usuarioLogado', 'true');
+    appStorage.setItem('usuarioNome', usuarioNome || 'Sistema');
+    appStorage.setItem('tipoUsuario', tipoUsuario);
+    if (convidadoId) appStorage.setItem('convidadoId', convidadoId);
+    else appStorage.removeItem('convidadoId');
+    if (apiUser && apiUser.id != null) appStorage.setItem('apiUserId', String(apiUser.id));
+    else appStorage.removeItem('apiUserId');
+    window.__tipoUsuario = tipoUsuario;
+    window.__usuarioNome = usuarioNome || 'Sistema';
+    // Firestore em background — não bloquear arranque se a nuvem estiver offline
+    guardarSessaoFirestore(tipoUsuario, usuarioNome, convidadoId).catch(() => {});
+}
+
+/** Restaura sessão a partir do JWT guardado em localStorage (api.js). */
+async function restaurarSessaoApi() {
+    const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+    if (!api || !api.isApiSessionActive()) return false;
+    const user = api.getCurrentUser();
+    if (!user || !user.perfil) return false;
+    const tipoUsuario = api.mapPerfilToTipoUsuario(user.perfil);
+    if (!tipoUsuario) return false;
+    const usuarioNome = user.nome || user.email || 'Utilizador';
+    await aplicarSessaoLogin(tipoUsuario, usuarioNome, null, user);
+    return true;
+}
+
+/** Mensagem de erro de login na UI (modal inline ou notificação). */
+function mostrarErroLogin(mensagem, erroElId) {
+    if (typeof SistemaLegalLogin !== 'undefined' && SistemaLegalLogin.showLoginError) {
+        SistemaLegalLogin.showLoginError(erroElId, mensagem);
+        return;
     }
-    if (appStorage.getItem('usuarioLogado')) {
-        window.__tipoUsuario = appStorage.getItem('tipoUsuario') || '';
-        window.__usuarioNome = appStorage.getItem('usuarioNome') || 'Sistema';
+    if (typeof mostrarNotificacao === 'function') mostrarNotificacao(mensagem, 'error');
+    else alert(mensagem);
+}
+
+/** Login via API Node.js; valida perfil e redireciona para admin.html / cliente.html. */
+async function efetuarLoginApi(email, senha, perfilEsperado, erroElId) {
+    if (typeof SistemaLegalLogin !== 'undefined' && SistemaLegalLogin.efetuarLogin) {
+        return SistemaLegalLogin.efetuarLogin(email, senha, perfilEsperado, erroElId);
+    }
+    const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+    if (!api) {
+        mostrarErroLogin('Módulo de API não carregado. Verifique se api.js está incluído em index.html.', erroElId);
+        return false;
+    }
+    try {
+        const data = await api.login(email, senha, perfilEsperado);
+        const perfil = data.utilizador && data.utilizador.perfil;
+        const tipoUsuario = api.mapPerfilToTipoUsuario(perfil);
+        const usuarioNome = data.utilizador.nome || data.utilizador.email || 'Utilizador';
+        await aplicarSessaoLogin(tipoUsuario, usuarioNome, null, data.utilizador);
+        location.href = perfil === 'admin' ? 'admin.html' : (perfil === 'cliente' ? 'cliente.html' : 'index.html');
         return true;
+    } catch (err) {
+        mostrarErroLogin(err && err.message ? err.message : 'Erro ao iniciar sessão.', erroElId);
+        return false;
+    }
+}
+
+/** Aplica sessão legado convidado (login por código, sem JWT). */
+function aplicarSessaoConvidadoLegado(usuarioNome, convidadoId) {
+    window.__tipoUsuario = 'convidado';
+    window.__usuarioNome = usuarioNome || 'Convidado';
+    appStorage.setItem('usuarioLogado', usuarioNome || 'Convidado');
+    appStorage.setItem('tipoUsuario', 'convidado');
+    appStorage.setItem('usuarioNome', usuarioNome || 'Convidado');
+    if (convidadoId) appStorage.setItem('convidadoId', convidadoId);
+    return true;
+}
+
+/** Remove sessão legada admin/cliente sem JWT (sessionStorage + Firestore). */
+function limparSessaoLegadaSemJwt() {
+    appStorage.removeItem('usuarioLogado');
+    appStorage.removeItem('usuarioNome');
+    appStorage.removeItem('tipoUsuario');
+    appStorage.removeItem('convidadoId');
+    appStorage.removeItem('apiUserId');
+    limparSessaoFirestore().catch(() => {});
+}
+
+/** Restaura convidado (código) a partir do sessionStorage quando não há JWT. */
+function restaurarSessaoConvidadoSessionStorage() {
+    const tipo = appStorage.getItem('tipoUsuario');
+    const convidadoId = appStorage.getItem('convidadoId');
+    if (tipo !== 'convidado' || !convidadoId || !appStorage.getItem('usuarioLogado')) return false;
+    if (appStorage.getItem('apiUserId')) return false;
+    const usuarioNome = appStorage.getItem('usuarioNome') || appStorage.getItem('usuarioLogado') || 'Convidado';
+    return aplicarSessaoConvidadoLegado(usuarioNome, convidadoId);
+}
+
+/** Fallback síncrono quando verificarLogin() excede o timeout (JWT ou convidado código). */
+function restaurarSessaoRapidaPosTimeout() {
+    const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+    if (api && api.isApiSessionActive && api.isApiSessionActive()) {
+        const user = api.getCurrentUser();
+        const tipoUsuario = api.mapPerfilToTipoUsuario(user && user.perfil);
+        if (tipoUsuario) {
+            window.__tipoUsuario = tipoUsuario;
+            window.__usuarioNome = (user && (user.nome || user.email)) || 'Utilizador';
+            return true;
+        }
+    }
+    return restaurarSessaoConvidadoSessionStorage();
+}
+
+async function verificarLogin() {
+    try {
+        // 1. API JWT (localStorage)
+        if (await restaurarSessaoApi()) return true;
+
+        const tipoSessao = appStorage.getItem('tipoUsuario');
+        const temSessaoStorage = !!appStorage.getItem('usuarioLogado');
+
+        // 2. Admin ou cliente API expirado sem JWT — limpar legado obsoleto
+        if (temSessaoStorage && (tipoSessao === 'admin' || appStorage.getItem('apiUserId'))) {
+            limparSessaoLegadaSemJwt();
+        } else if (restaurarSessaoConvidadoSessionStorage()) {
+            return true;
+        }
+
+        // 3. Firestore (timeout em lerSessaoFirestore) — apenas convidado por código
+        const sessao = await lerSessaoFirestore();
+        if (sessao) {
+            if (sessao.tipoUsuario === 'admin') {
+                limparSessaoFirestore().catch(() => {});
+            } else if (sessao.tipoUsuario === 'convidado' && sessao.convidadoId) {
+                return aplicarSessaoConvidadoLegado(sessao.usuarioNome, sessao.convidadoId);
+            }
+        }
+    } catch (e) {
+        console.warn('verificarLogin:', e);
+        if (restaurarSessaoConvidadoSessionStorage()) return true;
     }
     mostrarTelaLogin();
     return false;
@@ -2560,16 +2645,21 @@ function mostrarTelaLogin() {
                         <i data-lucide="shield-check" class="w-5 h-5 mr-2"></i>
                         Administrador
                     </button>
+
+                    <button onclick="mostrarLoginCliente()" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-center">
+                        <i data-lucide="user-check" class="w-5 h-5 mr-2"></i>
+                        Cliente
+                    </button>
                     
                     <button onclick="mostrarLoginConvidado()" class="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center justify-center">
                         <i data-lucide="user" class="w-5 h-5 mr-2"></i>
-                        Convidado
+                        Convidado (código)
                     </button>
                 </div>
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
-                    <p><strong>Administrador:</strong> Acesso total ao sistema</p>
-                    <p><strong>Convidado:</strong> Acesso limitado a clientes autorizados</p>
+                    <p><strong>Administrador / Cliente:</strong> Email e senha (API)</p>
+                    <p><strong>Convidado:</strong> Código de acesso (legado)</p>
                 </div>
             </div>
         </div>
@@ -2595,28 +2685,30 @@ function mostrarLoginAdmin() {
                 
                 <form id="formLoginAdmin" class="space-y-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
-                        <input type="text" id="usuario" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite seu usuário" required>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="emailAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: solicitadora@sistema-legal.pt" required autocomplete="username">
                     </div>
                     
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
-                        <input type="password" id="senha" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite sua senha" required>
+                        <input type="password" id="senhaAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite sua senha" required autocomplete="current-password">
                     </div>
+
+                    <p id="erroLoginAdmin" class="text-sm text-red-600 hidden" role="alert"></p>
                     
                     <div class="flex space-x-4">
                         <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
-                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                        <button type="submit" id="btnEntrarAdmin" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
                             Entrar
                         </button>
                     </div>
                 </form>
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
-                    <p><strong>ðŸ”’ Acesso Restrito</strong></p>
-                    <p>Entre em contato com o administrador para obter as credenciais</p>
+                    <p><strong>Acesso Restrito</strong></p>
+                    <p>Requer backend API em execução (predefinição: localhost:3001)</p>
                 </div>
             </div>
         </div>
@@ -2624,24 +2716,70 @@ function mostrarLoginAdmin() {
     
     document.getElementById('formLoginAdmin').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const usuario = document.getElementById('usuario').value;
-        const senha = document.getElementById('senha').value;
-        if (usuario !== USUARIO_PADRAO) {
-            alert('Usuário ou senha incorretos!');
-            return;
-        }
-        const ok = await verificarSenhaAdmin(senha);
-        if (ok) {
-            await guardarSessaoFirestore('admin', usuario || 'Admin', null);
-            appStorage.setItem('usuarioLogado', 'true');
-            appStorage.setItem('usuarioNome', usuario);
-            appStorage.setItem('tipoUsuario', 'admin');
-            window.__tipoUsuario = 'admin';
-            window.__usuarioNome = usuario || 'Admin';
-            location.reload();
-        } else {
-            alert('Usuário ou senha incorretos!');
-        }
+        const email = document.getElementById('emailAdmin').value;
+        const senha = document.getElementById('senhaAdmin').value;
+        const erroEl = document.getElementById('erroLoginAdmin');
+        const btn = document.getElementById('btnEntrarAdmin');
+        if (erroEl) { erroEl.classList.add('hidden'); erroEl.textContent = ''; }
+        if (btn) { btn.disabled = true; btn.textContent = 'A entrar...'; }
+        await efetuarLoginApi(email, senha, 'admin', 'erroLoginAdmin');
+        if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+    });
+}
+
+function mostrarLoginCliente() {
+    document.body.innerHTML = `
+        <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
+            <div class="mb-6">
+                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
+            </div>
+            <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
+                    <p class="text-lg font-semibold text-indigo-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
+                    <p class="text-gray-600 mt-2">Login Cliente - Acesso aos seus processos</p>
+                </div>
+                
+                <form id="formLoginCliente" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="emailCliente" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="ex: cliente@sistema-legal.pt" required autocomplete="username">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                        <input type="password" id="senhaCliente" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Digite sua senha" required autocomplete="current-password">
+                    </div>
+
+                    <p id="erroLoginCliente" class="text-sm text-red-600 hidden" role="alert"></p>
+                    
+                    <div class="flex space-x-4">
+                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                            Voltar
+                        </button>
+                        <button type="submit" id="btnEntrarCliente" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                            Entrar
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-6 text-center text-sm text-gray-600">
+                    <p>Acesso limitado à área do cliente</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('formLoginCliente').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('emailCliente').value;
+        const senha = document.getElementById('senhaCliente').value;
+        const erroEl = document.getElementById('erroLoginCliente');
+        const btn = document.getElementById('btnEntrarCliente');
+        if (erroEl) { erroEl.classList.add('hidden'); erroEl.textContent = ''; }
+        if (btn) { btn.disabled = true; btn.textContent = 'A entrar...'; }
+        await efetuarLoginApi(email, senha, 'cliente', 'erroLoginCliente');
+        if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
     });
 }
 
@@ -2761,11 +2899,13 @@ function mostrarLoginConvidado() {
 function logout() {
     // Pausar listeners antes do reload (defensivo: se remover reload no futuro, evita leaks)
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
+    if (typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.logout) SistemaLegalAPI.logout();
     limparSessaoFirestore();
     appStorage.removeItem('usuarioLogado');
     appStorage.removeItem('usuarioNome');
     appStorage.removeItem('tipoUsuario');
     appStorage.removeItem('convidadoId');
+    appStorage.removeItem('apiUserId');
     location.reload();
 }
 
@@ -2963,8 +3103,8 @@ window.mostrarModalConfirmarApagar = mostrarModalConfirmarApagar;
 /** Começar do ZERO ABSOLUTO: apaga tudo (local + Firestore). Irreversível. */
 async function comecarDoZeroAbsoluto() {
     if (!exigirAdmin('começar do zero absoluto')) return;
-    if (!confirm('âš ï¸ ZERO ABSOLUTO\n\nIsto vai APAGAR TUDO:\n• Clientes, honorários, contratos\n• Heranças, migrações, registos\n• Tarefas, prazos, notificações\n• Documentos\n• TODOS os convidados\n• Firestore e memória local\n\nÉ IRREVERSÍVEL. Tem certeza?')) return;
-    if (!confirm('ðŸš¨ CONFIRMAÇÃO FINAL\n\nVai começar do zero absoluto. Todos os dados serão eliminados permanentemente.\n\nContinuar?')) return;
+    if (!confirm('ATENÇÃO — ZERO ABSOLUTO\n\nIsto vai APAGAR TUDO:\n• Clientes, honorários, contratos\n• Heranças, migrações, registos\n• Tarefas, prazos, notificações\n• Documentos\n• TODOS os convidados\n• Firestore e memória local\n\nÉ IRREVERSÍVEL. Tem a certeza que pretende continuar?')) return;
+    if (!confirm('CONFIRMAÇÃO FINAL\n\nVai começar do zero absoluto. Todos os dados serão eliminados permanentemente.\n\nContinuar?')) return;
 
     mostrarModalConfirmarApagar({
         titulo: 'Confirmar Zero Absoluto',
@@ -3003,7 +3143,7 @@ async function executarZeroAbsoluto() {
         appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
         // NAO setar naoRestaurarDaNuvem - permite que listeners carreguem dados ao voltar
 
-        mostrarNotificacao('âœ… Zero absoluto concluído! A recarregar...', 'success');
+        mostrarNotificacao('Zero absoluto concluído. A recarregar...', 'success');
         setTimeout(() => location.reload(), 1500);
     } catch (err) {
         console.error(err);
@@ -3060,7 +3200,7 @@ async function limparBaseManterApenasDacianaWilson() {
         ['honorariosMigrados', 'contratosMigrados', 'herancasMigrados', 'migracoesMigrados', 'registosMigrados', 'tarefasMigrados', 'prazosMigrados', 'notificacoesMigrados', 'documentosMigrados', 'convidadosMigrados', 'faturasMigrados', 'localStorageMigradoParaFirebase', 'clientesMigradosParaFirestore'].forEach(k => { try { appStorage.setItem(k, 'true'); localStorage.setItem(k, 'true'); sessionStorage.setItem(k, 'true'); } catch (e) {} });
 
         appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
-        mostrarNotificacao('âœ… Base limpa. Mantidos apenas DACIANA e WILSON. A recarregar...', 'success');
+        mostrarNotificacao('Base limpa. Mantidos apenas DACIANA e WILSON. A recarregar...', 'success');
         setTimeout(() => location.reload(), 2000);
     } catch (err) {
         console.error(err);
@@ -3085,8 +3225,8 @@ window.limparCacheFirestoreERecarregar = limparCacheFirestoreERecarregar;
 // FUNÇÃO PARA LIMPEZA PROFISSIONAL (só local — mantém opção antiga)
 function limparDadosParaUsoProfissional() {
     if (!exigirAdmin('limpeza profissional')) return;
-    if (confirm('âš ï¸ Esta ação apaga os dados LOCAIS. Para apagar TUDO (Firestore incluído), use "Começar do zero absoluto" na secção Backup.\n\nContinuar com limpeza local apenas?')) {
-        if (confirm('ðŸš¨ Confirma?')) {
+    if (confirm('ATENÇÃO — Esta ação apaga apenas os dados LOCAIS. Para apagar TUDO (incluindo Firestore), use \"Começar do zero absoluto\" na secção Backup.\n\nContinuar com limpeza local apenas?')) {
+        if (confirm('Confirma?')) {
             mostrarModalConfirmarApagar({
                 titulo: 'Confirmar limpeza local',
                 mensagem: 'Para confirmar a eliminação dos dados locais, escreva exatamente:',
@@ -3097,7 +3237,7 @@ function limparDadosParaUsoProfissional() {
                     Object.assign(window, { clientes, honorarios, contratos, herancas, migracoes, registos, prazos, notificacoes, tarefas, documentos, convidados });
                     appStorage.setItem('dadosLimpos', 'true');
                     appStorage.setItem('naoRestaurarDaNuvem', 'true');
-                    mostrarNotificacao('âœ… Dados locais limpos.', 'success');
+                    mostrarNotificacao('Dados locais limpos.', 'success');
                     setTimeout(() => location.reload(), 2000);
                 }
             });
@@ -3128,8 +3268,8 @@ function executarLimpezaIgualAdmin(lastClearedAt) {
 }
 
 function limparDadosLocaisERecarregar() {
-    if (!confirm('âš ï¸ Limpar dados locais\n\nIsto vai apagar todos os dados guardados neste navegador (sessão local). Será necessário fazer login novamente.\n\nContinuar?')) return;
-    if (!confirm('ðŸš¨ Confirmação: Tem certeza que deseja limpar os dados locais?')) return;
+    if (!confirm('ATENÇÃO — Limpar dados locais\n\nIsto vai apagar todos os dados guardados neste navegador (sessão local). Será necessário fazer login novamente.\n\nContinuar?')) return;
+    if (!confirm('Confirmação: Tem certeza que deseja limpar os dados locais?')) return;
 
     mostrarModalConfirmarApagar({
         titulo: 'Confirmar limpeza de dados locais',
@@ -3429,23 +3569,45 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
-    // Aguardar limpeza do cache Firestore (após zero absoluto) antes de iniciar listeners
-    if (window.__promiseCacheFirestoreLimpo) {
-        await window.__promiseCacheFirestoreLimpo;
+    let logado = false;
+    try {
+        // Aguardar limpeza do cache Firestore (após zero absoluto), com tempo limite
+        if (window.__promiseCacheFirestoreLimpo) {
+            await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
+        }
+        logado = await executarComTimeout(verificarLogin(), 10000, null);
+        if (logado === null) {
+            if (restaurarSessaoRapidaPosTimeout()) {
+                logado = true;
+            } else {
+                mostrarTelaLogin();
+                return;
+            }
+        }
+        if (!logado) return;
+        if (typeof sincronizarClientesApi === 'function') {
+            sincronizarClientesApi().catch(function () {});
+        }
+        configurarInterfaceUsuario();
+        forcarLarguraSidebar();
+        setTimeout(forcarLarguraSidebar, 1000);
+        setTimeout(forcarLarguraSidebar, 2000);
+        init();
+    } catch (err) {
+        console.error('Erro na inicialização:', err);
+        const el = document.getElementById('conteudoDinamico');
+        if (el) {
+            el.innerHTML = `
+                <div class="p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl">
+                    <p class="font-semibold mb-2">Não foi possível iniciar o Sistema Legal.</p>
+                    <p class="text-sm mb-2">${(err && err.message) ? String(err.message).replace(/</g, '&lt;') : 'Ocorreu um erro inesperado.'}</p>
+                    <p class="text-sm">Tente recarregar a página (Ctrl+F5). Se persistir, abra o Console (F12) para mais detalhes.</p>
+                </div>`;
+        }
+        if (typeof mostrarNotificacao === 'function') {
+            mostrarNotificacao('Erro ao iniciar o sistema. Tente recarregar a página (Ctrl+F5).', 'error');
+        }
     }
-    const logado = await verificarLogin();
-    if (!logado) {
-        return;
-    }
-    // Se login OK, configurar interface baseada no tipo de usuário
-    configurarInterfaceUsuario();
-    // Forçar largura do sidebar
-    forcarLarguraSidebar();
-    // Aplicar novamente após um delay
-    setTimeout(forcarLarguraSidebar, 1000);
-    setTimeout(forcarLarguraSidebar, 2000);
-    // Inicializar sistema normalmente
-    init();
 });
 
 function forcarLarguraSidebar() {
@@ -3926,7 +4088,7 @@ function inicializarPesquisaGlobal() {
         
         results.innerHTML = `
             <div class="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
-                Resultados: ${resultados.length} (â†‘â†“ navegar, Enter selecionar)
+                Resultados: ${resultados.length} (use as setas do teclado para navegar e Enter para selecionar)
             </div>
             <div class="max-h-80 overflow-y-auto pesquisa-result-list">${itens}</div>
         `;
@@ -4319,7 +4481,7 @@ function testarModal() {
             text-align: center;
             box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         ">
-            <h2 style="color: #1f2937; margin-bottom: 20px;">ðŸ§ª TESTE DE MODAL</h2>
+            <h2 style="color: #1f2937; margin-bottom: 20px;">Teste de Modal</h2>
             <p style="color: #6b7280; margin-bottom: 20px;">Se vês esta mensagem, o modal está a funcionar!</p>
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button onclick="fecharModalRobusto()" style="
@@ -4374,7 +4536,7 @@ function modalUltraSimples() {
             max-width: 300px;
             text-align: center;
         ">
-            <h3>ðŸŽ¯ MODAL ULTRA-SIMPLES</h3>
+            <h3>Modal ultra-simples</h3>
             <p>Se vês isto, o modal funciona!</p>
             <button onclick="document.getElementById('modal-teste').remove()" style="
                 background: #ef4444;
@@ -4714,7 +4876,7 @@ function sincronizarComCalendario_REMOVED() {
     prazos.forEach(prazo => {
         if (prazo.status === 'ativo' && prazo.dataLimite) {
             eventos.push({
-                titulo: `ðŸ“‹ Prazo: ${prazo.descricao}`,
+                titulo: `Prazo: ${prazo.descricao}`,
                 data: prazo.dataLimite,
                 tipo: 'prazo',
                 cliente: prazo.clienteNome,
@@ -4727,7 +4889,7 @@ function sincronizarComCalendario_REMOVED() {
     honorarios.forEach(honorario => {
         if (isHonorarioEmAberto(honorario) && honorario.vencimento) {
             eventos.push({
-                titulo: `ðŸ’° Vencimento: ${honorario.descricao}`,
+                titulo: `Vencimento: ${honorario.descricao}`,
                 data: honorario.vencimento,
                 tipo: 'vencimento',
                 cliente: honorario.clienteNome,
@@ -4741,7 +4903,7 @@ function sincronizarComCalendario_REMOVED() {
     contratos.forEach(contrato => {
         if (contrato.vencimento) {
             eventos.push({
-                titulo: `ðŸ“„ Contrato: ${contrato.descricao}`,
+                titulo: `Contrato: ${contrato.descricao}`,
                 data: contrato.vencimento,
                 tipo: 'contrato',
                 cliente: contrato.clienteNome,
@@ -5066,7 +5228,7 @@ function configurarIntegracoes() {
             <div class="space-y-6">
                 <!-- Integração de Email -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ“§ Integração de Email</h4>
+                    <h4 class="font-semibold mb-3">Integração de Email</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium mb-2">Servidor SMTP</label>
@@ -5097,7 +5259,7 @@ function configurarIntegracoes() {
 
                 <!-- Integração de Calendário -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ“… Integração de Calendário</h4>
+                    <h4 class="font-semibold mb-3">Integração de Calendário</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium mb-2">Tipo de Calendário</label>
@@ -5121,7 +5283,7 @@ function configurarIntegracoes() {
 
                 <!-- Integração de Contabilidade -->
                 <div class="card p-4">
-                    <h4 class="font-semibold mb-3">ðŸ’° Integração de Contabilidade</h4>
+                    <h4 class="font-semibold mb-3">Integração de Contabilidade</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium mb-2">Sistema</label>
@@ -6473,12 +6635,14 @@ function carregarSecao(secao) {
     if (secao === 'herancas') {
         setTimeout(() => {
             if (typeof aplicarFiltrosHerancas === 'function') aplicarFiltrosHerancas();
+            if (typeof carregarPainelApiProcessosSecao === 'function') carregarPainelApiProcessosSecao('herancas');
         }, 100);
     }
     
     if (secao === 'registos') {
         setTimeout(() => {
             if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos();
+            if (typeof carregarPainelApiProcessosSecao === 'function') carregarPainelApiProcessosSecao('registos');
         }, 100);
     }
     if (secao === 'integracoes') {
@@ -6497,6 +6661,8 @@ function carregarSecao(secao) {
     if (secao === 'dashboard') {
         setTimeout(() => {
             criarGraficosAvancados();
+            if (typeof sincronizarClientesApi === 'function') sincronizarClientesApi().catch(function () {});
+            if (typeof carregarWidgetProcessosApi === 'function') carregarWidgetProcessosApi();
         }, 500);
     }
     };
@@ -6883,7 +7049,7 @@ function gerarRelatorioCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ“Š Relatório Personalizado por Cliente</h3>
+                <h3 style="margin: 0; color: #1f2937;">Relatório personalizado por cliente</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -7254,7 +7420,7 @@ function gerarRelatorioFinanceiroCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ’° Relatório Financeiro Personalizado</h3>
+                <h3 style="margin: 0; color: #1f2937;">Relatório financeiro personalizado</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -7652,7 +7818,7 @@ function gerarRelatorioGeralCliente() {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; color: #1f2937;">ðŸ“Š Relatório Geral Personalizado</h3>
+                <h3 style="margin: 0; color: #1f2937;">Relatório geral personalizado</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -8081,7 +8247,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 padding-bottom: 8px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; font-size: 16px; color: #1f2937;">ðŸ‘¤ ${cliente.nome} - Informações Completas</h3>
+                <h3 style="margin: 0; font-size: 16px; color: #1f2937;">${cliente.nome} - Informações completas</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -8093,7 +8259,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
             <div class="modal-body" style="margin-bottom: 20px;">
                 <!-- Dados Pessoais -->
                 <div style="margin-bottom: 18px;">
-                    <h4 style="color: #1f2937; font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ“‹ Dados Pessoais</h4>
+                    <h4 style="color: #1f2937; font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">Dados pessoais</h4>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
                         <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #3b82f6; font-size: 13px;">
                             <strong>Nome:</strong> ${cliente.nome}
@@ -8123,7 +8289,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 
                 <!-- Resumo Estatístico (Honorários, Faturas, Notificações, Contratos, Heranças, Migrações, Registos) -->
                 <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“Š Resumo Estatístico</h4>
+                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Resumo estatístico</h4>
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
                         <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 10px; border-radius: 6px; text-align: center;">
                             <div style="font-size: 18px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
@@ -8159,7 +8325,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Notificações do cliente (no processo) -->
                 ${dadosCliente.notificacoes && dadosCliente.notificacoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ”” Notificações (${dadosCliente.notificacoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Notificações (${dadosCliente.notificacoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.notificacoes.map((noti) => `
                                 <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
@@ -8180,7 +8346,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Honorários -->
                 ${dadosCliente.honorarios.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">ðŸ’° Honorários (${dadosCliente.honorarios.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">Honorários (${dadosCliente.honorarios.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.honorarios.map((honorario, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3b82f6;">
@@ -8200,7 +8366,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Faturas -->
                 ${dadosCliente.faturas && dadosCliente.faturas.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0d9488; padding-bottom: 5px;">ðŸ§¾ Faturas (${dadosCliente.faturas.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0d9488; padding-bottom: 5px;">Faturas (${dadosCliente.faturas.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.faturas.map((fatura) => {
                                 const numero = fatura.numero || fatura.id || 'FAT-';
@@ -8224,7 +8390,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Contratos -->
                 ${dadosCliente.contratos.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“„ Contratos (${dadosCliente.contratos.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Contratos (${dadosCliente.contratos.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.contratos.map((contrato, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #10b981;">
@@ -8244,7 +8410,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Heranças -->
                 ${dadosCliente.herancas.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ›ï¸ Heranças (${dadosCliente.herancas.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Heranças (${dadosCliente.herancas.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.herancas.map((heranca, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
@@ -8264,7 +8430,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Migrações -->
                 ${dadosCliente.migracoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #8b5cf6; padding-bottom: 5px;">ðŸŒ Migrações (${dadosCliente.migracoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #8b5cf6; padding-bottom: 5px;">Migrações (${dadosCliente.migracoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.migracoes.map((migracao, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #8b5cf6;">
@@ -8284,7 +8450,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Registos -->
                 ${dadosCliente.registos.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 5px;">ðŸ“ Registos (${dadosCliente.registos.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 5px;">Registos (${dadosCliente.registos.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.registos.map((registo, index) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #ef4444;">
@@ -8324,7 +8490,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Tarefas -->
                 ${dadosCliente.tarefas.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">âœ… Tarefas (${dadosCliente.tarefas.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">Tarefas (${dadosCliente.tarefas.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.tarefas.map((tarefa) => `
                                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #6366f1;">
@@ -8361,7 +8527,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
 
                 <!-- Documentos -->
                 <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">ðŸ“„ Documentos (${dadosCliente.documentos.length})</h4>
+                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Documentos (${dadosCliente.documentos.length})</h4>
                     <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
                         <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
@@ -8413,7 +8579,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 <!-- Notificações -->
                 ${dadosCliente.notificacoes.length > 0 ? `
                     <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">ðŸ”” Notificações (${dadosCliente.notificacoes.length})</h4>
+                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Notificações (${dadosCliente.notificacoes.length})</h4>
                         <div style="max-height: 300px; overflow-y: auto;">
                             ${dadosCliente.notificacoes.map((noti) => `
                                 <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
@@ -8867,6 +9033,193 @@ document.addEventListener('click', (event) => {
     abrirClientePorIdOuNome(linha.dataset.clienteId, linha.dataset.clienteNome);
 });
 
+/** Widget mínimo no dashboard: processos da API Node quando há JWT ativo. */
+/**
+ * MIGRAÇÃO SPA — Fase 1
+ * Com sessão JWT: processos e clientes vêm da API Node.js.
+ * Sem JWT: fallback Firebase/Firestore (comportamento legado). Ver MIGRACAO-SPA.md.
+ */
+const API_SPA_FASE1 = true;
+
+function isApiJwtAtivo() {
+    if (!API_SPA_FASE1) return false;
+    const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+    return !!(api && api.getToken && api.getToken());
+}
+
+function mapearClientesApiParaSpa(lista) {
+    if (!Array.isArray(lista)) return [];
+    return lista.map(function (c) {
+        return {
+            id: 'api-' + c.id,
+            nome: c.nome || c.email || 'Cliente',
+            email: c.email || '',
+            status: 'ativo',
+            origem: 'api'
+        };
+    });
+}
+
+async function sincronizarClientesApi() {
+    if (!isApiJwtAtivo()) {
+        window.apiClientesCache = null;
+        return;
+    }
+    const api = SistemaLegalAPI;
+    try {
+        const res = await api.apiFetch('/api/clientes');
+        if (!res.ok) return;
+        const data = await res.json();
+        window.apiClientesCache = mapearClientesApiParaSpa(data.clientes || []);
+    } catch (e) {
+        console.warn('sincronizarClientesApi:', e);
+    }
+}
+
+function filtrarProcessosApiPorSecao(processos, secao) {
+    if (!Array.isArray(processos)) return [];
+    if (secao === 'herancas') {
+        return processos.filter(function (p) {
+            const num = (p.numero_processo || '').toUpperCase();
+            const tit = (p.titulo || '').toLowerCase();
+            return num.indexOf('HER') === 0 ||
+                tit.indexOf('herança') !== -1 || tit.indexOf('heranca') !== -1 ||
+                tit.indexOf('espólio') !== -1 || tit.indexOf('espolio') !== -1;
+        });
+    }
+    if (secao === 'registos') {
+        return processos.filter(function (p) {
+            const num = (p.numero_processo || '').toUpperCase();
+            const tit = (p.titulo || '').toLowerCase();
+            return num.indexOf('REG') === 0 || tit.indexOf('registo') !== -1;
+        });
+    }
+    return processos;
+}
+
+function htmlPainelApiProcessosPlaceholder(secao) {
+    const titulo = secao === 'herancas' ? 'Heranças' : (secao === 'registos' ? 'Registos' : 'Processos');
+    const idPainel = 'apiPainel' + (secao === 'herancas' ? 'Herancas' : 'Registos');
+    const idConteudo = idPainel + 'Conteudo';
+    return '<div id="' + idPainel + '" class="card p-6 border border-indigo-100 bg-indigo-50/40 mb-6 hidden" aria-live="polite">' +
+        '<h3 class="text-lg font-semibold text-indigo-900 mb-2">Processos da API (' + titulo + ')</h3>' +
+        '<p class="text-xs text-indigo-600 mb-3">Dados do backend Node.js (JWT). Sem sessão API: secção usa Firebase.</p>' +
+        '<div id="' + idConteudo + '"><p class="text-sm text-gray-500">A carregar...</p></div></div>';
+}
+
+async function carregarPainelApiProcessosSecao(secao) {
+    const sufixo = secao === 'herancas' ? 'Herancas' : 'Registos';
+    const widget = document.getElementById('apiPainel' + sufixo);
+    const conteudo = document.getElementById('apiPainel' + sufixo + 'Conteudo');
+    if (!widget || !conteudo) return;
+
+    if (!isApiJwtAtivo()) {
+        widget.classList.add('hidden');
+        return;
+    }
+
+    widget.classList.remove('hidden');
+
+    const ESTADO_LABELS = {
+        em_tramitacao: 'Em tramitação',
+        concluido: 'Concluído',
+        pendente: 'Pendente',
+        arquivado: 'Arquivado',
+        aberto: 'Aberto'
+    };
+
+    function labelEstado(estado) {
+        if (!estado) return '—';
+        return ESTADO_LABELS[estado] || String(estado).replace(/_/g, ' ');
+    }
+
+    try {
+        const res = await SistemaLegalAPI.apiFetch('/api/processos');
+        if (!res.ok) {
+            const err = await res.json().catch(function () { return {}; });
+            throw new Error(err.erro || 'Não foi possível carregar processos da API.');
+        }
+
+        const data = await res.json();
+        const filtrados = filtrarProcessosApiPorSecao(data.processos || [], secao);
+
+        if (!filtrados.length) {
+            conteudo.innerHTML = '<p class="text-sm text-gray-500">Nenhum processo da API nesta secção.</p>';
+        } else {
+            const lista = filtrados.map(function (p) {
+                return '<li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">' +
+                    '<span class="font-medium text-gray-900">' + escaparHtml(p.titulo || 'Processo') + '</span>' +
+                    '<span class="text-xs text-gray-500">N.º ' + escaparHtml(p.numero_processo || '—') + '</span>' +
+                    '<span class="text-xs font-medium text-indigo-700">' + escaparHtml(labelEstado(p.estado)) + '</span>' +
+                    (p.cliente_email ? '<span class="text-xs text-gray-400">' + escaparHtml(p.cliente_email) + '</span>' : '') +
+                    '</li>';
+            }).join('');
+            conteudo.innerHTML = '<ul class="space-y-2">' + lista + '</ul>';
+        }
+
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    } catch (e) {
+        conteudo.innerHTML = '<p class="text-sm text-red-600">' + escaparHtml(e.message || 'Erro ao contactar a API.') + '</p>';
+    }
+}
+
+async function carregarWidgetProcessosApi() {
+    const widget = document.getElementById('apiProcessosWidget');
+    const conteudo = document.getElementById('apiProcessosConteudo');
+    if (!widget || !conteudo) return;
+
+    const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+    if (!api || !api.getToken || !api.getToken()) {
+        widget.classList.add('hidden');
+        return;
+    }
+
+    widget.classList.remove('hidden');
+
+    const ESTADO_LABELS = {
+        em_tramitacao: 'Em tramitação',
+        concluido: 'Concluído',
+        pendente: 'Pendente',
+        arquivado: 'Arquivado'
+    };
+
+    function labelEstado(estado) {
+        if (!estado) return '—';
+        return ESTADO_LABELS[estado] || String(estado).replace(/_/g, ' ');
+    }
+
+    try {
+        const res = await api.apiFetch('/api/processos');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.erro || 'Não foi possível carregar processos da API.');
+        }
+
+        const data = await res.json();
+        const processos = data.processos || [];
+
+        if (!processos.length) {
+            conteudo.innerHTML = '<p class="text-sm text-gray-500">Nenhum processo registado na API.</p>';
+        } else {
+            const lista = processos.slice(0, 8).map(p => `
+                <li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">
+                    <span class="font-medium text-gray-900">${escaparHtml(p.titulo || 'Processo')}</span>
+                    <span class="text-xs text-gray-500">N.º ${escaparHtml(p.numero_processo || '—')}</span>
+                    <span class="text-xs font-medium text-indigo-700">${escaparHtml(labelEstado(p.estado))}</span>
+                </li>
+            `).join('');
+            const extra = processos.length > 8
+                ? `<p class="text-xs text-gray-500 mt-2">+ ${processos.length - 8} processo(s) adicional(is)</p>`
+                : '';
+            conteudo.innerHTML = `<ul class="space-y-2">${lista}</ul>${extra}`;
+        }
+
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    } catch (e) {
+        conteudo.innerHTML = `<p class="text-sm text-red-600">${escaparHtml(e.message || 'Erro ao contactar a API.')}</p>`;
+    }
+}
+
 function gerarDashboard() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     // Usar obter*Atual() para garantir que os números batem com o resto da plataforma
@@ -9139,6 +9492,21 @@ function gerarDashboard() {
                 <button type="button" onclick="${fecharGuia}" class="btn btn-secondary text-sm">Entendido, não mostrar novamente</button>
             </div>
             ` : ''}
+            <div id="apiProcessosWidget" class="card p-6 border border-indigo-100 bg-indigo-50/40 hidden" aria-live="polite">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <i data-lucide="briefcase" class="w-5 h-5 text-indigo-600"></i>
+                        Processos (API)
+                    </h3>
+                    <span id="apiProcessosBadge" class="text-xs font-medium text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">API</span>
+                </div>
+                <div id="apiProcessosConteudo" class="text-sm text-gray-600">
+                    <span class="inline-flex items-center gap-2">
+                        <span class="inline-block w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></span>
+                        A carregar processos da API...
+                    </span>
+                </div>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="card p-6">
                     <div class="flex items-center">
@@ -9441,14 +9809,14 @@ function gerarDashboard() {
             <!-- Gráficos Avançados -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“Š Evolução Temporal dos Honorários</h3>
+                    <h3 class="text-lg font-semibold mb-4">Evolução temporal dos honorários</h3>
                     <div class="chart-container">
                         <canvas id="chartEvolucaoTemporal"></canvas>
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ Comparação Mensal</h3>
+                    <h3 class="text-lg font-semibold mb-4">Comparação mensal</h3>
                     <div class="chart-container">
                         <canvas id="chartComparacaoMensal"></canvas>
                     </div>
@@ -9457,14 +9825,14 @@ function gerarDashboard() {
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ¥§ Distribuição por Tipo</h3>
+                    <h3 class="text-lg font-semibold mb-4">Distribuição por tipo</h3>
                     <div class="chart-container">
                         <canvas id="chartDistribuicaoTipo"></canvas>
                     </div>
                 </div>
                 
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">ðŸ“ˆ Top 5 Clientes por Valor</h3>
+                    <h3 class="text-lg font-semibold mb-4">Top 5 clientes por valor</h3>
                     <div class="space-y-3">
                         ${clientesParaMostrar.map(cliente => {
                             const valorCliente = honorariosParaMostrar
@@ -9920,7 +10288,7 @@ function gerarClientes() {
     let ordClientes = window.__clientesOrdenar;
     if (!ordClientes) try { ordClientes = JSON.parse(appStorage.getItem('ordenarClientes') || '{}'); } catch(e) {}
     ordClientes = ordClientes && ordClientes.col ? ordClientes : { col: 'nome', dir: 1 };
-    const seta = (col) => ordClientes.col === col ? (ordClientes.dir === 1 ? 'â†‘' : 'â†“') : 'â†•';
+    const seta = (col) => ordClientes.col === col ? (ordClientes.dir === 1 ? '↑' : '↓') : '↕';
     return `
         <div class="space-y-6">
             ${mostrarDicaPrimeiroCliente ? `
@@ -10502,11 +10870,11 @@ function gerarHonorarios() {
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('servico')" title="Ordenar por serviço">Serviço <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('vencimento')" title="Ordenar por vencimento">Vencimento <span class="text-xs text-blue-500">â†•</span></th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('cliente')" title="Ordenar por cliente">Cliente</th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('servico')" title="Ordenar por serviço">Serviço</th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('valor')" title="Ordenar por valor">Valor</th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('status')" title="Ordenar por status">Status</th>
+                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarHonorarios('vencimento')" title="Ordenar por vencimento">Vencimento</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -11345,8 +11713,12 @@ async function excluirTarefaCloud(id) {
     }
 }
 
-/** Lista clientes: APENAS Firestore (atualizada por ouvirClientes). Sem appStorage. */
+/** Lista clientes: API JWT (Fase 1) ou Firestore (legado). */
 function obterClientesAtual() {
+    if (typeof isApiJwtAtivo === 'function' && isApiJwtAtivo() &&
+        Array.isArray(window.apiClientesCache) && window.apiClientesCache.length) {
+        return window.apiClientesCache;
+    }
     return Array.isArray(clientes) ? clientes : [];
 }
 
@@ -13689,16 +14061,6 @@ function renderizarListaIntegracoes(lista) {
         </div>
     `).join('');
     lucide.createIcons();
-}
-async function seedEntidadesSeVazio() {
-    if (!isCloudReady()) { mostrarNotificacao('Firestore não disponível.', 'error'); return; }
-    const lista = obterEntidadesAtual();
-    if (lista.length > 0) { mostrarNotificacao('Entidades já existem. Nada a fazer.', 'info'); return; }
-    const padrao = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
-    for (const e of padrao) {
-        await criarEntidadeCloud({ id: e.id, nome: e.nome, tipo: e.id.replace(/_/g, '-'), ativo: true });
-    }
-    mostrarNotificacao(padrao.length + ' entidades inicializadas.', 'success');
 }
 function abrirModalNovaIntegracao() {
     const clientesLista = obterClientesAtual();
@@ -17871,7 +18233,7 @@ function gerarBackup() {
             </div>
 
             <div class="card p-6 border-blue-200 bg-blue-50/50">
-                <h3 class="text-lg font-semibold mb-2">ðŸ”” Notificações do browser</h3>
+                <h3 class="text-lg font-semibold mb-2">Notificações do browser</h3>
                 <p class="text-sm text-gray-700 mb-3">Receba alertas de prazos e tarefas mesmo com o site em segundo plano.</p>
                 <button onclick="solicitarPermissaoNotificacoes()" class="btn btn-secondary w-full">
                     <i data-lucide="bell" class="w-4 h-4 mr-2"></i>
@@ -17880,7 +18242,7 @@ function gerarBackup() {
             </div>
 
             <div class="card p-6 border-gray-200">
-                <h3 class="text-lg font-semibold mb-4">ðŸ“‹ Logs de Backup</h3>
+                <h3 class="text-lg font-semibold mb-4">Logs de backup</h3>
                 <div class="space-y-1 max-h-40 overflow-y-auto text-sm mb-3">
                     ${(typeof getBackupLogs === 'function' ? getBackupLogs() : []).slice(-15).reverse().map(l =>
                         '<div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-700">' + (l.message || '') + '</span><span class="text-xs text-gray-500 whitespace-nowrap ml-2">' + (l.timestamp ? new Date(l.timestamp).toLocaleString('pt-PT') : '') + '</span></div>'
@@ -17918,7 +18280,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-blue-200 bg-blue-50">
-                <h3 class="text-lg font-semibold mb-4 text-blue-800">ðŸ”‘ Alterar senha (Admin)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-blue-800">Alterar senha (Admin)</h3>
                 <p class="text-sm text-blue-700 mb-4">
                     Altere a senha de acesso do administrador. Recomendado após o primeiro acesso.
                 </p>
@@ -17930,7 +18292,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-amber-200 bg-amber-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">ðŸ§¹ Limpar base de dados (itens eliminados)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">Limpar base de dados (itens eliminados)</h3>
                 <p class="text-sm text-amber-800 mb-4">
                     Remove da base de dados <strong>definitivamente</strong> apenas clientes, convidados, documentos, etc. que já foram "apagados" no sistema. Os dados ativos ficam intactos. Ideal para não ver mais criações antigas e convidados eliminados na consola do Firestore.
                 </p>
@@ -17942,7 +18304,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-teal-200 bg-teal-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-teal-900">ðŸ›¡ï¸ Impedir reaparecimento (prevenção)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-teal-900">Impedir reaparecimento (prevenção)</h3>
                 <p class="text-sm text-teal-800 mb-4">
                     Remove honorários e tarefas antigos do <strong>armazenamento local</strong> do navegador e marca as migrações como concluídas. Assim, ao abrir o sistema noutro dispositivo ou após limpar cache, dados antigos não voltam a ser enviados para a nuvem. <strong>Não afeta</strong> os dados no Firestore.
                 </p>
@@ -17954,7 +18316,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-red-200 bg-red-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">ðŸ“‹ Remover honorários e tarefas antigos</h3>
+                <h3 class="text-lg font-semibold mb-4 text-red-900">Remover honorários e tarefas antigos</h3>
                 <p class="text-sm text-red-800 mb-4">
                     Se honorários ou tarefas apagados há muito tempo voltaram a aparecer, remova-os definitivamente da nuvem. Apaga <strong>todos</strong> os honorários e tarefas do Firestore. Irreversível.
                 </p>
@@ -17966,7 +18328,7 @@ function gerarBackup() {
             </div>
             
             <div class="card p-6 border-orange-300 bg-orange-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-orange-900">ðŸ§¹ Manter só DACIANA e WILSON</h3>
+                <h3 class="text-lg font-semibold mb-4 text-orange-900">Manter só DACIANA e WILSON</h3>
                 <p class="text-sm text-orange-800 mb-4">
                     Apaga <strong>tudo</strong> excepto o cliente DACIANA e o convidado WILSON. Elimina honorários, contratos, prazos e dados fantasma que reaparecem.
                 </p>
@@ -17977,7 +18339,7 @@ function gerarBackup() {
                 </button>
             </div>
             <div class="card p-6 border-amber-300 bg-amber-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">ðŸ”„ Limpar cache do browser (dados antigos reaparecem)</h3>
+                <h3 class="text-lg font-semibold mb-4 text-amber-900">Limpar cache do browser (dados antigos reaparecem)</h3>
                 <p class="text-sm text-amber-800 mb-4">
                     Se vê dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A página recarrega e traz dados atualizados da nuvem.
                 </p>
@@ -17988,7 +18350,7 @@ function gerarBackup() {
                 </button>
             </div>
             <div class="card p-6 border-red-300 bg-red-100 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">ðŸš¨ Começar do zero absoluto</h3>
+                <h3 class="text-lg font-semibold mb-4 text-red-900">Começar do zero absoluto</h3>
                 <p class="text-sm text-red-800 mb-4">
                     Apaga <strong>tudo</strong>: Firestore, faturas, pagamentos, despesas e memória. Ideal para não ver mais nenhum dado antigo. Irreversível.
                 </p>
@@ -19978,7 +20340,7 @@ function gerarHerancas() {
     const herancasTerminadas = herancas.filter(h => h.status === 'concluido').length;
     const valorTotalHerancas = herancas.reduce((total, h) => total + (h.valorComIva || h.valor || 0), 0);
 
-    return `
+    return htmlPainelApiProcessosPlaceholder('herancas') + `
         <div class="space-y-6">
             <!-- Header único com botões de ação -->
             <div class="flex justify-between items-center">
@@ -20789,7 +21151,7 @@ function gerarRegistos() {
     const registosTerminados = registos.filter(r => r.status === 'concluido').length;
     const valorTotalRegistos = registos.reduce((total, r) => total + (r.valorComIva || r.valor || 0), 0);
 
-    return `
+    return htmlPainelApiProcessosPlaceholder('registos') + `
         <div class="space-y-6">
             <!-- Header único com botões de ação -->
             <div class="flex justify-between items-center">
@@ -21091,9 +21453,6 @@ function ordenarPrazos(col) {
     aplicarFiltrosPrazos();
 }
 
-function filtrarPrazos() {
-    aplicarFiltrosPrazos();
-}
 
 function aplicarFiltrosPrazos() {
     if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'prazos') return;
@@ -21175,41 +21534,6 @@ function limparFiltrosPrazos() {
     aplicarFiltrosPrazos();
 }
 
-function atualizarListaPrazos(prazosFiltrados, total, limit) {
-    const tbody = document.getElementById('listaPrazos');
-    if (!tbody) return;
-    total = total ?? prazosFiltrados.length;
-    limit = limit ?? prazosFiltrados.length;
-    const listaPrazosTotal = typeof obterPrazosAtual === 'function' ? obterPrazosAtual() : (prazos || []);
-    if (prazosFiltrados.length === 0) {
-        const temFiltros = (document.getElementById('buscaPrazos')?.value?.trim() || document.getElementById('filtroStatusPrazo')?.value || document.getElementById('filtroTipoPrazo')?.value || document.getElementById('filtroVencimentoPrazo')?.value || document.getElementById('filtroPrioridadePrazo')?.value || document.getElementById('filtroClientePrazo')?.value);
-        const msg = listaPrazosTotal.length > 0 && temFiltros
-            ? '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo corresponde aos filtros.</p><button type="button" onclick="limparFiltrosPrazos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
-            : '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>';
-        tbody.innerHTML = msg;
-        setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
-        return;
-    }
-    const verMais = total > limit ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__prazosLimit = (window.__prazosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPrazos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
-    tbody.innerHTML = prazosFiltrados.map(prazo => `
-        <tr>
-            <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
-            <td>${prazo.tipo}</td>
-            <td>${prazo.descricao}</td>
-            <td>${new Date(prazo.dataLimite).toLocaleDateString('pt-PT')}</td>
-            <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
-            <td><span class="status-badge status-${prazo.status}">${prazo.status === 'concluido' ? 'Concluído' : prazo.status === 'vencido' ? 'Vencido' : prazo.status === 'cancelado' ? 'Cancelado' : 'Ativo'}</span></td>
-            <td>
-                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
-                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
-                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('') + verMais;
-}
 
 
 // === FUNÇÕES DE ATUALIZAÇÃO DE LISTAS ===
@@ -23251,252 +23575,7 @@ function atualizarPrazo(event, id) {
 
 // === FUNÇÕES DE MODAL DE EDIÇÃO ===
 
-function abrirModalEdicaoCliente(cliente) {
-    
-    const modalContainer = document.getElementById('modalContainer');
-    if (!modalContainer) {
-        console.error('modalContainer não encontrado!');
-        return;
-    }
-    
-    const modal = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Cliente</h3>
-                        <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form id="formEditarCliente_${String(cliente.id).replace(/"/g, '&quot;')}" onsubmit="return atualizarCliente(event, ${JSON.stringify(cliente.id)});">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Nome *</label>
-                                <input type="text" id="editarClienteNome" value="${cliente.nome}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                                <input type="email" id="editarClienteEmail" value="${cliente.email}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Telefone *</label>
-                                <input type="tel" id="editarClienteTelefone" value="${cliente.telefone}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">NIF *</label>
-                                <input type="text" id="editarClienteNIF" value="${cliente.nif || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="123456789">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
-                                <textarea id="editarClienteEndereco" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${cliente.endereco || ''}</textarea>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                <select id="editarClienteStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="ativo" ${cliente.status === 'ativo' ? 'selected' : ''}>Ativo</option>
-                                    <option value="inativo" ${cliente.status === 'inativo' ? 'selected' : ''}>Inativo</option>
-                                    <option value="suspenso" ${cliente.status === 'suspenso' ? 'selected' : ''}>Suspenso</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" id="btnSalvarCliente_${cliente.id}" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    modalContainer.innerHTML = modal;
-    lucide.createIcons();
-    
-    // Adicionar listener direto no formulário após criá-lo
-    setTimeout(() => {
-        const form = document.getElementById(`formEditarCliente_${cliente.id}`);
-        const btnSalvar = document.getElementById(`btnSalvarCliente_${cliente.id}`);
-        
-        if (form) {
-            
-            // Adicionar listener no formulário (sem clonar para manter listeners internos)
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const resultado = atualizarCliente(e, cliente.id);
-                return false;
-            }, false);
-            
-        } else {
-            console.error('âŒ Formulário não encontrado após criar modal!');
-        }
-        
-        if (btnSalvar) {
-            btnSalvar.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const form = document.getElementById(`formEditarCliente_${cliente.id}`);
-                if (form) {
-                    const resultado = atualizarCliente(e, cliente.id);
-                }
-            }, false);
-        } else {
-            console.error('âŒ Botão Salvar não encontrado após criar modal!');
-        }
-    }, 100);
-}
 
-function abrirModalEdicaoContrato(contrato) {
-    
-    // Verificar se o modalContainer existe
-    const modalContainer = document.getElementById('modalContainer');
-    if (!modalContainer) {
-        console.error('modalContainer não encontrado!');
-        mostrarNotificacao('Erro: Container do modal não encontrado!', 'error');
-        return;
-    }
-    
-    // Limpar qualquer conteúdo anterior
-    modalContainer.innerHTML = '';
-    
-    const modal = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Contrato</h3>
-                        <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form onsubmit="atualizarContrato(event, ${JSON.stringify(contrato.id)})">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="contratoClienteId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Cliente</option>
-                                    ${clientes.map(cliente => `<option value="${cliente.id}" ${cliente.id === contrato.clienteId ? 'selected' : ''}>${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                                <input type="text" id="contratoTipo" value="${contrato.tipo || ''}" list="tiposContrato" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite ou selecione um tipo">
-                                <datalist id="tiposContrato">
-                                    <option value="Compra e Venda">
-                                    <option value="Arrendamento">
-                                    <option value="Prestação de Serviços">
-                                    <option value="Empréstimo">
-                                    <option value="Alteração de pactos sociais">
-                                    <option value="Análise e revisão de contratos">
-                                    <option value="Cessão de quotas">
-                                    <option value="Constituição de sociedades">
-                                    <option value="Contratos de arrendamento">
-                                    <option value="Contratos de compra e venda">
-                                    <option value="Contratos de prestação de serviços">
-                                    <option value="Contratos de trabalho">
-                                    <option value="Pactos sociais">
-                                    <option value="Consultoria">
-                                    <option value="Assessoria">
-                                    <option value="Representação">
-                                    <option value="Outro">
-                                </datalist>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                    <input type="number" id="contratoValor" value="${contrato.valor}" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                    <select id="contratoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="0" ${contrato.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
-                                        <option value="6" ${contrato.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${contrato.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
-                                        <option value="23" ${contrato.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                    <select id="contratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="pendente" ${contrato.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="em_andamento" ${contrato.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>Concluído</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
-                                    <input type="date" id="contratoDataInicio" value="${contrato.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data Fim</label>
-                                    <input type="date" id="contratoDataFim" value="${contrato.dataFim || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                                <textarea id="contratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${contrato.observacoes || ''}</textarea>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    try {
-        modalContainer.innerHTML = modal;
-        lucide.createIcons();
-        
-        // Verificar se o modal foi inserido corretamente
-        const modalElement = modalContainer.querySelector('.fixed.inset-0');
-        if (modalElement) {
-            
-            // Forçar visibilidade
-            modalElement.style.display = 'flex';
-            modalElement.style.visibility = 'visible';
-            modalElement.style.opacity = '1';
-            modalElement.style.zIndex = '9999';
-            
-        } else {
-            console.error('âŒ Modal não foi inserido corretamente');
-            mostrarNotificacao('Erro ao abrir modal de edição!', 'error');
-        }
-    } catch (error) {
-        console.error('Erro ao inserir modal:', error);
-        mostrarNotificacao('Erro ao abrir modal de edição!', 'error');
-    }
-}
 
 function abrirModalEdicaoHonorario(honorario) {
     
@@ -24494,19 +24573,6 @@ window.salvarRegistoEditado = salvarRegistoEditado;
 // === FUNÇÃO PARA CONTROLAR MENU MOBILE ===
 // Nota: primeira definição de toggleSidebar (perto de carregarSecao) tem overlay e body class;
 // esta redefine para manter consistência - aria-expanded aplicado em ambos os botões de menu
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebarOverlay');
-    const menuBtn = document.getElementById('mobileMenuBtn');
-    const menuHamburguer = document.getElementById('menuHamburguer');
-    if (sidebar) {
-        const aberto = sidebar.classList.toggle('open');
-        document.body.classList.toggle('sidebar-open', aberto);
-        if (overlay) overlay.classList.toggle('active', aberto);
-        if (menuBtn) menuBtn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-        if (menuHamburguer) menuHamburguer.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-    }
-}
 
 // Fechar sidebar ao clicar fora (mobile)
 document.addEventListener('click', function(event) {
@@ -24548,473 +24614,15 @@ function toggleParceriaNome(tipo) {
 
 // === FUNÇÕES ESPECÍFICAS DE EDIÇÃO E EXCLUSÃO PARA ÁREAS DE ATUAÃ‡ÃƒO ===
 
-function editarHeranca(id) {
-    // Buscar herança
-    const herancasSalvas = appStorage.getItem('herancas');
-    let herancas = [];
-    if (herancasSalvas) {
-        herancas = JSON.parse(herancasSalvas);
-    }
-    
-    // Buscar clientes (Firestore)
-    const clientes = obterClientesAtual();
-    
-    const heranca = herancas.find(h => h.id === id);
-    if (heranca) {
-        // Fechar qualquer modal aberto
-        fecharModal();
-        
-        // Criar modal com layout original
-        const modal = document.createElement('div');
-        modal.id = 'modalEdicaoHeranca';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = function(e) {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        };
-        
-        modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Herança</h3>
-                        <button onclick="document.getElementById('modalEdicaoHeranca').remove()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form onsubmit="salvarHerancaEditada(event, ${id})">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="editClienteId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Cliente</option>
-                                    ${clientes.map(cliente => `<option value="${cliente.id}" ${cliente.id === heranca.clienteId ? 'selected' : ''}>${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                                <select id="editTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Tipo</option>
-                                    <option value="Aceitação da herança" ${heranca.tipo === 'Aceitação da herança' ? 'selected' : ''}>Aceitação da herança</option>
-                                    <option value="Doações" ${heranca.tipo === 'Doações' ? 'selected' : ''}>Doações</option>
-                                    <option value="Escrituras de partilha" ${heranca.tipo === 'Escrituras de partilha' ? 'selected' : ''}>Escrituras de partilha</option>
-                                    <option value="Habilitação de herdeiros" ${heranca.tipo === 'Habilitação de herdeiros' ? 'selected' : ''}>Habilitação de herdeiros</option>
-                                    <option value="Partilhas em vida" ${heranca.tipo === 'Partilhas em vida' ? 'selected' : ''}>Partilhas em vida</option>
-                                    <option value="Partilhas por óbito" ${heranca.tipo === 'Partilhas por óbito' ? 'selected' : ''}>Partilhas por óbito</option>
-                                    <option value="Processo de inventário" ${heranca.tipo === 'Processo de inventário' ? 'selected' : ''}>Processo de inventário</option>
-                                    <option value="Renúncia à herança" ${heranca.tipo === 'Renúncia à herança' ? 'selected' : ''}>Renúncia à herança</option>
-                                    <option value="Testamentos" ${heranca.tipo === 'Testamentos' ? 'selected' : ''}>Testamentos</option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                    <input type="number" id="editValor" value="${heranca.valor}" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                    <select id="editIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="0" ${heranca.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
-                                        <option value="6" ${heranca.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${heranca.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
-                                        <option value="23" ${heranca.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                    <select id="editStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="pendente" ${heranca.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="em_andamento" ${heranca.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${heranca.status === 'concluido' ? 'selected' : ''}>Concluído</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
-                                    <select id="editPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="baixa" ${(heranca.prioridade || 'media') === 'baixa' ? 'selected' : ''}>Baixa</option>
-                                        <option value="media" ${(heranca.prioridade || 'media') === 'media' ? 'selected' : ''}>Média</option>
-                                        <option value="alta" ${(heranca.prioridade || 'media') === 'alta' ? 'selected' : ''}>Alta</option>
-                                        <option value="critica" ${(heranca.prioridade || 'media') === 'critica' ? 'selected' : ''}>Crítica</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
-                                <input type="date" id="editDataInicio" value="${heranca.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                                <textarea id="editObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${heranca.observacoes || ''}</textarea>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="document.getElementById('modalEdicaoHeranca').remove()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        lucide.createIcons();
-    }
-}
 
-function excluirHeranca(id) {
-    excluirItem('heranca', id);
-}
 
-function editarMigracao(id) {
-    // Buscar migração
-    const migracoesSalvas = appStorage.getItem('migracoes');
-    let migracoes = [];
-    if (migracoesSalvas) {
-        migracoes = JSON.parse(migracoesSalvas);
-    }
-    
-    // Buscar clientes (Firestore)
-    const clientes = obterClientesAtual();
-    
-    const migracao = migracoes.find(m => m.id === id);
-    if (migracao) {
-        // Fechar qualquer modal aberto
-        fecharModal();
-        
-        // Criar modal com layout original
-        const modal = document.createElement('div');
-        modal.id = 'modalEdicaoMigracao';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = function(e) {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        };
-        
-        modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
-                        <button onclick="document.getElementById('modalEdicaoMigracao').remove()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form onsubmit="salvarMigracaoEditada(event, ${id})">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="editMigracaoClienteId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Cliente</option>
-                                    ${clientes.map(cliente => `<option value="${cliente.id}" ${cliente.id === migracao.clienteId ? 'selected' : ''}>${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                                <select id="editMigracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Tipo</option>
-                                    <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
-                                    <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
-                                    <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
-                                    <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                    <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
-                                    <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
-                                    <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
-                                    <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
-                                    <option value="Vistos para trabalho" ${migracao.tipo === 'Vistos para trabalho' ? 'selected' : ''}>Vistos para trabalho</option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                    <input type="number" id="editMigracaoValor" value="${migracao.valor}" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                    <select id="editMigracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
-                                        <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
-                                        <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                    <select id="editMigracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
-                                <input type="date" id="editMigracaoDataInicio" value="${migracao.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                                <textarea id="editMigracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="document.getElementById('modalEdicaoMigracao').remove()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        lucide.createIcons();
-    }
-}
 
-function excluirMigracao(id) {
-    excluirItem('migracao', id);
-}
 
-function editarRegisto(id) {
-    // Buscar registo
-    const registosSalvos = appStorage.getItem('registos');
-    let registos = [];
-    if (registosSalvos) {
-        registos = JSON.parse(registosSalvos);
-    }
-    
-    // Buscar clientes (Firestore)
-    const clientes = obterClientesAtual();
-    
-    const registo = registos.find(r => r.id === id);
-    if (registo) {
-        // Fechar qualquer modal aberto
-        fecharModal();
-        
-        // Criar modal com layout original
-        const modal = document.createElement('div');
-        modal.id = 'modalEdicaoRegisto';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = function(e) {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        };
-        
-        modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Registo</h3>
-                        <button onclick="document.getElementById('modalEdicaoRegisto').remove()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form onsubmit="salvarRegistoEditado(event, ${id})">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="editRegistoClienteId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Cliente</option>
-                                    ${clientes.map(cliente => `<option value="${cliente.id}" ${cliente.id === registo.clienteId ? 'selected' : ''}>${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                                <select id="editRegistoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Tipo</option>
-                                    <option value="Autenticação de documentos" ${registo.tipo === 'Autenticação de documentos' ? 'selected' : ''}>Autenticação de documentos</option>
-                                    <option value="Certificação de fotocópias" ${registo.tipo === 'Certificação de fotocópias' ? 'selected' : ''}>Certificação de fotocópias</option>
-                                    <option value="Documentos para o estrangeiro" ${registo.tipo === 'Documentos para o estrangeiro' ? 'selected' : ''}>Documentos para o estrangeiro</option>
-                                    <option value="Procurações" ${registo.tipo === 'Procurações' ? 'selected' : ''}>Procurações</option>
-                                    <option value="Reconhecimento presencial de assinaturas" ${registo.tipo === 'Reconhecimento presencial de assinaturas' ? 'selected' : ''}>Reconhecimento presencial de assinaturas</option>
-                                    <option value="Registos automóveis" ${registo.tipo === 'Registos automóveis' ? 'selected' : ''}>Registos automóveis</option>
-                                    <option value="Registos comerciais" ${registo.tipo === 'Registos comerciais' ? 'selected' : ''}>Registos comerciais</option>
-                                    <option value="Registos de propriedade" ${registo.tipo === 'Registos de propriedade' ? 'selected' : ''}>Registos de propriedade</option>
-                                    <option value="Termos de autenticação" ${registo.tipo === 'Termos de autenticação' ? 'selected' : ''}>Termos de autenticação</option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                    <input type="number" id="editRegistoValor" value="${registo.valor}" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                    <select id="editRegistoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="0" ${registo.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
-                                        <option value="6" ${registo.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${registo.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
-                                        <option value="23" ${registo.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                    <select id="editRegistoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="pendente" ${registo.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="em_andamento" ${registo.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${registo.status === 'concluido' ? 'selected' : ''}>Concluído</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
-                                <input type="date" id="editRegistoDataInicio" value="${registo.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                                <textarea id="editRegistoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${registo.observacoes || ''}</textarea>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="document.getElementById('modalEdicaoRegisto').remove()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        lucide.createIcons();
-    }
-}
 
-function excluirRegisto(id) {
-    excluirItem('registo', id);
-}
 
 // === FUNÇÕES DE FILTRO PARA MIGRAÇÕES (duplicada - garante guards) ===
-function filtrarMigracoes() {
-    aplicarFiltrosMigracoes();
-}
 
-function aplicarFiltrosMigracoes() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'migracoes') return;
-    if (!document.getElementById('listaMigracoes')) return;
-    const busca = document.getElementById('buscaMigracoes')?.value?.toLowerCase() || '';
-    const statusFiltro = document.getElementById('filtroStatusMigracao')?.value || '';
-    const tipoFiltro = document.getElementById('filtroTipoMigracao')?.value || '';
-    const valorMin = parseFloat(document.getElementById('filtroValorMinMigracao')?.value) || 0;
-    const valorMax = parseFloat(document.getElementById('filtroValorMaxMigracao')?.value) || Infinity;
-    const nif = document.getElementById('filtroNifMigracao')?.value || '';
 
-    const migracoesFiltradas = migracoes.filter(migracao => {
-        const matchBusca = !busca || 
-            (migracao.clienteNome?.toLowerCase().includes(busca)) ||
-            (migracao.tipo?.toLowerCase().includes(busca));
-        
-        const matchStatus = !statusFiltro || migracao.status === statusFiltro;
-        const matchTipo = !tipoFiltro || migracao.tipo === tipoFiltro;
-        const valor = parseFloat(migracao.valor) || 0;
-        const matchValor = valor >= valorMin && valor <= valorMax;
-
-        // Filtro por NIF
-        const cliente = clientes.find(c => c.id === migracao.clienteId);
-        const matchNif = !nif || (cliente && cliente.nif && cliente.nif.includes(nif));
-
-        return matchBusca && matchStatus && matchTipo && matchValor && matchNif;
-    });
-
-    // Atualizar tabela
-    const tbody = document.getElementById('listaMigracoes');
-    if (tbody) {
-        tbody.innerHTML = migracoesFiltradas.map(migracao => `
-            <tr>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${renderClienteLink(migracao.clienteId, migracao.clienteNome || 'N/A')}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
-                <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div class="text-sm font-bold text-black">${EURO_HTML}${(migracao.valor || 0).toFixed(2)}</div>
-                    <div class="text-xs font-bold text-red-600">+ IVA: ${EURO_HTML}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
-                        <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                    </button>
-                    <button onclick="abrirAnexosMigracao(${JSON.stringify(migracao.id)})" class="text-green-600 hover:text-green-900 mr-3" title="Documentos">
-                        <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
-                    </button>
-                    <button onclick="excluirMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-red-600 hover:text-red-900" title="Excluir">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // Atualizar contador
-    const contador = document.getElementById('contadorMigracoes');
-    if (contador) {
-        contador.textContent = migracoesFiltradas.length;
-    }
-
-    // Recriar ícones
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function limparFiltrosMigracoes() {
-    const elementos = [
-        'buscaMigracoes',
-        'filtroStatusMigracao', 
-        'filtroTipoMigracao',
-        'filtroValorMinMigracao',
-        'filtroValorMaxMigracao',
-        'filtroNifMigracao'
-    ];
-    
-    elementos.forEach(id => {
-        const elemento = document.getElementById(id);
-        if (elemento) {
-            elemento.value = '';
-        }
-    });
-    
-    aplicarFiltrosMigracoes();
-}
 
 function abrirAnexosMigracao(id) {
     const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
@@ -25024,189 +24632,13 @@ function abrirAnexosMigracao(id) {
 }
 
 // === FUNÇÃO DE EDIÇÃO PADRÃƒO ===
-function abrirModalEdicaoMigracao(migracao) {
-    
-    // Buscar clientes (Firestore)
-    const clientes = obterClientesAtual();
-    
-    if (migracao) {
-        fecharModal();
-        // Criar modal com layout padrão
-        const modal = document.createElement('div');
-        modal.id = 'modalEdicaoMigracao';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = function(e) {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        };
-        
-        modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Editar Migração</h3>
-                        <button onclick="document.getElementById('modalEdicaoMigracao').remove()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                    
-                    <form onsubmit="salvarMigracaoEditada(event, ${id})">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <select id="editMigracaoClienteId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Cliente</option>
-                                    ${clientes.map(cliente => `<option value="${cliente.id}" ${cliente.id === migracao.clienteId ? 'selected' : ''}>${cliente.nome}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                                <select id="editMigracaoTipo" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="">Selecionar Tipo</option>
-                                    <option value="Autorização de residência" ${migracao.tipo === 'Autorização de residência' ? 'selected' : ''}>Autorização de residência</option>
-                                    <option value="Certificados de residência permanente" ${migracao.tipo === 'Certificados de residência permanente' ? 'selected' : ''}>Certificados de residência permanente</option>
-                                    <option value="Processos de nacionalidade portuguesa" ${migracao.tipo === 'Processos de nacionalidade portuguesa' ? 'selected' : ''}>Processos de nacionalidade portuguesa</option>
-                                    <option value="Reagrupamento familiar" ${migracao.tipo === 'Reagrupamento familiar' ? 'selected' : ''}>Reagrupamento familiar</option>
-                                    <option value="Renovação de autorizações" ${migracao.tipo === 'Renovação de autorizações' ? 'selected' : ''}>Renovação de autorizações</option>
-                                    <option value="Vistos D7" ${migracao.tipo === 'Vistos D7' ? 'selected' : ''}>Vistos D7</option>
-                                    <option value="Vistos Gold" ${migracao.tipo === 'Vistos Gold' ? 'selected' : ''}>Vistos Gold</option>
-                                    <option value="Vistos para estudantes" ${migracao.tipo === 'Vistos para estudantes' ? 'selected' : ''}>Vistos para estudantes</option>
-                                    <option value="Vistos para trabalho" ${migracao.tipo === 'Vistos para trabalho' ? 'selected' : ''}>Vistos para trabalho</option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                    <input type="number" id="editMigracaoValor" value="${migracao.valor}" step="0.01" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                    <select id="editMigracaoIva" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="0" ${migracao.iva === '0' ? 'selected' : ''}>0% (Isento)</option>
-                                        <option value="6" ${migracao.iva === '6' ? 'selected' : ''}>6% (Reduzida)</option>
-                                        <option value="13" ${migracao.iva === '13' ? 'selected' : ''}>13% (Intermédia)</option>
-                                        <option value="23" ${migracao.iva === '23' ? 'selected' : ''}>23% (Normal)</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                    <select id="editMigracaoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                        <option value="pendente" ${migracao.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="em_andamento" ${migracao.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                        <option value="concluido" ${migracao.status === 'concluido' ? 'selected' : ''}>Concluído</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data Início *</label>
-                                <input type="date" id="editMigracaoDataInicio" value="${migracao.dataInicio}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                                <textarea id="editMigracaoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">${migracao.observacoes || ''}</textarea>
-                            </div>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 mt-6">
-                            <button type="button" onclick="document.getElementById('modalEdicaoMigracao').remove()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Salvar Alterações
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        lucide.createIcons();
-    } else {
-    }
-}
 
 // === FUNÇÃO DE SALVAR PADRÃƒO ===
-function salvarMigracaoEditada(event, id) {
-    event.preventDefault();
-    
-    // Buscar migrações
-    const migracoesSalvas = appStorage.getItem('migracoes');
-    let migracoes = [];
-    if (migracoesSalvas) {
-        migracoes = JSON.parse(migracoesSalvas);
-    }
-    
-    // Buscar clientes (Firestore)
-    const clientes = obterClientesAtual();
-    
-    // Encontrar a migração
-    const migracaoIndex = migracoes.findIndex(m => m.id == id);
-    
-    if (migracaoIndex !== -1) {
-        const clienteId = parseIdSafe(document.getElementById('editMigracaoClienteId').value);
-        const cliente = clientes.find(c => c.id === clienteId);
-        
-        const valor = parseFloat(document.getElementById('editMigracaoValor').value);
-        const ivaPercent = parseFloat(document.getElementById('editMigracaoIva').value);
-        const valorIVA = (valor * ivaPercent) / 100;
-        const valorComIva = valor + valorIVA;
-        
-        // Atualizar os dados
-        migracoes[migracaoIndex] = {
-            ...migracoes[migracaoIndex],
-            clienteId: clienteId,
-            clienteNome: cliente ? cliente.nome : migracoes[migracaoIndex].clienteNome,
-            tipo: document.getElementById('editMigracaoTipo').value,
-            valor: valor,
-            iva: ivaPercent,
-            valorIVA: valorIVA,
-            valorComIva: valorComIva,
-            status: document.getElementById('editMigracaoStatus').value,
-            dataInicio: document.getElementById('editMigracaoDataInicio').value,
-            observacoes: document.getElementById('editMigracaoObservacoes').value,
-            dataAtualizacao: new Date().toISOString()
-        };
-        
-        
-        // Salvar no Firestore
-        salvarDados('migracoes', migracoes);
-        window.migracoes = migracoes;
-        
-        mostrarNotificacao('Migração atualizada com sucesso!', 'success');
-        
-        // Fechar modal
-        const modal = document.getElementById('modalEdicaoMigracao');
-        if (modal) {
-            modal.remove();
-        }
-        
-        // Recarregar secção
-        setTimeout(() => {
-            carregarSecao('migracoes');
-        }, 100);
-    } else {
-        mostrarNotificacao('Erro: Migração não encontrada!', 'error');
-    }
-}
 
 // Tornar função global
 window.salvarMigracaoEditada = salvarMigracaoEditada;
 
 // === FUNÇÃO PARA ANEXOS DE CONTRATOS ===
-function abrirAnexosContrato(id) {
-    const contrato = contratos.find(c => c.id === id);
-    if (contrato) {
-        abrirModalAnexos('contrato', id, contrato.clienteNome || 'Contrato');
-    }
-}
 
 // === FUNÇÃO PARA ANEXOS DE HERANÇAS ===
 function abrirAnexosHeranca(id) {
@@ -25217,20 +24649,8 @@ function abrirAnexosHeranca(id) {
 }
 
 // === FUNÇÃO PARA ANEXOS DE MIGRAÇÕES ===
-function abrirAnexosMigracao(id) {
-    const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
-    if (migracao) {
-        abrirModalAnexos('migracao', id, migracao.clienteNome || 'Migração');
-    }
-}
 
 // === FUNÇÃO PARA ANEXOS DE REGISTOS ===
-function abrirAnexosRegisto(id) {
-    const registo = registos.find(r => r.id === id);
-    if (registo) {
-        abrirModalAnexos('registo', id, registo.clienteNome || 'Registo');
-    }
-}
 
 // === FUNÇÃO PRINCIPAL PARA ABRIR MODAL DE ANEXOS ===
 function abrirModalAnexos(tipo, id, nome) {
@@ -25379,51 +24799,6 @@ function abrirModalAnexos(tipo, id, nome) {
 }
 
 // === FUNÇÕES PARA ADICIONAR ANEXOS ===
-function adicionarAnexoContrato(event, contratoId) {
-    event.preventDefault();
-    
-    const nome = document.getElementById('nomeDocumento').value;
-    const tipoSelecionado = document.getElementById('tipoDocumento').value;
-    const tipoPersonalizado = document.getElementById('tipoPersonalizadoInput').value;
-    const arquivo = document.getElementById('arquivoDocumento').files[0];
-    const descricao = document.getElementById('descricaoDocumento').value;
-    
-    if (!arquivo) {
-        mostrarNotificacao('Por favor, selecione um arquivo', 'error');
-        return;
-    }
-    
-    const tipo = tipoSelecionado === 'outro' ? tipoPersonalizado : tipoSelecionado;
-    
-    if (tipoSelecionado === 'outro' && !tipoPersonalizado.trim()) {
-        mostrarNotificacao('Por favor, especifique o tipo de documento', 'error');
-        return;
-    }
-    
-    // Converter arquivo para Base64
-    converterArquivoParaBase64(arquivo, function(base64Content) {
-        const anexo = {
-            id: gerarIdImutavel(),
-            nome: nome,
-            tipo: tipo,
-            descricao: descricao,
-            nomeArquivo: arquivo.name,
-            tamanho: formatarTamanho(arquivo.size),
-            dataUpload: new Date().toISOString(),
-            tipoArquivo: arquivo.type,
-            conteudo: base64Content
-        };
-        
-        const contrato = contratos.find(c => c.id === contratoId);
-        if (contrato) {
-            if (!contrato.anexos) contrato.anexos = [];
-            contrato.anexos.push(anexo);
-            salvarDados('contratos', contratos);
-            mostrarNotificacao('Documento adicionado com sucesso!', 'success');
-            abrirAnexosContrato(contratoId);
-        }
-    });
-}
 
 function adicionarAnexoHeranca(event, herancaId) {
     event.preventDefault();
@@ -25521,64 +24896,8 @@ function adicionarAnexoMigracao(event, migracaoId) {
     });
 }
 
-function adicionarAnexoRegisto(event, registoId) {
-    event.preventDefault();
-    
-    const nome = document.getElementById('nomeDocumento').value;
-    const tipoSelecionado = document.getElementById('tipoDocumento').value;
-    const tipoPersonalizado = document.getElementById('tipoPersonalizadoInput').value;
-    const arquivo = document.getElementById('arquivoDocumento').files[0];
-    const descricao = document.getElementById('descricaoDocumento').value;
-    
-    if (!arquivo) {
-        mostrarNotificacao('Por favor, selecione um arquivo', 'error');
-        return;
-    }
-    
-    const tipo = tipoSelecionado === 'outro' ? tipoPersonalizado : tipoSelecionado;
-    
-    if (tipoSelecionado === 'outro' && !tipoPersonalizado.trim()) {
-        mostrarNotificacao('Por favor, especifique o tipo de documento', 'error');
-        return;
-    }
-    
-    // Converter arquivo para Base64
-    converterArquivoParaBase64(arquivo, function(base64Content) {
-        const anexo = {
-            id: gerarIdImutavel(),
-            nome: nome,
-            tipo: tipo,
-            descricao: descricao,
-            nomeArquivo: arquivo.name,
-            tamanho: formatarTamanho(arquivo.size),
-            dataUpload: new Date().toISOString(),
-            tipoArquivo: arquivo.type,
-            conteudo: base64Content
-        };
-        
-        const registo = registos.find(r => r.id === registoId);
-        if (registo) {
-            if (!registo.anexos) registo.anexos = [];
-            registo.anexos.push(anexo);
-            salvarDados('registos', registos);
-            mostrarNotificacao('Documento adicionado com sucesso!', 'success');
-            abrirAnexosRegisto(registoId);
-        }
-    });
-}
 
 // === FUNÇÕES PARA REMOVER ANEXOS ===
-function removerAnexoContrato(contratoId, anexoId) {
-    if (confirm('Tem certeza que deseja remover este documento?')) {
-        const contrato = contratos.find(c => c.id === contratoId);
-        if (contrato && contrato.anexos) {
-            contrato.anexos = contrato.anexos.filter(a => a.id !== anexoId);
-            salvarDados('contratos', contratos);
-            mostrarNotificacao('Documento removido com sucesso!', 'success');
-            abrirAnexosContrato(contratoId);
-        }
-    }
-}
 
 function removerAnexoHeranca(herancaId, anexoId) {
     if (confirm('Tem certeza que deseja remover este documento?')) {
@@ -25606,30 +24925,8 @@ function removerAnexoMigracao(migracaoId, anexoId) {
     }
 }
 
-function removerAnexoRegisto(registoId, anexoId) {
-    if (confirm('Tem certeza que deseja remover este documento?')) {
-        const listaRegistos = carregarListaLocal('registos', registos);
-        const registo = listaRegistos.find(r => r.id === registoId);
-        if (registo && registo.anexos) {
-            registo.anexos = registo.anexos.filter(a => a.id !== anexoId);
-            salvarDados('registos', listaRegistos);
-            mostrarNotificacao('Documento removido com sucesso!', 'success');
-            abrirAnexosRegisto(registoId);
-        }
-    }
-}
 
 // === FUNÇÃO PARA TOGGLE TIPO PERSONALIZADO ===
-function toggleTipoPersonalizado(tipo) {
-    const select = document.getElementById('tipoDocumento');
-    const divPersonalizado = document.getElementById(`tipoPersonalizado${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
-    
-    if (select.value === 'outro') {
-        divPersonalizado.classList.remove('hidden');
-    } else {
-        divPersonalizado.classList.add('hidden');
-    }
-}
 
 /** Lista honorários: APENAS Firestore (global atualizada por ouvirHonorarios). Sem localStorage. */
 function obterHonorariosAtual() {
@@ -25665,16 +24962,6 @@ function obterIntegracoesExternasAtual() {
     return Array.isArray(integracoesExternas) ? integracoesExternas : [];
 }
 
-function editarContratoDireto(id) {
-    const listaContratos = obterContratosAtual();
-    const contrato = listaContratos.find(c => String(c.id) === String(id));
-    if (contrato) {
-        fecharModal();
-        setTimeout(() => abrirModalEdicaoContrato(contrato), 100);
-    } else {
-        mostrarNotificacao('Contrato não encontrado!', 'error');
-    }
-}
 
 async function excluirContratoDireto(id) {
     if (!exigirPermissaoAcao('apagar', 'contrato')) return;
@@ -26016,134 +25303,9 @@ function criarPrazosIVA() {
 
 // === FUNÇÕES DE IVA TRIMESTRAL ===
 
-function obterTrimestreAtual() {
-    const agora = new Date();
-    return Math.floor(agora.getMonth() / 3) + 1;
-}
 
-function calcularIVATrimestral_REMOVED() {
-    const anoAtual = new Date().getFullYear();
-    const trimestreAtual = obterTrimestreAtual();
-    
-    const ivaPorTrimestre = {
-        1: { valor: 0, itens: 0, periodo: 'Jan-Mar' },
-        2: { valor: 0, itens: 0, periodo: 'Abr-Jun' },
-        3: { valor: 0, itens: 0, periodo: 'Jul-Set' },
-        4: { valor: 0, itens: 0, periodo: 'Out-Dez' }
-    };
-    
-    // Calcular IVA de todas as fontes
-    const todasFontes = [
-        ...contratos.map(c => ({ ...c, fonte: 'contrato' })),
-        ...herancas.map(h => ({ ...h, fonte: 'heranca' })),
-        ...migracoes.map(m => ({ ...m, fonte: 'migracao' })),
-        ...registos.map(r => ({ ...r, fonte: 'registo' }))
-    ];
-    
-    todasFontes.forEach(item => {
-        if (item.dataCriacao) {
-            const data = new Date(item.dataCriacao);
-            const ano = data.getFullYear();
-            
-            if (ano === anoAtual) {
-                const trimestre = Math.floor(data.getMonth() / 3) + 1;
-                const valor = parseFloat(item.valor) || 0;
-                const iva = parseFloat(item.iva) || 0;
-                const valorIVA = (valor * iva) / 100;
-                
-                if (ivaPorTrimestre[trimestre]) {
-                    ivaPorTrimestre[trimestre].valor += valorIVA;
-                    ivaPorTrimestre[trimestre].itens++;
-                }
-            }
-        }
-    });
-    
-    return { ivaPorTrimestre, trimestreAtual };
-}
 
-function obterPrazosIVA(trimestre) {
-    const anoAtual = new Date().getFullYear();
-    const mesInicio = (trimestre - 1) * 3;
-    const mesFim = mesInicio + 2;
-    
-    // Prazo de entrega: até o dia 10 do segundo mês após o fim do trimestre
-    const dataEntrega = new Date(anoAtual, mesFim + 2, 10);
-    
-    // Prazo de pagamento: até o dia 15 do segundo mês após o fim do trimestre
-    const dataPagamento = new Date(anoAtual, mesFim + 2, 15);
-    
-    const periodos = {
-        1: 'Janeiro-Março',
-        2: 'Abril-Junho',
-        3: 'Julho-Setembro',
-        4: 'Outubro-Dezembro'
-    };
-    
-    return {
-        trimestre: trimestre,
-        periodo: periodos[trimestre],
-        entrega: dataEntrega.toISOString(),
-        pagamento: dataPagamento.toISOString()
-    };
-}
 
-function criarPrazosIVA() {
-    const trimestreAtual = obterTrimestreAtual();
-    const prazosIVA = obterPrazosIVA(trimestreAtual);
-    // const { ivaPorTrimestre } = calcularIVATrimestral(); // REMOVIDO
-    
-    // Verificar se já existe um prazo de IVA para este trimestre
-    const prazoExistente = prazos.find(p => 
-        p.tipo === 'iva_trimestral' && 
-        p.trimestre === trimestreAtual &&
-        new Date(p.dataCriacao).getFullYear() === new Date().getFullYear()
-    );
-    
-    if (prazoExistente) {
-        mostrarNotificacao('Já existe um prazo de IVA para este trimestre!', 'warning');
-        return;
-    }
-    
-    // Criar prazos de entrega e pagamento
-    const prazoEntrega = {
-        id: gerarIdImutavel(),
-        clienteId: null,
-        clienteNome: 'Autoridade Tributária',
-        tipo: 'iva_trimestral',
-        trimestre: trimestreAtual,
-        descricao: `Entrega da Declaração de IVA - ${prazosIVA.periodo}`,
-        dataLimite: prazosIVA.entrega.split('T')[0],
-        status: 'ativo',
-        prioridade: 'alta',
-        valorIVA: ivaPorTrimestre[trimestreAtual].valor,
-        dataCriacao: new Date().toISOString()
-    };
-    
-    const prazoPagamento = {
-        id: gerarIdImutavel(),
-        clienteId: null,
-        clienteNome: 'Autoridade Tributária',
-        tipo: 'iva_trimestral',
-        trimestre: trimestreAtual,
-        descricao: `Pagamento do IVA - ${prazosIVA.periodo} (${EURO_HTML}${ivaPorTrimestre[trimestreAtual].valor.toFixed(2)})`,
-        dataLimite: prazosIVA.pagamento.split('T')[0],
-        status: 'ativo',
-        prioridade: 'alta',
-        valorIVA: ivaPorTrimestre[trimestreAtual].valor,
-        dataCriacao: new Date().toISOString()
-    };
-    
-    prazos.push(prazoEntrega, prazoPagamento);
-    salvarDados('prazos', prazos);
-    
-    mostrarNotificacao('Prazos de IVA criados com sucesso!', 'success');
-    
-    // Recarregar a secção de prazos se estiver ativa
-    if (secaoAtiva === 'prazos') {
-        carregarSecao('prazos');
-    }
-}
 
 // Função para gerar relatório de IVA trimestral
 
@@ -26249,15 +25411,6 @@ function editarRegistoDireto(id) {
     }
 }
 
-function abrirAnexosRegisto(id) {
-    const registo = obterRegistosAtual().find(r => String(r.id) === String(id));
-    if (registo) {
-        abrirModalAnexos('registo', id, registo.clienteNome || 'Registo');
-    } else {
-        console.error('âŒ Registo não encontrado com ID:', id);
-        mostrarNotificacao('Registo não encontrado!', 'error');
-    }
-}
 
 async function excluirRegistoDireto(id) {
     if (!confirm('Tem certeza que deseja excluir este registo? Esta ação não pode ser desfeita.')) return;
@@ -26296,15 +25449,6 @@ function editarHerancaDireto(id) {
     }
 }
 
-function abrirAnexosHeranca(id) {
-    const heranca = obterHerancasAtual().find(h => String(h.id) === String(id));
-    if (heranca) {
-        abrirModalAnexos('heranca', id, heranca.clienteNome || 'Herança');
-    } else {
-        console.error('âŒ Herança não encontrada com ID:', id);
-        mostrarNotificacao('Herança não encontrada!', 'error');
-    }
-}
 
 // Tornar funções globais
 window.abrirAnexosContrato = abrirAnexosContrato;
