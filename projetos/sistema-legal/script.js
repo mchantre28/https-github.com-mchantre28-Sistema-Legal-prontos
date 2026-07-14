@@ -2661,6 +2661,7 @@ function mostrarTelaLogin() {
                     <p><strong>Administrador / Cliente:</strong> Email e senha (API)</p>
                     <p><strong>Convidado:</strong> Código de acesso (legado)</p>
                 </div>
+                ${(typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.getGithubPagesLoginHintHtml) ? SistemaLegalAPI.getGithubPagesLoginHintHtml() : ''}
             </div>
         </div>
     `;
@@ -2708,8 +2709,10 @@ function mostrarLoginAdmin() {
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
                     <p><strong>Acesso Restrito</strong></p>
-                    <p>Requer backend API em execução (predefinição: localhost:3001)</p>
+                    <p>Execute <strong>START-SISTEMA.bat</strong> (backend :3001 + frontend :8000)</p>
+                    <p>URL: <strong>http://localhost:8000</strong></p>
                 </div>
+                ${(typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.getGithubPagesLoginHintHtml) ? SistemaLegalAPI.getGithubPagesLoginHintHtml() : ''}
             </div>
         </div>
     `;
@@ -2766,6 +2769,7 @@ function mostrarLoginCliente() {
                 <div class="mt-6 text-center text-sm text-gray-600">
                     <p>Acesso limitado à área do cliente</p>
                 </div>
+                ${(typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.getGithubPagesLoginHintHtml) ? SistemaLegalAPI.getGithubPagesLoginHintHtml() : ''}
             </div>
         </div>
     `;

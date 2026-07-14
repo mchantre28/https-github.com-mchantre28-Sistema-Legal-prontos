@@ -196,7 +196,18 @@ cd projetos/sistema-legal && npx playwright test
 
 ---
 
-## 7. Documentação relacionada
+## 7. GitHub Pages (alternativa à Vercel)
 
+O frontend também pode ser publicado em GitHub Pages. **O backend continua a exigir Railway/Render** — Pages não executa Node.js.
+
+- Workflow: `.github/workflows/deploy-github-pages.yml`
+- Guia completo: **DEPLOY-GITHUB-PAGES.md**
+- URL: `https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/`
+
+---
+
+## 8. Documentação relacionada
+
+- **DEPLOY-GITHUB-PAGES.md** — GitHub Pages + backend Railway.
 - **MIGRACAO-SPA.md** — Fase 1 (API JWT) e itens da Fase 2 (migração completa Firebase → API).
 - **backend/README.md** — endpoints e credenciais de desenvolvimento.

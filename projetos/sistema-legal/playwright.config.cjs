@@ -24,8 +24,8 @@ module.exports = defineConfig({
       timeout: 120000,
     },
     {
-      command: 'npx serve -p 8000',
-      url: 'http://localhost:8000',
+      command: 'npx serve -l 8000 -c serve.json .',
+      url: 'http://localhost:8000/index.html',
       reuseExistingServer: !isCI,
     },
   ],

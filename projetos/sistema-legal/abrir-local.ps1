@@ -5,8 +5,9 @@ $pasta = $PSScriptRoot
 Set-Location $pasta
 
 Write-Host "A iniciar servidor..." -ForegroundColor Cyan
-Write-Host "Abra no browser: http://localhost:8000" -ForegroundColor Green
+Write-Host "Abra no browser: http://localhost:8000/index.html" -ForegroundColor Green
 Write-Host "Mantenha esta janela aberta. Ctrl+C para parar." -ForegroundColor Yellow
 Write-Host ""
 
-npx serve -p 8000
+Start-Job -ScriptBlock { Start-Sleep 2; Start-Process "http://localhost:8000/index.html" } | Out-Null
+npx serve -l 8000 -c serve.json .

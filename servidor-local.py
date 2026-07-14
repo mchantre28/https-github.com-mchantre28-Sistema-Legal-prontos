@@ -12,11 +12,17 @@ import os
 
 # Configurações
 PORT = 8000
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY = os.path.join(ROOT, "projetos", "sistema-legal")
 
 class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+    def do_GET(self):
+        if self.path in ('', '/', '/index', '/index/'):
+            self.path = '/index.html'
+        super().do_GET()
     
     def end_headers(self):
         # Adicionar headers para CORS
@@ -56,7 +62,7 @@ def main():
             print(f"\n⏹️  Pressione Ctrl+C para parar o servidor")
             
             # Abrir automaticamente no navegador
-            webbrowser.open(f"http://localhost:{PORT}")
+            webbrowser.open(f"http://localhost:{PORT}/index.html")
             
             httpd.serve_forever()
             

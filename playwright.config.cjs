@@ -10,8 +10,8 @@ module.exports = defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npx serve -p 8000',
-    url: 'http://localhost:8000',
+    command: 'cd projetos/sistema-legal && npx serve -l 8000 -c serve.json .',
+    url: 'http://localhost:8000/index.html',
     reuseExistingServer: !process.env.CI,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

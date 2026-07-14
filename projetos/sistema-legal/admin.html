@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Legal — Área Administrativa</title>
     <meta name="theme-color" content="#111827">
-    <!-- Em produção: descomentar e definir URL da API (ex.: https://sistema-legal-api.up.railway.app) -->
-    <!-- <meta name="api-base-url" content="https://SUA-API.exemplo.com"> -->
+    <!--
+      PRODUÇÃO — após deploy do backend no Railway:
+      1. Copie o domínio público em Railway → Service → Settings → Networking → Public Domain
+      2. Descomente a linha abaixo e cole o URL (sem barra final)
+      3. Faça novo deploy do frontend na Vercel (ver DEPLOY-PASSO-A-PASSO.md)
+      <meta name="api-base-url" content="">
+    -->
     <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body class="admin-page">
@@ -228,7 +233,7 @@
         </div>
     </div>
 
-    <script src="api.js?v=3"></script>
+    <script src="api.js?v=5"></script>
     <script src="auth-guard.js?v=1"></script>
     <script src="admin.js?v=2"></script>
 </body>

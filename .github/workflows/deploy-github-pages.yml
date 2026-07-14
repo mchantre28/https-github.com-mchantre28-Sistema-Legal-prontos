@@ -1,0 +1,60 @@
+# Publica o frontend estático (projetos/sistema-legal) na raiz do GitHub Pages.
+# Após o primeiro push: Settings → Pages → Source → GitHub Actions.
+name: Deploy GitHub Pages — Sistema Legal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'projetos/sistema-legal/**'
+      - '.github/workflows/deploy-github-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-sistema-legal
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Publicar frontend
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar artefacto do site
+        run: |
+          set -e
+          SRC="projetos/sistema-legal"
+          OUT="_site"
+          mkdir -p "$OUT"
+          rsync -a \
+            --exclude 'backend/' \
+            --exclude 'tests/' \
+            --exclude 'test-results/' \
+            --exclude 'node_modules/' \
+            --exclude 'playwright-report/' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude '*.db' \
+            --exclude '*.db-shm' \
+            --exclude '*.db-wal' \
+            "$SRC/" "$OUT/"
+          touch "$OUT/.nojekyll"
+          if [ ! -f "$OUT/404.html" ]; then
+            cp "$OUT/index.html" "$OUT/404.html"
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

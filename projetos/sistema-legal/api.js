@@ -15,19 +15,107 @@
 (function (global) {
     'use strict';
 
+    function normalizeBaseUrl(raw) {
+        const trimmed = String(raw || '').trim();
+        if (!trimmed) return '';
+        return trimmed.replace(/\/$/, '');
+    }
+
     function resolveApiBaseUrl() {
-        if (typeof global.API_BASE_URL === 'string' && global.API_BASE_URL.trim()) {
-            return global.API_BASE_URL.trim().replace(/\/$/, '');
-        }
+        const fromWindow = normalizeBaseUrl(global.API_BASE_URL);
+        if (fromWindow) return fromWindow;
 
         if (typeof document !== 'undefined') {
             const meta = document.querySelector('meta[name="api-base-url"]');
-            if (meta && meta.content && meta.content.trim()) {
-                return meta.content.trim().replace(/\/$/, '');
-            }
+            const fromMeta = normalizeBaseUrl(meta && meta.content);
+            if (fromMeta) return fromMeta;
         }
 
         return 'http://localhost:3001';
+    }
+
+    function isLocalApiUrl(url) {
+        return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(url || '');
+    }
+
+    function isGithubPagesHost() {
+        if (typeof location === 'undefined') return false;
+        return /\.github\.io$/i.test(location.hostname || '');
+    }
+
+    function isApiConfiguredForProduction() {
+        return !!API_BASE_URL && !isLocalApiUrl(API_BASE_URL);
+    }
+
+    function getDeploymentHint() {
+        if (!isGithubPagesHost() || isApiConfiguredForProduction()) return '';
+        return 'GitHub Pages só serve o frontend estático. Para o login funcionar, publique o backend no Railway/Render '
+            + 'e configure <meta name="api-base-url" content="https://sua-api..."> em index.html, admin.html e cliente.html. '
+            + 'Em desenvolvimento local use http://localhost:8000 com START-SISTEMA.bat.';
+    }
+
+    function getGithubPagesLoginHintHtml() {
+        const hint = getDeploymentHint();
+        if (!hint) return '';
+        return '<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs text-left" role="status">'
+            + '<strong>GitHub Pages:</strong> ' + hint.replace(/</g, '&lt;') + '</div>';
+    }
+
+    function showGithubPagesBanner() {
+        if (typeof document === 'undefined') return;
+        const hint = getDeploymentHint();
+        if (!hint) return;
+        const run = function () {
+            if (!document.body || document.getElementById('sl-github-pages-banner')) return;
+            const el = document.createElement('div');
+            el.id = 'sl-github-pages-banner';
+            el.setAttribute('role', 'status');
+            el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fef3c7;border-bottom:1px solid #f59e0b;color:#92400e;padding:10px 16px;font-size:13px;line-height:1.4;text-align:center;';
+            el.textContent = hint;
+            document.body.insertBefore(el, document.body.firstChild);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', run);
+        } else {
+            run();
+        }
+    }
+
+    function describeFetchFailure(requestUrl, err) {
+        const apiUrl = requestUrl || API_BASE_URL;
+        const pageProtocol = typeof location !== 'undefined' ? location.protocol : '';
+        const pageHost = typeof location !== 'undefined' ? location.hostname : '';
+        const pageOrigin = typeof location !== 'undefined' ? location.origin : '';
+
+        if (pageProtocol === 'file:') {
+            return 'Abriu o sistema por file:// — o browser bloqueia ligações à API. '
+                + 'Feche esta janela, execute START-SISTEMA.bat e use http://localhost:8000';
+        }
+
+        const remotePage = pageHost
+            && pageHost !== 'localhost'
+            && pageHost !== '127.0.0.1'
+            && pageHost !== '[::1]';
+
+        if (remotePage && isLocalApiUrl(apiUrl)) {
+            const githubNote = isGithubPagesHost()
+                ? ' No GitHub Pages é obrigatório publicar o backend (Railway/Render) e definir api-base-url nos HTML.'
+                : '';
+            return 'Está em ' + pageOrigin + ' mas a API aponta para ' + apiUrl + '. '
+                + 'localhost só funciona no seu PC com o backend local. '
+                + 'Em produção, configure <meta name="api-base-url" content="https://seu-backend..."> '
+                + 'com o URL público do Railway/Render.' + githubNote;
+        }
+
+        if (!apiUrl || !/^https?:\/\//i.test(apiUrl)) {
+            return 'URL da API inválida ("' + apiUrl + '"). '
+                + 'Verifique a meta tag api-base-url ou window.API_BASE_URL.';
+        }
+
+        const detail = err && err.message ? ' (' + err.message + ')' : '';
+        return 'Não foi possível contactar o servidor em ' + apiUrl + '. '
+            + 'Execute START-SISTEMA.bat (arranca backend :3001 e frontend :8000) '
+            + 'ou manualmente: cd backend && npm start' + detail;
     }
 
     const API_BASE_URL = resolveApiBaseUrl();
@@ -112,7 +200,7 @@
                 body: JSON.stringify({ email: emailNorm, password: passwordVal, perfil: perfilVal })
             });
         } catch (e) {
-            throw new Error('Não foi possível contactar o servidor. Verifique se o backend está a correr em ' + API_BASE_URL + '.');
+            throw new Error(describeFetchFailure(API_BASE_URL + '/api/login', e));
         }
 
         let data = {};
@@ -184,7 +272,7 @@
                 body: formData
             });
         } catch (e) {
-            throw new Error('Não foi possível enviar o ficheiro. Verifique se o backend está a correr.');
+            throw new Error(describeFetchFailure(API_BASE_URL + '/api/documentos/upload', e));
         }
 
         if (response.status === 401) {
@@ -200,10 +288,27 @@
         return API_BASE_URL + (url.startsWith('/') ? url : '/' + url);
     }
 
+    async function checkHealth() {
+        try {
+            const response = await fetch(API_BASE_URL + '/api/health', { method: 'GET' });
+            return response.ok;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    showGithubPagesBanner();
+
     const api = {
         API_BASE_URL: API_BASE_URL,
         TOKEN_KEY: TOKEN_KEY,
         USER_KEY: USER_KEY,
+        isGithubPagesHost: isGithubPagesHost,
+        isApiConfiguredForProduction: isApiConfiguredForProduction,
+        getDeploymentHint: getDeploymentHint,
+        getGithubPagesLoginHintHtml: getGithubPagesLoginHintHtml,
+        checkHealth: checkHealth,
+        describeFetchFailure: describeFetchFailure,
         login: login,
         logout: logout,
         getToken: getToken,

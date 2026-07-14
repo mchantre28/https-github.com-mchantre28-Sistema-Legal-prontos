@@ -4,6 +4,8 @@
   "description": "Sistema Legal - Gestão Jurídica",
   "type": "module",
   "scripts": {
+    "start": "npx serve -l 8000 -c serve.json .",
+    "start:full": "cmd /c START-SISTEMA.bat",
     "reset-firestore": "node resetFirestore.js",
     "test": "npx playwright test",
     "test:ui": "npx playwright test --ui",
