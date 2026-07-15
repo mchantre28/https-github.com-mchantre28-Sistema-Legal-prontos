@@ -2707,11 +2707,7 @@ function mostrarLoginAdmin() {
                     </div>
                 </form>
                 
-                <div class="mt-6 text-center text-sm text-gray-600">
-                    <p><strong>Acesso Restrito</strong></p>
-                    <p>Execute <strong>START-SISTEMA.bat</strong> (backend :3001 + frontend :8000)</p>
-                    <p>URL: <strong>http://localhost:8000</strong></p>
-                </div>
+                ${(typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.getLoginConnectionHintHtml) ? SistemaLegalAPI.getLoginConnectionHintHtml() : '<div class="mt-6 text-center text-sm text-gray-600"><p><strong>Acesso Restrito</strong></p></div>'}
                 ${(typeof SistemaLegalAPI !== 'undefined' && SistemaLegalAPI.getGithubPagesLoginHintHtml) ? SistemaLegalAPI.getGithubPagesLoginHintHtml() : ''}
             </div>
         </div>

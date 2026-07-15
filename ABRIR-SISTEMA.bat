@@ -1,18 +1,4 @@
 @echo off
+REM Arranque completo (backend + frontend). Evita login com API vazia em localhost:3001.
 cd /d "%~dp0projetos\sistema-legal"
-title Sistema Legal - Servidor Local
-echo.
-echo ============================================
-echo   Sistema Legal - http://localhost:8000/index.html
-echo ============================================
-echo.
-echo A iniciar servidor...
-echo O browser abrira em 5 segundos.
-echo.
-echo MANTENHA ESTA JANELA ABERTA.
-echo Feche-a para parar o servidor.
-echo ============================================
-echo.
-start cmd /c "timeout /t 5 /nobreak >nul && start http://localhost:8000/index.html"
-npx serve -l 8000 -c serve.json .
-pause
+call START-SISTEMA.bat

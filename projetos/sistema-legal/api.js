@@ -21,9 +21,20 @@
         return trimmed.replace(/\/$/, '');
     }
 
+    function isLocalPageHost() {
+        if (typeof location === 'undefined') return false;
+        const host = (location.hostname || '').toLowerCase();
+        return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    }
+
     function resolveApiBaseUrl() {
         const fromWindow = normalizeBaseUrl(global.API_BASE_URL);
         if (fromWindow) return fromWindow;
+
+        // Em localhost, priorizar backend local (:3001) mesmo com meta de produção no HTML.
+        if (isLocalPageHost()) {
+            return 'http://localhost:3001';
+        }
 
         if (typeof document !== 'undefined') {
             const meta = document.querySelector('meta[name="api-base-url"]');
@@ -54,11 +65,33 @@
             + 'Em desenvolvimento local use http://localhost:8000 com START-SISTEMA.bat.';
     }
 
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function getLoginConnectionHintHtml() {
+        const pageOrigin = typeof location !== 'undefined' ? location.origin : '';
+        const apiUrl = API_BASE_URL;
+        let html = '<div class="mt-6 text-center text-sm text-gray-600">';
+        html += '<p><strong>Acesso Restrito</strong></p>';
+        if (isLocalPageHost()) {
+            html += '<p>Modo local: execute <strong>START-SISTEMA.bat</strong> (backend :3001 + frontend :8000)</p>';
+        }
+        html += '<p>Frontend: <strong>' + escapeHtml(pageOrigin || '—') + '</strong></p>';
+        html += '<p>API: <strong>' + escapeHtml(apiUrl || '—') + '</strong></p>';
+        html += '</div>';
+        return html;
+    }
+
     function getGithubPagesLoginHintHtml() {
         const hint = getDeploymentHint();
         if (!hint) return '';
         return '<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs text-left" role="status">'
-            + '<strong>GitHub Pages:</strong> ' + hint.replace(/</g, '&lt;') + '</div>';
+            + '<strong>GitHub Pages:</strong> ' + escapeHtml(hint) + '</div>';
     }
 
     function showGithubPagesBanner() {
@@ -306,7 +339,9 @@
         isGithubPagesHost: isGithubPagesHost,
         isApiConfiguredForProduction: isApiConfiguredForProduction,
         getDeploymentHint: getDeploymentHint,
+        getLoginConnectionHintHtml: getLoginConnectionHintHtml,
         getGithubPagesLoginHintHtml: getGithubPagesLoginHintHtml,
+        isLocalPageHost: isLocalPageHost,
         checkHealth: checkHealth,
         describeFetchFailure: describeFetchFailure,
         login: login,
