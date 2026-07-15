@@ -115,6 +115,28 @@ Ver [DEPLOY.md](../DEPLOY.md) na raiz do frontend para:
 - Backend em Railway, Render ou Fly.io
 - Variáveis `JWT_SECRET`, `PORT` e configuração de `API_BASE_URL` no frontend
 
+### Seed na Render (primeira vez)
+
+O deploy **não** executa o seed automaticamente. Sem utilizadores, `POST /api/login` responde `401 Credenciais inválidas`.
+
+**Opção A — Shell Render (recomendado, uma vez):**
+
+1. [dashboard.render.com](https://dashboard.render.com) → serviço `sistema-legal-api` → **Shell**
+2. Executar:
+
+```bash
+cd projetos/sistema-legal/backend
+npm run seed
+```
+
+**Opção B — Seed no build (`render.yaml`):**
+
+Alterar `buildCommand` para `npm install && npm run seed`. O script ignora se a base já tiver utilizadores.
+
+**Opção C — Repovoar manualmente:**
+
+Apagar `data/sistema-legal.db` no disco persistente e executar `npm run seed` na Shell.
+
 ## Notas
 
 - O frontend atual (`script.js`) continua a usar Firebase/localStorage; este backend é independente e pronto para integração futura.
