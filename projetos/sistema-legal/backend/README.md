@@ -11,11 +11,12 @@ API REST em Node.js + Express + SQLite (`better-sqlite3`) para autenticação, p
 ```bash
 cd backend
 npm install
-npm run seed
 npm start
 ```
 
 O servidor arranca em `http://localhost:3001` (porta configurável via `PORT`).
+
+Se a base de dados estiver vazia (sem utilizadores), o **seed corre automaticamente** no arranque. Também pode executar `npm run seed` manualmente.
 
 ## Credenciais de teste (seed)
 
@@ -30,7 +31,7 @@ O seed cria também:
 - 2 trâmites de exemplo
 - 2 documentos (1 visível ao cliente, 1 interno)
 
-Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e execute `npm run seed` novamente.
+Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e reinicie o servidor (ou execute `npm run seed`).
 
 ## Variáveis de ambiente
 
@@ -115,27 +116,15 @@ Ver [DEPLOY.md](../DEPLOY.md) na raiz do frontend para:
 - Backend em Railway, Render ou Fly.io
 - Variáveis `JWT_SECRET`, `PORT` e configuração de `API_BASE_URL` no frontend
 
-### Seed na Render (primeira vez)
+### Seed na Render (plano Free — sem Shell)
 
-O deploy **não** executa o seed automaticamente. Sem utilizadores, `POST /api/login` responde `401 Credenciais inválidas`.
+No **plano Free** da Render não há acesso à Shell. O seed corre **automaticamente no arranque** (`npm start`) quando a base de dados não tem utilizadores — não é necessário `npm run seed` manual.
 
-**Opção A — Shell Render (recomendado, uma vez):**
+1. Garantir que `JWT_SECRET` está definido nas variáveis de ambiente do serviço (obrigatório em produção; independente do seed).
+2. O `render.yaml` usa `buildCommand: npm install` — o seed **não** corre no build, apenas no start.
+3. Após o primeiro deploy com disco persistente vazio, o login funciona com as credenciais de teste da tabela acima.
 
-1. [dashboard.render.com](https://dashboard.render.com) → serviço `sistema-legal-api` → **Shell**
-2. Executar:
-
-```bash
-cd projetos/sistema-legal/backend
-npm run seed
-```
-
-**Opção B — Seed no build (`render.yaml`):**
-
-Alterar `buildCommand` para `npm install && npm run seed`. O script ignora se a base já tiver utilizadores.
-
-**Opção C — Repovoar manualmente:**
-
-Apagar `data/sistema-legal.db` no disco persistente e executar `npm run seed` na Shell.
+**Repovoar:** apagar `data/sistema-legal.db` no disco persistente e reiniciar o serviço (ou usar Shell num plano pago: `npm run seed`).
 
 ## Notas
 

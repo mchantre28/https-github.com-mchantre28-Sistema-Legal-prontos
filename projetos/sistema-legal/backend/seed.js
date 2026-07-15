@@ -28,16 +28,26 @@ async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
-async function seed() {
+/**
+ * Popula a base de dados com utilizadores e dados de exemplo se estiver vazia.
+ * Idempotente: não altera nada se já existirem utilizadores.
+ * @param {{ closeAfter?: boolean }} options - closeAfter: fecha a ligação SQLite após o seed (CLI)
+ * @returns {Promise<{ seeded: boolean }>}
+ */
+async function seedIfEmpty({ closeAfter = false } = {}) {
   const db = getDb();
 
   const existing = db.prepare('SELECT COUNT(*) AS total FROM utilizadores').get();
   if (existing.total > 0) {
     console.log('Base de dados já contém utilizadores. Seed ignorado.');
-    console.log('Para repovoar, apague backend/data/sistema-legal.db e execute novamente.');
-    closeDb();
-    return;
+    if (closeAfter) {
+      console.log('Para repovoar, apague backend/data/sistema-legal.db e execute novamente.');
+      closeDb();
+    }
+    return { seeded: false };
   }
+
+  console.log('Base de dados vazia — a executar seed automático...');
 
   const insertUser = db.prepare(`
     INSERT INTO utilizadores (nome, email, password_hash, perfil)
@@ -149,11 +159,19 @@ async function seed() {
   console.log('Cliente: cliente2@sistema-legal.pt / cliente123');
   console.log('----------------------------\n');
 
-  closeDb();
+  if (closeAfter) {
+    closeDb();
+  }
+
+  return { seeded: true };
 }
 
-seed().catch((err) => {
-  console.error('Erro no seed:', err);
-  closeDb();
-  process.exit(1);
-});
+if (require.main === module) {
+  seedIfEmpty({ closeAfter: true }).catch((err) => {
+    console.error('Erro no seed:', err);
+    closeDb();
+    process.exit(1);
+  });
+}
+
+module.exports = { seedIfEmpty };

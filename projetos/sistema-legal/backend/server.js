@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getDb } = require('./database');
+const { seedIfEmpty } = require('./seed');
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'sistema-legal-dev-secret-alterar-em-producao';
@@ -597,8 +598,16 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ erro: 'Erro interno do servidor.' });
 });
 
-app.listen(PORT, () => {
+async function startServer() {
   getDb();
-  console.log(`Sistema Legal API a correr em http://localhost:${PORT}`);
-  console.log('Endpoints: POST /api/login, GET /api/processos, GET /api/tramites, GET /api/documentos');
+  await seedIfEmpty();
+  app.listen(PORT, () => {
+    console.log(`Sistema Legal API a correr em http://localhost:${PORT}`);
+    console.log('Endpoints: POST /api/login, GET /api/processos, GET /api/tramites, GET /api/documentos');
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Falha ao arrancar servidor:', err);
+  process.exit(1);
 });
