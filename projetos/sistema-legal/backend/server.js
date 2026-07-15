@@ -68,7 +68,31 @@ const upload = multer({
 
 const app = express();
 
-app.use(cors());
+const CORS_ORIGINS = [
+  'https://mchantre28.github.io',
+  /^https:\/\/[\w-]+\.github\.io$/,
+  /^http:\/\/localhost(:\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+];
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  return CORS_ORIGINS.some((rule) => (
+    typeof rule === 'string' ? rule === origin : rule.test(origin)
+  ));
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
 
@@ -127,9 +151,20 @@ app.post('/api/login', (req, res) => {
   const perfilPedido = perfil != null ? String(perfil).trim().toLowerCase() : '';
 
   const db = getDb();
-  const user = db.prepare('SELECT * FROM utilizadores WHERE email = ?').get(email.trim().toLowerCase());
+  const emailNorm = String(email).trim().toLowerCase();
+  const user = db.prepare('SELECT * FROM utilizadores WHERE email = ?').get(emailNorm);
 
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+  let passwordOk = false;
+  if (user && user.password_hash) {
+    try {
+      passwordOk = bcrypt.compareSync(password, user.password_hash);
+    } catch (err) {
+      console.error('Erro ao validar password para', emailNorm, err.message);
+      return res.status(500).json({ erro: 'Erro interno ao validar credenciais.' });
+    }
+  }
+
+  if (!user || !passwordOk) {
     return res.status(401).json({ erro: 'Credenciais inválidas.' });
   }
 
@@ -590,7 +625,23 @@ app.delete('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
 // --- Health ---
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', servico: 'sistema-legal-api' });
+  try {
+    const db = getDb();
+    const stats = db.prepare('SELECT COUNT(*) AS utilizadores FROM utilizadores').get();
+    const admin = db.prepare(
+      "SELECT id FROM utilizadores WHERE email = 'solicitadora@sistema-legal.pt' LIMIT 1"
+    ).get();
+    res.json({
+      status: 'ok',
+      servico: 'sistema-legal-api',
+      utilizadores: stats.utilizadores,
+      admin_seed: !!admin,
+      data_dir: process.env.DATA_DIR || 'default',
+    });
+  } catch (err) {
+    console.error('Health check falhou:', err);
+    res.status(500).json({ status: 'erro', servico: 'sistema-legal-api' });
+  }
 });
 
 app.use((err, _req, res, _next) => {

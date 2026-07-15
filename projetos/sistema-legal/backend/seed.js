@@ -34,11 +34,45 @@ async function hashPassword(password) {
  * @param {{ closeAfter?: boolean }} options - closeAfter: fecha a ligação SQLite após o seed (CLI)
  * @returns {Promise<{ seeded: boolean }>}
  */
+async function ensureSeedUsers(db) {
+  const insertUser = db.prepare(`
+    INSERT INTO utilizadores (nome, email, password_hash, perfil)
+    VALUES (@nome, @email, @password_hash, @perfil)
+  `);
+
+  let created = 0;
+
+  for (const user of SEED_USERS) {
+    const email = user.email.trim().toLowerCase();
+    const existing = db.prepare('SELECT id FROM utilizadores WHERE email = ?').get(email);
+    if (existing) continue;
+
+    const password_hash = await hashPassword(user.password);
+    insertUser.run({
+      nome: user.nome,
+      email,
+      password_hash,
+      perfil: user.perfil,
+    });
+    created += 1;
+    console.log(`Utilizador de seed criado: ${email} (${user.perfil})`);
+  }
+
+  return created;
+}
+
 async function seedIfEmpty({ closeAfter = false } = {}) {
   const db = getDb();
 
-  const existing = db.prepare('SELECT COUNT(*) AS total FROM utilizadores').get();
-  if (existing.total > 0) {
+  const wasEmpty = db.prepare('SELECT COUNT(*) AS total FROM utilizadores').get().total === 0;
+  const missingSeedUsers = await ensureSeedUsers(db);
+
+  if (!wasEmpty) {
+    if (missingSeedUsers > 0) {
+      console.log(`Seed parcial: ${missingSeedUsers} utilizador(es) de teste em falta foram criados.`);
+      if (closeAfter) closeDb();
+      return { seeded: true, partial: true };
+    }
     console.log('Base de dados já contém utilizadores. Seed ignorado.');
     if (closeAfter) {
       console.log('Para repovoar, apague backend/data/sistema-legal.db e execute novamente.');
@@ -49,26 +83,19 @@ async function seedIfEmpty({ closeAfter = false } = {}) {
 
   console.log('Base de dados vazia — a executar seed automático...');
 
-  const insertUser = db.prepare(`
-    INSERT INTO utilizadores (nome, email, password_hash, perfil)
-    VALUES (@nome, @email, @password_hash, @perfil)
-  `);
-
   const userIds = {};
-
   for (const user of SEED_USERS) {
-    const password_hash = await hashPassword(user.password);
-    const result = insertUser.run({
-      nome: user.nome,
-      email: user.email,
-      password_hash,
-      perfil: user.perfil,
-    });
-    userIds[user.email] = result.lastInsertRowid;
-    console.log(`Utilizador criado: ${user.email} (${user.perfil})`);
+    const email = user.email.trim().toLowerCase();
+    const row = db.prepare('SELECT id FROM utilizadores WHERE email = ?').get(email);
+    if (row) userIds[email] = row.id;
   }
 
   const clienteId = userIds['cliente@sistema-legal.pt'];
+  if (!clienteId) {
+    console.warn('Seed: cliente de teste em falta após ensureSeedUsers.');
+    if (closeAfter) closeDb();
+    return { seeded: missingSeedUsers > 0, partial: true };
+  }
 
   const insertProcesso = db.prepare(`
     INSERT INTO processos (numero_processo, titulo, descricao, estado, cliente_id)
@@ -174,4 +201,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { seedIfEmpty };
+module.exports = { seedIfEmpty, ensureSeedUsers };
