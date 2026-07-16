@@ -901,7 +901,7 @@
         var logoEl = document.querySelector('[data-field="issuer.logo"]');
         if (logoEl) {
           var logoSrc = (i.logo && i.logo.trim()) ? i.logo : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
-          logoEl.src = logoSrc || 'assets/High-resolution%20SVG-.png';
+          logoEl.src = logoSrc || 'assets/ana.png';
           function sinalizarProntoParaImprimir() {
             if (window.opener) window.opener.postMessage({ type: 'INVOICE_READY_TO_PRINT' }, '*');
           }

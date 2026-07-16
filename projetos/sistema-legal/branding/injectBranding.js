@@ -6,9 +6,9 @@
   'use strict';
 
   var BRANDING = {
-    logoPath: 'assets/logo-solicitadora.png',
+    logoPath: 'assets/ana.png',
     logoPathPng: 'assets/logo-solicitadora.png',
-    logoPathFallback: '../../assets/logo-solicitadora.png',
+    logoPathFallback: '../../assets/ana.png',
     logoWidth: 220,
     logoWidthMin: 200,
     logoWidthMax: 240,

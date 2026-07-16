@@ -13102,7 +13102,7 @@ function salvarDocumentosLocal(novos) {
 }
 
 /** Logo para PDFs — apenas via módulo de branding (branding/injectBranding.js). Não usar logos embutidas em templates. */
-const LOGO_EMPRESA_URLS = ['assets/logo-solicitadora.png', '../../assets/logo-solicitadora.png'];
+const LOGO_EMPRESA_URLS = ['assets/ana.png', 'assets/logo-solicitadora.png', 'logotipo-legal-gestao-juridica-pequena.png', '../../assets/ana.png'];
 
 /** Carrega a logo como base64. Usa exclusivamente LOGO_DATA_URI definido pelo módulo de branding. */
 function carregarLogoBase64() {
