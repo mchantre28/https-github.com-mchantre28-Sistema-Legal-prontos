@@ -17,6 +17,10 @@ const EURO_HTML = '&#8364;'; // Entidade HTML para uso em innerHTML (evita probl
 
 // Debug: em true permite logs na consola; em false silencia (produção)
 const DEBUG_LOG = false;
+/** Versão de purge de dados de demonstração (legacy localStorage + Firebase). */
+const LEGACY_DEMO_PURGE_VERSION = '2026-07-27';
+const CHAVE_LEGACY_DEMO_PURGE = 'legacyDemoPurgeVersion';
+const CHAVE_LEGACY_STORAGE_VERSION = 'legacyStorageVersion';
 (function() {
     const orig = console.log;
     console.log = function(...a) { if (DEBUG_LOG) orig.apply(console, a); };
@@ -297,12 +301,7 @@ function initFirebase() {
                     }
                 }
             };
-            window.__promiseCacheFirestoreLimpo = limparCache().finally(() => {
-                try { firestoreDb.enablePersistence().catch(() => {}); } catch (e) {}
-            });
-        } else {
-            // enablePersistence deprecado; manter para offline - aviso silenciado
-            try { firestoreDb.enablePersistence().catch(() => {}); } catch (e) {}
+            window.__promiseCacheFirestoreLimpo = limparCache();
         }
     } catch (error) {
         console.warn('Firebase não inicializado:', error);
@@ -1983,6 +1982,7 @@ async function migrarLocalStorageParaFirestore(forcar = false) {
             const criarProcesso = entidade === 'herancas' || entidade === 'migracoes' || entidade === 'registos';
             for (const item of lista) {
                 if (!item || item.deleted === true) continue;
+                if (typeof isItemDemonstracao === 'function' && isItemDemonstracao(entidade, item)) continue;
                 if (!item.id) item.id = gerarIdImutavel();
                 if (criarFn) await criarFn(item);
                 else if (criarProcesso) await criarProcessoCloud(entidade, item);
@@ -3125,6 +3125,212 @@ function mostrarModalConfirmarApagar(opcoes) {
 }
 window.mostrarModalConfirmarApagar = mostrarModalConfirmarApagar;
 
+const DEMO_CLIENTES_MARCADORES = [
+    { nome: 'joão silva', email: 'joao@email.com', nif: '123456789' },
+    { nome: 'maria santos', email: 'maria@email.com', nif: '987654321' }
+];
+
+function normalizarTxtDemo(val) {
+    return String(val || '').trim().toLowerCase();
+}
+
+function isSeedInicialItem(item) {
+    if (!item) return false;
+    if (item.id === 'seed-inicial') return true;
+    if (item.__seed === true) return true;
+    return false;
+}
+
+function isClienteDemonstracao(cliente) {
+    if (!cliente) return false;
+    if (isSeedInicialItem(cliente)) return true;
+    const nome = normalizarTxtDemo(cliente.nome);
+    const email = normalizarTxtDemo(cliente.email);
+    const nif = String(cliente.nif || '').replace(/\s/g, '');
+    return DEMO_CLIENTES_MARCADORES.some(m => nome === m.nome && (email === m.email || nif === m.nif));
+}
+
+function isHonorarioDemonstracao(h) {
+    if (!h) return false;
+    if (isSeedInicialItem(h)) return true;
+    const cliente = normalizarTxtDemo(h.cliente || h.clienteNome);
+    const servico = normalizarTxtDemo(h.servico);
+    if (cliente === 'joão silva' && (servico.includes('consulta') || servico.includes('consultoria'))) return true;
+    if (cliente === 'maria santos' && servico.includes('contrato')) return true;
+    if ((cliente === 'joão silva' || cliente === 'maria santos') && (String(h.id) === '1' || String(h.id) === '2')) return true;
+    return false;
+}
+
+function isContratoDemonstracao(c) {
+    if (!c) return false;
+    if (isSeedInicialItem(c)) return true;
+    const nome = normalizarTxtDemo(c.clienteNome);
+    if (nome !== 'joão silva' && nome !== 'maria santos') return false;
+    const desc = normalizarTxtDemo(c.descricao);
+    if (desc.includes('assessoria') || desc.includes('trabalhista') || desc.includes('consultoria')) return true;
+    return String(c.id) === '1' || String(c.id) === '2';
+}
+
+function isPrazoDemonstracao(p) {
+    if (!p) return false;
+    if (isSeedInicialItem(p)) return true;
+    const desc = normalizarTxtDemo(p.descricao);
+    if (desc.includes('vencimento de honorário') && desc.includes('consultoria')) return true;
+    if (desc.includes('lembrete de pagamento') && desc.includes('contrato')) return true;
+    const nome = normalizarTxtDemo(p.clienteNome);
+    if ((nome === 'joão silva' || nome === 'maria santos') && (String(p.id) === '1' || String(p.id) === '2')) return true;
+    return false;
+}
+
+function isProcessoDemonstracao(p) {
+    if (!p) return false;
+    if (isSeedInicialItem(p)) return true;
+    const nome = normalizarTxtDemo(p.clienteNome);
+    if (nome !== 'joão silva' && nome !== 'maria santos') return false;
+    return String(p.id) === '1' || String(p.id) === '2';
+}
+
+function isItemDemonstracao(entidade, item) {
+    if (isSeedInicialItem(item)) return true;
+    switch (entidade) {
+        case 'clientes': return isClienteDemonstracao(item);
+        case 'honorarios': return isHonorarioDemonstracao(item);
+        case 'contratos': return isContratoDemonstracao(item);
+        case 'prazos': return isPrazoDemonstracao(item);
+        case 'tarefas': return isSeedInicialItem(item);
+        case 'herancas':
+        case 'migracoes':
+        case 'registos': return isProcessoDemonstracao(item);
+        case 'documentos':
+        case 'notificacoes':
+        case 'convidados':
+        case 'faturas':
+        case 'pagamentos':
+        case 'despesas':
+        case 'comunicacoes':
+        case 'logs_financeiros':
+        case 'logs_integracoes':
+        case 'logs_comunicacoes':
+        case 'anexos_comunicacao':
+            return isSeedInicialItem(item);
+        default:
+            return false;
+    }
+}
+
+const CHAVES_LEGACY_ENTIDADES = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'pagamentos', 'despesas'];
+
+/** Limpa chaves legacy no localStorage/sessionStorage após bump de versão (impede re-migração de demo). */
+function aplicarVersaoLegacyStorage() {
+    try {
+        if (appStorage.getItem(CHAVE_LEGACY_STORAGE_VERSION) === LEGACY_DEMO_PURGE_VERSION) return;
+        CHAVES_LEGACY_ENTIDADES.forEach(k => {
+            try { if (typeof localStorage !== 'undefined') localStorage.removeItem(k); } catch (e) {}
+            try { appStorage.removeItem(k); } catch (e) {}
+        });
+        appStorage.setItem('dadosLimpos', 'true');
+        appStorage.setItem(CHAVE_LEGACY_STORAGE_VERSION, LEGACY_DEMO_PURGE_VERSION);
+    } catch (e) {
+        console.warn('aplicarVersaoLegacyStorage:', e);
+    }
+}
+
+async function detectarDadosDemonstracaoFirestore() {
+    if (!isCloudReady()) return false;
+    const verificacoes = [
+        ['clientes', isClienteDemonstracao],
+        ['honorarios', isHonorarioDemonstracao],
+        ['contratos', isContratoDemonstracao],
+        ['prazos', isPrazoDemonstracao]
+    ];
+    for (const [col, fn] of verificacoes) {
+        try {
+            const snap = await firestoreDb.collection(col).limit(100).get();
+            if (snap.docs.some(d => fn({ id: d.id, ...d.data() }))) return true;
+        } catch (e) { console.warn('detectarDadosDemonstracaoFirestore:', col, e); }
+    }
+    for (const col of ['faturas', 'pagamentos', 'despesas', 'comunicacoes']) {
+        try {
+            const doc = await firestoreDb.collection(col).doc('seed-inicial').get();
+            if (doc.exists) return true;
+        } catch (e) { /* ignorar */ }
+    }
+    return false;
+}
+
+async function apagarDocumentosDemoFirestore() {
+    if (!isCloudReady()) return 0;
+    const colecoes = [...CHAVES_LEGACY_ENTIDADES, 'comunicacoes', 'logs_financeiros', 'logs_integracoes', 'logs_comunicacoes', 'anexos_comunicacao'];
+    let apagados = 0;
+    for (const col of colecoes) {
+        try {
+            const snap = await firestoreDb.collection(col).get();
+            const refs = snap.docs
+                .filter(d => isItemDemonstracao(col, { id: d.id, ...d.data() }))
+                .map(d => d.ref);
+            for (let i = 0; i < refs.length; i += 500) {
+                const batch = firestoreDb.batch();
+                refs.slice(i, i + 500).forEach(ref => batch.delete(ref));
+                await batch.commit();
+                apagados += refs.slice(i, i + 500).length;
+            }
+        } catch (e) {
+            console.warn('apagarDocumentosDemoFirestore:', col, e);
+        }
+    }
+    return apagados;
+}
+
+async function executarPurgeDemoCompleto() {
+    aplicarVersaoLegacyStorage();
+    const apagados = await apagarDocumentosDemoFirestore();
+    appStorage.setItem('dadosLimpos', 'true');
+    appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
+    appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
+    return apagados;
+}
+
+async function migracaoAutomaticaRemoverDemo() {
+    if (appStorage.getItem(CHAVE_LEGACY_DEMO_PURGE) === LEGACY_DEMO_PURGE_VERSION) return;
+    aplicarVersaoLegacyStorage();
+    if (!isCloudReady()) {
+        appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
+        return;
+    }
+    const temDemo = await detectarDadosDemonstracaoFirestore();
+    if (!temDemo) {
+        appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
+        return;
+    }
+    const apagados = await executarPurgeDemoCompleto();
+    if (apagados > 0 && typeof mostrarNotificacao === 'function') {
+        mostrarNotificacao(`Dados de demonstração removidos (${apagados} registo(s)).`, 'success');
+    }
+}
+
+function limparDadosDemonstracao() {
+    if (!exigirAdmin('limpar dados de demonstração')) return;
+    if (!confirm('Remove João Silva / Maria Santos (demo), honorários, contratos e prazos de exemplo, e documentos seed-inicial do Firebase e do navegador.\n\nOutros registos não são afetados. Para apagar TUDO, use "Começar do zero absoluto".\n\nContinuar?')) return;
+    mostrarModalConfirmarApagar({
+        titulo: 'Limpar dados de demonstração',
+        mensagem: 'Para confirmar a remoção dos dados de demonstração, escreva exatamente:',
+        textoConfirmar: 'DEMO',
+        aoConfirmar: async () => {
+            try {
+                mostrarNotificacao('A remover dados de demonstração...', 'info');
+                const apagados = await executarPurgeDemoCompleto();
+                mostrarNotificacao(`Demonstração removida (${apagados} registo(s)). A recarregar...`, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } catch (err) {
+                console.error(err);
+                mostrarNotificacao('Erro ao limpar demonstração: ' + (err?.message || err), 'error');
+            }
+        }
+    });
+}
+window.limparDadosDemonstracao = limparDadosDemonstracao;
+window.migracaoAutomaticaRemoverDemo = migracaoAutomaticaRemoverDemo;
+
 /** Começar do ZERO ABSOLUTO: apaga tudo (local + Firestore). Irreversível. */
 async function comecarDoZeroAbsoluto() {
     if (!exigirAdmin('começar do zero absoluto')) return;
@@ -3957,7 +4163,8 @@ function duplicarCliente(id) {
 
 // Inicialização
 function init() {
-    
+    aplicarVersaoLegacyStorage();
+
     // getBackupLogs lê de Firestore quando há cache (preenchido ao abrir secção Backup)
     if (typeof window.getBackupLogs === 'function') {
         const _origGet = window.getBackupLogs;
@@ -3969,7 +4176,6 @@ function init() {
     
     // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
     carregarDados();
-    carregarDadosExemplo();
     // Indicador de sync: mostrar último estado conhecido (erro se último evento foi erro)
     const ultimoErro = appStorage.getItem('cloudSyncUltimoErro');
     const ultimoOk = appStorage.getItem('cloudSyncUltimoSucesso');
@@ -3983,9 +4189,10 @@ function init() {
 
     // Sincronizar sempre ao carregar (após zero absoluto o Firestore está vazio; cache é limpo)
     // Listeners iniciam APÓS a sync para evitar race e tremor na primeira carga
-    sincronizarTodasEntidadesNuvem().then(() => {
+    sincronizarTodasEntidadesNuvem().then(async () => {
         if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
         appStorage.removeItem('naoRestaurarDaNuvem');
+        try { await migracaoAutomaticaRemoverDemo(); } catch (e) { console.warn('migracaoAutomaticaRemoverDemo:', e); }
         carregarDados();
         carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
         atualizarInterface();
@@ -5459,143 +5666,8 @@ function carregarDados() {
 }
 
 function carregarDadosExemplo() {
-    // Com Firestore ativo: nunca criar dados de exemplo (dados vêm da nuvem)
-    if (isCloudReady()) {
-        return;
-    }
-    // Verificar se os dados foram limpos - se sim, não recriar dados de exemplo
-    const dadosLimpos = appStorage.getItem('dadosLimpos');
-    if (dadosLimpos === 'true') {
-        return;
-    }
-    
-    if (clientes.length === 0) {
-        clientes = [
-            {
-                id: 1,
-                nome: 'João Silva',
-                email: 'joao@email.com',
-                telefone: '123456789',
-                nif: '123456789',
-                endereco: 'Rua das Flores, 123',
-                status: 'ativo',
-                dataCriacao: new Date().toISOString()
-            },
-            {
-                id: 2,
-                nome: 'Maria Santos',
-                email: 'maria@email.com',
-                telefone: '987654321',
-                nif: '987654321',
-                endereco: 'Av. Principal, 456',
-                status: 'ativo',
-                dataCriacao: new Date().toISOString()
-            }
-        ];
-        atualizarClientesEmMemoria(clientes);
-    }
-
-    if (honorarios.length === 0) {
-        honorarios = [
-            {
-                id: 1,
-                cliente: 'João Silva',
-                servico: 'Consulta Jurídica',
-                valor: 150.00,
-                status: 'pago',
-                vencimento: new Date().toISOString().split('T')[0],
-                dataCriacao: new Date().toISOString()
-            },
-            {
-                id: 2,
-                cliente: 'Maria Santos',
-                servico: 'Elaboração de Contrato',
-                valor: 300.00,
-                status: 'pendente',
-                vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dataCriacao: new Date().toISOString()
-            }
-        ];
-        salvarDados('honorarios', honorarios);
-    }
-
-    if (contratos.length === 0) {
-        contratos = [
-            {
-                id: 1,
-                clienteId: 1,
-                clienteNome: 'João Silva',
-                tipo: 'Prestação de Serviços',
-                descricao: 'Assessoria jurídica empresarial',
-                valor: 5000.00,
-                iva: 23,
-                valorIVA: 1150.00,
-                valorTotal: 6150.00,
-                dataInicio: new Date().toISOString().split('T')[0],
-                dataFim: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                status: 'ativo',
-                observacoes: 'Contrato de assessoria jurídica anual',
-                dataCriacao: new Date().toISOString()
-            },
-            {
-                id: 2,
-                clienteId: 2,
-                clienteNome: 'Maria Santos',
-                tipo: 'Consultoria',
-                descricao: 'Consultoria em direito trabalhista',
-                valor: 2500.00,
-                iva: 23,
-                valorIVA: 575.00,
-                valorTotal: 3075.00,
-                dataInicio: new Date().toISOString().split('T')[0],
-                dataFim: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                status: 'ativo',
-                observacoes: 'Consultoria específica para questões trabalhistas',
-                dataCriacao: new Date().toISOString()
-            }
-        ];
-        salvarDados('contratos', contratos);
-    }
-
-    if (prazos.length === 0) {
-        prazos = [
-            {
-                id: 1,
-                honorarioId: 1,
-                clienteId: 1,
-                clienteNome: 'João Silva',
-                tipo: 'Vencimento',
-                descricao: 'Vencimento de honorário - Consultoria jurídica',
-                dataLimite: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-                status: 'ativo',
-                prioridade: 'alta',
-                notificacoes: [],
-                dataCriacao: new Date().toISOString()
-            },
-            {
-                id: 2,
-                honorarioId: 2,
-                clienteId: 2,
-                clienteNome: 'Maria Santos',
-                tipo: 'Lembrete',
-                descricao: 'Lembrete de pagamento - Elaboração de contrato',
-                dataLimite: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                status: 'ativo',
-                prioridade: 'media',
-                notificacoes: [],
-                dataCriacao: new Date().toISOString()
-            }
-        ];
-        salvarDados('prazos', prazos);
-    }
-
-    if (notificacoes.length === 0) {
-        notificacoes = [];
-        salvarDados('notificacoes', notificacoes);
-    }
-
-    // Heranças, Migrações e Registos sem dados de teste (uso profissional)
-
+    // Desativado permanentemente: novos utilizadores começam vazios (Firestore ou offline).
+    // Dados antigos de demo são removidos por migracaoAutomaticaRemoverDemo / limparDadosDemonstracao.
 }
 
 function salvarDados(chave, dados, opcoes = {}) {
@@ -6435,7 +6507,7 @@ function configurarEventos() {
         }, 60000);
     }
 
-    try { console.info('[Sistema Legal] Event delegation configurado (honorários, contratos, prazos, notificações, documentos, clientes, tarefas)'); } catch (e) {}
+    if (DEBUG_LOG) { try { console.info('[Sistema Legal] Event delegation configurado (honorários, contratos, prazos, notificações, documentos, clientes, tarefas)'); } catch (e) {} }
 
     document.getElementById('sidebarOverlay')?.addEventListener('click', () => {
         const sidebar = document.getElementById('sidebar');
@@ -18380,6 +18452,17 @@ function gerarBackup() {
                         class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center font-semibold">
                     <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
                     Limpar cache e recarregar
+                </button>
+            </div>
+            <div class="card p-6 border-purple-300 bg-purple-50 border-2">
+                <h3 class="text-lg font-semibold mb-4 text-purple-900">Limpar dados de demonstração</h3>
+                <p class="text-sm text-purple-800 mb-4">
+                    Remove do Firebase e do navegador os registos de exemplo (João Silva, Maria Santos, prazos demo, documentos <code>seed-inicial</code>). Na primeira carga após atualização, a remoção é automática se forem detetados. Para apagar <strong>todos</strong> os dados, use "Começar do zero absoluto".
+                </p>
+                <button onclick="limparDadosDemonstracao()"
+                        class="w-full bg-purple-700 text-white py-3 px-4 rounded-md hover:bg-purple-800 flex items-center justify-center font-semibold">
+                    <i data-lucide="eraser" class="w-4 h-4 mr-2"></i>
+                    Limpar dados de demonstração
                 </button>
             </div>
             <div class="card p-6 border-red-300 bg-red-100 border-2">
