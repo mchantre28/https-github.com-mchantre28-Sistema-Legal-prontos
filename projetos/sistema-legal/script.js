@@ -33,6 +33,23 @@ const DEBUG_LOG = false;
 function inicializarPWA() {}
 if (typeof window !== 'undefined') window.inicializarPWA = inicializarPWA;
 
+/** Bloqueia perfil cliente API no index.html antes de Firebase/dashboard. */
+(function bloquearClienteApiNoIndex() {
+    if (typeof location === 'undefined') return;
+    try {
+        if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem) {
+            if (SistemaLegalAuth.redirectClienteFromFullSystem()) return;
+        }
+        var token = localStorage.getItem('sl_api_token');
+        var raw = localStorage.getItem('sl_api_user');
+        if (!token || !raw) return;
+        var user = JSON.parse(raw);
+        if (user && user.perfil === 'cliente') {
+            location.replace('cliente.html');
+        }
+    } catch (e) { /* ignorar */ }
+})();
+
 // Armazenamento: sessão e config vão para Firestore (sistema/sessao, sistema/config)
 // appStorage mantido como fallback para migration flags e outros (usa sessionStorage)
 const appStorage = typeof sessionStorage !== 'undefined' ? sessionStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, get length() { return 0; }, key: () => null };
@@ -2508,6 +2525,10 @@ async function restaurarSessaoApi() {
     if (!api || !api.isApiSessionActive()) return false;
     const user = api.getCurrentUser();
     if (!user || !user.perfil) return false;
+    if (user.perfil === 'cliente') {
+        location.replace('cliente.html');
+        return false;
+    }
     const tipoUsuario = api.mapPerfilToTipoUsuario(user.perfil);
     if (!tipoUsuario) return false;
     const usuarioNome = user.nome || user.email || 'Utilizador';
@@ -2585,6 +2606,10 @@ function restaurarSessaoRapidaPosTimeout() {
     const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
     if (api && api.isApiSessionActive && api.isApiSessionActive()) {
         const user = api.getCurrentUser();
+        if (user && user.perfil === 'cliente') {
+            location.replace('cliente.html');
+            return false;
+        }
         const tipoUsuario = api.mapPerfilToTipoUsuario(user && user.perfil);
         if (tipoUsuario) {
             window.__tipoUsuario = tipoUsuario;
@@ -3569,6 +3594,10 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
+    if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
+        && SistemaLegalAuth.redirectClienteFromFullSystem()) {
+        return;
+    }
     let logado = false;
     try {
         // Aguardar limpeza do cache Firestore (após zero absoluto), com tempo limite
@@ -3585,6 +3614,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
         if (!logado) return;
+        if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
+            && SistemaLegalAuth.redirectClienteFromFullSystem()) {
+            return;
+        }
         if (typeof sincronizarClientesApi === 'function') {
             sincronizarClientesApi().catch(function () {});
         }

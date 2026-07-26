@@ -4,6 +4,38 @@
 (function (global) {
     'use strict';
 
+    /** Redireciona utilizadores API com perfil cliente para cliente.html (bloqueia index.html). */
+    function redirectClienteFromFullSystem() {
+        const api = global.SistemaLegalAPI;
+        if (api && api.isApiSessionActive && api.isApiSessionActive()) {
+            const user = api.getCurrentUser();
+            if (user && user.perfil === 'cliente') {
+                global.location.replace('cliente.html');
+                return true;
+            }
+            return false;
+        }
+        try {
+            const token = localStorage.getItem('sl_api_token');
+            const raw = localStorage.getItem('sl_api_user');
+            if (!token || !raw) return false;
+            const user = JSON.parse(raw);
+            if (user && user.perfil === 'cliente') {
+                global.location.replace('cliente.html');
+                return true;
+            }
+        } catch (e) {
+            /* ignorar */
+        }
+        return false;
+    }
+
+    function redirectForPerfil(perfil) {
+        if (perfil === 'cliente') return 'cliente.html';
+        if (perfil === 'admin') return 'admin.html';
+        return 'index.html';
+    }
+
     async function requireAuth(expectedPerfil) {
         const api = global.SistemaLegalAPI;
         if (!api || !api.isApiSessionActive()) {
@@ -43,8 +75,7 @@
         }
 
         if (expectedPerfil && user.perfil !== expectedPerfil) {
-            api.logout();
-            global.location.href = 'index.html';
+            global.location.href = redirectForPerfil(user.perfil);
             return null;
         }
 
@@ -68,6 +99,7 @@
 
     global.SistemaLegalAuth = {
         requireAuth: requireAuth,
-        logout: logout
+        logout: logout,
+        redirectClienteFromFullSystem: redirectClienteFromFullSystem
     };
 })(typeof window !== 'undefined' ? window : globalThis);
