@@ -18,9 +18,10 @@ const EURO_HTML = '&#8364;'; // Entidade HTML para uso em innerHTML (evita probl
 // Debug: em true permite logs na consola; em false silencia (produção)
 const DEBUG_LOG = false;
 /** Versão de purge de dados de demonstração (legacy localStorage + Firebase). */
-const LEGACY_DEMO_PURGE_VERSION = '2026-07-27';
+const LEGACY_DEMO_PURGE_VERSION = '2026-07-27-v2';
+/** Nomes de demonstração bloqueados permanentemente (case insensitive). */
+const DEMO_NOMES_BLOQUEADOS = ['joão silva', 'maria santos'];
 const CHAVE_LEGACY_DEMO_PURGE = 'legacyDemoPurgeVersion';
-const CHAVE_LEGACY_STORAGE_VERSION = 'legacyStorageVersion';
 (function() {
     const orig = console.log;
     console.log = function(...a) { if (DEBUG_LOG) orig.apply(console, a); };
@@ -815,6 +816,7 @@ function obterServerTimestamp() {
 
 async function criarClienteCloud(cliente) {
     if (!isCloudReady()) throw new Error('Firestore não disponível');
+    rejeitarSeNomeDemoBloqueado(cliente?.nome);
     const id = cliente.id || gerarIdImutavel();
     const prep = prepararClienteParaFirestore({ ...cliente, id });
     const payload = Object.fromEntries(
@@ -839,6 +841,7 @@ async function obterClienteCloud(id) {
 
 async function atualizarClienteCloud(id, dados) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
+    rejeitarSeNomeDemoBloqueado(dados?.nome);
     const prep = prepararClienteParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -3125,13 +3128,27 @@ function mostrarModalConfirmarApagar(opcoes) {
 }
 window.mostrarModalConfirmarApagar = mostrarModalConfirmarApagar;
 
-const DEMO_CLIENTES_MARCADORES = [
-    { nome: 'joão silva', email: 'joao@email.com', nif: '123456789' },
-    { nome: 'maria santos', email: 'maria@email.com', nif: '987654321' }
-];
-
 function normalizarTxtDemo(val) {
-    return String(val || '').trim().toLowerCase();
+    return String(val || '').trim().toLowerCase()
+        .normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+function isNomeDemoBloqueado(nome) {
+    const n = normalizarTxtDemo(nome);
+    if (!n) return false;
+    return DEMO_NOMES_BLOQUEADOS.some(demo =>
+        n === demo || n.startsWith(demo + ' ') || n.startsWith(demo + '(')
+    );
+}
+
+function rejeitarSeNomeDemoBloqueado(nome) {
+    if (isNomeDemoBloqueado(nome)) {
+        throw new Error('Nome reservado para demonstração (João Silva / Maria Santos). Utilize outro nome.');
+    }
+}
+
+function extrairNomeClienteRef(item) {
+    return item?.clienteNome || item?.cliente || item?.nomeCliente || '';
 }
 
 function isSeedInicialItem(item) {
@@ -3144,67 +3161,49 @@ function isSeedInicialItem(item) {
 function isClienteDemonstracao(cliente) {
     if (!cliente) return false;
     if (isSeedInicialItem(cliente)) return true;
-    const nome = normalizarTxtDemo(cliente.nome);
-    const email = normalizarTxtDemo(cliente.email);
-    const nif = String(cliente.nif || '').replace(/\s/g, '');
-    return DEMO_CLIENTES_MARCADORES.some(m => nome === m.nome && (email === m.email || nif === m.nif));
+    return isNomeDemoBloqueado(cliente.nome);
 }
 
-function isHonorarioDemonstracao(h) {
-    if (!h) return false;
-    if (isSeedInicialItem(h)) return true;
-    const cliente = normalizarTxtDemo(h.cliente || h.clienteNome);
-    const servico = normalizarTxtDemo(h.servico);
-    if (cliente === 'joão silva' && (servico.includes('consulta') || servico.includes('consultoria'))) return true;
-    if (cliente === 'maria santos' && servico.includes('contrato')) return true;
-    if ((cliente === 'joão silva' || cliente === 'maria santos') && (String(h.id) === '1' || String(h.id) === '2')) return true;
+function isRegistoLigadoClienteDemo(item, demoClienteIds) {
+    if (!item) return false;
+    if (isSeedInicialItem(item)) return true;
+    if (isNomeDemoBloqueado(extrairNomeClienteRef(item))) return true;
+    if (demoClienteIds && item.clienteId != null && demoClienteIds.has(String(item.clienteId))) return true;
     return false;
 }
 
-function isContratoDemonstracao(c) {
-    if (!c) return false;
-    if (isSeedInicialItem(c)) return true;
-    const nome = normalizarTxtDemo(c.clienteNome);
-    if (nome !== 'joão silva' && nome !== 'maria santos') return false;
-    const desc = normalizarTxtDemo(c.descricao);
-    if (desc.includes('assessoria') || desc.includes('trabalhista') || desc.includes('consultoria')) return true;
-    return String(c.id) === '1' || String(c.id) === '2';
+function isHonorarioDemonstracao(h, demoClienteIds) {
+    return isRegistoLigadoClienteDemo(h, demoClienteIds);
 }
 
-function isPrazoDemonstracao(p) {
-    if (!p) return false;
-    if (isSeedInicialItem(p)) return true;
-    const desc = normalizarTxtDemo(p.descricao);
-    if (desc.includes('vencimento de honorário') && desc.includes('consultoria')) return true;
-    if (desc.includes('lembrete de pagamento') && desc.includes('contrato')) return true;
-    const nome = normalizarTxtDemo(p.clienteNome);
-    if ((nome === 'joão silva' || nome === 'maria santos') && (String(p.id) === '1' || String(p.id) === '2')) return true;
-    return false;
+function isContratoDemonstracao(c, demoClienteIds) {
+    return isRegistoLigadoClienteDemo(c, demoClienteIds);
 }
 
-function isProcessoDemonstracao(p) {
-    if (!p) return false;
-    if (isSeedInicialItem(p)) return true;
-    const nome = normalizarTxtDemo(p.clienteNome);
-    if (nome !== 'joão silva' && nome !== 'maria santos') return false;
-    return String(p.id) === '1' || String(p.id) === '2';
+function isPrazoDemonstracao(p, demoClienteIds) {
+    return isRegistoLigadoClienteDemo(p, demoClienteIds);
 }
 
-function isItemDemonstracao(entidade, item) {
+function isProcessoDemonstracao(p, demoClienteIds) {
+    return isRegistoLigadoClienteDemo(p, demoClienteIds);
+}
+
+function isItemDemonstracao(entidade, item, demoClienteIds) {
     if (isSeedInicialItem(item)) return true;
     switch (entidade) {
         case 'clientes': return isClienteDemonstracao(item);
-        case 'honorarios': return isHonorarioDemonstracao(item);
-        case 'contratos': return isContratoDemonstracao(item);
-        case 'prazos': return isPrazoDemonstracao(item);
-        case 'tarefas': return isSeedInicialItem(item);
+        case 'honorarios': return isHonorarioDemonstracao(item, demoClienteIds);
+        case 'contratos': return isContratoDemonstracao(item, demoClienteIds);
+        case 'prazos': return isPrazoDemonstracao(item, demoClienteIds);
+        case 'tarefas':
         case 'herancas':
         case 'migracoes':
-        case 'registos': return isProcessoDemonstracao(item);
+        case 'registos':
         case 'documentos':
         case 'notificacoes':
-        case 'convidados':
         case 'faturas':
+            return isRegistoLigadoClienteDemo(item, demoClienteIds);
+        case 'convidados':
         case 'pagamentos':
         case 'despesas':
         case 'comunicacoes':
@@ -3220,32 +3219,54 @@ function isItemDemonstracao(entidade, item) {
 
 const CHAVES_LEGACY_ENTIDADES = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'herancas', 'migracoes', 'registos', 'documentos', 'tarefas', 'convidados', 'faturas', 'pagamentos', 'despesas'];
 
-/** Limpa chaves legacy no localStorage/sessionStorage após bump de versão (impede re-migração de demo). */
-function aplicarVersaoLegacyStorage() {
+/** Remove apenas registos demo do localStorage/sessionStorage (preserva clientes reais). */
+function filtrarDemoDoStorageLocal() {
     try {
-        if (appStorage.getItem(CHAVE_LEGACY_STORAGE_VERSION) === LEGACY_DEMO_PURGE_VERSION) return;
         CHAVES_LEGACY_ENTIDADES.forEach(k => {
-            try { if (typeof localStorage !== 'undefined') localStorage.removeItem(k); } catch (e) {}
-            try { appStorage.removeItem(k); } catch (e) {}
+            for (const storage of [typeof localStorage !== 'undefined' ? localStorage : null, appStorage].filter(Boolean)) {
+                try {
+                    const raw = storage.getItem(k);
+                    if (!raw) continue;
+                    const lista = JSON.parse(raw);
+                    if (!Array.isArray(lista)) continue;
+                    const filtrada = lista.filter(item => !isItemDemonstracao(k, item));
+                    if (filtrada.length !== lista.length) {
+                        if (filtrada.length === 0) storage.removeItem(k);
+                        else storage.setItem(k, JSON.stringify(filtrada));
+                    }
+                } catch (e) { /* ignorar chave inválida */ }
+            }
         });
-        appStorage.setItem('dadosLimpos', 'true');
-        appStorage.setItem(CHAVE_LEGACY_STORAGE_VERSION, LEGACY_DEMO_PURGE_VERSION);
     } catch (e) {
-        console.warn('aplicarVersaoLegacyStorage:', e);
+        console.warn('filtrarDemoDoStorageLocal:', e);
     }
+}
+
+async function obterIdsClientesDemoFirestore() {
+    const ids = new Set();
+    if (!isCloudReady()) return ids;
+    try {
+        const snap = await firestoreDb.collection('clientes').get();
+        snap.docs.forEach(d => {
+            if (isClienteDemonstracao({ id: d.id, ...d.data() })) ids.add(String(d.id));
+        });
+    } catch (e) { console.warn('obterIdsClientesDemoFirestore:', e); }
+    return ids;
 }
 
 async function detectarDadosDemonstracaoFirestore() {
     if (!isCloudReady()) return false;
+    const demoClienteIds = await obterIdsClientesDemoFirestore();
     const verificacoes = [
-        ['clientes', isClienteDemonstracao],
-        ['honorarios', isHonorarioDemonstracao],
-        ['contratos', isContratoDemonstracao],
-        ['prazos', isPrazoDemonstracao]
+        ['clientes', (item) => isClienteDemonstracao(item)],
+        ['honorarios', (item) => isHonorarioDemonstracao(item, demoClienteIds)],
+        ['contratos', (item) => isContratoDemonstracao(item, demoClienteIds)],
+        ['prazos', (item) => isPrazoDemonstracao(item, demoClienteIds)],
+        ['tarefas', (item) => isRegistoLigadoClienteDemo(item, demoClienteIds)]
     ];
     for (const [col, fn] of verificacoes) {
         try {
-            const snap = await firestoreDb.collection(col).limit(100).get();
+            const snap = await firestoreDb.collection(col).limit(200).get();
             if (snap.docs.some(d => fn({ id: d.id, ...d.data() }))) return true;
         } catch (e) { console.warn('detectarDadosDemonstracaoFirestore:', col, e); }
     }
@@ -3260,13 +3281,14 @@ async function detectarDadosDemonstracaoFirestore() {
 
 async function apagarDocumentosDemoFirestore() {
     if (!isCloudReady()) return 0;
+    const demoClienteIds = await obterIdsClientesDemoFirestore();
     const colecoes = [...CHAVES_LEGACY_ENTIDADES, 'comunicacoes', 'logs_financeiros', 'logs_integracoes', 'logs_comunicacoes', 'anexos_comunicacao'];
     let apagados = 0;
     for (const col of colecoes) {
         try {
             const snap = await firestoreDb.collection(col).get();
             const refs = snap.docs
-                .filter(d => isItemDemonstracao(col, { id: d.id, ...d.data() }))
+                .filter(d => isItemDemonstracao(col, { id: d.id, ...d.data() }, demoClienteIds))
                 .map(d => d.ref);
             for (let i = 0; i < refs.length; i += 500) {
                 const batch = firestoreDb.batch();
@@ -3282,9 +3304,8 @@ async function apagarDocumentosDemoFirestore() {
 }
 
 async function executarPurgeDemoCompleto() {
-    aplicarVersaoLegacyStorage();
+    filtrarDemoDoStorageLocal();
     const apagados = await apagarDocumentosDemoFirestore();
-    appStorage.setItem('dadosLimpos', 'true');
     appStorage.setItem('limparCacheFirestoreNaProximaCarga', 'true');
     appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
     return apagados;
@@ -3292,34 +3313,35 @@ async function executarPurgeDemoCompleto() {
 
 async function migracaoAutomaticaRemoverDemo() {
     if (appStorage.getItem(CHAVE_LEGACY_DEMO_PURGE) === LEGACY_DEMO_PURGE_VERSION) return;
-    aplicarVersaoLegacyStorage();
     if (!isCloudReady()) {
+        filtrarDemoDoStorageLocal();
         appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
         return;
     }
     const temDemo = await detectarDadosDemonstracaoFirestore();
     if (!temDemo) {
+        filtrarDemoDoStorageLocal();
         appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
         return;
     }
     const apagados = await executarPurgeDemoCompleto();
     if (apagados > 0 && typeof mostrarNotificacao === 'function') {
-        mostrarNotificacao(`Dados de demonstração removidos (${apagados} registo(s)).`, 'success');
+        mostrarNotificacao(`Dados de demonstração removidos (${apagados} registo(s)). Os restantes clientes foram preservados.`, 'success');
     }
 }
 
 function limparDadosDemonstracao() {
     if (!exigirAdmin('limpar dados de demonstração')) return;
-    if (!confirm('Remove João Silva / Maria Santos (demo), honorários, contratos e prazos de exemplo, e documentos seed-inicial do Firebase e do navegador.\n\nOutros registos não são afetados. Para apagar TUDO, use "Começar do zero absoluto".\n\nContinuar?')) return;
+    if (!confirm('Remove APENAS os clientes de demonstração João Silva e Maria Santos, e os honorários, contratos, prazos e tarefas associados.\n\nOs seus clientes reais (ex.: os 27 clientes ativos) NÃO são afetados.\n\nContinuar?')) return;
     mostrarModalConfirmarApagar({
-        titulo: 'Limpar dados de demonstração',
-        mensagem: 'Para confirmar a remoção dos dados de demonstração, escreva exatamente:',
+        titulo: 'Remover João Silva e Maria Santos',
+        mensagem: 'Para confirmar a remoção dos dois clientes de demonstração e registos associados, escreva exatamente:',
         textoConfirmar: 'DEMO',
         aoConfirmar: async () => {
             try {
-                mostrarNotificacao('A remover dados de demonstração...', 'info');
+                mostrarNotificacao('A remover João Silva e Maria Santos (demo)...', 'info');
                 const apagados = await executarPurgeDemoCompleto();
-                mostrarNotificacao(`Demonstração removida (${apagados} registo(s)). A recarregar...`, 'success');
+                mostrarNotificacao(`Demonstração removida (${apagados} registo(s)). Clientes reais preservados. A recarregar...`, 'success');
                 setTimeout(() => location.reload(), 1500);
             } catch (err) {
                 console.error(err);
@@ -3331,11 +3353,11 @@ function limparDadosDemonstracao() {
 window.limparDadosDemonstracao = limparDadosDemonstracao;
 window.migracaoAutomaticaRemoverDemo = migracaoAutomaticaRemoverDemo;
 
-/** Começar do ZERO ABSOLUTO: apaga tudo (local + Firestore). Irreversível. */
+/** Começar do ZERO ABSOLUTO: apaga tudo (local + Firestore). Irreversível — NÃO usar para limpar demo. */
 async function comecarDoZeroAbsoluto() {
     if (!exigirAdmin('começar do zero absoluto')) return;
-    if (!confirm('ATENÇÃO — ZERO ABSOLUTO\n\nIsto vai APAGAR TUDO:\n• Clientes, honorários, contratos\n• Heranças, migrações, registos\n• Tarefas, prazos, notificações\n• Documentos\n• TODOS os convidados\n• Firestore e memória local\n\nÉ IRREVERSÍVEL. Tem a certeza que pretende continuar?')) return;
-    if (!confirm('CONFIRMAÇÃO FINAL\n\nVai começar do zero absoluto. Todos os dados serão eliminados permanentemente.\n\nContinuar?')) return;
+    if (!confirm('⚠️ PERIGO — ZERO ABSOLUTO\n\nEsta opção apaga TODOS os clientes reais, honorários, contratos e processos.\n\nNÃO serve para remover João Silva / Maria Santos (demo). Para isso use "Remover João Silva e Maria Santos".\n\nTem a certeza absoluta que pretende apagar TUDO?')) return;
+    if (!confirm('CONFIRMAÇÃO FINAL\n\nVai eliminar permanentemente todos os dados do sistema, incluindo os seus clientes reais.\n\nContinuar?')) return;
 
     mostrarModalConfirmarApagar({
         titulo: 'Confirmar Zero Absoluto',
@@ -4163,8 +4185,6 @@ function duplicarCliente(id) {
 
 // Inicialização
 function init() {
-    aplicarVersaoLegacyStorage();
-
     // getBackupLogs lê de Firestore quando há cache (preenchido ao abrir secção Backup)
     if (typeof window.getBackupLogs === 'function') {
         const _origGet = window.getBackupLogs;
@@ -16225,6 +16245,10 @@ async function salvarCliente(event) {
         mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
         return;
     }
+    if (isNomeDemoBloqueado(nome)) {
+        mostrarNotificacao('Este nome está reservado para dados de demonstração (João Silva / Maria Santos) e não pode ser utilizado.', 'error');
+        return;
+    }
     
     // Verificar se já existe cliente com os mesmos dados
     const clienteExistente = clientes.find(c => 
@@ -16538,6 +16562,10 @@ async function atualizarCliente(event, id) {
         }
         if (!validarNIF(nif)) {
             mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
+            return false;
+        }
+        if (isNomeDemoBloqueado(nome)) {
+            mostrarNotificacao('Este nome está reservado para dados de demonstração (João Silva / Maria Santos) e não pode ser utilizado.', 'error');
             return false;
         }
         
@@ -18455,25 +18483,28 @@ function gerarBackup() {
                 </button>
             </div>
             <div class="card p-6 border-purple-300 bg-purple-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-purple-900">Limpar dados de demonstração</h3>
+                <h3 class="text-lg font-semibold mb-4 text-purple-900">Remover João Silva e Maria Santos (demo)</h3>
                 <p class="text-sm text-purple-800 mb-4">
-                    Remove do Firebase e do navegador os registos de exemplo (João Silva, Maria Santos, prazos demo, documentos <code>seed-inicial</code>). Na primeira carga após atualização, a remoção é automática se forem detetados. Para apagar <strong>todos</strong> os dados, use "Começar do zero absoluto".
+                    Remove <strong>apenas</strong> os dois clientes de demonstração (João Silva, Maria Santos) e os honorários, contratos, prazos e tarefas associados. Os seus clientes reais <strong>não são afetados</strong>. Na primeira carga após atualização, a remoção é automática se forem detetados.
                 </p>
                 <button onclick="limparDadosDemonstracao()"
                         class="w-full bg-purple-700 text-white py-3 px-4 rounded-md hover:bg-purple-800 flex items-center justify-center font-semibold">
                     <i data-lucide="eraser" class="w-4 h-4 mr-2"></i>
-                    Limpar dados de demonstração
+                    Remover João Silva e Maria Santos
                 </button>
             </div>
-            <div class="card p-6 border-red-300 bg-red-100 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">Começar do zero absoluto</h3>
-                <p class="text-sm text-red-800 mb-4">
-                    Apaga <strong>tudo</strong>: Firestore, faturas, pagamentos, despesas e memória. Ideal para não ver mais nenhum dado antigo. Irreversível.
+            <div class="card p-6 border-red-300 bg-red-100 border-2 opacity-90">
+                <h3 class="text-lg font-semibold mb-2 text-red-900">⚠️ Zona de perigo — Apagar tudo</h3>
+                <p class="text-sm text-red-800 mb-2 font-medium">
+                    <strong>Não use para limpar demo.</strong> Apaga permanentemente todos os clientes reais, honorários, contratos, processos e faturas. Irreversível.
+                </p>
+                <p class="text-xs text-red-700 mb-4">
+                    Para remover apenas João Silva e Maria Santos, use o botão roxo acima.
                 </p>
                 <button onclick="comecarDoZeroAbsoluto()" 
-                        class="w-full bg-red-700 text-white py-3 px-4 rounded-md hover:bg-red-800 flex items-center justify-center font-semibold">
+                        class="w-full bg-red-700 text-white py-2 px-4 rounded-md hover:bg-red-800 flex items-center justify-center text-sm">
                     <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Começar do zero absoluto
+                    Começar do zero absoluto (apaga tudo)
                 </button>
             </div>
             <div class="card p-6 border-red-200 bg-red-50">
