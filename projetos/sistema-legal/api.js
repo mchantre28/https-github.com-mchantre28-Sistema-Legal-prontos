@@ -96,6 +96,7 @@
 
     function showGithubPagesBanner() {
         if (typeof document === 'undefined') return;
+        if (document.body && document.body.classList.contains('admin-page')) return;
         const hint = getDeploymentHint();
         if (!hint) return;
         const run = function () {

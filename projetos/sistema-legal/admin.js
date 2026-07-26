@@ -149,16 +149,6 @@
             });
             acoes.appendChild(btnEditar);
 
-            const btnNotificar = document.createElement('button');
-            btnNotificar.type = 'button';
-            btnNotificar.className = 'btn btn-info btn-sm';
-            btnNotificar.textContent = 'Notificar';
-            btnNotificar.title = 'Notificação por email (em breve)';
-            btnNotificar.addEventListener('click', function () {
-                notificarCliente(p);
-            });
-            acoes.appendChild(btnNotificar);
-
             const btnEliminar = document.createElement('button');
             btnEliminar.type = 'button';
             btnEliminar.className = 'btn btn-error btn-sm';
@@ -597,18 +587,6 @@
         } catch (e) {
             mostrarMsg($('processosErro'), e.message || 'Erro ao eliminar processo.', 'erro');
         }
-    }
-
-    function notificarCliente(processo) {
-        const email = processo.cliente_email || '(email não disponível)';
-        const titulo = processo.titulo || processo.numero_processo || 'Processo';
-        console.log('[Sistema Legal] Notificar cliente — placeholder:', {
-            processo_id: processo.id,
-            cliente_email: email,
-            titulo: titulo,
-            mensagem: 'Atualização disponível no portal do cliente.'
-        });
-        alert('Notificação ao cliente «' + email + '» sobre «' + titulo + '» — funcionalidade de email em desenvolvimento.\n\n(Detalhes registados na consola do navegador.)');
     }
 
     function bindEventos() {
