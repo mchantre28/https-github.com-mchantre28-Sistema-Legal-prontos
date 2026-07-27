@@ -8334,36 +8334,72 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
     mostrarNotificacao(exportarComoPdf ? `Relatório PDF aberto para ${clienteSelecionado}` : `Relatório geral personalizado para ${clienteSelecionado} gerado com sucesso!`, 'success');
 }
 
+function navegarSecaoClienteFicha(secao, clienteId, clienteNome) {
+    fecharModalRobusto();
+    carregarSecao(secao);
+    setTimeout(() => {
+        const idStr = String(clienteId || '');
+        const nome = clienteNome || '';
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        switch (secao) {
+            case 'honorarios':
+                set('buscaHonorarios', nome);
+                if (typeof aplicarFiltrosHonorarios === 'function') aplicarFiltrosHonorarios();
+                break;
+            case 'contratos':
+                set('filtroClienteContrato', idStr);
+                if (typeof aplicarFiltrosContratos === 'function') aplicarFiltrosContratos();
+                break;
+            case 'herancas':
+                set('buscaHerancas', nome);
+                if (typeof aplicarFiltrosHerancas === 'function') aplicarFiltrosHerancas();
+                break;
+            case 'prazos':
+                set('buscaPrazos', nome);
+                if (typeof aplicarFiltrosPrazos === 'function') aplicarFiltrosPrazos();
+                break;
+            case 'tarefas':
+                set('filtroTarefasCliente', idStr);
+                if (typeof aplicarFiltrosTarefas === 'function') aplicarFiltrosTarefas();
+                break;
+            case 'documentos':
+                set('filtroDocCliente', idStr);
+                if (typeof aplicarFiltrosDocumentos === 'function') aplicarFiltrosDocumentos();
+                break;
+        }
+    }, 250);
+}
+
 function mostrarInformacoesCompletasCliente(cliente) {
-    
-    // Verificar se já existe um modal aberto
     const modalExistente = document.querySelector('.modal');
-    if (modalExistente) {
-        modalExistente.remove();
-    }
-    
-    // Buscar todos os dados relacionados ao cliente
+    if (modalExistente) modalExistente.remove();
+
     const clienteId = cliente.id;
     const correspondeCliente = (item) => {
         if (!item) return false;
         if (clienteId && String(item.clienteId) === String(clienteId)) return true;
         return item.clienteNome === cliente.nome || item.cliente === cliente.nome;
     };
-    const faturasCliente = (typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f && f.id !== 'seed-inicial' && (String(f.clienteId) === String(clienteId) || f.clienteNome === cliente.nome));
-    const dadosCliente = {
-        honorarios: honorarios ? honorarios.filter(correspondeCliente) : [],
-        contratos: contratos ? contratos.filter(correspondeCliente) : [],
-        herancas: herancas ? herancas.filter(correspondeCliente) : [],
-        migracoes: migracoes ? migracoes.filter(correspondeCliente) : [],
-        registos: registos ? registos.filter(correspondeCliente) : [],
-        prazos: prazos ? prazos.filter(correspondeCliente) : [],
-        tarefas: tarefas ? tarefas.filter(correspondeCliente) : [],
-        documentos: documentos ? documentos.filter(correspondeCliente) : [],
-        faturas: faturasCliente,
-        notificacoes: notificacoes ? notificacoes.filter(n => n.clienteId === clienteId || n.clienteNome === cliente.nome || n.cliente === cliente.nome) : []
+    const contadores = {
+        honorarios: honorarios ? honorarios.filter(correspondeCliente).length : 0,
+        contratos: contratos ? contratos.filter(correspondeCliente).length : 0,
+        herancas: herancas ? herancas.filter(correspondeCliente).length : 0,
+        prazos: prazos ? prazos.filter(correspondeCliente).length : 0,
+        tarefas: tarefas ? tarefas.filter(correspondeCliente).length : 0,
+        documentos: documentos ? documentos.filter(correspondeCliente).length : 0
     };
-    
-    // Criar modal com informações completas
+
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const endereco = cliente.endereco || cliente.morada || '';
+    const badges = [
+        { secao: 'honorarios', label: 'Honorários', count: contadores.honorarios, gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' },
+        { secao: 'contratos', label: 'Contratos', count: contadores.contratos, gradient: 'linear-gradient(135deg, #10b981, #059669)' },
+        { secao: 'herancas', label: 'Heranças', count: contadores.herancas, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)' },
+        { secao: 'prazos', label: 'Prazos', count: contadores.prazos, gradient: 'linear-gradient(135deg, #0ea5e9, #0284c7)' },
+        { secao: 'tarefas', label: 'Tarefas', count: contadores.tarefas, gradient: 'linear-gradient(135deg, #6366f1, #4f46e5)' },
+        { secao: 'documentos', label: 'Documentos', count: contadores.documentos, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' }
+    ];
+
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -8383,7 +8419,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
             background: white;
             padding: 14px 16px;
             border-radius: 8px;
-            max-width: min(92vw, 560px);
+            max-width: min(92vw, 520px);
             width: auto;
             max-height: 85vh;
             overflow-y: auto;
@@ -8398,7 +8434,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                 padding-bottom: 8px;
                 border-bottom: 1px solid #e5e7eb;
             ">
-                <h3 style="margin: 0; font-size: 16px; color: #1f2937;">${cliente.nome} - Informações completas</h3>
+                <h3 style="margin: 0; font-size: 16px; color: #1f2937;">Ficha do cliente — ${esc(cliente.nome)}</h3>
                 <button class="close-btn" onclick="fecharModalRobusto()" style="
                     background: none;
                     border: none;
@@ -8407,360 +8443,80 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     color: #6b7280;
                 ">&times;</button>
             </div>
-            <div class="modal-body" style="margin-bottom: 20px;">
-                <!-- Dados Pessoais -->
-                <div style="margin-bottom: 18px;">
+            <div class="modal-body" style="margin-bottom: 16px;">
+                <div style="margin-bottom: 16px;">
                     <h4 style="color: #1f2937; font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">Dados pessoais</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #3b82f6; font-size: 13px;">
-                            <strong>Nome:</strong> ${cliente.nome}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #3b82f6; font-size: 13px;">
+                            <strong>Nome:</strong> ${esc(cliente.nome)}
                         </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 13px;">
-                            <strong>Email:</strong> ${cliente.email}
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 13px;">
+                            <strong>Email:</strong> ${esc(cliente.email || '—')}
                         </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #f59e0b; font-size: 13px;">
-                            <strong>Telefone:</strong> ${cliente.telefone}
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #f59e0b; font-size: 13px;">
+                            <strong>Telefone:</strong> ${esc(cliente.telefone || '—')}
                         </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 13px;">
-                            <strong>NIF:</strong> ${cliente.nif}
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 13px;">
+                            <strong>NIF:</strong> ${esc(cliente.nif || '—')}
                         </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #06b6d4; font-size: 13px;">
-                            <strong>Status:</strong> ${cliente.status}
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #06b6d4; font-size: 13px;">
+                            <strong>Status:</strong> ${esc(cliente.status || '—')}
                         </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #8b5cf6; font-size: 13px;">
-                            <strong>Criado por:</strong> ${obterRotuloCriadorCliente(cliente)}
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #8b5cf6; font-size: 13px;">
+                            <strong>Criado por:</strong> ${esc(obterRotuloCriadorCliente(cliente))}
                         </div>
                     </div>
-                    ${cliente.endereco ? `
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 4px solid #6366f1; margin-top: 8px; font-size: 13px; word-break: break-word;">
-                            <strong>Endereço:</strong> ${cliente.endereco}
+                    ${endereco ? `
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #6366f1; margin-top: 8px; font-size: 13px; word-break: break-word;">
+                            <strong>Endereço:</strong> ${esc(endereco)}
                         </div>
                     ` : ''}
                 </div>
-                
-                <!-- Resumo Estatístico (Honorários, Faturas, Notificações, Contratos, Heranças, Migrações, Registos) -->
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Resumo estatístico</h4>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-                        <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.honorarios.length}</div>
-                            <div style="font-size: 11px;">Honorários</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #0d9488, #0f766e); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${(dadosCliente.faturas && dadosCliente.faturas.length) || 0}</div>
-                            <div style="font-size: 11px;">Faturas</div>
-                        </div>
-                        <div id="card-notificacoes-cliente" style="background: linear-gradient(135deg, #ea580c, #c2410c); color: white; padding: 10px; border-radius: 6px; text-align: center; border: 2px solid #9a3412;">
-                            <div style="font-size: 18px; font-weight: bold;">${(dadosCliente.notificacoes && dadosCliente.notificacoes.length) || 0}</div>
-                            <div style="font-size: 11px;">Notificações</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.contratos.length}</div>
-                            <div style="font-size: 11px;">Contratos</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.herancas.length}</div>
-                            <div style="font-size: 11px;">Heranças</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.migracoes.length}</div>
-                            <div style="font-size: 11px;">Migrações</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 10px; border-radius: 6px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;">${dadosCliente.registos.length}</div>
-                            <div style="font-size: 11px;">Registos</div>
-                        </div>
+
+                <div style="margin-bottom: 16px;">
+                    <h4 style="color: #1f2937; font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Resumo</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                        ${badges.map(b => `
+                            <button type="button" class="js-ficha-secao-badge" data-secao="${b.secao}" style="
+                                background: ${b.gradient};
+                                color: white;
+                                padding: 8px 6px;
+                                border-radius: 6px;
+                                text-align: center;
+                                border: none;
+                                cursor: pointer;
+                                transition: opacity 0.15s;
+                            " onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'" title="Ver ${b.label}">
+                                <div style="font-size: 17px; font-weight: bold;">${b.count}</div>
+                                <div style="font-size: 11px;">${b.label}</div>
+                            </button>
+                        `).join('')}
                     </div>
                 </div>
-                
-                <!-- Notificações do cliente (no processo) -->
-                ${dadosCliente.notificacoes && dadosCliente.notificacoes.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Notificações (${dadosCliente.notificacoes.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.notificacoes.map((noti) => `
-                                <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
-                                            <strong>${noti.titulo || 'Notificação'}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Honorários -->
-                ${dadosCliente.honorarios.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">Honorários (${dadosCliente.honorarios.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.honorarios.map((honorario, index) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3b82f6;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${honorario.descricao || honorario.servico}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO_HTML}${honorario.valor} | Status: ${formatarStatusHonorario(honorario.status)}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data: ${honorario.data}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Faturas -->
-                ${dadosCliente.faturas && dadosCliente.faturas.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0d9488; padding-bottom: 5px;">Faturas (${dadosCliente.faturas.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.faturas.map((fatura) => {
-                                const numero = fatura.numero || fatura.id || 'FAT-';
-                                const valor = parseFloat(fatura.valorTotal || fatura.valor || 0);
-                                return `
-                                <div style="background: #f0fdfa; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0d9488;">
-                                    <button type="button" onclick='mostrarFaturaNoModal(${JSON.stringify(fatura.id)})' style="
-                                        display: block; width: 100%; text-align: left; background: transparent; border: none; cursor: pointer; padding: 0; font-family: inherit;
-                                    ">
-                                        <strong style="color: #0d9488; font-size: 15px;">${numero}</strong><br>
-                                        <span style="color: #6b7280; font-size: 14px;">${EURO_HTML}${valor.toFixed(2)} | ${fatura.estado || fatura.status || 'pendente'}</span><br>
-                                        <span style="color: #6b7280; font-size: 12px;">Data: ${(fatura.dataEmissao || fatura.data || '').toString().split('T')[0] || 'N/D'}</span><br>
-                                        <span style="color: #2563eb; font-size: 12px; text-decoration: underline;">Clique para ver a fatura</span>
-                                    </button>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Contratos -->
-                ${dadosCliente.contratos.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Contratos (${dadosCliente.contratos.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.contratos.map((contrato, index) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #10b981;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${contrato.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO_HTML}${contrato.valor} | Status: ${contrato.status}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data: ${contrato.data}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Heranças -->
-                ${dadosCliente.herancas.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Heranças (${dadosCliente.herancas.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.herancas.map((heranca, index) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${heranca.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO_HTML}${heranca.valor} | Status: ${heranca.status}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data: ${heranca.data}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Migrações -->
-                ${dadosCliente.migracoes.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #8b5cf6; padding-bottom: 5px;">Migrações (${dadosCliente.migracoes.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.migracoes.map((migracao, index) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #8b5cf6;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${migracao.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO_HTML}${migracao.valor} | Status: ${migracao.status}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data: ${migracao.data}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Registos -->
-                ${dadosCliente.registos.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 5px;">Registos (${dadosCliente.registos.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.registos.map((registo, index) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #ef4444;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${registo.tipo}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Valor: ${EURO_HTML}${registo.valor} | Status: ${registo.status}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data: ${registo.data}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
 
-                <!-- Prazos -->
-                ${dadosCliente.prazos.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #0ea5e9; padding-bottom: 5px;">â° Prazos (${dadosCliente.prazos.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.prazos.map((prazo) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0ea5e9;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${prazo.descricao || prazo.tipo || 'Prazo'}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Status: ${prazo.status || 'ativo'}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">Data limite: ${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'N/D'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
+                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                        <div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1f2937;">Documentos</div>
+                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${contadores.documentos} documento${contadores.documentos === 1 ? '' : 's'} associado${contadores.documentos === 1 ? '' : 's'}</div>
                         </div>
+                        <button type="button" class="js-ficha-ver-documentos" style="
+                            font-size: 13px;
+                            color: #2563eb;
+                            background: transparent;
+                            border: none;
+                            cursor: pointer;
+                            text-decoration: underline;
+                            white-space: nowrap;
+                        ">Ver documentos</button>
                     </div>
-                ` : ''}
-
-                <!-- Tarefas -->
-                ${dadosCliente.tarefas.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #6366f1; padding-bottom: 5px;">Tarefas (${dadosCliente.tarefas.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.tarefas.map((tarefa) => `
-                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #6366f1;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <strong>${tarefa.titulo || 'Tarefa'}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">Status: ${tarefa.status || 'aberta'} | Prioridade: ${tarefa.prioridade || 'media'}</span><br>
-                                            ${tarefa.responsavelNome ? `<span style="color: #374151; font-size: 12px; font-weight: 700;">Responsável: ${(tarefa.responsavelNome || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span><br>` : ''}
-                                            <span style="color: #6b7280; font-size: 12px;">Prazo: ${tarefa.dataLimite ? new Date(tarefa.dataLimite).toLocaleDateString('pt-PT') : 'Sem prazo'}</span>
-                                            ${tarefa.links && tarefa.links.length ? `
-                                                <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
-                                                    ${tarefa.links.map(link => {
-                                                        const href = normalizarLinkTarefa(link);
-                                                        return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: #2563eb; text-decoration: underline;">${link}</a>` : '';
-                                                    }).join('')}
-                                                </div>
-                                            ` : ''}
-                                            ${tarefa.anexos && tarefa.anexos.length ? `
-                                                <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
-                                                    ${tarefa.anexos.map(anexo => `
-                                                        <button onclick="baixarAnexoTarefa(${JSON.stringify(tarefa.id)}, ${JSON.stringify(anexo.id)})" style="font-size: 12px; color: #2563eb; text-decoration: underline; background: transparent; border: none; padding: 0; cursor: pointer;">
-                                                            ${anexo.nome}
-                                                        </button>
-                                                    `).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-
-                <!-- Documentos -->
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 5px;">Documentos (${dadosCliente.documentos.length})</h4>
-                    <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                        <div style="font-weight: 600; color: #0f172a; margin-bottom: 8px;">Adicionar documento rápido</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                            <select id="docModalProcessoTipo-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                                <option value="contrato">Contrato</option>
-                                <option value="heranca">Herança</option>
-                                <option value="migracao">Migração</option>
-                                <option value="registo">Registo</option>
-                                <option value="prazo">Prazo</option>
-                                <option value="outro">Outro</option>
-                            </select>
-                            <select id="docModalEntidade-${cliente.id}" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;" title="Entidade">
-                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                            </select>
-                            <input id="docModalDescricao-${cliente.id}" type="text" placeholder="Descrição" style="grid-column: span 2; width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                            <input id="docModalTags-${cliente.id}" type="text" placeholder="Tags (vírgula)" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                            <input id="docModalArquivo-${cliente.id}" type="file" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                        </div>
-                        <button type="button" class="js-doc-modal-add" data-cliente-id="${cliente.id}" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" onclick="adicionarDocumentoModalHandler(this)" style="font-size: 12px; color: #ffffff; background: #10b981; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
-                            Guardar documento
-                        </button>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 160px; gap: 8px; margin-bottom: 10px;">
-                        <input id="filtroDocumentosClienteModal" type="text" placeholder="Pesquisar documentos..." oninput="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
-                        <select id="ordenacaoDocumentosClienteModal" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 14px;">
-                            <option value="data_desc">Mais recentes</option>
-                            <option value="data_asc">Mais antigos</option>
-                            <option value="nome_asc">Nome A-Z</option>
-                            <option value="nome_desc">Nome Z-A</option>
-                            <option value="tipo_asc">Tipo A-Z</option>
-                            <option value="tipo_desc">Tipo Z-A</option>
-                        </select>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                        <input id="filtroDocumentosClienteDataInicio" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                        <input id="filtroDocumentosClienteDataFim" type="date" onchange="filtrarDocumentosClienteModal()" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 13px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <div id="resumoDocumentosClienteModal" style="font-size: 12px; color: #6b7280;"></div>
-                        <button type="button" onclick="limparFiltrosDocumentosClienteModal()" style="font-size: 12px; color: #2563eb; background: transparent; border: none; cursor: pointer;">
-                            Limpar filtros
-                        </button>
-                    </div>
-                    <div id="listaDocumentosClienteModal" style="max-height: 300px; overflow-y: auto;"></div>
                 </div>
-
-                <!-- Notificações -->
-                ${dadosCliente.notificacoes.length > 0 ? `
-                    <div style="margin-bottom: 30px;">
-                        <h4 style="color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #f59e0b; padding-bottom: 5px;">Notificações (${dadosCliente.notificacoes.length})</h4>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            ${dadosCliente.notificacoes.map((noti) => `
-                                <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #f59e0b;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <span style="font-size: 11px; color: #ea580c; font-weight: 700;">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(noti.destinatarioId) : (noti.destinatarioId === 'admin' ? 'Para: Admin' : noti.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span><br>
-                                            <strong>${noti.titulo || 'Notificação'}</strong><br>
-                                            <span style="color: #6b7280; font-size: 14px;">${noti.mensagem || ''}</span><br>
-                                            <span style="color: #6b7280; font-size: 12px;">${noti.dataCriacao ? new Date(noti.dataCriacao).toLocaleString('pt-PT') : ''}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                ${dadosCliente.honorarios.length === 0 && (!dadosCliente.faturas || dadosCliente.faturas.length === 0) && dadosCliente.contratos.length === 0 && dadosCliente.herancas.length === 0 && dadosCliente.migracoes.length === 0 && dadosCliente.registos.length === 0 && dadosCliente.prazos.length === 0 && dadosCliente.tarefas.length === 0 && dadosCliente.documentos.length === 0 && dadosCliente.notificacoes.length === 0 ? `
-                    <div style="text-align: center; padding: 40px; color: #6b7280;">
-                        <i data-lucide="file-x" style="width: 48px; height: 48px; margin: 0 auto 20px; display: block;"></i>
-                        <h4 style="margin: 0 0 10px 0;">Nenhum item encontrado</h4>
-                        <p style="margin: 0;">Este cliente ainda não possui registros associados.</p>
-                    </div>
-                ` : ''}
             </div>
             <div class="modal-footer" style="
                 display: flex;
                 justify-content: flex-end;
                 gap: 10px;
-                padding-top: 15px;
+                padding-top: 12px;
                 border-top: 1px solid #e5e7eb;
             ">
                 <button class="btn btn-secondary" onclick="fecharModalRobusto()" style="
@@ -8772,37 +8528,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     cursor: pointer;
                     font-size: 14px;
                 ">Fechar</button>
-                <button class="btn btn-secondary" onclick="duplicarCliente('${String(cliente.id).replace(/'/g, "\\'")}'); fecharModalRobusto();" style="
-                    padding: 8px 16px;
-                    background-color: #8b5cf6;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                ">
-                    <i data-lucide="copy" class="w-4 h-4"></i>
-                    Duplicar
-                </button>
-                <button class="btn btn-secondary" onclick="abrirDocumentosParaCliente(${cliente.id})" style="
-                    padding: 8px 16px;
-                    background-color: #10b981;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                ">
-                    <i data-lucide="file-plus" class="w-4 h-4"></i>
-                    Adicionar Documento
-                </button>
-                <button class="btn btn-primary js-relatorio-cliente" data-cliente-nome="${String(cliente.nome || '').replace(/"/g, '&quot;')}" style="
+                <button type="button" class="js-ficha-editar-cliente btn btn-primary" style="
                     padding: 8px 16px;
                     background-color: #3b82f6;
                     color: white;
@@ -8814,33 +8540,32 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     align-items: center;
                     gap: 5px;
                 ">
-                    <i data-lucide="download" class="w-4 h-4"></i>
-                    Gerar Relatório
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    Editar
                 </button>
             </div>
         </div>
     `;
-    
-    window.__docsClienteModal = dadosCliente.documentos || [];
+
     document.body.appendChild(modal);
-    const botaoAddDocumento = modal.querySelector('.js-doc-modal-add');
-    if (botaoAddDocumento) {
-        botaoAddDocumento.addEventListener('click', () => {
-            const id = botaoAddDocumento.getAttribute('data-cliente-id');
-            const nome = botaoAddDocumento.getAttribute('data-cliente-nome') || '';
-            adicionarDocumentoModal(id, nome);
+
+    modal.querySelectorAll('.js-ficha-secao-badge').forEach(btn => {
+        btn.addEventListener('click', () => {
+            navegarSecaoClienteFicha(btn.getAttribute('data-secao'), clienteId, cliente.nome);
+        });
+    });
+    const btnVerDocs = modal.querySelector('.js-ficha-ver-documentos');
+    if (btnVerDocs) {
+        btnVerDocs.addEventListener('click', () => {
+            navegarSecaoClienteFicha('documentos', clienteId, cliente.nome);
         });
     }
-    const botaoRelatorioCliente = modal.querySelector('.js-relatorio-cliente');
-    if (botaoRelatorioCliente) {
-        botaoRelatorioCliente.addEventListener('click', () => {
-            const nome = botaoRelatorioCliente.getAttribute('data-cliente-nome') || '';
-            gerarRelatorioClienteEspecifico(nome);
-        });
+    const btnEditar = modal.querySelector('.js-ficha-editar-cliente');
+    if (btnEditar) {
+        btnEditar.addEventListener('click', () => editarClienteDireto(clienteId));
     }
-    carregarFiltrosDocumentosClienteModal();
-    renderDocumentosClienteModal(dadosCliente.documentos || [], '');
-    
+
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     requestAnimationFrame(() => {
         requestAnimationFrame(() => modal.classList.add('show'));
     });
