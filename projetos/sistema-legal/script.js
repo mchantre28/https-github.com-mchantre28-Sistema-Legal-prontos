@@ -20700,94 +20700,63 @@ function enviarConviteDoSeletor() {
 window.enviarConviteDoSeletor = enviarConviteDoSeletor;
 
 function gerarMigracao() {
-    
-    // Garantir que migracoes existe
     if (!migracoes) {
         migracoes = [];
     }
-    
-    const totalMigracoes = migracoes.length;
-    const migracoesAtivas = migracoes.filter(m => m.status === 'em_andamento').length;
-    const migracoesSuspensas = migracoes.filter(m => m.status === 'pendente').length;
-    const migracoesTerminadas = migracoes.filter(m => m.status === 'concluido').length;
-    const valorTotalMigracoes = migracoes.reduce((total, m) => {
-        const valor = parseFloat(m.valor) || 0;
-        return total + valor;
-    }, 0);
+
+    const migracoesEmCurso = migracoes.filter(isContratoEmCurso);
+    const totalEmCurso = migracoesEmCurso.length;
+    const totalConcluidas = migracoes.filter(m => normalizarStatusContrato(m.status) === 'concluido').length;
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const mostrarDicaMigracao = tipoUsuario === 'admin' && migracoes.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaMigracaoVisto');
 
     return `
         <div class="space-y-6">
-            <!-- Header único com botões de ação -->
-            <div class="flex justify-between items-center">
-                <div class="flex space-x-3">
-                    <button onclick="abrirModalMigracaoDireto()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
-                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                        Nova Migração
-                    </button>
-                </div>
+            ${mostrarDicaMigracao ? `
+            <div id="dicaPrimeiraMigracao" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de migrações">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Crie a sua primeira migração clicando em "Nova Migração".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiraMigracao')?.remove(); appStorage.setItem('guiaMigracaoVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <button onclick="abrirModalMigracaoDireto()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Nova Migração
+                </button>
             </div>
 
-            <!-- Estatísticas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+            <div class="grid grid-cols-2 gap-4 max-w-md">
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="globe" class="w-5 h-5 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${migracoesAtivas}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="pause-circle" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Suspensos</p>
-                            <p class="text-2xl font-bold text-gray-900">${migracoesSuspensas}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Em curso</p>
+                            <p class="text-xl font-bold text-gray-900">${totalEmCurso}</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-gray-100 rounded-lg">
-                            <i data-lucide="x-circle" class="w-6 h-6 text-gray-600"></i>
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Terminados</p>
-                            <p class="text-2xl font-bold text-gray-900">${migracoesTerminadas}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${EURO_HTML}${Number(valorTotalMigracoes).toFixed(2)}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Concluídas</p>
+                            <p class="text-xl font-bold text-gray-900">${totalConcluidas}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Barra de busca -->
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaMigracoes" placeholder="Buscar migrações..." 
-                           class="search-input" onkeyup="filtrarMigracoes()">
+                    <input type="text" id="buscaMigracoes" placeholder="Buscar por cliente, tipo ou descrição..."
+                           class="search-input" onkeyup="filtrarMigracoes()" title="Pode escrever o nome do cliente, o tipo ou a descrição">
                 </div>
-                
-                <!-- Filtros Avançados -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select id="filtroStatusMigracao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosMigracoes()">
@@ -20797,31 +20766,7 @@ function gerarMigracao() {
                             <option value="concluido">Concluído</option>
                         </select>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                        <select id="filtroTipoMigracao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosMigracoes()">
-                            <option value="">Todos os tipos</option>
-                            <option value="Autorização de residência">Autorização de residência</option>
-                            <option value="Certificados de residência permanente">Certificados de residência permanente</option>
-                            <option value="Processos de nacionalidade portuguesa">Processos de nacionalidade portuguesa</option>
-                            <option value="Reagrupamento familiar">Reagrupamento familiar</option>
-                            <option value="Renovação de autorizações">Renovação de autorizações</option>
-                            <option value="Vistos D7">Vistos D7</option>
-                            <option value="Vistos Gold">Vistos Gold</option>
-                            <option value="Vistos para estudantes">Vistos para estudantes</option>
-                            <option value="Vistos para trabalho">Vistos para trabalho</option>
-                        </select>
-                    </div>
-                    
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">NIF</label>
-                        <input type="text" id="filtroNifMigracao" placeholder="Buscar por NIF..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosMigracoes()">
-                        <!-- Campo NIF adicionado -->
-                    </div>
                 </div>
-                
                 <div class="flex justify-between items-center mt-4">
                     <button onclick="limparFiltrosMigracoes()" class="btn btn-secondary">
                         <i data-lucide="x" class="w-4 h-4 mr-2"></i>
@@ -20832,59 +20777,28 @@ function gerarMigracao() {
                     </div>
                 </div>
             </div>
-            
+
             <div class="card">
-                <div class="overflow-x-auto table-responsive">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="listaMigracoes" class="bg-white divide-y divide-gray-200">
-                            ${migracoes.map(migracao => `
+                <div class="p-6">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${renderClienteLink(migracao.clienteId, migracao.clienteNome || 'N/A')}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo || 'N/A'}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao || 'N/A'}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div class="text-sm font-bold text-black">${EURO_HTML}${(migracao.valor || 0).toFixed(2)}</div>
-                                        <div class="text-xs font-bold text-red-600">+ IVA: ${EURO_HTML}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
-                                            <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                                        </button>
-                                        <button onclick="duplicarMigracao(${JSON.stringify(migracao.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Duplicar">
-                                            <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
-                                        </button>
-                                        <button onclick="abrirAnexosMigracao(${JSON.stringify(migracao.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
-                                            <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
-                                        </button>
-                                        <button onclick="excluirMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-red-600 hover:text-red-900" title="Excluir">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
-                                    </td>
+                                    <th class="font-bold">Cliente</th>
+                                    <th class="font-bold">Tipo</th>
+                                    <th class="font-bold">Descrição</th>
+                                    <th class="font-bold">Valor</th>
+                                    <th class="font-bold">Status</th>
+                                    <th class="font-bold">Prioridade</th>
+                                    <th class="font-bold">Entidade</th>
+                                    <th class="font-bold">Data Início</th>
+                                    <th class="font-bold">Ações</th>
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody id="listaMigracoes">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -21085,33 +20999,15 @@ function aplicarFiltrosMigracoes() {
     if (!document.getElementById('listaMigracoes')) return;
     const busca = document.getElementById('buscaMigracoes')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusMigracao')?.value || '';
-    const tipo = document.getElementById('filtroTipoMigracao')?.value || '';
-    const valorMin = parseFloat(document.getElementById('filtroValorMinMigracao')?.value) || 0;
-    const valorMax = parseFloat(document.getElementById('filtroValorMaxMigracao')?.value) || Infinity;
-    const nif = document.getElementById('filtroNifMigracao')?.value || '';
-    
+
     const migracoesFiltradas = migracoes.filter(migracao => {
-        // Filtro por busca de texto
-        const matchBusca = !busca || 
-            (migracao.clienteNome || '').toLowerCase().includes(busca) || 
+        const matchBusca = !busca ||
+            (migracao.clienteNome || '').toLowerCase().includes(busca) ||
             (migracao.tipo || '').toLowerCase().includes(busca) ||
+            (migracao.descricao || '').toLowerCase().includes(busca) ||
             (migracao.observacoes || '').toLowerCase().includes(busca);
-        
-        // Filtro por status
-        const matchStatus = !status || migracao.status === status;
-        
-        // Filtro por tipo
-        const matchTipo = !tipo || migracao.tipo === tipo;
-        
-        // Filtro por valor
-        const valor = parseFloat(migracao.valor) || 0;
-        const matchValor = valor >= valorMin && valor <= valorMax;
-        
-        // Filtro por NIF
-        const cliente = clientes.find(c => c.id === migracao.clienteId);
-        const matchNif = !nif || (cliente && cliente.nif && cliente.nif.includes(nif));
-        
-        return matchBusca && matchStatus && matchTipo && matchValor && matchNif;
+        const matchStatus = !status || normalizarStatusContrato(migracao.status) === status;
+        return matchBusca && matchStatus;
     });
     
     const limitM = Math.max(LISTA_PAGINA_TAMANHO, window.__migracoesLimit || LISTA_PAGINA_TAMANHO);
@@ -21121,7 +21017,7 @@ function aplicarFiltrosMigracoes() {
 }
 
 function limparFiltrosMigracoes() {
-    const els = ['buscaMigracoes','filtroStatusMigracao','filtroTipoMigracao','filtroValorMinMigracao','filtroValorMaxMigracao','filtroNifMigracao'];
+    const els = ['buscaMigracoes', 'filtroStatusMigracao'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosMigracoes();
 }
@@ -21329,41 +21225,48 @@ function atualizarListaMigracoes(migracoesFiltradas, total, limit) {
     limit = limit ?? migracoesFiltradas.length;
     const tbody = document.getElementById('listaMigracoes');
     if (!tbody) return;
-    
+
     const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__migracoesLimit = (window.__migracoesLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosMigracoes();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
-    tbody.innerHTML = migracoesFiltradas.map(migracao => `
+    const html = migracoesFiltradas.map(migracao => `
         <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                ${renderClienteLink(migracao.clienteId, migracao.clienteNome)}
+            <td>
+                ${renderClienteLink(migracao.clienteId, migracao.clienteNome || 'N/A')}
                 ${renderMetaAuditoria('migracao', migracao)}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.tipo}</td>
-            <td class="px-6 py-4 text-sm text-gray-500">${migracao.descricao}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">${EURO_HTML}${(migracao.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO_HTML}${((migracao.valor || 0) + ((migracao.valor || 0) * (migracao.iva || 0) / 100)).toFixed(2)}</div>
+            <td>${migracao.tipo || '-'}</td>
+            <td>${migracao.descricao || '-'}</td>
+            <td>
+                <div class="text-sm font-medium text-gray-900">${EURO_HTML}${Number(migracao.valor || 0).toFixed(2)}</div>
+                <div class="text-xs text-gray-500">
+                    <span class="text-gray-400">+ ${migracao.iva || 0}% IVA:</span>
+                    <span class="font-medium text-gray-700">${EURO_HTML}${(Number(migracao.valor || 0) + (Number(migracao.valor || 0) * Number(migracao.iva || 0) / 100)).toFixed(2)}</span>
+                </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${migracao.status}">${migracao.status === 'concluido' ? 'Concluído' : migracao.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button onclick="editarMigracaoSimples(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
+            <td><span class="status-badge status-${normalizarStatusContrato(migracao.status)}">${formatarStatusContrato(migracao.status)}</span></td>
+            <td><span class="status-badge status-${migracao.prioridade || 'media'}">${migracao.prioridade || 'media'}</span></td>
+            <td>${migracao.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === migracao.entidade)?.nome || migracao.entidade) : '—'}</td>
+            <td>${migracao.dataInicio ? new Date(migracao.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
+            <td>
+                <button onclick="editarMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="abrirAnexosMigracao(${JSON.stringify(migracao.id)})" class="text-green-600 hover:text-green-900 mr-3" title="Documentos">
+                <button onclick="abrirAnexosMigracao(${JSON.stringify(migracao.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                     <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirMigracao(${JSON.stringify(migracao.id)})" class="text-red-600 hover:text-red-900" title="Excluir">
+                <button onclick="excluirMigracaoDireto(${JSON.stringify(migracao.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
         </tr>
     `).join('') + verMais;
+
+    tbody.innerHTML = html;
+
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        }
+    }, 100);
 }
 
 function atualizarListaRegistos(registosFiltrados, total, limit) {
