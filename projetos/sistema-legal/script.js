@@ -11757,18 +11757,17 @@ function aplicarFiltroRapidoPrazos(tipo) {
     aplicarFiltrosPrazos();
 }
 
-function gerarNotificacoes() {
+let filtrosNotificacoesUI = { busca: '', status: '' };
+
+function obterNotificacoesVisiveisUsuario() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
-    
-    // Filtrar notificações baseado no tipo de usuário
-    let notificacoesFiltradas = Array.isArray(obterNotificacoesAtual()) ? obterNotificacoesAtual() : [];
-    
+    let lista = Array.isArray(obterNotificacoesAtual()) ? obterNotificacoesAtual() : [];
+
     if (tipoUsuario === 'convidado') {
-        // Para convidados: apenas notificações direcionadas a eles (por id, codigo ou "todos")
         const convidados = Array.isArray(obterConvidados()) ? obterConvidados() : [];
         const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => 
+        lista = lista.filter(n =>
             n.destinatarioId === 'todos' ||
             String(n.destinatarioId) === String(convidadoId) ||
             (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
@@ -11777,333 +11776,198 @@ function gerarNotificacoes() {
             n.tipo === 'prazo_proximo'
         );
     }
-    
-    const notificacoesNaoLidas = notificacoesFiltradas.filter(n => !n.lida).length;
-    const notificacoesHoje = notificacoesFiltradas.filter(n => {
-        try {
-            if (!n.dataCriacao) return false;
-            const hoje = new Date().toISOString().split('T')[0];
-            const dataNotificacao = new Date(n.dataCriacao).toISOString().split('T')[0];
-            return dataNotificacao === hoje;
-        } catch (error) {
-            console.warn('Erro ao processar data da notificação:', n.dataCriacao);
-            return false;
-        }
-    }).length;
+    return lista;
+}
+
+function filtrarNotificacoesUI(lista, filtros) {
+    let result = lista;
+    const busca = (filtros?.busca || '').trim().toLowerCase();
+    if (busca) {
+        result = result.filter(n =>
+            (n.titulo || '').toLowerCase().includes(busca) ||
+            (n.mensagem || '').toLowerCase().includes(busca) ||
+            (n.tipo || '').toLowerCase().includes(busca)
+        );
+    }
+    const status = filtros?.status || '';
+    if (status === 'nao_lida') result = result.filter(n => !n.lida);
+    else if (status === 'lida') result = result.filter(n => n.lida);
+    return result;
+}
+
+function renderizarListaNotificacoesHTML(notificacoes, tipoUsuario) {
+    if (!notificacoes.length) {
+        return `
+            <div class="card p-8 text-center">
+                <i data-lucide="bell-off" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
+                <h3 class="text-lg font-semibold text-gray-600 mb-2">Nenhuma notificação</h3>
+                <p class="text-gray-500">Não há notificações com os filtros selecionados.</p>
+            </div>
+        `;
+    }
+    return notificacoes.map(notificacao => `
+        <div class="card p-4 ${notificacao.lida ? 'opacity-60' : 'border-l-4 border-blue-500'}">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="status-badge status-${notificacao.tipo}">${notificacao.tipo}</span>
+                        ${notificacao.prioridade === 'alta' ? '<span class="status-badge status-alta">Urgente</span>' : ''}
+                        ${notificacao.origem === 'admin' ? '<span class="status-badge status-info">Admin</span>' : ''}
+                        ${notificacao.origem === 'convidado' ? '<span class="status-badge status-success">Convidado</span>' : ''}
+                        <span class="text-xs font-bold text-orange-600">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(notificacao.destinatarioId) : (notificacao.destinatarioId === 'admin' ? 'Para: Admin' : notificacao.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span>
+                    </div>
+                    <h4 class="font-semibold text-gray-800">${notificacao.titulo}</h4>
+                    <p class="text-gray-600 text-sm mt-1">${notificacao.mensagem}</p>
+                    <p class="text-gray-400 text-xs mt-2">${notificacao.dataCriacao ? new Date(notificacao.dataCriacao).toLocaleString('pt-PT') : 'Data não disponível'}</p>
+                    ${notificacao.origem === 'admin' && tipoUsuario === 'convidado' ? `
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <button onclick="responderMensagem(${notificacao.id})" class="btn btn-sm btn-primary">
+                                <i data-lucide="reply" class="w-4 h-4"></i>
+                                Responder
+                            </button>
+                        </div>
+                    ` : ''}
+                    ${notificacao.respostas && notificacao.respostas.length > 0 ? `
+                        <div class="mt-3">
+                            <h5 class="text-sm font-medium text-gray-700 mb-2">Respostas (${notificacao.respostas.length})</h5>
+                            ${notificacao.respostas.map(resposta => `
+                                <div class="bg-gray-50 p-3 rounded-lg mb-2">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-xs font-medium text-gray-600">${resposta.origem === 'admin' ? 'Admin' : 'Você'}</span>
+                                        <span class="text-xs text-gray-400">${new Date(resposta.dataCriacao).toLocaleString('pt-PT')}</span>
+                                    </div>
+                                    <p class="text-sm text-gray-800">${resposta.mensagem}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="flex items-center space-x-2">
+                    ${!notificacao.lida ? `
+                        <button type="button" data-notificacao-acao="marcar-lida" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
+                            <i data-lucide="check" class="w-4 h-4" style="pointer-events:none"></i>
+                        </button>
+                    ` : ''}
+                    <button type="button" data-notificacao-acao="excluir" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
+                        <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function atualizarListaNotificacoesDOM() {
+    const container = document.getElementById('listaNotificacoes');
+    if (!container) return;
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const base = obterNotificacoesVisiveisUsuario();
+    const filtradas = filtrarNotificacoesUI(base, filtrosNotificacoesUI);
+    container.innerHTML = renderizarListaNotificacoesHTML(filtradas, tipoUsuario);
+    const contador = document.getElementById('contadorFiltros');
+    if (contador) {
+        contador.textContent = `${filtradas.length} notificação${filtradas.length !== 1 ? 'ões' : ''} encontrada${filtradas.length !== 1 ? 's' : ''}`;
+    }
+    const naoLidasEl = document.getElementById('contadorNaoLidas');
+    if (naoLidasEl) {
+        const n = base.filter(item => !item.lida).length;
+        naoLidasEl.innerHTML = `<i data-lucide="bell" class="w-4 h-4 inline mr-1"></i>${n > 0 ? `${n} não lida${n !== 1 ? 's' : ''}` : 'Todas lidas'}`;
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons?.();
+}
+
+function gerarNotificacoes() {
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const notificacoesBase = obterNotificacoesVisiveisUsuario();
+    const notificacoesNaoLidas = notificacoesBase.filter(n => !n.lida).length;
+    const notificacoesFiltradas = filtrarNotificacoesUI(notificacoesBase, filtrosNotificacoesUI);
+    const buscaVal = (filtrosNotificacoesUI.busca || '').replace(/"/g, '&quot;');
+    const statusVal = filtrosNotificacoesUI.status || '';
 
     return `
         <div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <div class="flex space-x-3">
-            ${tipoUsuario === 'admin' ? `
-                ${(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `<button onclick="criarNotificacaoTeste()" class="btn btn-info">
-                    <i data-lucide="flask-conical" class="w-4 h-4"></i>
-                    Teste Aleatório
-                </button>` : ''}
-                <button onclick="criarNotificacaoPersonalizada()" class="btn btn-warning">
-                    <i data-lucide="edit" class="w-4 h-4"></i>
-                    Criar Personalizada
-                </button>
-            ` : `
-                <div class="text-sm text-gray-600">
-                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                    Suas notificações automáticas e mensagens do administrador
+            <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <div class="flex flex-wrap items-center gap-3">
+                    ${tipoUsuario === 'admin' ? `
+                        ${(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `<button onclick="criarNotificacaoTeste()" class="btn btn-info">
+                            <i data-lucide="flask-conical" class="w-4 h-4"></i>
+                            Teste Aleatório
+                        </button>` : ''}
+                        <button onclick="criarNotificacaoPersonalizada()" class="btn btn-warning">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                            Criar Personalizada
+                        </button>
+                    ` : `
+                        <p class="text-sm text-gray-600">
+                            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                            Suas notificações automáticas e mensagens do administrador
+                        </p>
+                    `}
                 </div>
-            `}
-        </div>
-        <div class="flex space-x-3">
-            <button onclick="marcarTodasComoLidas()" class="btn btn-secondary">
-                <i data-lucide="check" class="w-4 h-4"></i>
-                Marcar Todas como Lidas
-            </button>
-            ${tipoUsuario === 'admin' ? `
-                <button onclick="limparNotificacoes()" class="btn btn-error">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    Limpar Todas
-                </button>
-            ` : ''}
-        </div>
-    </div>
-    ${tipoUsuario === 'admin' ? `
-    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%); border: 3px solid #7c3aed; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h3 class="text-lg font-bold" style="color: #4c1d95;">
-                    <i data-lucide="mail" class="w-5 h-5 inline mr-1"></i> Enviar Convite
-                </h3>
-                <p class="text-sm" style="color: #5b21b6;">Enviar código de acesso e instruções de login por Email ou WhatsApp.</p>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="marcarTodasComoLidas()" class="btn btn-secondary">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        Marcar Todas como Lidas
+                    </button>
+                    ${tipoUsuario === 'admin' ? `
+                        <button onclick="limparNotificacoes()" class="btn btn-error">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            Limpar Todas
+                        </button>
+                    ` : ''}
+                </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <select id="conviteConvidadoNotificacoes" class="border-2 border-purple-300 rounded px-3 py-2 bg-white text-gray-800 min-w-[180px]">
-                    <option value="">Escolher convidado...</option>
-                    ${(() => { try { const lista = (typeof obterConvidadosAtual === 'function' ? obterConvidadosAtual() : window.convidados) || []; return lista.filter(c => c && c.ativo).map(c => `<option value="${String(c.codigo || c.id || '').replace(/"/g, '&quot;')}">${(c.nome || 'Convidado')} (${c.codigo || c.id || ''})</option>`).join(''); } catch (e) { return ''; } })()}
-                </select>
-                <button onclick="enviarConviteDoSeletor()" class="btn text-white" style="background-color: #7c3aed;">
-                    <i data-lucide="send" class="w-4 h-4"></i> Enviar Convite
-                </button>
-                <button onclick="carregarSecao('convidados')" class="btn btn-secondary">Ver Gestão de Convidados</button>
-            </div>
-        </div>
-    </div>
-    ` : ''}
-    
-    <div class="card p-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h3 class="text-lg font-semibold">Alertas Automáticos (v2)</h3>
-                <p class="text-sm text-gray-600">Enviar resumo de prazos e honorários por Email ou WhatsApp.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <button type="button" data-acao="baixarAlertasPDF" onclick="typeof baixarAlertasPDF==='function'&&baixarAlertasPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i>
-                    Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarAlertasEmail" onclick="typeof enviarAlertasEmail==='function'&&enviarAlertasEmail();return false" class="btn btn-primary">
-                    <i data-lucide="mail" class="w-4 h-4"></i>
-                    Enviar por Email
-                </button>
-                <button type="button" data-acao="enviarAlertasWhatsApp" onclick="typeof enviarAlertasWhatsApp==='function'&&enviarAlertasWhatsApp();return false" class="btn btn-success">
-                    <i data-lucide="message-circle" class="w-4 h-4"></i>
-                    Enviar por WhatsApp
-                </button>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
-                <input id="alertasEmailDestino" type="email" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: cliente@email.com">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
-                <input id="alertasWhatsAppDestino" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 351912345678">
-            </div>
-        </div>
-        <div class="mt-3 text-xs text-gray-500">
-            Dica: Email e WhatsApp enviam o resumo em PDF. O PDF é guardado nas transferências para anexar.
-        </div>
-    </div>
-    
-    <div class="card p-6 rounded-lg" style="background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%); border: 3px solid #0d9488; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h3 class="text-lg font-bold" style="color: #0f766e;">
-                    <i data-lucide="file-text" class="w-5 h-5 inline mr-1"></i> Notificações em PDF
-                </h3>
-                <p class="text-sm" style="color: #0d9488;">Enviar a lista de notificações (conforme filtros) por Email ou WhatsApp em PDF.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
-                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
-                </button>
-                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
-                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
-                </button>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Email de destino</label>
-                <input id="notificacoesEmailDestino" type="email" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: destinatario@email.com">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">WhatsApp (com indicativo)</label>
-                <input id="notificacoesWhatsAppDestino" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 351912345678">
-            </div>
-        </div>
-        <div class="mt-3 text-xs text-gray-500">
-            O PDF é guardado nas transferências. Anexe-o ao abrir o email ou WhatsApp.
-        </div>
-    </div>
-    
-    <div class="card p-6 border-blue-200 bg-blue-50">
-        <h3 class="text-lg font-semibold mb-2 text-blue-800">
-            <i data-lucide="bell" class="w-5 h-5 inline mr-1"></i> Alertas do navegador
-        </h3>
-        <p class="text-sm text-blue-700 mb-3">
-            Receba notificações de prazos, tarefas e honorários vencidos mesmo quando o site está em background.
-        </p>
-        ${typeof Notification !== 'undefined' ? (Notification.permission === 'granted'
-            ? '<p class="text-sm text-green-700 font-medium">âœ“ Notificações ativadas</p>'
-            : Notification.permission === 'denied'
-                ? '<p class="text-sm text-gray-600">Notificações bloqueadas. Ative nas definições do browser.</p>'
-                : '<button onclick="solicitarPermissaoNotificacoes()" class="btn btn-primary"><i data-lucide="bell-ring" class="w-4 h-4"></i> Ativar notificações</button>'
-        ) : '<p class="text-sm text-gray-500">O seu browser não suporta notificações.</p>'}
-    </div>
-    
-    <!-- Filtros Inteligentes -->
-    <div class="card p-6">
-        <h3 class="text-lg font-semibold mb-4">Filtros Inteligentes</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
-                <select id="filtroPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
-                    <option value="">Todas as prioridades</option>
-                    <option value="alta">Alta</option>
-                    <option value="media">Média</option>
-                    <option value="baixa">Baixa</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                <select id="filtroTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
-                    <option value="">Todos os tipos</option>
-                    <option value="mensagem_admin">Mensagem do Admin</option>
-                    <option value="resposta_convidado">Resposta do Convidado</option>
-                    <option value="cliente_autorizado">Cliente Autorizado</option>
-                    <option value="documento_anexado">Documento Anexado</option>
-                    <option value="prazo_proximo">Prazo Próximo</option>
-                    <option value="honorario">Honorário</option>
-                    <option value="prazo">Prazo</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select id="filtroStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
-                    <option value="">Todas</option>
-                    <option value="nao_lida">Não Lidas</option>
-                    <option value="lida">Lidas</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Período</label>
-                <select id="filtroPeriodo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
-                    <option value="">Todos</option>
-                    <option value="hoje">Hoje</option>
-                    <option value="semana">Esta Semana</option>
-                    <option value="mes">Este Mês</option>
-                </select>
-            </div>
-        </div>
-        
-        <div class="flex justify-between items-center mt-4">
-            <button onclick="limparFiltrosNotificacoes()" class="btn btn-secondary">
-                <i data-lucide="x" class="w-4 h-4"></i>
-                Limpar Filtros
-            </button>
-            <div class="text-sm text-gray-600">
-                <span id="contadorFiltros">${notificacoesFiltradas.length} notificações encontradas</span>
-            </div>
-        </div>
-        <div class="mt-6 pt-6 border-t border-gray-200">
-            <h4 class="text-sm font-semibold text-gray-700 mb-2">Exportar notificações em PDF</h4>
-            <p class="text-xs text-gray-500 mb-3">As notificações acima (conforme filtros) serão exportadas em PDF. Use os campos Email/WhatsApp do card Alertas Automáticos para o destino.</p>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" data-acao="baixarNotificacoesPDF" onclick="typeof baixarNotificacoesPDF==='function'&&baixarNotificacoesPDF();return false" class="btn btn-secondary">
-                    <i data-lucide="file-down" class="w-4 h-4"></i> Baixar PDF
-                </button>
-                <button type="button" data-acao="enviarNotificacoesEmail" onclick="typeof enviarNotificacoesEmail==='function'&&enviarNotificacoesEmail();return false" class="btn btn-primary">
-                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar por Email
-                </button>
-                <button type="button" data-acao="enviarNotificacoesWhatsApp" onclick="typeof enviarNotificacoesWhatsApp==='function'&&enviarNotificacoesWhatsApp();return false" class="btn btn-success">
-                    <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por WhatsApp
-                </button>
-            </div>
-        </div>
-    </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-red-100 rounded-lg">
-                            <i data-lucide="bell" class="w-6 h-6 text-red-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Não Lidas</p>
-                            <p class="text-2xl font-bold text-gray-900">${notificacoesNaoLidas}</p>
-                        </div>
+
+            <p id="contadorNaoLidas" class="text-sm text-gray-600">
+                <i data-lucide="bell" class="w-4 h-4 inline mr-1"></i>
+                ${notificacoesNaoLidas > 0 ? `${notificacoesNaoLidas} não lida${notificacoesNaoLidas !== 1 ? 's' : ''}` : 'Todas lidas'}
+            </p>
+
+            <div class="card p-4 border-blue-200 bg-blue-50">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-blue-800">
+                            <i data-lucide="bell" class="w-4 h-4 inline mr-1"></i> Alertas do navegador
+                        </h3>
+                        <p class="text-xs text-blue-700 mt-1">Prazos e honorários vencidos mesmo com o site em background.</p>
                     </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="calendar" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Hoje</p>
-                            <p class="text-2xl font-bold text-gray-900">${notificacoesHoje}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${notificacoesFiltradas.length}</p>
-                        </div>
+                    <div>
+                        ${typeof Notification !== 'undefined' ? (Notification.permission === 'granted'
+                            ? '<span class="text-sm text-green-700 font-medium">Ativadas</span>'
+                            : Notification.permission === 'denied'
+                                ? '<span class="text-sm text-gray-600">Bloqueadas nas definições do browser</span>'
+                                : '<button onclick="solicitarPermissaoNotificacoes()" class="btn btn-primary btn-sm"><i data-lucide="bell-ring" class="w-4 h-4"></i> Ativar</button>'
+                        ) : '<span class="text-sm text-gray-500">Browser não suporta notificações</span>'}
                     </div>
                 </div>
             </div>
 
-            <div class="space-y-4">
-                ${notificacoesFiltradas.length === 0 ? `
-                    <div class="card p-8 text-center">
-                        <i data-lucide="bell-off" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
-                        <h3 class="text-lg font-semibold text-gray-600 mb-2">Nenhuma notificação</h3>
-                        <p class="text-gray-500">Você está em dia! Não há notificações pendentes.</p>
+            <div class="card p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2" for="filtroBuscaNotificacoes">Pesquisar</label>
+                        <input id="filtroBuscaNotificacoes" type="text" value="${buscaVal}" placeholder="Título, mensagem ou tipo..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" oninput="aplicarFiltrosNotificacoes()">
                     </div>
-                ` : notificacoesFiltradas.map(notificacao => `
-                    <div class="card p-4 ${notificacao.lida ? 'opacity-60' : 'border-l-4 border-blue-500'}">
-                        <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                                <div class="flex items-center space-x-2 mb-2">
-                                    <span class="status-badge status-${notificacao.tipo}">${notificacao.tipo}</span>
-                                    ${notificacao.prioridade === 'alta' ? '<span class="status-badge status-alta">Urgente</span>' : ''}
-                                    ${notificacao.origem === 'admin' ? '<span class="status-badge status-info">Admin</span>' : ''}
-                                    ${notificacao.origem === 'convidado' ? '<span class="status-badge status-success">Convidado</span>' : ''}
-                                    <span class="text-xs font-bold text-orange-600">${typeof obterRotuloDestinatarioNotificacao === 'function' ? obterRotuloDestinatarioNotificacao(notificacao.destinatarioId) : (notificacao.destinatarioId === 'admin' ? 'Para: Admin' : notificacao.destinatarioId === 'todos' ? 'Para: Todos' : 'Para: Convidado')}</span>
-                                </div>
-                                <h4 class="font-semibold text-gray-800">${notificacao.titulo}</h4>
-                                <p class="text-gray-600 text-sm mt-1">${notificacao.mensagem}</p>
-                                <p class="text-gray-400 text-xs mt-2">${notificacao.dataCriacao ? new Date(notificacao.dataCriacao).toLocaleString('pt-PT') : 'Data não disponível'}</p>
-                                
-                                ${notificacao.origem === 'admin' && tipoUsuario === 'convidado' ? `
-                                    <div class="mt-3 pt-3 border-t border-gray-200">
-                                        <button onclick="responderMensagem(${notificacao.id})" class="btn btn-sm btn-primary">
-                                            <i data-lucide="reply" class="w-4 h-4"></i>
-                                            Responder
-                                        </button>
-                                    </div>
-                                ` : ''}
-                                
-                                ${notificacao.respostas && notificacao.respostas.length > 0 ? `
-                                    <div class="mt-3">
-                                        <h5 class="text-sm font-medium text-gray-700 mb-2">Respostas (${notificacao.respostas.length})</h5>
-                                        ${notificacao.respostas.map(resposta => `
-                                            <div class="bg-gray-50 p-3 rounded-lg mb-2">
-                                                <div class="flex items-center justify-between mb-1">
-                                                    <span class="text-xs font-medium text-gray-600">${resposta.origem === 'admin' ? 'Admin' : 'Você'}</span>
-                                                    <span class="text-xs text-gray-400">${new Date(resposta.dataCriacao).toLocaleString('pt-PT')}</span>
-                                                </div>
-                                                <p class="text-sm text-gray-800">${resposta.mensagem}</p>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                ` : ''}
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                ${!notificacao.lida ? `
-                                    <button type="button" data-notificacao-acao="marcar-lida" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
-                                        <i data-lucide="check" class="w-4 h-4" style="pointer-events:none"></i>
-                                    </button>
-                                ` : ''}
-                                <button type="button" data-notificacao-acao="excluir" data-notificacao-id="${String(notificacao.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
-                                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
-                                </button>
-                            </div>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2" for="filtroStatus">Status</label>
+                        <select id="filtroStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosNotificacoes()">
+                            <option value=""${statusVal === '' ? ' selected' : ''}>Todas</option>
+                            <option value="nao_lida"${statusVal === 'nao_lida' ? ' selected' : ''}>Não lidas</option>
+                            <option value="lida"${statusVal === 'lida' ? ' selected' : ''}>Lidas</option>
+                        </select>
                     </div>
-                `).join('')}
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <button onclick="limparFiltrosNotificacoes()" class="btn btn-secondary btn-sm">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                        Limpar filtros
+                    </button>
+                    <span id="contadorFiltros" class="text-sm text-gray-600">${notificacoesFiltradas.length} notificação${notificacoesFiltradas.length !== 1 ? 'ões' : ''} encontrada${notificacoesFiltradas.length !== 1 ? 's' : ''}</span>
+                </div>
+            </div>
+
+            <div id="listaNotificacoes" class="space-y-4">
+                ${renderizarListaNotificacoesHTML(notificacoesFiltradas, tipoUsuario)}
             </div>
         </div>
     `;
@@ -15465,13 +15329,9 @@ function inicializarSecao(secao) {
         }, 100);
     }
     if (secao === 'notificacoes') {
-        function initNotif() {
-            inicializarAlertasAutomaticos();
-            aplicarFiltrosNotificacoes();
+        setTimeout(() => {
             if (typeof lucide !== 'undefined') lucide.createIcons?.();
-        }
-        setTimeout(initNotif, 50);
-        setTimeout(initNotif, 200);
+        }, 50);
     }
     if (secao === 'documentos') {
         setTimeout(() => {
@@ -19483,36 +19343,19 @@ function atualizarAposNotificacoes() {
 }
 
 function atualizarBadgeNotificacoes() {
-    const tipoUsuario = appStorage.getItem('tipoUsuario');
-    const convidadoId = appStorage.getItem('convidadoId');
-    
-    // Filtrar notificações baseado no tipo de usuário (igual ao gerarNotificacoes)
-    let notificacoesFiltradas = obterNotificacoesAtual();
-    
-    if (tipoUsuario === 'convidado') {
-        const convidados = obterConvidados();
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => 
-            n.destinatarioId === 'todos' ||
-            String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
-            n.tipo === 'cliente_autorizado' ||
-            n.tipo === 'documento_anexado' ||
-            n.tipo === 'prazo_proximo'
-        );
-    }
-    
+    const notificacoesFiltradas = obterNotificacoesVisiveisUsuario();
     const notificacoesNaoLidas = notificacoesFiltradas.filter(n => !n.lida).length;
-    const badge = document.getElementById('badgeNotificacoes');
-    
-    if (badge) {
+
+    ['badgeNotificacoes', 'badgeNotificacoesHeader'].forEach(id => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
         if (notificacoesNaoLidas > 0) {
             badge.textContent = notificacoesNaoLidas;
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
         }
-    }
+    });
 }
 
 function marcarComoLida(notificacaoId) {
@@ -19715,84 +19558,20 @@ window.enviarMensagemConfirmar = salvarMensagemConvidado;
 
 function aplicarFiltrosNotificacoes() {
     if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'notificacoes') return;
-    const tipoUsuario = appStorage.getItem('tipoUsuario');
-    const convidadoId = appStorage.getItem('convidadoId');
-    
-    // Obter filtros
-    const filtroPrioridade = document.getElementById('filtroPrioridade')?.value || '';
-    const filtroTipo = document.getElementById('filtroTipo')?.value || '';
-    const filtroStatus = document.getElementById('filtroStatus')?.value || '';
-    const filtroPeriodo = document.getElementById('filtroPeriodo')?.value || '';
-    
-    // Filtrar notificações baseado no tipo de usuário
-    let notificacoesFiltradas = obterNotificacoesAtual();
-    
-    if (tipoUsuario === 'convidado') {
-        const convidados = obterConvidados();
-        const convidado = convidados.find(c => String(c.id) === String(convidadoId) || String(c.codigo) === String(convidadoId));
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => 
-            n.destinatarioId === 'todos' ||
-            String(n.destinatarioId) === String(convidadoId) ||
-            (convidado && (String(n.destinatarioId) === String(convidado.id) || String(n.destinatarioId) === String(convidado.codigo))) ||
-            n.tipo === 'cliente_autorizado' ||
-            n.tipo === 'documento_anexado' ||
-            n.tipo === 'prazo_proximo'
-        );
-    }
-    
-    // Aplicar filtros adicionais
-    if (filtroPrioridade) {
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => n.prioridade === filtroPrioridade);
-    }
-    
-    if (filtroTipo) {
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => n.tipo === filtroTipo);
-    }
-    
-    if (filtroStatus === 'nao_lida') {
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => !n.lida);
-    } else if (filtroStatus === 'lida') {
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => n.lida);
-    }
-    
-    if (filtroPeriodo) {
-        const agora = new Date();
-        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-        const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - hoje.getDay());
-        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-        
-        notificacoesFiltradas = notificacoesFiltradas.filter(n => {
-            if (!n.dataCriacao) return false;
-            const dataNotificacao = new Date(n.dataCriacao);
-            
-            switch (filtroPeriodo) {
-                case 'hoje':
-                    return dataNotificacao >= hoje;
-                case 'semana':
-                    return dataNotificacao >= inicioSemana;
-                case 'mes':
-                    return dataNotificacao >= inicioMes;
-                default:
-                    return true;
-            }
-        });
-    }
-    
-    // Atualizar contador
-    const contador = document.getElementById('contadorFiltros');
-    if (contador) {
-        contador.textContent = `${notificacoesFiltradas.length} notificações encontradas`;
-    }
-    
-    // Notificações agora ficam nos detalhes do cliente
-    atualizarAposNotificacoes();
+    filtrosNotificacoesUI = {
+        busca: document.getElementById('filtroBuscaNotificacoes')?.value || '',
+        status: document.getElementById('filtroStatus')?.value || ''
+    };
+    atualizarListaNotificacoesDOM();
 }
 
 function limparFiltrosNotificacoes() {
-    const els = ['filtroPrioridade','filtroTipo','filtroStatus','filtroPeriodo'];
-    els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-    atualizarAposNotificacoes();
+    filtrosNotificacoesUI = { busca: '', status: '' };
+    const busca = document.getElementById('filtroBuscaNotificacoes');
+    const status = document.getElementById('filtroStatus');
+    if (busca) busca.value = '';
+    if (status) status.value = '';
+    atualizarListaNotificacoesDOM();
 }
 
 // === SISTEMA DE COMUNICAÇÃO BIDIRECIONAL ===
