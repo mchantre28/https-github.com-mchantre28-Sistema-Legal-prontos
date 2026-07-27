@@ -33,7 +33,7 @@ test.describe('Segurança API — isolamento entre clientes', () => {
     const processoCliente1 = processos.find((p) => p.numero_processo === 'HER-2026-0001');
     const processoCliente2 = processos.find((p) => p.numero_processo === 'CON-2026-0001');
 
-    test.skip(!processoCliente1 || !processoCliente2, 'Requer seed com dois clientes (apague backend/data/sistema-legal.db e execute npm run seed)');
+    test.skip(!processoCliente1 || !processoCliente2, 'Requer processos HER-2026-0001 e CON-2026-0001 na base (já não incluídos no seed — criar manualmente ou ignorar)');
 
     const cliente1 = await apiLogin('cliente@sistema-legal.pt', 'cliente123', 'cliente');
     expect(cliente1.ok).toBeTruthy();
@@ -64,7 +64,7 @@ test.describe('Segurança API — isolamento entre clientes', () => {
     const admin = await apiLogin('solicitadora@sistema-legal.pt', 'admin123', 'admin');
     const todos = await apiGet('/api/processos', admin.data.token);
     const processoCliente1 = (todos.data.processos || []).find((p) => p.numero_processo === 'HER-2026-0001');
-    test.skip(!processoCliente1, 'Processo HER-2026-0001 em falta no seed');
+    test.skip(!processoCliente1, 'Processo HER-2026-0001 em falta (já não incluído no seed — criar manualmente ou ignorar)');
 
     const resCliente = await apiGet('/api/documentos?processo_id=' + processoCliente1.id, cliente1.data.token);
     expect(resCliente.ok).toBeTruthy();

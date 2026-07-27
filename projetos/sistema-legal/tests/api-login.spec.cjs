@@ -19,10 +19,11 @@ test.describe('Login API', () => {
 
     await page.waitForURL('**/admin.html', { timeout: 10000 });
     await expect(page).toHaveURL(/admin\.html/);
-    await expect(page.locator('text=Área Administrativa')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Lista de processos')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#processosVazio')).toContainText(/Não existem processos registados/i, { timeout: 8000 });
   });
 
-  test('cliente redireciona para cliente.html com processos', async ({ page }) => {
+  test('cliente redireciona para cliente.html (sem processos de demo)', async ({ page }) => {
     await page.goto(BASE + '/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 
@@ -36,13 +37,9 @@ test.describe('Login API', () => {
 
     await page.waitForURL('**/cliente.html', { timeout: 10000 });
     await expect(page.locator('#welcome')).toContainText(/João Silva|cliente@sistema-legal\.pt/i);
-    await expect(page.locator('text=HER-2026-0001')).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=Herança — Espólio de Maria Santos')).toBeVisible();
-    await expect(page.locator('text=Em tramitação')).toBeVisible();
-    await expect(page.getByText(/Trâmites \(\d+ registados?\)|Trâmites \(1 registado\)/i)).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=Abertura do processo')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=requerimento-abertura.pdf')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=notas-internas-solicitadora.pdf')).toHaveCount(0);
+    await expect(page.locator('.cliente-area-badge')).toContainText(/Área do Cliente/i);
+    await expect(page.locator('#processosVazio')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#processosVazio')).toContainText(/Não existem processos associados/i);
   });
 
   test('credenciais erradas mostram erro e mantêm modal', async ({ page }) => {
