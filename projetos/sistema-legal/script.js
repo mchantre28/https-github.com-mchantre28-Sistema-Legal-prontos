@@ -1117,6 +1117,20 @@ async function anularDespesaCloud(id) {
     await firestoreDb.collection('despesas').doc(String(id)).update({ anulado: true, updatedAt: obterServerTimestamp() });
 }
 
+async function atualizarDespesaCloud(id, dados) {
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
+    const docRef = firestoreDb.collection('despesas').doc(String(id));
+    const snap = await docRef.get();
+    if (!snap.exists) throw new Error('Despesa não encontrada');
+    const antigo = snap.data();
+    const prep = prepararDespesaParaFirestore({ ...antigo, ...dados, id });
+    const payload = Object.fromEntries(
+        Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
+    );
+    await docRef.update(payload);
+    return { ...antigo, ...dados, id };
+}
+
 /** Criar pagamento e atualizar somaPagamentos na fatura. */
 async function criarPagamentoCloud(pagamento) {
     if (!isCloudReady()) throw new Error('Firestore não disponível');
@@ -6750,6 +6764,7 @@ function carregarSecao(secao) {
     if (secao === 'clientes') window.__clientesLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'honorarios') window.__honorariosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'pagamentos') window.__pagamentosLimit = LISTA_PAGINA_TAMANHO;
+    if (secao === 'despesas') window.__despesasLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'contratos') window.__contratosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'tarefas') window.__tarefasLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'prazos') window.__prazosLimit = LISTA_PAGINA_TAMANHO;
@@ -6796,6 +6811,10 @@ function carregarSecao(secao) {
 
     if (secao === 'pagamentos') {
         setTimeout(() => { restaurarFiltrosPagamentos(); aplicarFiltrosPagamentos(); }, 100);
+    }
+
+    if (secao === 'despesas') {
+        setTimeout(() => { restaurarFiltrosDespesas(); aplicarFiltrosDespesas(); }, 100);
     }
     
     if (secao === 'prazos') {
@@ -10228,6 +10247,52 @@ function gerarPagamentos() {
     `;
 }
 
+function obterDespesasAtivas() {
+    return (Array.isArray(despesas) ? despesas : []).filter(d => !d.anulado && !d.deleted && d.id !== 'seed-inicial');
+}
+
+function calcularTotalMesDespesas(lista) {
+    const hoje = new Date();
+    const mes = hoje.getMonth();
+    const ano = hoje.getFullYear();
+    return lista.reduce((s, d) => {
+        const data = new Date(d.data || 0);
+        if (Number.isNaN(data.getTime()) || data.getMonth() !== mes || data.getFullYear() !== ano) return s;
+        return s + (parseFloat(d.valor) || 0);
+    }, 0);
+}
+
+function formatarTipoDespesa(tipo) {
+    const map = { taxa: 'Taxa', certidao: 'Certidão', deslocacao: 'Deslocação', fotocopia: 'Fotocópia', outro: 'Outro' };
+    return map[tipo] || (tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : 'Outro');
+}
+
+function obterInfoProcessoDespesa(processoTipo, processoId) {
+    const tipos = { herancas: 'Herança', migracoes: 'Migração', registos: 'Registo' };
+    let proc = null;
+    if (processoTipo === 'herancas') proc = (obterHerancasAtual?.() || []).find(h => String(h.id) === String(processoId));
+    else if (processoTipo === 'migracoes') proc = (obterMigracoesAtual?.() || []).find(m => String(m.id) === String(processoId));
+    else if (processoTipo === 'registos') proc = (obterRegistosAtual?.() || []).find(r => String(r.id) === String(processoId));
+    const nomeProcesso = proc ? (proc.clienteNome || proc.id) : processoId;
+    return {
+        label: `${tipos[processoTipo] || processoTipo}: ${nomeProcesso}`,
+        clienteId: proc?.clienteId || '',
+        clienteNome: proc?.clienteNome || nomeProcesso || 'Cliente'
+    };
+}
+
+function abrirProcessoDespesa(processoTipo, processoId) {
+    const secaoMap = { herancas: 'herancas', migracoes: 'migracoes', registos: 'registos' };
+    const editMap = { herancas: 'editarHerancaDireto', migracoes: 'editarMigracaoDireto', registos: 'editarRegistoDireto' };
+    const secao = secaoMap[processoTipo] || 'herancas';
+    const fnName = editMap[processoTipo] || 'editarHerancaDireto';
+    carregarSecao(secao);
+    setTimeout(() => {
+        const fn = window[fnName];
+        if (typeof fn === 'function') fn(processoId);
+    }, 300);
+}
+
 function obterProcessosParaDespesa() {
     const lista = [];
     (obterHerancasAtual?.() || []).forEach(h => {
@@ -10253,56 +10318,137 @@ function obterProcessoInfo(processoTipo, processoId) {
 }
 
 function gerarDespesas() {
-    const lista = Array.isArray(despesas) ? despesas : [];
-    const valorTotal = lista.reduce((s, d) => s + (parseFloat(d.valor) || 0), 0);
+    const lista = obterDespesasAtivas();
+    const totalMes = calcularTotalMesDespesas(lista);
+    const processosComDespesas = new Set(lista.map(d => `${d.processoTipo}|${d.processoId}`)).size;
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const processosDisponiveis = obterProcessosParaDespesa().length;
+    const mostrarDicaDespesa = tipoUsuario === 'admin' && lista.length === 0 && processosDisponiveis > 0 && !appStorage.getItem('guiaDespesaVisto');
 
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold">Gestão de Despesas</h3>
+            ${mostrarDicaDespesa ? `
+            <div id="dicaPrimeiraDespesa" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de despesas">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Registe a primeira despesa associada a um processo com o botão "Nova Despesa".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiraDespesa')?.remove(); appStorage.setItem('guiaDespesaVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <button onclick="abrirModalNovaDespesa()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Nova Despesa
                 </button>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 gap-4 max-w-md">
                 <div class="card p-4">
-                    <p class="text-sm text-gray-600">Total de despesas</p>
-                    <p class="text-2xl font-bold">${lista.length}</p>
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-100 rounded-lg">
+                            <i data-lucide="receipt" class="w-5 h-5 text-red-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Total este mês</p>
+                            <p class="text-xl font-bold text-red-700">${EURO_HTML}${totalMes.toFixed(2)}</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="card p-4">
-                    <p class="text-sm text-gray-600">Valor total</p>
-                    <p class="text-2xl font-bold text-red-700">${EURO_HTML}${valorTotal.toFixed(2)}</p>
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="folder" class="w-5 h-5 text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Processos com despesas</p>
+                            <p class="text-xl font-bold text-gray-900">${processosComDespesas}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
+
             <div class="card p-6">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr>
-                                <th class="text-left py-2">Processo</th>
-                                <th class="text-left py-2">Descrição</th>
-                                <th class="text-left py-2">Tipo</th>
-                                <th class="text-left py-2">Valor</th>
-                                <th class="text-left py-2">Data</th>
-                                <th class="text-left py-2">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${lista.length === 0 ? '<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhuma despesa registada. Associe despesas a processos (heranças, migrações, registos).</td></tr>' : lista.map(d => `
+                <div class="search-container mb-4">
+                    <i data-lucide="search" class="search-icon w-4 h-4"></i>
+                    <input type="text" id="buscaDespesas" placeholder="Buscar por processo, cliente, descrição ou valor..."
+                           class="search-input" onkeyup="filtrarDespesas()" title="Pode escrever o processo, cliente, descrição ou valor">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                        <select id="filtroTipoDespesa" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosDespesas()">
+                            <option value="">Todos os tipos</option>
+                            ${DESPESA_TIPOS.map(t => `<option value="${t}">${formatarTipoDespesa(t)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Período</label>
+                        <select id="filtroPeriodoDespesa" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosDespesas()">
+                            <option value="">Todos os períodos</option>
+                            <option value="mes">Este mês</option>
+                            <option value="trimestre">Este trimestre</option>
+                            <option value="ano">Este ano</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <button onclick="limparFiltrosDespesas()" class="btn btn-secondary">
+                        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                        Limpar Filtros
+                    </button>
+                    <div class="text-sm text-gray-600">
+                        <span id="contadorDespesas">0</span> despesas encontradas
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="p-6">
+                    <div class="table-responsive">
+                        <table class="w-full">
+                            <thead>
                                 <tr>
-                                    <td class="py-2">${obterProcessoInfo(d.processoTipo, d.processoId)}</td>
-                                    <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
-                                    <td class="py-2">${d.tipo || 'outro'}</td>
-                                    <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
-                                    <td class="py-2">${(d.data || '').toString().split('T')[0]}</td>
-                                    <td class="py-2">
-                                        <button onclick="anularDespesaUi(${JSON.stringify(d.id)})" class="text-red-600 hover:text-red-800 text-sm" title="Anular">Anular</button>
-                                    </td>
+                                    <th class="text-left py-2">Processo</th>
+                                    <th class="text-left py-2">Cliente</th>
+                                    <th class="text-left py-2">Descrição</th>
+                                    <th class="text-left py-2">Tipo</th>
+                                    <th class="text-left py-2">Valor</th>
+                                    <th class="text-left py-2">Data</th>
+                                    <th class="text-left py-2">Ações</th>
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody id="listaDespesas">
+                                ${(function() {
+                                    const limitD = Math.max(LISTA_PAGINA_TAMANHO, window.__despesasLimit || LISTA_PAGINA_TAMANHO);
+                                    const mostrarD = lista.slice(0, limitD);
+                                    const rowsD = mostrarD.map(d => {
+                                        const info = obterInfoProcessoDespesa(d.processoTipo, d.processoId);
+                                        const dataStr = (d.data || '').toString().split('T')[0];
+                                        return `
+                                        <tr>
+                                            <td class="py-2">
+                                                <button type="button" onclick="abrirProcessoDespesa(${JSON.stringify(String(d.processoTipo))}, ${JSON.stringify(String(d.processoId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Abrir processo">
+                                                    ${info.label}
+                                                </button>
+                                            </td>
+                                            <td class="py-2">${renderClienteLink(info.clienteId, info.clienteNome)}</td>
+                                            <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
+                                            <td class="py-2">${formatarTipoDespesa(d.tipo || 'outro')}</td>
+                                            <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
+                                            <td class="py-2">${dataStr}</td>
+                                            <td class="py-2">
+                                                <button type="button" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
+                                                </button>
+                                                <button type="button" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                                                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                                                </button>
+                                            </td>
+                                        </tr>`;
+                                    }).join('');
+                                    const verMaisD = lista.length > limitD ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__despesasLimit = (window.__despesasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosDespesas();" class="btn btn-secondary text-sm">Ver mais (${lista.length - limitD} restantes)</button></td></tr>` : '';
+                                    return rowsD + verMaisD;
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -10317,7 +10463,7 @@ function abrirModalNovaDespesa() {
     }
     const hoje = new Date().toISOString().split('T')[0];
     const opts = processosOpts.map(p => `<option value="${p.processoTipo}|${p.processoId}">${p.label}</option>`).join('');
-    const tipoOpts = DESPESA_TIPOS.map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
+    const tipoOpts = DESPESA_TIPOS.map(t => `<option value="${t}">${formatarTipoDespesa(t)}</option>`).join('');
     const html = `
         <div class="p-6">
             <h3 class="text-lg font-semibold mb-4">Registar Despesa</h3>
@@ -10385,6 +10531,214 @@ async function anularDespesaUi(id) {
     try {
         await anularDespesaCloud(id);
         mostrarNotificacao('Despesa anulada.', 'success');
+        carregarSecao('despesas');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
+function filtrarDespesas() {
+    aplicarFiltrosDespesas();
+}
+
+function despesaMatchPeriodo(despesa, periodo) {
+    return pagamentoMatchPeriodo({ dataPagamento: despesa.data, data: despesa.data }, periodo);
+}
+
+function aplicarFiltrosDespesas() {
+    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'despesas') return;
+    if (!document.getElementById('listaDespesas')) return;
+    const busca = document.getElementById('buscaDespesas')?.value?.toLowerCase() || '';
+    const tipo = document.getElementById('filtroTipoDespesa')?.value || '';
+    const periodo = document.getElementById('filtroPeriodoDespesa')?.value || '';
+
+    let despesasFiltradas = obterDespesasAtivas().filter(d => {
+        const info = obterInfoProcessoDespesa(d.processoTipo, d.processoId);
+        const descricao = (d.descricao || '').toString().toLowerCase();
+        const valorStr = (d.valor != null ? String(d.valor) : '').toLowerCase();
+        const tipoDesp = (d.tipo || 'outro').toString().toLowerCase();
+        const matchBusca = !busca ||
+            info.label.toString().toLowerCase().includes(busca) ||
+            info.clienteNome.toString().toLowerCase().includes(busca) ||
+            descricao.includes(busca) ||
+            valorStr.includes(busca);
+        const matchTipo = !tipo || tipoDesp === tipo;
+        const matchPeriodo = despesaMatchPeriodo(d, periodo);
+        return matchBusca && matchTipo && matchPeriodo;
+    });
+
+    despesasFiltradas = despesasFiltradas.slice().sort((a, b) => {
+        const da = new Date(a.data || 0).getTime();
+        const db = new Date(b.data || 0).getTime();
+        return db - da;
+    });
+
+    atualizarListaDespesas(despesasFiltradas);
+
+    const contador = document.getElementById('contadorDespesas');
+    if (contador) contador.textContent = despesasFiltradas.length;
+
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    }, 100);
+    try { appStorage.setItem('filtrosDespesas', JSON.stringify({ busca, tipo, periodo })); } catch (e) {}
+}
+
+function restaurarFiltrosDespesas() {
+    try {
+        const s = appStorage.getItem('filtrosDespesas');
+        if (!s) return;
+        const o = JSON.parse(s);
+        const set = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+        set('buscaDespesas', o.busca);
+        set('filtroTipoDespesa', o.tipo);
+        set('filtroPeriodoDespesa', o.periodo);
+    } catch (e) {}
+}
+
+function limparFiltrosDespesas() {
+    ['buscaDespesas', 'filtroTipoDespesa', 'filtroPeriodoDespesa'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    aplicarFiltrosDespesas();
+}
+
+function atualizarListaDespesas(despesasFiltradas) {
+    const tbody = document.getElementById('listaDespesas');
+    if (!tbody) return;
+    const totalAtivos = obterDespesasAtivas().length;
+
+    if (despesasFiltradas.length === 0) {
+        const temFiltros = (document.getElementById('buscaDespesas')?.value?.trim() || document.getElementById('filtroTipoDespesa')?.value || document.getElementById('filtroPeriodoDespesa')?.value);
+        const msg = totalAtivos > 0 && temFiltros
+            ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhuma despesa corresponde aos filtros.</p><button type="button" onclick="limparFiltrosDespesas()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
+            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhuma despesa registada.</p><button type="button" onclick="abrirModalNovaDespesa()" class="btn btn-primary text-sm">Registar despesa</button></td></tr>';
+        tbody.innerHTML = msg;
+        setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
+        return;
+    }
+
+    const limitD = Math.max(LISTA_PAGINA_TAMANHO, window.__despesasLimit || LISTA_PAGINA_TAMANHO);
+    const mostrarD = despesasFiltradas.slice(0, limitD);
+    const rowsD = mostrarD.map(d => {
+        const info = obterInfoProcessoDespesa(d.processoTipo, d.processoId);
+        const dataStr = (d.data || '').toString().split('T')[0];
+        return `
+        <tr>
+            <td class="py-2">
+                <button type="button" onclick="abrirProcessoDespesa(${JSON.stringify(String(d.processoTipo))}, ${JSON.stringify(String(d.processoId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Abrir processo">
+                    ${info.label}
+                </button>
+            </td>
+            <td class="py-2">${renderClienteLink(info.clienteId, info.clienteNome)}</td>
+            <td class="py-2">${(d.descricao || '-').toString().substring(0, 50)}</td>
+            <td class="py-2">${formatarTipoDespesa(d.tipo || 'outro')}</td>
+            <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
+            <td class="py-2">${dataStr}</td>
+            <td class="py-2">
+                <button type="button" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+                <button type="button" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    const verMaisD = despesasFiltradas.length > limitD ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__despesasLimit = (window.__despesasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosDespesas();" class="btn btn-secondary text-sm">Ver mais (${despesasFiltradas.length - limitD} restantes)</button></td></tr>` : '';
+    tbody.innerHTML = rowsD + verMaisD;
+    setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
+}
+
+function obterProcessosParaDespesaEdicao(despesa) {
+    const processos = obterProcessosParaDespesa();
+    const chave = `${despesa.processoTipo}|${despesa.processoId}`;
+    if (despesa.processoId && !processos.some(p => `${p.processoTipo}|${p.processoId}` === chave)) {
+        processos.unshift({
+            processoTipo: despesa.processoTipo || 'herancas',
+            processoId: despesa.processoId,
+            label: obterInfoProcessoDespesa(despesa.processoTipo, despesa.processoId).label
+        });
+    }
+    return processos;
+}
+
+function abrirModalEdicaoDespesa(id) {
+    const despesa = obterDespesasAtivas().find(d => String(d.id) === String(id));
+    if (!despesa) {
+        mostrarNotificacao('Despesa não encontrada.', 'error');
+        return;
+    }
+    const processosOpts = obterProcessosParaDespesaEdicao(despesa);
+    if (processosOpts.length === 0) {
+        mostrarNotificacao('Não há processos disponíveis para esta despesa.', 'info');
+        return;
+    }
+    const chaveAtual = `${despesa.processoTipo}|${despesa.processoId}`;
+    const opts = processosOpts.map(p => {
+        const val = `${p.processoTipo}|${p.processoId}`;
+        return `<option value="${val}" ${val === chaveAtual ? 'selected' : ''}>${p.label}</option>`;
+    }).join('');
+    const tipoVal = despesa.tipo || 'outro';
+    const tipoOpts = DESPESA_TIPOS.map(t => `<option value="${t}" ${tipoVal === t ? 'selected' : ''}>${formatarTipoDespesa(t)}</option>`).join('');
+    const dataVal = (despesa.data || '').toString().split('T')[0];
+    const html = `
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Editar Despesa</h3>
+            <form id="formEditarDespesa" onsubmit="guardarEdicaoDespesa(event, ${JSON.stringify(String(id))})" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Processo *</label>
+                    <select name="processo" required class="w-full p-2 border rounded-lg">
+                        <option value="">Selecione o processo</option>
+                        ${opts}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Descrição *</label>
+                    <input type="text" name="descricao" required class="w-full p-2 border rounded-lg" value="${(despesa.descricao || '').replace(/"/g, '&quot;')}" placeholder="Ex: Taxa IRN">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Tipo</label>
+                    <select name="tipo" class="w-full p-2 border rounded-lg">${tipoOpts}</select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Valor (${EURO_HTML}) *</label>
+                    <input type="number" name="valor" step="0.01" min="0" required class="w-full p-2 border rounded-lg" value="${(parseFloat(despesa.valor) || 0).toFixed(2)}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Data *</label>
+                    <input type="date" name="data" required class="w-full p-2 border rounded-lg" value="${dataVal}">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    `;
+    mostrarModalRobusto(html);
+}
+
+async function guardarEdicaoDespesa(event, id) {
+    event.preventDefault();
+    const form = event.target;
+    const processoVal = form.processo?.value;
+    if (!processoVal) { mostrarNotificacao('Selecione o processo.', 'error'); return; }
+    const [processoTipo, processoId] = processoVal.split('|');
+    const valor = parseFloat(form.valor?.value || 0);
+    if (valor < 0) { mostrarNotificacao('Valor inválido.', 'error'); return; }
+    try {
+        await atualizarDespesaCloud(id, {
+            processoTipo: processoTipo || 'herancas',
+            processoId,
+            descricao: form.descricao?.value || '',
+            tipo: form.tipo?.value || 'outro',
+            valor,
+            data: form.data?.value || new Date().toISOString().split('T')[0]
+        });
+        fecharModalRobusto();
+        mostrarNotificacao('Despesa atualizada.', 'success');
         carregarSecao('despesas');
     } catch (e) {
         mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
