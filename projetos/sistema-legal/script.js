@@ -4032,7 +4032,7 @@ function ocultarSecoesConvidado() {
     secoesPermitidas.forEach(id => {
         const elemento = document.getElementById(id);
         if (elemento) {
-            elemento.style.display = 'block';
+            elemento.style.display = id === 'nav-calendario' ? 'none' : 'block';
         }
     });
 }
@@ -4063,7 +4063,7 @@ function mostrarTodasSecoes() {
     todasSecoes.forEach(id => {
         const elemento = document.getElementById(id);
         if (elemento) {
-            elemento.style.display = 'block';
+            elemento.style.display = id === 'nav-calendario' ? 'none' : 'block';
         }
     });
 }
@@ -4091,6 +4091,7 @@ let calendarioFiltroCliente = '';
 let calendarioFiltroStatus = '';
 let calendarioFiltroTipo = '';
 let calendarioFiltroPrioridade = '';
+let prazosTabAtiva = 'lista';
 let secaoAtiva = 'dashboard';
 let relatorioAvancadoUltimosResultados = [];
 
@@ -4112,6 +4113,7 @@ window.calendarioFiltroCliente = calendarioFiltroCliente;
 window.calendarioFiltroStatus = calendarioFiltroStatus;
 window.calendarioFiltroTipo = calendarioFiltroTipo;
 window.calendarioFiltroPrioridade = calendarioFiltroPrioridade;
+window.prazosTabAtiva = prazosTabAtiva;
 window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
 
 // === FUNÇÃO DE TESTE ===
@@ -4964,16 +4966,16 @@ function inicializarGestosTouch() {
 }
 
 function navegarSecaoAnterior() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
-    const indiceAtual = secoes.indexOf(secaoAtiva);
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual > 0) {
         carregarSecao(secoes[indiceAtual - 1]);
     }
 }
 
 function navegarProximaSecao() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'calendario', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
-    const indiceAtual = secoes.indexOf(secaoAtiva);
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual < secoes.length - 1) {
         carregarSecao(secoes[indiceAtual + 1]);
     }
@@ -6671,6 +6673,16 @@ function toggleSidebar() {
 function carregarSecao(secao) {
     // Cancelar refresh pendente dos listeners (prioridade à navegação explícita do utilizador)
     if (typeof cancelarRefreshListener === 'function') cancelarRefreshListener();
+
+    if (secao === 'calendario') {
+        prazosTabAtiva = 'calendario';
+        window.prazosTabAtiva = 'calendario';
+        secao = 'prazos';
+    } else if (secao === 'prazos' && !window.__prazosPreservarTab) {
+        prazosTabAtiva = 'lista';
+        window.prazosTabAtiva = 'lista';
+    }
+    if (window.__prazosPreservarTab) window.__prazosPreservarTab = false;
     
     // Verificar se é convidado e redirecionar para clientes se necessário
     const tipoUsuario = appStorage.getItem('tipoUsuario');
@@ -6786,7 +6798,7 @@ function carregarSecao(secao) {
     
     if (secao === 'prazos') {
         setTimeout(() => {
-            aplicarFiltrosPrazos();
+            alternarTabPrazos(window.prazosTabAtiva || 'lista');
             lucide.createIcons();
         }, 100);
     }
@@ -6794,12 +6806,6 @@ function carregarSecao(secao) {
     if (secao === 'tarefas') {
         setTimeout(() => {
             aplicarFiltrosTarefas();
-        }, 100);
-    }
-    
-    if (secao === 'calendario') {
-        setTimeout(() => {
-            inicializarCalendarioPrazos();
         }, 100);
     }
     
@@ -11045,6 +11051,47 @@ function isContratoEmCurso(c) {
     return s === 'pendente' || s === 'em_andamento';
 }
 
+function normalizarStatusPrazo(status) {
+    const s = String(status || 'ativo').toLowerCase();
+    const map = { pendente: 'ativo', em_andamento: 'ativo', active: 'ativo' };
+    return map[s] || s;
+}
+
+function formatarStatusPrazo(status) {
+    const s = normalizarStatusPrazo(status);
+    if (s === 'concluido') return 'Concluído';
+    if (s === 'vencido') return 'Vencido';
+    if (s === 'cancelado') return 'Cancelado';
+    if (s === 'ativo') return 'Ativo';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function normalizarPrioridadePrazo(prioridade) {
+    const p = String(prioridade || 'media').toLowerCase();
+    const map = { urgente: 'critica', urgent: 'critica' };
+    return map[p] || p;
+}
+
+function formatarPrioridadePrazo(prioridade) {
+    const p = normalizarPrioridadePrazo(prioridade);
+    if (p === 'baixa') return 'Baixa';
+    if (p === 'media') return 'Média';
+    if (p === 'alta') return 'Alta';
+    if (p === 'critica') return 'Crítica';
+    return p;
+}
+
+function prazoEstaVencido(prazo) {
+    if (!prazo || !prazo.dataLimite) return false;
+    const s = normalizarStatusPrazo(prazo.status);
+    if (s === 'concluido' || s === 'cancelado') return false;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const limite = new Date(prazo.dataLimite);
+    limite.setHours(0, 0, 0, 0);
+    return limite < hoje || s === 'vencido';
+}
+
 function gerarHonorarios() {
     const honorariosEmDivida = honorarios.filter(h => isHonorarioEmAberto(h)).length;
     const hoje = new Date();
@@ -11348,222 +11395,182 @@ function gerarContratos() {
 
 function gerarPrazos() {
     const listaPrazos = obterPrazosAtual();
-    const prazosAtivos = listaPrazos.filter(p => p.status === 'ativo').length;
-    const prazosVencidos = listaPrazos.filter(p => p.status === 'vencido').length;
-    const prazosUrgentes = listaPrazos.filter(p => p.prioridade === 'alta' || p.prioridade === 'critica').length;
-    const prazosHoje = listaPrazos.filter(p => {
-        try {
-            if (!p.dataLimite) return false;
-            const hoje = new Date().toISOString().split('T')[0];
-            const dataLimite = new Date(p.dataLimite).toISOString().split('T')[0];
-            return dataLimite === hoje && p.status === 'ativo';
-        } catch (error) {
-            console.warn('Erro ao processar data do prazo:', p.dataLimite);
-            return false;
-        }
-    }).length;
+    const tabAtiva = window.prazosTabAtiva || 'lista';
+    const isLista = tabAtiva === 'lista';
 
     return `
         <div class="space-y-6">
-            <div class="flex flex-wrap justify-between items-center gap-4">
-                <div class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
-                    <i data-lucide="info" class="w-4 h-4 inline mr-2"></i>
-                    Prazos criados automaticamente pelas áreas de execução
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <div class="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50" role="tablist" aria-label="Vista de prazos">
+                    <button type="button" id="prazosTabBtnLista" role="tab" aria-selected="${isLista}"
+                        onclick="alternarTabPrazos('lista')"
+                        class="btn ${isLista ? 'btn-primary' : 'btn-secondary'} text-sm px-4 py-2">
+                        <i data-lucide="list" class="w-4 h-4 mr-1"></i>
+                        Lista
+                    </button>
+                    <button type="button" id="prazosTabBtnCalendario" role="tab" aria-selected="${!isLista}"
+                        onclick="alternarTabPrazos('calendario')"
+                        class="btn ${!isLista ? 'btn-primary' : 'btn-secondary'} text-sm px-4 py-2">
+                        <i data-lucide="calendar-days" class="w-4 h-4 mr-1"></i>
+                        Calendário
+                    </button>
                 </div>
                 <button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Prazo
                 </button>
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+            <div id="prazosTabLista" role="tabpanel" class="${isLista ? '' : 'hidden'}">
+                <p class="text-sm text-gray-500 mb-4">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    Prazos criados automaticamente a partir de contratos, heranças, migrações e registos.
+                </p>
+
                 <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="clock" class="w-6 h-6 text-blue-600"></i>
+                    <div class="search-container mb-4">
+                        <i data-lucide="search" class="search-icon w-4 h-4"></i>
+                        <input type="text" id="buscaPrazos" placeholder="Buscar por cliente, tipo ou descrição..."
+                               class="search-input" onkeyup="aplicarFiltrosPrazos()">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                            <select id="filtroStatusPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
+                                <option value="">Todos os status</option>
+                                <option value="ativo">Ativo</option>
+                                <option value="concluido">Concluído</option>
+                                <option value="vencido">Vencido</option>
+                            </select>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosAtivos}</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Vencimento</label>
+                            <select id="filtroVencimentoPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
+                                <option value="">Todas as datas</option>
+                                <option value="hoje">Vence hoje</option>
+                                <option value="semana">Esta semana</option>
+                                <option value="vencido">Vencidos</option>
+                            </select>
                         </div>
                     </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-red-100 rounded-lg">
-                            <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+
+                    <div class="flex flex-wrap justify-between items-center gap-3 mt-4">
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" onclick="aplicarFiltroRapidoPrazos('hoje')" class="btn btn-secondary text-sm">Hoje</button>
+                            <button type="button" onclick="aplicarFiltroRapidoPrazos('semana')" class="btn btn-secondary text-sm">Esta semana</button>
+                            <button type="button" onclick="aplicarFiltroRapidoPrazos('vencido')" class="btn btn-secondary text-sm">Vencidos</button>
+                            <button type="button" onclick="limparFiltrosPrazos()" class="btn btn-secondary text-sm">
+                                <i data-lucide="x" class="w-4 h-4 mr-1"></i>
+                                Limpar
+                            </button>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Vencidos</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosVencidos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-orange-100 rounded-lg">
-                            <i data-lucide="zap" class="w-6 h-6 text-orange-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Urgentes</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosUrgentes}</p>
+                        <div class="text-sm text-gray-600">
+                            <span id="contadorPrazos">0</span> prazos encontrados
                         </div>
                     </div>
                 </div>
 
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="calendar" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Hoje</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosHoje}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Informação sobre prazos automáticos -->
-            <div class="card p-6 bg-blue-50 border-l-4 border-blue-400">
-                <div class="flex items-start">
-                    <div class="flex-shrink-0">
-                        <i data-lucide="clock" class="w-6 h-6 text-blue-600"></i>
-                    </div>
-                    <div class="ml-3">
-                        <h3 class="text-sm font-medium text-blue-800">Prazos Automáticos</h3>
-                        <div class="mt-2 text-sm text-blue-700">
-                            <p>Os prazos são criados automaticamente quando você adiciona itens nas áreas de execução:</p>
-                            <ul class="mt-2 list-disc list-inside space-y-1">
-                                <li><strong>Contratos:</strong> Prazo de 30 dias</li>
-                                <li><strong>Heranças:</strong> Prazo de 60 dias</li>
-                                <li><strong>Migração:</strong> Prazo de 90 dias</li>
-                                <li><strong>Registos:</strong> Prazo de 15 dias</li>
-                            </ul>
-                            <p class="mt-2 text-xs text-blue-600">Você pode editar ou excluir prazos conforme necessário.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card p-6">
-                <div class="search-container mb-4">
-                    <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaPrazos" placeholder="Buscar prazos..." 
-                           class="search-input" onkeyup="filtrarPrazos()">
-                </div>
-                
-                <!-- Filtros Avançados -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                        <select id="filtroStatusPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
-                            <option value="">Todos os status</option>
-                            <option value="pendente">Pendente</option>
-                            <option value="em_andamento">Em Andamento</option>
-                            <option value="concluido">Concluído</option>
-                            <option value="vencido">Vencido</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                        <select id="filtroTipoPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
-                            <option value="">Todos os tipos</option>
-                            <option value="contrato">Contrato</option>
-                            <option value="heranca">Herança</option>
-                            <option value="migracao">Migração</option>
-                            <option value="registo">Registo</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Data de Vencimento</label>
-                        <select id="filtroVencimentoPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
-                            <option value="">Todas as datas</option>
-                            <option value="hoje">Vence hoje</option>
-                            <option value="semana">Esta semana</option>
-                            <option value="mes">Este mês</option>
-                            <option value="vencido">Vencidos</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
-                        <select id="filtroPrioridadePrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPrazos()">
-                            <option value="">Todas as prioridades</option>
-                            <option value="baixa">Baixa</option>
-                            <option value="media">Média</option>
-                            <option value="alta">Alta</option>
-                            <option value="urgente">Urgente</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="flex justify-between items-center mt-4">
-                    <button onclick="limparFiltrosPrazos()" class="btn btn-secondary">
-                        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
-                        Limpar Filtros
-                    </button>
-                    <div class="text-sm text-gray-600">
-                        <span id="contadorPrazos">0</span> prazos encontrados
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="p-6">
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('descricao')" title="Ordenar por descrição">Descrição <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('dataLimite')" title="Ordenar por data">Data Limite <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('prioridade')" title="Ordenar por prioridade">Prioridade <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th>Criado por</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="listaPrazos">
-                                ${listaPrazos.length === 0
-                                    ? '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>'
-                                    : listaPrazos.map(prazo => `
+                <div class="card">
+                    <div class="p-6">
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
                                     <tr>
-                                        <td>
-                                            ${renderClienteLink(prazo.clienteId, prazo.clienteNome)}
-                                            ${renderMetaAuditoria('prazo', prazo)}
-                                        </td>
-                                        <td>${prazo.tipo}</td>
-                                        <td>${prazo.descricao}</td>
-                                        <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
-                                        <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
-                                        <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
-                                        <td>${prazo.criadoPor || '-'}</td>
-                                        <td>
-                                            <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2">
-                                                <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                                            </button>
-                                            <button type="button" data-prazo-acao="anexos" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2">
-                                                <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
-                                            </button>
-                                            <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800">
-                                                <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
-                                            </button>
-                                        </td>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('cliente')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">↕</span></th>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">↕</span></th>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('descricao')" title="Ordenar por descrição">Descrição <span class="text-xs text-blue-500">↕</span></th>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('dataLimite')" title="Ordenar por data">Data Limite <span class="text-xs text-blue-500">↕</span></th>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('prioridade')" title="Ordenar por prioridade">Prioridade <span class="text-xs text-blue-500">↕</span></th>
+                                        <th class="cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarPrazos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">↕</span></th>
+                                        <th>Criado por</th>
+                                        <th>Ações</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody id="listaPrazos">
+                                    ${listaPrazos.length === 0
+                                        ? '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo registado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>'
+                                        : listaPrazos.map(prazo => renderLinhaPrazo(prazo)).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <div id="prazosTabCalendario" role="tabpanel" class="${isLista ? 'hidden' : ''}">
+                ${gerarCalendarioPrazosConteudo()}
             </div>
         </div>
     `;
+}
+
+function renderLinhaPrazo(prazo) {
+    const prioridadeNorm = normalizarPrioridadePrazo(prazo.prioridade);
+    const statusNorm = normalizarStatusPrazo(prazo.status);
+    const vencido = prazoEstaVencido(prazo);
+    const dataFmt = prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida';
+    return `
+        <tr class="${vencido ? 'bg-red-50/60' : ''}">
+            <td>
+                ${renderClienteLink(prazo.clienteId, prazo.clienteNome)}
+                ${renderMetaAuditoria('prazo', prazo)}
+            </td>
+            <td>${prazo.tipo || '-'}</td>
+            <td>${prazo.descricao || '-'}</td>
+            <td class="${vencido ? 'text-red-700 font-medium' : ''}">${dataFmt}</td>
+            <td><span class="status-badge status-${prioridadeNorm}">${formatarPrioridadePrazo(prazo.prioridade)}</span></td>
+            <td><span class="status-badge status-${statusNorm}">${formatarStatusPrazo(prazo.status)}</span></td>
+            <td>${prazo.criadoPor || '-'}</td>
+            <td>
+                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+                <button type="button" data-prazo-acao="anexos" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Anexos">
+                    <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
+                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+}
+
+function alternarTabPrazos(tab) {
+    prazosTabAtiva = tab === 'calendario' ? 'calendario' : 'lista';
+    window.prazosTabAtiva = prazosTabAtiva;
+
+    const listaPanel = document.getElementById('prazosTabLista');
+    const calPanel = document.getElementById('prazosTabCalendario');
+    const btnLista = document.getElementById('prazosTabBtnLista');
+    const btnCal = document.getElementById('prazosTabBtnCalendario');
+    if (!listaPanel || !calPanel) return;
+
+    const isLista = prazosTabAtiva === 'lista';
+    listaPanel.classList.toggle('hidden', !isLista);
+    calPanel.classList.toggle('hidden', isLista);
+    btnLista?.setAttribute('aria-selected', isLista ? 'true' : 'false');
+    btnCal?.setAttribute('aria-selected', !isLista ? 'true' : 'false');
+    btnLista?.classList.toggle('btn-primary', isLista);
+    btnLista?.classList.toggle('btn-secondary', !isLista);
+    btnCal?.classList.toggle('btn-primary', !isLista);
+    btnCal?.classList.toggle('btn-secondary', isLista);
+
+    if (isLista) {
+        aplicarFiltrosPrazos();
+    } else {
+        inicializarCalendarioPrazos();
+    }
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+function aplicarFiltroRapidoPrazos(tipo) {
+    const vencEl = document.getElementById('filtroVencimentoPrazo');
+    const statusEl = document.getElementById('filtroStatusPrazo');
+    if (statusEl) statusEl.value = '';
+    if (vencEl) vencEl.value = tipo;
+    aplicarFiltrosPrazos();
 }
 
 function gerarNotificacoes() {
@@ -12957,15 +12964,15 @@ function obterPrazosDoDia(data) {
             if (clienteId !== String(calendarioFiltroCliente)) return false;
         }
         if (calendarioFiltroStatus) {
-            if (String(prazo.status || '') !== String(calendarioFiltroStatus)) return false;
+            if (normalizarStatusPrazo(prazo.status) !== normalizarStatusPrazo(calendarioFiltroStatus)) return false;
         }
         if (calendarioFiltroTipo) {
             const tipo = String(prazo.tipo || '').toLowerCase();
             if (tipo !== String(calendarioFiltroTipo)) return false;
         }
         if (calendarioFiltroPrioridade) {
-            const prioridade = String(prazo.prioridade || '').toLowerCase();
-            if (prioridade !== String(calendarioFiltroPrioridade)) return false;
+            const prioridade = normalizarPrioridadePrazo(prazo.prioridade);
+            if (prioridade !== normalizarPrioridadePrazo(calendarioFiltroPrioridade)) return false;
         }
         const dataPrazo = normalizarDataCalendario(prazo.dataLimite);
         if (!dataPrazo) return false;
@@ -12973,28 +12980,21 @@ function obterPrazosDoDia(data) {
     });
 }
 
-function gerarCalendarioPrazos() {
+function gerarCalendarioPrazosConteudo() {
     return `
-        <div class="space-y-6">
-            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h2 class="text-2xl font-bold">Calendário de Prazos</h2>
-                <div class="flex flex-wrap gap-2">
-                    <button onclick="abrirModalCriarPrazo()" class="btn btn-primary">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        Novo Prazo
-                    </button>
-                    <button onclick="moverCalendario(-1)" class="btn btn-secondary">
-                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="irHojeCalendario()" class="btn btn-secondary">Hoje</button>
-                    <button onclick="moverCalendario(1)" class="btn btn-secondary">
-                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="alterarModoCalendario('mensal')" class="btn btn-primary">Mês</button>
-                    <button onclick="alterarModoCalendario('semanal')" class="btn btn-secondary">Semana</button>
-                </div>
+        <div class="space-y-4">
+            <div class="flex flex-wrap gap-2 justify-end">
+                <button type="button" onclick="moverCalendario(-1)" class="btn btn-secondary" title="Anterior">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                </button>
+                <button type="button" onclick="irHojeCalendario()" class="btn btn-secondary">Hoje</button>
+                <button type="button" onclick="moverCalendario(1)" class="btn btn-secondary" title="Seguinte">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+                <button type="button" onclick="alterarModoCalendario('mensal')" class="btn btn-primary">Mês</button>
+                <button type="button" onclick="alterarModoCalendario('semanal')" class="btn btn-secondary">Semana</button>
             </div>
-            
+
             <div class="card p-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     <div>
@@ -13009,8 +13009,6 @@ function gerarCalendarioPrazos() {
                         <select id="calendarioFiltroStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosCalendario()">
                             <option value="">Todos os status</option>
                             <option value="ativo">Ativo</option>
-                            <option value="pendente">Pendente</option>
-                            <option value="em_andamento">Em andamento</option>
                             <option value="concluido">Concluído</option>
                             <option value="vencido">Vencido</option>
                         </select>
@@ -13039,24 +13037,20 @@ function gerarCalendarioPrazos() {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2 text-xs text-gray-600 mb-4">
-                    <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-baixa">Baixa</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-media">Média</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-alta">Alta</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="calendario-item calendario-prioridade-critica">Crítica</span>
-                    </div>
+                    <span class="calendario-item calendario-prioridade-baixa">Baixa</span>
+                    <span class="calendario-item calendario-prioridade-media">Média</span>
+                    <span class="calendario-item calendario-prioridade-alta">Alta</span>
+                    <span class="calendario-item calendario-prioridade-critica">Crítica</span>
                 </div>
                 <div id="calendarioTitulo" class="text-lg font-semibold mb-4"></div>
                 <div id="calendarioGrid"></div>
             </div>
         </div>
     `;
+}
+
+function gerarCalendarioPrazos() {
+    return gerarCalendarioPrazosConteudo();
 }
 
 function inicializarCalendarioPrazos() {
@@ -13081,7 +13075,8 @@ function inicializarCalendarioPrazos() {
 }
 
 function aplicarFiltrosCalendario() {
-    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'calendario') return;
+    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'prazos') return;
+    if (document.getElementById('prazosTabCalendario')?.classList.contains('hidden')) return;
     const select = document.getElementById('calendarioFiltroCliente');
     const selectStatus = document.getElementById('calendarioFiltroStatus');
     const selectTipo = document.getElementById('calendarioFiltroTipo');
@@ -13166,12 +13161,14 @@ function gerarMesCalendario(ano, mes) {
             <div class="border rounded-lg p-2 min-h-[90px] ${pertenceMes ? 'bg-white' : 'bg-gray-50 text-gray-400'} ${dataLocal === hoje ? 'border-blue-400' : 'border-gray-200'}" onclick="abrirModalCriarPrazo('${dataLocal}')">
                 <div class="text-xs font-semibold mb-1">${dataAtual.getDate()}</div>
                 <div class="space-y-1">
-                    ${prazosDia.slice(0, 3).map(prazo => `
-                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
-                            <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
+                    ${prazosDia.slice(0, 3).map(prazo => {
+                        const prio = normalizarPrioridadePrazo(prazo.prioridade);
+                        return `
+                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-[11px] text-gray-700 truncate calendario-item calendario-prioridade-${prio}" style="cursor: pointer; width: 100%; text-align: left;">
+                            <span class="status-badge status-${prio}">${formatarPrioridadePrazo(prazo.prioridade)}</span>
                             ${prazo.descricao || prazo.tipo || 'Prazo'}
-                        </button>
-                    `).join('')}
+                        </button>`;
+                    }).join('')}
                     ${extra > 0 ? `<div class="text-[11px] text-gray-400">+${extra} mais</div>` : ''}
                 </div>
             </div>
@@ -13195,15 +13192,17 @@ function gerarSemanaCalendario(inicioSemana) {
             <div class="border rounded-lg p-3 min-h-[140px] ${dataLocal === hoje ? 'border-blue-400' : 'border-gray-200'}" onclick="abrirModalCriarPrazo('${dataLocal}')">
                 <div class="text-xs font-semibold text-gray-500 mb-2">${diasSemana[i]} • ${dataAtual.toLocaleDateString('pt-PT')}</div>
                 <div class="space-y-2">
-                    ${prazosDia.length ? prazosDia.map(prazo => `
-                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prazo.prioridade || 'media'}" style="cursor: pointer; width: 100%; text-align: left;">
+                    ${prazosDia.length ? prazosDia.map(prazo => {
+                        const prio = normalizarPrioridadePrazo(prazo.prioridade);
+                        return `
+                        <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-xs text-gray-700 border border-gray-200 rounded p-2 calendario-item calendario-prioridade-${prio}" style="cursor: pointer; width: 100%; text-align: left;">
                             <div class="flex items-center gap-2 mb-1">
-                                <span class="status-badge status-${prazo.prioridade || 'media'}">${prazo.prioridade || 'media'}</span>
+                                <span class="status-badge status-${prio}">${formatarPrioridadePrazo(prazo.prioridade)}</span>
                                 <span class="font-semibold">${prazo.descricao || prazo.tipo || 'Prazo'}</span>
                             </div>
                             <div class="text-[11px] text-gray-500">${renderClienteLink(prazo.clienteId, prazo.clienteNome || prazo.cliente || '')}</div>
-                        </button>
-                    `).join('') : '<div class="text-xs text-gray-400">Sem prazos</div>'}
+                        </button>`;
+                    }).join('') : '<div class="text-xs text-gray-400">Sem prazos</div>'}
                 </div>
             </div>
         `;
@@ -17292,8 +17291,7 @@ function atualizarContadoresSidebar() {
             }
             if (extra === 'prazos') {
                 const lista = obterPrazos();
-                const hoje = new Date();
-                const vencidos = lista.filter(p => p.status === 'ativo' && p.dataLimite && new Date(p.dataLimite) < hoje);
+                const vencidos = lista.filter(p => prazoEstaVencido(p));
                 if (vencidos.length > 0) {
                     badge.textContent = `${n} (${vencidos.length} venc.)`;
                     badge.classList.add('!bg-red-500/90', '!text-white');
@@ -20089,39 +20087,28 @@ function enviarRespostaAdmin(notificacaoId) {
 }
 
 function filtrarPrazos() {
-    const busca = document.getElementById('buscaPrazos')?.value.toLowerCase() || '';
-    
-    const prazosFiltrados = prazos.filter(prazo => {
-        return prazo.clienteNome.toLowerCase().includes(busca) || 
-               prazo.tipo.toLowerCase().includes(busca) ||
-               prazo.descricao.toLowerCase().includes(busca);
-    });
-    
-    atualizarListaPrazos(prazosFiltrados);
+    aplicarFiltrosPrazos();
 }
 
-function atualizarListaPrazos(prazosFiltrados) {
+function atualizarListaPrazos(prazosFiltrados, total, limit) {
+    total = total ?? prazosFiltrados.length;
+    limit = limit ?? prazosFiltrados.length;
     const tbody = document.getElementById('listaPrazos');
     if (!tbody) return;
-    
-    tbody.innerHTML = prazosFiltrados.map(prazo => `
-        <tr>
-            <td>${renderClienteLink(prazo.clienteId, prazo.clienteNome)}</td>
-            <td>${prazo.tipo}</td>
-            <td>${prazo.descricao}</td>
-            <td>${prazo.dataLimite ? new Date(prazo.dataLimite).toLocaleDateString('pt-PT') : 'Data não definida'}</td>
-            <td><span class="status-badge status-${prazo.prioridade}">${prazo.prioridade}</span></td>
-            <td><span class="status-badge status-${prazo.status}">${prazo.status}</span></td>
-            <td>
-                <button type="button" data-prazo-acao="editar" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800">
-                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button type="button" data-prazo-acao="excluir" data-prazo-id="${String(prazo.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800 ml-2">
-                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
+
+    if (prazosFiltrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum prazo encontrado.</p><button type="button" onclick="abrirModalCriarPrazo()" class="btn btn-primary text-sm">Adicionar prazo</button></td></tr>';
+        return;
+    }
+
+    const verMais = total > limit
+        ? `<tr><td colspan="8" class="text-center py-3 border-t"><button type="button" onclick="window.__prazosLimit = (window.__prazosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPrazos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>`
+        : '';
+    tbody.innerHTML = prazosFiltrados.map(prazo => renderLinhaPrazo(prazo)).join('') + verMais;
+
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    }, 50);
 }
 
 // Sistema de inicialização movido para dentro da verificação de login
@@ -21023,66 +21010,62 @@ function aplicarFiltrosPrazos() {
     if (!document.getElementById('listaPrazos')) return;
     const busca = document.getElementById('buscaPrazos')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusPrazo')?.value || '';
-    const tipo = document.getElementById('filtroTipoPrazo')?.value || '';
     const vencimento = document.getElementById('filtroVencimentoPrazo')?.value || '';
-    const prioridade = document.getElementById('filtroPrioridadePrazo')?.value || '';
     
     let prazosFiltrados = prazos.filter(prazo => {
-        // Filtro por busca de texto
         const matchBusca = !busca || 
             (prazo.clienteNome || '').toLowerCase().includes(busca) || 
             (prazo.descricao || '').toLowerCase().includes(busca) ||
             (prazo.tipo || '').toLowerCase().includes(busca);
         
-        // Filtro por status
-        const matchStatus = !status || prazo.status === status;
+        const statusNorm = normalizarStatusPrazo(prazo.status);
+        const matchStatus = !status || statusNorm === status || (status === 'ativo' && statusNorm === 'ativo');
         
-        // Filtro por tipo
-        const matchTipo = !tipo || prazo.tipo === tipo;
-        
-        // Filtro por vencimento
         let matchVencimento = true;
-        if (vencimento && prazo.dataLimite) {
-            const dataLimite = new Date(prazo.dataLimite);
-            const hoje = new Date();
-            
-            switch (vencimento) {
-                case 'hoje':
-                    matchVencimento = dataLimite.toDateString() === hoje.toDateString();
-                    break;
-                case 'semana':
-                    const fimSemana = new Date(hoje);
-                    fimSemana.setDate(hoje.getDate() + 7);
-                    matchVencimento = dataLimite >= hoje && dataLimite <= fimSemana;
-                    break;
-                case 'mes':
-                    const fimMes = new Date(hoje);
-                    fimMes.setMonth(hoje.getMonth() + 1);
-                    matchVencimento = dataLimite >= hoje && dataLimite <= fimMes;
-                    break;
-                case 'vencido':
-                    matchVencimento = dataLimite < hoje;
-                    break;
+        if (vencimento) {
+            if (vencimento === 'vencido') {
+                matchVencimento = prazoEstaVencido(prazo);
+            } else if (prazo.dataLimite) {
+                const dataLimite = new Date(prazo.dataLimite);
+                dataLimite.setHours(0, 0, 0, 0);
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                switch (vencimento) {
+                    case 'hoje':
+                        matchVencimento = dataLimite.getTime() === hoje.getTime();
+                        break;
+                    case 'semana': {
+                        const fimSemana = new Date(hoje);
+                        fimSemana.setDate(hoje.getDate() + 7);
+                        matchVencimento = dataLimite >= hoje && dataLimite <= fimSemana;
+                        break;
+                    }
+                    default:
+                        matchVencimento = true;
+                }
+            } else {
+                matchVencimento = false;
             }
         }
         
-        // Filtro por prioridade
-        const matchPrioridade = !prioridade || prazo.prioridade === prioridade;
-        
-        return matchBusca && matchStatus && matchTipo && matchVencimento && matchPrioridade;
+        return matchBusca && matchStatus && matchVencimento;
     });
     
     let ord = window.__prazosOrdenar;
     if (!ord || !ord.col) try { ord = JSON.parse(appStorage.getItem('ordenarPrazos') || '{}'); } catch(e) {}
     ord = ord && ord.col ? ord : { col: 'dataLimite', dir: 1 };
-    const k = ord.col; const d = ord.dir;
+    const k = ord.col;
+    const d = ord.dir;
     prazosFiltrados = prazosFiltrados.slice().sort((a, b) => {
+        const va = prazoEstaVencido(a) ? 0 : 1;
+        const vb = prazoEstaVencido(b) ? 0 : 1;
+        if (va !== vb) return va - vb;
         if (k === 'dataLimite') return d * ((new Date(a.dataLimite || 0).getTime()) - (new Date(b.dataLimite || 0).getTime()));
         if (k === 'cliente') return d * (String(a.clienteNome || '').toLowerCase().localeCompare(String(b.clienteNome || '').toLowerCase()));
         if (k === 'tipo') return d * (String(a.tipo || '').toLowerCase().localeCompare(String(b.tipo || '').toLowerCase()));
         if (k === 'descricao') return d * (String(a.descricao || '').toLowerCase().localeCompare(String(b.descricao || '').toLowerCase()));
-        if (k === 'prioridade') return d * (String(a.prioridade || '').localeCompare(String(b.prioridade || '')));
-        if (k === 'status') return d * (String(a.status || '').localeCompare(String(b.status || '')));
+        if (k === 'prioridade') return d * (normalizarPrioridadePrazo(a.prioridade).localeCompare(normalizarPrioridadePrazo(b.prioridade)));
+        if (k === 'status') return d * (normalizarStatusPrazo(a.status).localeCompare(normalizarStatusPrazo(b.status)));
         return 0;
     });
     
@@ -21093,7 +21076,7 @@ function aplicarFiltrosPrazos() {
 }
 
 function limparFiltrosPrazos() {
-    const els = ['buscaPrazos','filtroStatusPrazo','filtroTipoPrazo','filtroVencimentoPrazo','filtroPrioridadePrazo'];
+    const els = ['buscaPrazos', 'filtroStatusPrazo', 'filtroVencimentoPrazo'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosPrazos();
 }
@@ -23097,6 +23080,7 @@ function atualizarPrazo(event, id) {
         salvarDados('prazos', prazos);
         mostrarNotificacao('Prazo atualizado com sucesso!', 'success');
         fecharModal();
+        window.__prazosPreservarTab = true;
         carregarSecao('prazos');
     }
 }
@@ -23762,7 +23746,8 @@ function salvarNovoPrazo(event) {
     registrarAuditoria('criar', 'prazo', `Prazo criado: ${prazo.descricao}`, null, prazo);
     mostrarNotificacao('Prazo criado com sucesso!', 'success');
     fecharModalRobusto();
-    carregarSecao('calendario');
+    window.__prazosPreservarTab = true;
+    carregarSecao('prazos');
 }
 
 // === FUNÇÕES DE ATUALIZAÇÃO ===
