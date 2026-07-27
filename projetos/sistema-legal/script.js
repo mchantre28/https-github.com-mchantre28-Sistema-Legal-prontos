@@ -20806,85 +20806,59 @@ function gerarMigracao() {
 }
 
 function gerarRegistos() {
-    const totalRegistos = registos.length;
-    const registosAtivos = registos.filter(r => r.status === 'em_andamento').length;
-    const registosSuspensos = registos.filter(r => r.status === 'pendente').length;
-    const registosTerminados = registos.filter(r => r.status === 'concluido').length;
-    const valorTotalRegistos = registos.reduce((total, r) => total + (r.valorComIva || r.valor || 0), 0);
+    const registosEmCurso = registos.filter(isContratoEmCurso);
+    const totalEmCurso = registosEmCurso.length;
+    const totalConcluidas = registos.filter(r => normalizarStatusContrato(r.status) === 'concluido').length;
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const mostrarDicaRegisto = tipoUsuario === 'admin' && registos.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaRegistoVisto');
 
     return htmlPainelApiProcessosPlaceholder('registos') + `
         <div class="space-y-6">
-            <!-- Header único com botões de ação -->
-            <div class="flex justify-between items-center">
-                <div class="flex space-x-3">
-                    <button onclick="abrirModalRegisto()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
-                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                        Novo Registo
-                    </button>
-                </div>
+            ${mostrarDicaRegisto ? `
+            <div id="dicaPrimeiroRegisto" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de registos">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Crie o seu primeiro registo clicando em "Novo Registo".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiroRegisto')?.remove(); appStorage.setItem('guiaRegistoVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <button onclick="abrirModalRegisto()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Novo Registo
+                </button>
             </div>
 
-            <!-- Estatísticas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+            <div class="grid grid-cols-2 gap-4 max-w-md">
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${registosAtivos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="pause-circle" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Suspensos</p>
-                            <p class="text-2xl font-bold text-gray-900">${registosSuspensos}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Em curso</p>
+                            <p class="text-xl font-bold text-gray-900">${totalEmCurso}</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-gray-100 rounded-lg">
-                            <i data-lucide="x-circle" class="w-6 h-6 text-gray-600"></i>
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Terminados</p>
-                            <p class="text-2xl font-bold text-gray-900">${registosTerminados}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${EURO_HTML}${Number(valorTotalRegistos).toFixed(2)}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Concluídas</p>
+                            <p class="text-xl font-bold text-gray-900">${totalConcluidas}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Barra de busca -->
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaRegistos" placeholder="Buscar registos..." 
-                           class="search-input" onkeyup="filtrarRegistos()">
+                    <input type="text" id="buscaRegistos" placeholder="Buscar por cliente, tipo ou descrição..."
+                           class="search-input" onkeyup="filtrarRegistos()" title="Pode escrever o nome do cliente, o tipo ou a descrição">
                 </div>
-                
-                <!-- Filtros Avançados -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select id="filtroStatusRegisto" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosRegistos()">
@@ -20894,30 +20868,7 @@ function gerarRegistos() {
                             <option value="concluido">Concluído</option>
                         </select>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                        <select id="filtroTipoRegisto" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosRegistos()">
-                            <option value="">Todos os tipos</option>
-                            <option value="Autenticação de documentos">Autenticação de documentos</option>
-                            <option value="Certificação de fotocópias">Certificação de fotocópias</option>
-                            <option value="Documentos para o estrangeiro">Documentos para o estrangeiro</option>
-                            <option value="Procurações">Procurações</option>
-                            <option value="Reconhecimento presencial de assinaturas">Reconhecimento presencial de assinaturas</option>
-                            <option value="Registos automóveis">Registos automóveis</option>
-                            <option value="Registos comerciais">Registos comerciais</option>
-                            <option value="Registos de propriedade">Registos de propriedade</option>
-                            <option value="Termos de autenticação">Termos de autenticação</option>
-                        </select>
-                    </div>
-                    
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">NIF</label>
-                        <input type="text" id="filtroNifRegisto" placeholder="Buscar por NIF..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosRegistos()">
-                    </div>
                 </div>
-                
                 <div class="flex justify-between items-center mt-4">
                     <button onclick="limparFiltrosRegistos()" class="btn btn-secondary">
                         <i data-lucide="x" class="w-4 h-4 mr-2"></i>
@@ -20928,27 +20879,28 @@ function gerarRegistos() {
                     </div>
                 </div>
             </div>
-            
+
             <div class="card">
-                <div class="overflow-x-auto table-responsive">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-        <tbody id="listaRegistos" class="bg-white divide-y divide-gray-200">
-            <!-- Conteúdo será carregado via atualizarListaRegistos() -->
-        </tbody>
-                    </table>
+                <div class="p-6">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="font-bold">Cliente</th>
+                                    <th class="font-bold">Tipo</th>
+                                    <th class="font-bold">Descrição</th>
+                                    <th class="font-bold">Valor</th>
+                                    <th class="font-bold">Status</th>
+                                    <th class="font-bold">Prioridade</th>
+                                    <th class="font-bold">Entidade</th>
+                                    <th class="font-bold">Data Início</th>
+                                    <th class="font-bold">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaRegistos">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -21031,33 +20983,15 @@ function aplicarFiltrosRegistos() {
     if (!document.getElementById('listaRegistos')) return;
     const busca = document.getElementById('buscaRegistos')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusRegisto')?.value || '';
-    const tipo = document.getElementById('filtroTipoRegisto')?.value || '';
-    const valorMin = parseFloat(document.getElementById('filtroValorMinRegisto')?.value) || 0;
-    const valorMax = parseFloat(document.getElementById('filtroValorMaxRegisto')?.value) || Infinity;
-    const nif = document.getElementById('filtroNifRegisto')?.value || '';
-    
+
     const registosFiltrados = registos.filter(registo => {
-        // Filtro por busca de texto
-        const matchBusca = !busca || 
-            (registo.clienteNome || '').toLowerCase().includes(busca) || 
+        const matchBusca = !busca ||
+            (registo.clienteNome || '').toLowerCase().includes(busca) ||
             (registo.tipo || '').toLowerCase().includes(busca) ||
+            (registo.descricao || '').toLowerCase().includes(busca) ||
             (registo.observacoes || '').toLowerCase().includes(busca);
-        
-        // Filtro por status
-        const matchStatus = !status || registo.status === status;
-        
-        // Filtro por tipo
-        const matchTipo = !tipo || registo.tipo === tipo;
-        
-        // Filtro por valor
-        const valor = parseFloat(registo.valor) || 0;
-        const matchValor = valor >= valorMin && valor <= valorMax;
-        
-        // Filtro por NIF
-        const cliente = clientes.find(c => c.id === registo.clienteId);
-        const matchNif = !nif || (cliente && cliente.nif && cliente.nif.includes(nif));
-        
-        return matchBusca && matchStatus && matchTipo && matchValor && matchNif;
+        const matchStatus = !status || normalizarStatusContrato(registo.status) === status;
+        return matchBusca && matchStatus;
     });
     
     const limitR = Math.max(LISTA_PAGINA_TAMANHO, window.__registosLimit || LISTA_PAGINA_TAMANHO);
@@ -21067,7 +21001,7 @@ function aplicarFiltrosRegistos() {
 }
 
 function limparFiltrosRegistos() {
-    const els = ['buscaRegistos','filtroStatusRegisto','filtroTipoRegisto','filtroValorMinRegisto','filtroValorMaxRegisto','filtroNifRegisto'];
+    const els = ['buscaRegistos', 'filtroStatusRegisto'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosRegistos();
 }
@@ -21281,35 +21215,31 @@ function atualizarListaRegistos(registosFiltrados, total, limit) {
     const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__registosLimit = (window.__registosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosRegistos();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = registosFiltrados.map(registo => `
         <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td>
                 ${renderClienteLink(registo.clienteId, registo.clienteNome || 'N/A')}
                 ${renderMetaAuditoria('registo', registo)}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.tipo || 'N/A'}</td>
-            <td class="px-6 py-4 text-sm text-gray-500">${registo.descricao || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">${EURO_HTML}${Number(registo.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO_HTML}${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</div>
+            <td>${registo.tipo || '-'}</td>
+            <td>${registo.descricao || '-'}</td>
+            <td>
+                <div class="text-sm font-medium text-gray-900">${EURO_HTML}${Number(registo.valor || 0).toFixed(2)}</div>
+                <div class="text-xs text-gray-500">
+                    <span class="text-gray-400">+ ${registo.iva || 0}% IVA:</span>
+                    <span class="font-medium text-gray-700">${EURO_HTML}${(Number(registo.valor || 0) + (Number(registo.valor || 0) * Number(registo.iva || 0) / 100)).toFixed(2)}</span>
+                </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${registo.status || 'pendente'}">${registo.status || 'Pendente'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${registo.prioridade || 'media'}">${registo.prioridade || 'media'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === registo.entidade)?.nome || registo.entidade) : '—'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${registo.dataInicio || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button onclick="editarRegistoDireto(${JSON.stringify(registo.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
+            <td><span class="status-badge status-${normalizarStatusContrato(registo.status)}">${formatarStatusContrato(registo.status)}</span></td>
+            <td><span class="status-badge status-${registo.prioridade || 'media'}">${registo.prioridade || 'media'}</span></td>
+            <td>${registo.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === registo.entidade)?.nome || registo.entidade) : '—'}</td>
+            <td>${registo.dataInicio ? new Date(registo.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
+            <td>
+                <button onclick="editarRegistoDireto(${JSON.stringify(registo.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="duplicarRegisto(${JSON.stringify(registo.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Duplicar">
-                    <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button onclick="abrirAnexosRegisto(${JSON.stringify(registo.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
+                <button onclick="abrirAnexosRegisto(${JSON.stringify(registo.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                     <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirRegistoDireto(${JSON.stringify(registo.id)})" class="text-red-600 hover:text-red-900" title="Excluir">
+                <button onclick="excluirRegistoDireto(${JSON.stringify(registo.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
