@@ -5381,25 +5381,43 @@ function salvarHonorarios() {
 
 
 
-async function gerarFaturasAutomaticas() {
-    // Inclui TODOS os honorários com valor que ainda não têm fatura (com ou sem juros)
-    const honorariosElegiveis = (honorarios || []).filter(h => {
+/** Honorários com valor > 0 que ainda não têm fatura associada. */
+function obterHonorariosSemFatura() {
+    return (honorarios || []).filter(h => {
         if (h.deleted) return false;
         const valor = parseFloat(h.valor) || 0;
         return valor > 0 && !obterFaturas().find(f => String(f.honorarioId) === String(h.id));
     });
+}
+
+async function gerarFaturasAutomaticas(opcoes) {
+    const opts = opcoes && typeof opcoes === 'object' ? opcoes : {};
+    const honorariosElegiveis = obterHonorariosSemFatura();
     if (honorariosElegiveis.length === 0) {
         mostrarNotificacao('Nenhum honorário elegível! Crie um honorário com valor e que ainda não tenha fatura.', 'info');
         return;
     }
     let faturasGeradas = 0;
+    let ultimaFatura = null;
     for (const honorario of honorariosElegiveis) {
-        await gerarFaturaAutomatica(honorario.id);
+        ultimaFatura = await gerarFaturaAutomatica(honorario.id);
         faturasGeradas++;
     }
     mostrarNotificacao(`${faturasGeradas} fatura(s) gerada(s) com sucesso!`, 'success');
-    carregarSecao('honorarios');
+    const secaoDestino = opts.manterSecao || 'honorarios';
+    if (secaoDestino === 'pagamentos') window.__faturaReciboFocus = true;
+    carregarSecao(secaoDestino);
+    if (opts.abrirUltima && ultimaFatura && typeof mostrarFaturaNoModal === 'function') {
+        setTimeout(() => mostrarFaturaNoModal(ultimaFatura.id), 450);
+    }
 }
+
+/** Abre Pagamentos com painel Fatura/Recibo (sidebar dedicada). */
+function abrirSecaoFaturaRecibo() {
+    window.__faturaReciboFocus = true;
+    carregarSecao('pagamentos');
+}
+window.abrirSecaoFaturaRecibo = abrirSecaoFaturaRecibo;
 
 // Funções para gerenciar lembretes
 function editarLembrete(lembreteId) {
@@ -6737,6 +6755,7 @@ function carregarSecao(secao) {
     if (secao === 'clientes') window.__clientesLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'honorarios') window.__honorariosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'pagamentos') window.__pagamentosLimit = LISTA_PAGINA_TAMANHO;
+    if (secao === 'pagamentos' && !window.__faturasPainelLimit) window.__faturasPainelLimit = 5;
     if (secao === 'despesas') window.__despesasLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'contratos') window.__contratosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'tarefas') window.__tarefasLimit = LISTA_PAGINA_TAMANHO;
@@ -6842,7 +6861,10 @@ function carregarSecao(secao) {
 
 function atualizarNavegacao() {
     const secaoParaNav = { migracoes: 'nav-migracao' };
-    const navId = secaoParaNav[secaoAtiva] || `nav-${secaoAtiva}`;
+    let navId = secaoParaNav[secaoAtiva] || `nav-${secaoAtiva}`;
+    if (secaoAtiva === 'pagamentos' && window.__faturaReciboFocus) {
+        navId = 'nav-fatura';
+    }
     const sidebarItems = document.querySelectorAll('.sidebar-item');
     if (sidebarItems.length > 0) {
         sidebarItems.forEach(item => {
@@ -6882,7 +6904,10 @@ function atualizarTitulo(secao) {
     const tituloElement = document.getElementById('tituloSecao');
     const subtituloElement = document.getElementById('subtituloSecao');
     const pageTitleElement = document.getElementById('pageTitle');
-    const titulo = titulos[secao] || 'Sistema Legal';
+    let titulo = titulos[secao] || 'Sistema Legal';
+    if (secao === 'pagamentos' && window.__faturaReciboFocus) {
+        titulo = 'Fatura / Recibo';
+    }
     
     if (tituloElement) tituloElement.textContent = titulo;
     if (subtituloElement) {
@@ -10076,15 +10101,85 @@ function obterInfoFaturaPagamento(faturaId, faturasLista) {
 
 function gerarPagamentos() {
     const lista = obterPagamentosAtivos();
-    const faturasLista = obterFaturas().filter(f => f.id !== 'seed-inicial');
+    const faturasLista = obterFaturas().filter(f => f.id !== 'seed-inicial').slice().sort((a, b) => {
+        const da = new Date(a.dataEmissao || a.data || 0).getTime();
+        const db = new Date(b.dataEmissao || b.data || 0).getTime();
+        return db - da;
+    });
+    const honorariosSemFatura = typeof obterHonorariosSemFatura === 'function' ? obterHonorariosSemFatura() : [];
     const recebidoMes = calcularRecebidoMesPagamentos(lista);
     const pendenteFaturas = calcularPendenteFaturas();
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const faturasPendentes = faturasLista.filter(f => (f.estado || f.status) !== 'pago').length;
     const mostrarDicaPagamento = tipoUsuario === 'admin' && lista.length === 0 && faturasPendentes > 0 && !appStorage.getItem('guiaPagamentoVisto');
+    const mostrarPainelFatura = window.__faturaReciboFocus || honorariosSemFatura.length > 0 || faturasLista.length > 0;
+    const limitFaturas = Math.max(LISTA_PAGINA_TAMANHO, window.__faturasPainelLimit || 5);
+    const faturasVisiveis = faturasLista.slice(0, limitFaturas);
+    const linhasFaturas = faturasVisiveis.map(f => {
+        const dataStr = (f.dataEmissao || f.data || '').toString().split('T')[0];
+        const estado = (f.estado || f.status || 'pendente');
+        const estadoLabel = estado === 'pago' ? 'Pago' : estado === 'parcial' ? 'Parcial' : 'Pendente';
+        const estadoClass = estado === 'pago' ? 'status-pago' : estado === 'parcial' ? 'status-parcial' : 'status-pendente';
+        return `
+        <tr>
+            <td class="py-2 font-medium">${f.numero || f.id}</td>
+            <td class="py-2">${f.clienteNome || '-'}</td>
+            <td class="py-2">${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</td>
+            <td class="py-2">${dataStr}</td>
+            <td class="py-2"><span class="status-badge ${estadoClass}">${estadoLabel}</span></td>
+            <td class="py-2">
+                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(f.id))})" class="btn btn-secondary text-sm py-1 px-2" title="Ver fatura profissional">
+                    <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1" style="pointer-events:none"></i>
+                    Ver fatura
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    const verMaisFaturas = faturasLista.length > limitFaturas
+        ? `<tr><td colspan="6" class="text-center py-3 border-t"><button type="button" onclick="window.__faturasPainelLimit = (window.__faturasPainelLimit || 5) + 5; carregarSecao('pagamentos');" class="btn btn-secondary text-sm">Ver mais faturas (${faturasLista.length - limitFaturas} restantes)</button></td></tr>`
+        : '';
 
     return `
         <div class="space-y-6">
+            ${mostrarPainelFatura ? `
+            <div class="card p-6 border border-blue-100 bg-blue-50/30" id="painelFaturaRecibo" role="region" aria-label="Fatura e recibo">
+                <div class="flex flex-wrap justify-between items-start gap-4 mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Fatura / Recibo</h3>
+                        <p class="text-sm text-gray-600 mt-1">Gere o documento profissional a partir dos honorários e visualize faturas já emitidas.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        ${honorariosSemFatura.length > 0 ? `
+                        <button type="button" onclick="gerarFaturasAutomaticas({ manterSecao: 'pagamentos', abrirUltima: true })" class="btn btn-primary" title="Cria faturas a partir de honorários sem fatura">
+                            <i data-lucide="file-plus" class="w-4 h-4"></i>
+                            Gerar ${honorariosSemFatura.length} fatura(s) pendente(s)
+                        </button>` : `
+                        <button type="button" onclick="carregarSecao('honorarios')" class="btn btn-secondary" title="Crie honorários com valor para gerar faturas">
+                            <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                            Ir para Honorários
+                        </button>`}
+                    </div>
+                </div>
+                ${honorariosSemFatura.length > 0 ? `<p class="text-xs text-amber-700 mb-4">${honorariosSemFatura.length} honorário(s) com valor ainda sem fatura associada.</p>` : ''}
+                ${faturasLista.length > 0 ? `
+                <div class="table-responsive mt-2">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th class="text-left py-2">N.º Fatura</th>
+                                <th class="text-left py-2">Cliente</th>
+                                <th class="text-left py-2">Total</th>
+                                <th class="text-left py-2">Emissão</th>
+                                <th class="text-left py-2">Estado</th>
+                                <th class="text-left py-2">Documento</th>
+                            </tr>
+                        </thead>
+                        <tbody>${linhasFaturas}${verMaisFaturas}</tbody>
+                    </table>
+                </div>` : `
+                <p class="text-sm text-gray-500">Nenhuma fatura emitida. Crie honorários e use o botão acima para gerar o documento.</p>`}
+            </div>
+            ` : ''}
             ${mostrarDicaPagamento ? `
             <div id="dicaPrimeiroPagamento" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de pagamentos">
                 <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Registe o primeiro pagamento com o botão "Novo Pagamento".</p>
@@ -10096,6 +10191,11 @@ function gerarPagamentos() {
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Pagamento
                 </button>
+                ${!mostrarPainelFatura && honorariosSemFatura.length > 0 ? `
+                <button type="button" onclick="gerarFaturasAutomaticas({ manterSecao: 'pagamentos', abrirUltima: true })" class="btn btn-secondary" title="Cria faturas a partir de honorários sem fatura">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Gerar faturas pendentes (${honorariosSemFatura.length})
+                </button>` : ''}
             </div>
             <div class="grid grid-cols-2 gap-4 max-w-md">
                 <div class="card p-4">
