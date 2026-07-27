@@ -5411,6 +5411,7 @@ async function gerarFaturasAutomaticas(opcoes) {
         setTimeout(() => mostrarFaturaNoModal(ultimaFatura.id), 450);
     }
 }
+window.gerarFaturasAutomaticas = gerarFaturasAutomaticas;
 
 /** Abre Pagamentos com painel Fatura/Recibo (sidebar dedicada). */
 function abrirSecaoFaturaRecibo() {
@@ -6517,6 +6518,24 @@ function configurarEventos() {
         } catch (err) {
             console.error('Erro ao executar acao cliente:', acao, err);
             mostrarNotificacao('Erro ao executar. Veja a consola (F12).', 'error');
+        }
+    }, true);
+
+    // Delegation: Ver fatura (evita onclick quebrado com IDs/UUID em atributos HTML)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-fatura-acao][data-fatura-id]');
+        if (!btn || btn.disabled) return;
+        const id = btn.getAttribute('data-fatura-id');
+        const acao = btn.getAttribute('data-fatura-acao');
+        if (!id || acao !== 'ver') return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (typeof mostrarFaturaNoModal === 'function') mostrarFaturaNoModal(id);
+            else mostrarNotificacao('Função de visualização indisponível.', 'error');
+        } catch (err) {
+            console.error('Erro ao abrir fatura:', err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao abrir a fatura. Veja a consola (F12).', 'error');
         }
     }, true);
 
@@ -10128,7 +10147,7 @@ function gerarPagamentos() {
             <td class="py-2">${dataStr}</td>
             <td class="py-2"><span class="status-badge ${estadoClass}">${estadoLabel}</span></td>
             <td class="py-2">
-                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(f.id))})" class="btn btn-secondary text-sm py-1 px-2" title="Ver fatura profissional">
+                <button type="button" data-fatura-acao="ver" data-fatura-id="${escaparHtml(String(f.id))}" class="btn btn-secondary text-sm py-1 px-2" title="Ver fatura profissional">
                     <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1" style="pointer-events:none"></i>
                     Ver fatura
                 </button>
@@ -10286,7 +10305,7 @@ function gerarPagamentos() {
                                         return `
                                         <tr>
                                             <td class="py-2">
-                                                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(p.faturaId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
+                                                <button type="button" data-fatura-acao="ver" data-fatura-id="${escaparHtml(String(p.faturaId))}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
                                                     ${info.numero}
                                                 </button>
                                             </td>
@@ -10998,7 +11017,7 @@ function atualizarListaPagamentos(pagamentosFiltrados) {
         return `
         <tr>
             <td class="py-2">
-                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(p.faturaId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
+                <button type="button" data-fatura-acao="ver" data-fatura-id="${escaparHtml(String(p.faturaId))}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
                     ${info.numero}
                 </button>
             </td>
@@ -14709,11 +14728,15 @@ function buildINVOICE_DATA(dados) {
     };
 }
 
-/** URL do template fatura-recibo.html (funciona na raiz do repo ou dentro de projetos/sistema-legal). */
+/** URL absoluta do template fatura-recibo.html (GitHub Pages, subpastas e desenvolvimento local). */
 function getFaturaReciboUrl() {
-    const path = window.location.pathname || '';
-    return path.indexOf('projetos/sistema-legal') !== -1 ? 'fatura-recibo.html' : 'projetos/sistema-legal/fatura-recibo.html';
+    try {
+        return new URL('fatura-recibo.html', window.location.href).href;
+    } catch (e) {
+        return 'fatura-recibo.html';
+    }
 }
+window.getFaturaReciboUrl = getFaturaReciboUrl;
 
 /** Abre o template fatura-recibo.html com os dados da fatura (fonte única do projeto). */
 function abrirFaturaReciboComTemplate(dados, autoPrint) {
@@ -14825,7 +14848,9 @@ function mostrarFaturaNoModal(faturaId) {
     try {
         sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
     } catch (err) {}
-    const url = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
+    const urlBase = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
+    const url = urlBase + (urlBase.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+    document.getElementById('overlayFaturaModal')?.remove();
     const overlay = document.createElement('div');
     overlay.id = 'overlayFaturaModal';
     overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;background:rgba(0,0,0,0.85)!important;z-index:100000!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important;box-sizing:border-box!important';
@@ -14844,6 +14869,19 @@ function mostrarFaturaNoModal(faturaId) {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
     const iframe = overlay.querySelector('#iframeFaturaModal');
+    iframe.addEventListener('load', function enviarDadosFaturaIframe() {
+        try {
+            if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
+            }
+        } catch (e) {}
+        var logoUri = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : (invoiceData.issuer && invoiceData.issuer.logo ? invoiceData.issuer.logo : '');
+        if (logoUri) {
+            try {
+                iframe.contentWindow.postMessage({ type: 'INVOICE_LOGO', logo: logoUri }, window.location.origin);
+            } catch (e2) {}
+        }
+    });
     iframe.src = url;
     overlay.querySelector('#btnImprimirFaturaOverlay').onclick = () => { try { if (iframe.contentWindow) iframe.contentWindow.print(); } catch (e) { mostrarNotificacao('Use Imprimir / Guardar PDF quando a fatura terminar de carregar.', 'info'); } };
     overlay.querySelector('#btnFecharFaturaOverlay').onclick = () => overlay.remove();
