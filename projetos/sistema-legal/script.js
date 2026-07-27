@@ -1155,6 +1155,35 @@ async function criarPagamentoCloud(pagamento) {
     return { ...pagamento, id };
 }
 
+async function atualizarPagamentoCloud(id, dados) {
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
+    const docRef = firestoreDb.collection('pagamentos').doc(String(id));
+    const snap = await docRef.get();
+    if (!snap.exists) throw new Error('Pagamento não encontrado');
+    const antigo = snap.data();
+    const prep = prepararPagamentoParaFirestore({ ...antigo, ...dados, id });
+    const payload = Object.fromEntries(
+        Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
+    );
+    await docRef.update(payload);
+    await atualizarFaturaAposPagamento(antigo.faturaId);
+    const novaFaturaId = dados.faturaId ?? antigo.faturaId;
+    if (String(novaFaturaId) !== String(antigo.faturaId)) {
+        await atualizarFaturaAposPagamento(novaFaturaId);
+    }
+    return { ...antigo, ...dados, id };
+}
+
+async function anularPagamentoCloud(id) {
+    if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
+    const docRef = firestoreDb.collection('pagamentos').doc(String(id));
+    const snap = await docRef.get();
+    if (!snap.exists) throw new Error('Pagamento não encontrado');
+    const faturaId = snap.data().faturaId;
+    await docRef.update({ anulado: true, updatedAt: obterServerTimestamp() });
+    await atualizarFaturaAposPagamento(faturaId);
+}
+
 /** Escuta clientes em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirClientes(callback) {
     if (!isCloudReady()) return () => {};
@@ -6720,6 +6749,7 @@ function carregarSecao(secao) {
     // Reset limites de paginação ao entrar na secção
     if (secao === 'clientes') window.__clientesLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'honorarios') window.__honorariosLimit = LISTA_PAGINA_TAMANHO;
+    if (secao === 'pagamentos') window.__pagamentosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'contratos') window.__contratosLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'tarefas') window.__tarefasLimit = LISTA_PAGINA_TAMANHO;
     if (secao === 'prazos') window.__prazosLimit = LISTA_PAGINA_TAMANHO;
@@ -6762,6 +6792,10 @@ function carregarSecao(secao) {
     
     if (secao === 'honorarios') {
         setTimeout(() => { restaurarFiltrosHonorarios(); aplicarFiltrosHonorarios(); }, 100);
+    }
+
+    if (secao === 'pagamentos') {
+        setTimeout(() => { restaurarFiltrosPagamentos(); aplicarFiltrosPagamentos(); }, 100);
     }
     
     if (secao === 'prazos') {
@@ -9994,59 +10028,200 @@ function gerarClientes() {
     `;
 }
 
-function gerarPagamentos() {
-    const lista = Array.isArray(pagamentos) ? pagamentos : [];
-    const faturasLista = obterFaturas();
-    const valorTotal = lista.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
-
-    const obterFaturaInfo = (fid) => {
-        const f = faturasLista.find(x => String(x.id) === String(fid));
-        return f ? `${f.numero || f.id} - ${f.clienteNome || ''} (${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)})` : `Fatura ${fid}`;
+function formatarMetodoPagamento(metodo) {
+    const map = {
+        transferencia: 'Transferência',
+        numerario: 'Numerário',
+        cheque: 'Cheque',
+        multibanco: 'Multibanco',
+        outro: 'Outro'
     };
+    const chave = (metodo || '').toString().toLowerCase();
+    return map[chave] || metodo || '-';
+}
+
+function obterPagamentosAtivos() {
+    return (Array.isArray(pagamentos) ? pagamentos : []).filter(p => !p.anulado && !p.deleted && p.id !== 'seed-inicial');
+}
+
+function calcularRecebidoMesPagamentos(lista) {
+    const hoje = new Date();
+    const mes = hoje.getMonth();
+    const ano = hoje.getFullYear();
+    return lista.reduce((s, p) => {
+        const data = new Date(p.dataPagamento || p.data || 0);
+        if (Number.isNaN(data.getTime()) || data.getMonth() !== mes || data.getFullYear() !== ano) return s;
+        return s + (parseFloat(p.valor) || 0);
+    }, 0);
+}
+
+function calcularPendenteFaturas() {
+    return obterFaturas()
+        .filter(f => f.id !== 'seed-inicial')
+        .reduce((s, f) => {
+            const total = parseFloat(f.valorTotal || f.valor) || 0;
+            const pago = parseFloat(f.somaPagamentos) || 0;
+            return s + Math.max(0, total - pago);
+        }, 0);
+}
+
+function obterFaturasParaPagamento(faturaIdAtual) {
+    const faturas = obterFaturas().filter(f => f.id !== 'seed-inicial');
+    const elegiveis = faturas.filter(f => (f.estado || f.status) !== 'pago');
+    if (faturaIdAtual && !elegiveis.some(f => String(f.id) === String(faturaIdAtual))) {
+        const atual = faturas.find(f => String(f.id) === String(faturaIdAtual));
+        if (atual) elegiveis.unshift(atual);
+    }
+    return elegiveis;
+}
+
+function obterInfoFaturaPagamento(faturaId, faturasLista) {
+    const f = (faturasLista || obterFaturas()).find(x => String(x.id) === String(faturaId));
+    if (!f) return { numero: `Fatura ${faturaId}`, cliente: '-', total: 0 };
+    return {
+        numero: f.numero || f.id,
+        cliente: f.clienteNome || '-',
+        total: parseFloat(f.valorTotal || f.valor) || 0
+    };
+}
+
+function gerarPagamentos() {
+    const lista = obterPagamentosAtivos();
+    const faturasLista = obterFaturas().filter(f => f.id !== 'seed-inicial');
+    const recebidoMes = calcularRecebidoMesPagamentos(lista);
+    const pendenteFaturas = calcularPendenteFaturas();
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const faturasPendentes = faturasLista.filter(f => (f.estado || f.status) !== 'pago').length;
+    const mostrarDicaPagamento = tipoUsuario === 'admin' && lista.length === 0 && faturasPendentes > 0 && !appStorage.getItem('guiaPagamentoVisto');
 
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold">Registo de Pagamentos</h3>
+            ${mostrarDicaPagamento ? `
+            <div id="dicaPrimeiroPagamento" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de pagamentos">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Registe o primeiro pagamento com o botão "Novo Pagamento".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiroPagamento')?.remove(); appStorage.setItem('guiaPagamentoVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <button onclick="abrirModalNovoPagamento()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Pagamento
                 </button>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 gap-4 max-w-md">
                 <div class="card p-4">
-                    <p class="text-sm text-gray-600">Total de pagamentos</p>
-                    <p class="text-2xl font-bold">${lista.length}</p>
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i data-lucide="wallet" class="w-5 h-5 text-green-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Recebido este mês</p>
+                            <p class="text-xl font-bold text-green-700">${EURO_HTML}${recebidoMes.toFixed(2)}</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="card p-4">
-                    <p class="text-sm text-gray-600">Valor total recebido</p>
-                    <p class="text-2xl font-bold text-green-700">${EURO_HTML}${valorTotal.toFixed(2)}</p>
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-yellow-100 rounded-lg">
+                            <i data-lucide="clock" class="w-5 h-5 text-yellow-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Pendente em faturas</p>
+                            <p class="text-xl font-bold text-gray-900">${EURO_HTML}${pendenteFaturas.toFixed(2)}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
+
             <div class="card p-6">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr>
-                                <th class="text-left py-2">Fatura</th>
-                                <th class="text-left py-2">Valor</th>
-                                <th class="text-left py-2">Data</th>
-                                <th class="text-left py-2">Método</th>
-                                <th class="text-left py-2">Ref.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${lista.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-500">Nenhum pagamento registado. Clique em "Novo Pagamento" para registar.</td></tr>' : lista.map(p => `
+                <div class="search-container mb-4">
+                    <i data-lucide="search" class="search-icon w-4 h-4"></i>
+                    <input type="text" id="buscaPagamentos" placeholder="Buscar por fatura, cliente, referência ou valor..."
+                           class="search-input" onkeyup="filtrarPagamentos()" title="Pode escrever o número da fatura, o cliente, a referência ou o valor">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Método</label>
+                        <select id="filtroMetodoPagamento" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPagamentos()">
+                            <option value="">Todos os métodos</option>
+                            <option value="transferencia">Transferência</option>
+                            <option value="numerario">Numerário</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="multibanco">Multibanco</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Período</label>
+                        <select id="filtroPeriodoPagamento" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosPagamentos()">
+                            <option value="">Todos os períodos</option>
+                            <option value="mes">Este mês</option>
+                            <option value="trimestre">Este trimestre</option>
+                            <option value="ano">Este ano</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <button onclick="limparFiltrosPagamentos()" class="btn btn-secondary">
+                        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                        Limpar Filtros
+                    </button>
+                    <div class="text-sm text-gray-600">
+                        <span id="contadorPagamentos">0</span> pagamentos encontrados
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="p-6">
+                    <div class="table-responsive">
+                        <table class="w-full">
+                            <thead>
                                 <tr>
-                                    <td class="py-2">${obterFaturaInfo(p.faturaId)}</td>
-                                    <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(p.valor) || 0).toFixed(2)}</td>
-                                    <td class="py-2">${(p.dataPagamento || p.data || '').toString().split('T')[0]}</td>
-                                    <td class="py-2">${p.metodoPagamento || p.metodo || '-'}</td>
-                                    <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
+                                    <th class="text-left py-2">Fatura</th>
+                                    <th class="text-left py-2">Cliente</th>
+                                    <th class="text-left py-2">Valor</th>
+                                    <th class="text-left py-2">Data</th>
+                                    <th class="text-left py-2">Método</th>
+                                    <th class="text-left py-2">Ref.</th>
+                                    <th class="text-left py-2">Ações</th>
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody id="listaPagamentos">
+                                ${(function() {
+                                    const limitP = Math.max(LISTA_PAGINA_TAMANHO, window.__pagamentosLimit || LISTA_PAGINA_TAMANHO);
+                                    const mostrarP = lista.slice(0, limitP);
+                                    const rowsP = mostrarP.map(p => {
+                                        const info = obterInfoFaturaPagamento(p.faturaId, faturasLista);
+                                        const dataStr = (p.dataPagamento || p.data || '').toString().split('T')[0];
+                                        return `
+                                        <tr>
+                                            <td class="py-2">
+                                                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(p.faturaId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
+                                                    ${info.numero}
+                                                </button>
+                                            </td>
+                                            <td class="py-2">${info.cliente}</td>
+                                            <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(p.valor) || 0).toFixed(2)}</td>
+                                            <td class="py-2">${dataStr}</td>
+                                            <td class="py-2">${formatarMetodoPagamento(p.metodoPagamento || p.metodo)}</td>
+                                            <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
+                                            <td class="py-2">
+                                                <button type="button" onclick="abrirModalEdicaoPagamento(${JSON.stringify(String(p.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
+                                                </button>
+                                                <button type="button" onclick="anularPagamentoUi(${JSON.stringify(String(p.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                                                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                                                </button>
+                                            </td>
+                                        </tr>`;
+                                    }).join('');
+                                    const verMaisP = lista.length > limitP ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__pagamentosLimit = (window.__pagamentosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPagamentos();" class="btn btn-secondary text-sm">Ver mais (${lista.length - limitP} restantes)</button></td></tr>` : '';
+                                    return rowsP + verMaisP;
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -10286,6 +10461,230 @@ async function guardarNovoPagamento(event) {
         });
         fecharModalRobusto();
         mostrarNotificacao('Pagamento registado.', 'success');
+        carregarSecao('pagamentos');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
+function filtrarPagamentos() {
+    aplicarFiltrosPagamentos();
+}
+
+function pagamentoMatchPeriodo(pagamento, periodo) {
+    if (!periodo) return true;
+    const data = new Date(pagamento.dataPagamento || pagamento.data || 0);
+    if (Number.isNaN(data.getTime())) return false;
+    const hoje = new Date();
+    if (periodo === 'mes') {
+        return data.getMonth() === hoje.getMonth() && data.getFullYear() === hoje.getFullYear();
+    }
+    if (periodo === 'trimestre') {
+        const trimestreAtual = Math.floor(hoje.getMonth() / 3);
+        const trimestreData = Math.floor(data.getMonth() / 3);
+        return trimestreAtual === trimestreData && data.getFullYear() === hoje.getFullYear();
+    }
+    if (periodo === 'ano') {
+        return data.getFullYear() === hoje.getFullYear();
+    }
+    return true;
+}
+
+function aplicarFiltrosPagamentos() {
+    if (typeof secaoAtiva !== 'string' || secaoAtiva !== 'pagamentos') return;
+    if (!document.getElementById('listaPagamentos')) return;
+    const busca = document.getElementById('buscaPagamentos')?.value?.toLowerCase() || '';
+    const metodo = document.getElementById('filtroMetodoPagamento')?.value || '';
+    const periodo = document.getElementById('filtroPeriodoPagamento')?.value || '';
+    const faturasLista = obterFaturas().filter(f => f.id !== 'seed-inicial');
+
+    let pagamentosFiltrados = obterPagamentosAtivos().filter(p => {
+        const info = obterInfoFaturaPagamento(p.faturaId, faturasLista);
+        const valorStr = (p.valor != null ? String(p.valor) : '').toLowerCase();
+        const referencia = (p.referencia || '').toString().toLowerCase();
+        const metodoPag = (p.metodoPagamento || p.metodo || '').toString().toLowerCase();
+        const matchBusca = !busca ||
+            info.numero.toString().toLowerCase().includes(busca) ||
+            info.cliente.toString().toLowerCase().includes(busca) ||
+            referencia.includes(busca) ||
+            valorStr.includes(busca);
+        const matchMetodo = !metodo || metodoPag === metodo;
+        const matchPeriodo = pagamentoMatchPeriodo(p, periodo);
+        return matchBusca && matchMetodo && matchPeriodo;
+    });
+
+    pagamentosFiltrados = pagamentosFiltrados.slice().sort((a, b) => {
+        const da = new Date(a.dataPagamento || a.data || 0).getTime();
+        const db = new Date(b.dataPagamento || b.data || 0).getTime();
+        return db - da;
+    });
+
+    atualizarListaPagamentos(pagamentosFiltrados);
+
+    const contador = document.getElementById('contadorPagamentos');
+    if (contador) contador.textContent = pagamentosFiltrados.length;
+
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    }, 100);
+    try { appStorage.setItem('filtrosPagamentos', JSON.stringify({ busca, metodo, periodo })); } catch (e) {}
+}
+
+function restaurarFiltrosPagamentos() {
+    try {
+        const s = appStorage.getItem('filtrosPagamentos');
+        if (!s) return;
+        const o = JSON.parse(s);
+        const set = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+        set('buscaPagamentos', o.busca);
+        set('filtroMetodoPagamento', o.metodo);
+        set('filtroPeriodoPagamento', o.periodo);
+    } catch (e) {}
+}
+
+function limparFiltrosPagamentos() {
+    ['buscaPagamentos', 'filtroMetodoPagamento', 'filtroPeriodoPagamento'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    aplicarFiltrosPagamentos();
+}
+
+function atualizarListaPagamentos(pagamentosFiltrados) {
+    const tbody = document.getElementById('listaPagamentos');
+    if (!tbody) return;
+    const faturasLista = obterFaturas().filter(f => f.id !== 'seed-inicial');
+    const totalAtivos = obterPagamentosAtivos().length;
+
+    if (pagamentosFiltrados.length === 0) {
+        const temFiltros = (document.getElementById('buscaPagamentos')?.value?.trim() || document.getElementById('filtroMetodoPagamento')?.value || document.getElementById('filtroPeriodoPagamento')?.value);
+        const msg = totalAtivos > 0 && temFiltros
+            ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum pagamento corresponde aos filtros.</p><button type="button" onclick="limparFiltrosPagamentos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
+            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum pagamento registado.</p><button type="button" onclick="abrirModalNovoPagamento()" class="btn btn-primary text-sm">Registar pagamento</button></td></tr>';
+        tbody.innerHTML = msg;
+        setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
+        return;
+    }
+
+    const limitP = Math.max(LISTA_PAGINA_TAMANHO, window.__pagamentosLimit || LISTA_PAGINA_TAMANHO);
+    const mostrarP = pagamentosFiltrados.slice(0, limitP);
+    const rowsP = mostrarP.map(p => {
+        const info = obterInfoFaturaPagamento(p.faturaId, faturasLista);
+        const dataStr = (p.dataPagamento || p.data || '').toString().split('T')[0];
+        return `
+        <tr>
+            <td class="py-2">
+                <button type="button" onclick="mostrarFaturaNoModal(${JSON.stringify(String(p.faturaId))})" class="text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver fatura">
+                    ${info.numero}
+                </button>
+            </td>
+            <td class="py-2">${info.cliente}</td>
+            <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(p.valor) || 0).toFixed(2)}</td>
+            <td class="py-2">${dataStr}</td>
+            <td class="py-2">${formatarMetodoPagamento(p.metodoPagamento || p.metodo)}</td>
+            <td class="py-2 text-sm text-gray-600">${p.referencia || '-'}</td>
+            <td class="py-2">
+                <button type="button" onclick="abrirModalEdicaoPagamento(${JSON.stringify(String(p.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                    <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+                <button type="button" onclick="anularPagamentoUi(${JSON.stringify(String(p.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                    <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    const verMaisP = pagamentosFiltrados.length > limitP ? `<tr><td colspan="7" class="text-center py-3 border-t"><button type="button" onclick="window.__pagamentosLimit = (window.__pagamentosLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosPagamentos();" class="btn btn-secondary text-sm">Ver mais (${pagamentosFiltrados.length - limitP} restantes)</button></td></tr>` : '';
+    tbody.innerHTML = rowsP + verMaisP;
+    setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
+}
+
+function abrirModalEdicaoPagamento(id) {
+    const pagamento = obterPagamentosAtivos().find(p => String(p.id) === String(id));
+    if (!pagamento) {
+        mostrarNotificacao('Pagamento não encontrado.', 'error');
+        return;
+    }
+    const faturas = obterFaturasParaPagamento(pagamento.faturaId);
+    if (faturas.length === 0) {
+        mostrarNotificacao('Não há faturas disponíveis para este pagamento.', 'info');
+        return;
+    }
+    const opcoes = faturas.map(f => `<option value="${f.id}" ${String(f.id) === String(pagamento.faturaId) ? 'selected' : ''}>${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)} (${f.estado || f.status || 'pendente'})</option>`).join('');
+    const dataVal = (pagamento.dataPagamento || pagamento.data || '').toString().split('T')[0];
+    const metodoVal = pagamento.metodoPagamento || pagamento.metodo || 'transferencia';
+    const html = `
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Editar Pagamento</h3>
+            <form id="formEditarPagamento" onsubmit="guardarEdicaoPagamento(event, ${JSON.stringify(String(id))})" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Fatura *</label>
+                    <select name="faturaId" required class="w-full p-2 border rounded-lg">
+                        <option value="">Selecione a fatura</option>
+                        ${opcoes}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Valor (${EURO_HTML}) *</label>
+                    <input type="number" name="valor" step="0.01" min="0.01" required class="w-full p-2 border rounded-lg" value="${(parseFloat(pagamento.valor) || 0).toFixed(2)}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Data do pagamento *</label>
+                    <input type="date" name="dataPagamento" required class="w-full p-2 border rounded-lg" value="${dataVal}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Método</label>
+                    <select name="metodoPagamento" class="w-full p-2 border rounded-lg">
+                        <option value="transferencia" ${metodoVal === 'transferencia' ? 'selected' : ''}>Transferência</option>
+                        <option value="numerario" ${metodoVal === 'numerario' ? 'selected' : ''}>Numerário</option>
+                        <option value="cheque" ${metodoVal === 'cheque' ? 'selected' : ''}>Cheque</option>
+                        <option value="multibanco" ${metodoVal === 'multibanco' ? 'selected' : ''}>Multibanco</option>
+                        <option value="outro" ${metodoVal === 'outro' ? 'selected' : ''}>Outro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Referência</label>
+                    <input type="text" name="referencia" class="w-full p-2 border rounded-lg" value="${(pagamento.referencia || '').replace(/"/g, '&quot;')}" placeholder="Nº referência ou descrição">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    `;
+    mostrarModalRobusto(html);
+}
+
+async function guardarEdicaoPagamento(event, id) {
+    event.preventDefault();
+    const form = event.target;
+    const faturaId = form.faturaId?.value;
+    const valor = parseFloat(form.valor?.value || 0);
+    if (!faturaId || valor <= 0) {
+        mostrarNotificacao('Preencha fatura e valor.', 'error');
+        return;
+    }
+    try {
+        await atualizarPagamentoCloud(id, {
+            faturaId,
+            valor,
+            dataPagamento: form.dataPagamento?.value || new Date().toISOString().split('T')[0],
+            metodoPagamento: form.metodoPagamento?.value || 'transferencia',
+            referencia: form.referencia?.value || ''
+        });
+        fecharModalRobusto();
+        mostrarNotificacao('Pagamento atualizado.', 'success');
+        carregarSecao('pagamentos');
+    } catch (e) {
+        mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
+    }
+}
+
+async function anularPagamentoUi(id) {
+    if (!confirm('Anular este pagamento? A fatura associada será recalculada.')) return;
+    try {
+        await anularPagamentoCloud(id);
+        mostrarNotificacao('Pagamento anulado.', 'success');
         carregarSecao('pagamentos');
     } catch (e) {
         mostrarNotificacao('Erro: ' + (e?.message || e), 'error');
