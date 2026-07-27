@@ -5398,13 +5398,7 @@ async function gerarFaturasAutomaticas() {
         faturasGeradas++;
     }
     mostrarNotificacao(`${faturasGeradas} fatura(s) gerada(s) com sucesso!`, 'success');
-    carregarSecao('documentos');
-    setTimeout(() => {
-        const sel = document.getElementById('templateModelo');
-        if (sel) sel.value = 'fatura_recibo';
-        if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
-        if (typeof atualizarPreviewTemplateDocumento === 'function') atualizarPreviewTemplateDocumento();
-    }, 400);
+    carregarSecao('honorarios');
 }
 
 // Funções para gerenciar lembretes
@@ -13540,6 +13534,17 @@ function obterModelosDocumentos() {
     ];
 }
 
+/** Modelos visíveis na secção Minutas (faturas ficam em Honorários). */
+function obterModelosDocumentosVisiveis() {
+    const ids = new Set([
+        'procuracao_aima',
+        'declaracao_comparecimento',
+        'declaracao_residencia',
+        'declaracao_conhecimento'
+    ]);
+    return obterModelosDocumentos().filter(m => ids.has(m.id));
+}
+
 function normalizarNomeArquivo(valor) {
     return String(valor || '')
         .toLowerCase()
@@ -13547,36 +13552,16 @@ function normalizarNomeArquivo(valor) {
         .replace(/^_+|_+$/g, '');
 }
 
-/** Mostra/oculta campos extras consoante o modelo selecionado. */
+/** Mostra/oculta campos extras consoante o modelo selecionado (AIMA). */
 function toggleCamposProcuracaoAima() {
     const modeloId = document.getElementById('templateModelo')?.value || '';
     const containerNum = document.getElementById('containerNumeroProcesso');
     const containerObj = document.getElementById('containerObjetoProcuracao');
-    const containerCliente = document.getElementById('containerTemplateCliente');
-    const containerFatura = document.getElementById('containerTemplateFatura');
-    const hintSemFaturas = document.getElementById('hintSemFaturas');
-    const selectFatura = document.getElementById('templateFatura');
     const isAima = modeloId === 'procuracao_aima';
-    const isFaturaRecibo = modeloId === 'fatura_recibo';
     if (containerNum) containerNum.classList.toggle('hidden', !isAima);
     if (containerNum) containerNum.classList.toggle('md:col-span-2', isAima);
     if (containerObj) containerObj.classList.toggle('hidden', !isAima);
     if (containerObj) containerObj.classList.toggle('md:col-span-3', isAima);
-    if (containerCliente) containerCliente.classList.toggle('hidden', isFaturaRecibo);
-    if (containerFatura) containerFatura.classList.toggle('hidden', !isFaturaRecibo);
-    const faturas = (typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial');
-    const numFaturas = faturas.length;
-    if (hintSemFaturas) hintSemFaturas.classList.toggle('hidden', !isFaturaRecibo || numFaturas > 0);
-    const btnGuardar = document.getElementById('btnGuardarFaturaCliente');
-    if (btnGuardar) btnGuardar.classList.toggle('hidden', !isFaturaRecibo);
-    // Atualiza o dropdown de faturas com dados em tempo real (importante após "Gerar faturas")
-    if (isFaturaRecibo && selectFatura) {
-        const valorSel = selectFatura.value;
-        selectFatura.innerHTML = '<option value="">Selecione a fatura</option>' + faturas.map(f => 
-            `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`
-        ).join('');
-        if (valorSel && faturas.some(f => String(f.id) === String(valorSel))) selectFatura.value = valorSel;
-    }
 }
 
 /** Atualiza a pré-visualização: para Fatura/Recibo usa só o iframe do template; para outros modelos usa a textarea. */
@@ -14234,7 +14219,6 @@ function gerarDocumentos() {
     const isConvidado = tipoUsuario === 'convidado';
     const podeCriarDocumento = tipoUsuario === 'admin' || tipoUsuario === 'convidado';
     let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
-    let documentosParaMostrar = obterDocumentosAtual();
     
     if (tipoUsuario === 'convidado') {
         const convidadoId = appStorage.getItem('convidadoId');
@@ -14243,70 +14227,19 @@ function gerarDocumentos() {
         const clientesAutorizados = convidado && convidado.ativo ? convidado.clientesAutorizados : [];
         const clientesAutorizadosNorm = (clientesAutorizados || []).map(id => String(id));
         clientesParaSelect = clientesParaSelect.filter(c => clientesAutorizadosNorm.includes(String(c.id)));
-        documentosParaMostrar = documentosParaMostrar.filter(d => clientesAutorizadosNorm.includes(String(d.clienteId)));
     }
     
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
-                <h2 class="text-2xl font-bold">Documentos</h2>
-                ${podeCriarDocumento ? `
-                    <button onclick="uploadDocumento()" class="btn btn-primary">
-                        <i data-lucide="upload" class="w-4 h-4"></i>
-                        Adicionar Documento
-                    </button>
-                ` : ''}
+            <div>
+                <h2 class="text-2xl font-bold">Minutas e documentos</h2>
+                <p class="text-sm text-gray-600 mt-1">Minutas jurídicas aqui; faturas e recibos em <strong>Honorários</strong> / <strong>Fatura-Recibo</strong>.</p>
             </div>
-            
-            ${podeCriarDocumento ? `
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Novo Documento</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                            <select id="docCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="">Selecione</option>
-                                ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
-                            <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="contrato">Contrato</option>
-                                <option value="heranca">Herança</option>
-                                <option value="migracao">Migração</option>
-                                <option value="registo">Registo</option>
-                                <option value="prazo">Prazo</option>
-                                <option value="outro">Outro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                            <select id="docEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal">
-                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
-                            <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tags (separadas por vírgula)</label>
-                            <input id="docTags" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: contrato, assinatura">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
-                            <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
 
             ${podeCriarDocumento ? `
                 <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Modelos de documentos</h3>
-                    <p class="text-gray-600 mb-4">Documentos gerados em PDF a partir de modelos (Procuração, Declarações, Recibos)</p>
+                    <h3 class="text-lg font-semibold mb-1">Gerar minuta</h3>
+                    <p class="text-sm text-gray-600 mb-4">Procuração AIMA e declarações — gere o PDF a partir do modelo.</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                         <div id="containerTemplateCliente">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
@@ -14315,17 +14248,14 @@ function gerarDocumentos() {
                                 ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
                             </select>
                         </div>
-                        <div id="containerTemplateFatura" class="hidden">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Fatura *</label>
-                            <select id="templateFatura" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
-                                <option value="">Selecione a fatura</option>
-                                ${(typeof obterFaturas === 'function' ? obterFaturas() : []).filter(f => f.id !== 'seed-inicial').map(f => `<option value="${f.id}">${f.numero || f.id} - ${f.clienteNome || ''} - ${EURO_HTML}${(parseFloat(f.valorTotal || f.valor) || 0).toFixed(2)}</option>`).join('')}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Modelo *</label>
+                            <select id="templateModelo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento(); toggleCamposProcuracaoAima();">
+                                ${obterModelosDocumentosVisiveis().map(modelo => `<option value="${modelo.id}">${modelo.nome}</option>`).join('')}
                             </select>
-                            <p id="hintSemFaturas" class="text-xs text-amber-600 mt-1 hidden">Sem faturas? Vá a <strong>Honorários</strong> e clique em <strong>Gerar faturas</strong>.</p>
-                            <button type="button" id="btnApagarFaturaSelecionada" onclick="if(document.getElementById('templateFatura').value){apagarFatura(document.getElementById('templateFatura').value);}else{mostrarNotificacao('Selecione uma fatura para apagar.', 'warning');}" class="mt-2 text-sm text-red-600 hover:text-red-800 hover:underline focus:outline-none" title="Apagar a fatura selecionada da lista">Apagar fatura selecionada</button>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Processo <span class="text-gray-400 font-normal">(opcional)</span></label>
                             <select id="templateProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento()">
                                 <option value="contrato">Contrato</option>
                                 <option value="heranca">Herança</option>
@@ -14335,116 +14265,118 @@ function gerarDocumentos() {
                                 <option value="outro">Outro</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Modelo *</label>
-                            <select id="templateModelo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="atualizarPreviewTemplateDocumento(); toggleCamposProcuracaoAima();" onload="toggleCamposProcuracaoAima();">
-                                ${obterModelosDocumentos().map(modelo => `<option value="${modelo.id}">${modelo.nome}</option>`).join('')}
-                            </select>
-                        </div>
                         <div id="containerNumeroProcesso" class="hidden">
                             <label class="block text-sm font-medium text-gray-700 mb-2">N.º do processo (AIMA)</label>
                             <input id="templateNumeroProcesso" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: 6222911" onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()">
                         </div>
-                        <div id="containerObjetoProcuracao" class="hidden">
+                        <div id="containerObjetoProcuracao" class="hidden md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Objeto personalizado (opcional)</label>
                             <textarea id="templateObjetoProcuracao" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black text-sm" placeholder="Deixe vazio para usar o texto padrão AIMA. Ou escreva o objeto da procuração..." onchange="atualizarPreviewTemplateDocumento()" oninput="atualizarPreviewTemplateDocumento()"></textarea>
                         </div>
                     </div>
                     <div class="mb-4" id="templateAreaOutros">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Adaptar texto antes de gerar PDF</label>
-                        <div id="templateConteudoWrap">
-                            <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário. Os dados da solicitadora estão em DADOS_SOLICITADORA no script.js</p>
-                    </div>
-                    <div class="mb-4 hidden" id="templateAreaFatura">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Fatura / Recibo</label>
-                        <div id="templatePreviewFaturaWrap">
-                            <p id="templateFaturaPlaceholder" class="text-sm text-gray-500 py-6 text-center border border-dashed border-gray-300 rounded-lg bg-gray-50">Selecione uma fatura na lista acima para ver a pré-visualização.</p>
-                            <iframe id="templatePreviewFatura" style="width:100%;height:520px;border:1px solid #d1d5db;border-radius:6px;background:#fff;display:none;" title="Pré-visualização da fatura"></iframe>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">Use «PDF» ou «PDF / Imprimir» para abrir a fatura numa nova janela e guardar como PDF. «Guardar no cliente» para associar aos documentos do cliente.</p>
+                        <textarea id="templateConteudoAdaptavel" rows="12" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black font-mono text-sm" placeholder="Selecione Cliente e Modelo para pré-preencher. Pode editar o texto antes de gerar o PDF."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Edite o conteúdo conforme necessário antes de gerar o PDF.</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="gerarTemplateDocumento('baixar')" class="btn btn-secondary">
-                            <i data-lucide="download" class="w-4 h-4"></i>
-                            PDF
-                        </button>
-                        <button onclick="gerarTemplateDocumento('imprimir')" class="btn btn-primary" title="Imprimir ou guardar como PDF">
+                        <button onclick="gerarTemplateDocumento('imprimir')" class="btn btn-primary" title="Gerar PDF ou imprimir">
                             <i data-lucide="file-text" class="w-4 h-4"></i>
-                            PDF / Imprimir
-                        </button>
-                        <button id="btnGuardarFaturaCliente" onclick="guardarFaturaComoDocumentoCliente()" class="btn btn-secondary hidden" title="Guardar esta fatura nos documentos do cliente">
-                            <i data-lucide="folder-plus" class="w-4 h-4"></i>
-                            Guardar no cliente
+                            Gerar PDF
                         </button>
                     </div>
                 </div>
             ` : ''}
-            
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Filtros</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
-                        <input id="filtroDocTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="nome, descrição, tag...">
+
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold">Arquivo</h3>
+
+                ${podeCriarDocumento ? `
+                    <div class="card p-6">
+                        <h4 class="text-base font-semibold mb-4">Guardar documento</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                <select id="docCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Selecione</option>
+                                    ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
+                                <input id="docDescricao" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Contrato assinado">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Processo <span class="text-gray-400 font-normal">(opcional)</span></label>
+                                <select id="docProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="outro">Outro</option>
+                                    <option value="contrato">Contrato</option>
+                                    <option value="heranca">Herança</option>
+                                    <option value="migracao">Migração</option>
+                                    <option value="registo">Registo</option>
+                                    <option value="prazo">Prazo</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2 lg:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
+                                <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <button type="button" onclick="uploadDocumento()" class="btn btn-primary">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Guardar documento
+                            </button>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
-                        <select id="filtroDocCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <option value="">Todos</option>
-                            ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
-                        <select id="filtroDocProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <option value="">Todos</option>
-                            <option value="contrato">Contrato</option>
-                            <option value="heranca">Herança</option>
-                            <option value="migracao">Migração</option>
-                            <option value="registo">Registo</option>
-                            <option value="prazo">Prazo</option>
-                            <option value="outro">Outro</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tag</label>
-                        <input id="filtroDocTag" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: assinatura">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                        <select id="filtroDocEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <option value="">Todas</option>
-                            ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL.filter(e => e.id) : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 mt-4">
-                    <button onclick="aplicarFiltrosDocumentos()" class="btn btn-primary">
-                        <i data-lucide="filter" class="w-4 h-4"></i>
-                        Aplicar filtros
-                    </button>
-                    <button onclick="limparFiltrosDocumentos()" class="btn btn-secondary">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                        Limpar
-                    </button>
-                </div>
-                </div>
-                
+                ` : ''}
+
                 <div class="card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">Documentos guardados</h3>
-                    <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
+                            <input id="filtroDocTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="nome, descrição..." oninput="aplicarFiltrosDocumentos()">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                            <select id="filtroDocCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosDocumentos()">
+                                <option value="">Todos</option>
+                                ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Processo <span class="text-gray-400 font-normal">(opcional)</span></label>
+                            <select id="filtroDocProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosDocumentos()">
+                                <option value="">Todos</option>
+                                <option value="contrato">Contrato</option>
+                                <option value="heranca">Herança</option>
+                                <option value="migracao">Migração</option>
+                                <option value="registo">Registo</option>
+                                <option value="prazo">Prazo</option>
+                                <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <button type="button" onclick="limparFiltrosDocumentos()" class="btn btn-secondary btn-sm">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                            Limpar filtros
+                        </button>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-base font-semibold">Documentos guardados</h4>
+                        <div class="text-sm text-gray-600"><span id="contadorDocumentos">0</span> documentos</div>
+                    </div>
+                    <div id="listaDocumentos" class="space-y-3"></div>
                 </div>
-                <div id="listaDocumentos" class="space-y-3"></div>
             </div>
         </div>
     `;
 }
 
 function limparFiltrosDocumentos() {
-    const ids = ['filtroDocTexto', 'filtroDocCliente', 'filtroDocProcesso', 'filtroDocTag', 'filtroDocEntidade'];
+    const ids = ['filtroDocTexto', 'filtroDocCliente', 'filtroDocProcesso'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -14470,12 +14402,9 @@ function aplicarFiltrosDocumentos() {
     const texto = (document.getElementById('filtroDocTexto')?.value || '').toLowerCase();
     const clienteId = document.getElementById('filtroDocCliente')?.value || '';
     const processo = document.getElementById('filtroDocProcesso')?.value || '';
-    const entidade = document.getElementById('filtroDocEntidade')?.value || '';
-    const tag = (document.getElementById('filtroDocTag')?.value || '').toLowerCase();
     
     if (clienteId) lista = lista.filter(doc => String(doc.clienteId) === clienteId);
     if (processo) lista = lista.filter(doc => doc.processoTipo === processo);
-    if (entidade) lista = lista.filter(doc => (doc.entidade || '') === entidade);
     if (texto) {
         lista = lista.filter(doc => {
             const alvo = [
@@ -14487,9 +14416,6 @@ function aplicarFiltrosDocumentos() {
             ].filter(Boolean).join(' ').toLowerCase();
             return alvo.includes(texto);
         });
-    }
-    if (tag) {
-        lista = lista.filter(doc => (doc.tags || []).some(t => t.toLowerCase().includes(tag)));
     }
     
     lista = lista.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
@@ -14552,10 +14478,7 @@ function uploadDocumento() {
     const arquivoInput = document.getElementById('docArquivo');
     const clienteId = parseIdSafe(document.getElementById('docCliente')?.value || '');
     const processoTipo = document.getElementById('docProcessoTipo')?.value || 'outro';
-    const entidade = document.getElementById('docEntidade')?.value || '';
     const descricao = document.getElementById('docDescricao')?.value?.trim() || '';
-    const tagsRaw = document.getElementById('docTags')?.value || '';
-    const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
     
     if (!clienteId) {
         mostrarNotificacao('Selecione o cliente do documento.', 'warning');
@@ -14579,9 +14502,7 @@ function uploadDocumento() {
             clienteId,
             clienteNome: cliente ? cliente.nome : '',
             processoTipo,
-            entidade,
             descricao,
-            tags,
             nomeArquivo: arquivo.name,
             tipoArquivo: arquivo.type,
             tamanho: arquivo.size,
@@ -14597,9 +14518,7 @@ function uploadDocumento() {
         mostrarNotificacao('Documento adicionado com sucesso!', 'success');
         arquivoInput.value = '';
         const descInput = document.getElementById('docDescricao');
-        const tagsInput = document.getElementById('docTags');
         if (descInput) descInput.value = '';
-        if (tagsInput) tagsInput.value = '';
         aplicarFiltrosDocumentos();
     };
     reader.readAsDataURL(arquivo);
@@ -15349,6 +15268,7 @@ function inicializarSecao(secao) {
         setTimeout(() => {
             aplicarFiltrosDocumentos();
             if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
+            if (typeof atualizarPreviewTemplateDocumento === 'function') atualizarPreviewTemplateDocumento();
         }, 100);
     }
     if (secao === 'tarefas') {
