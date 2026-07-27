@@ -979,39 +979,98 @@ async function criarFaturaCloud(fatura) {
     return { ...fatura, id };
 }
 
-/** Apagar fatura no Firestore (elimina o documento). */
-async function apagarFaturaCloud(id) {
-    if (!isCloudReady()) throw new Error('Firestore não disponível');
+/** Pagamentos ativos associados a uma fatura (local ou cache). */
+function obterPagamentosDaFatura(faturaId) {
+    if (!faturaId) return [];
+    return obterPagamentosAtivos().filter(p => String(p.faturaId) === String(faturaId));
+}
+
+/** Apagar fatura no Firestore: bloqueia se houver pagamentos; não altera clientes nem documentos. */
+async function eliminarFaturaCloud(id) {
+    if (!isCloudReady() || !id) throw new Error('Firestore não disponível');
+    const snap = await firestoreDb.collection('pagamentos').where('faturaId', '==', String(id)).get();
+    const pagamentosAtivos = snap.docs.filter(d => !d.data().anulado && !d.data().deleted);
+    if (pagamentosAtivos.length > 0) {
+        throw new Error(`Esta fatura tem ${pagamentosAtivos.length} pagamento(s) associado(s). Anule os pagamentos antes de apagar a fatura.`);
+    }
     await firestoreDb.collection('faturas').doc(String(id)).delete();
 }
 
-/** Apagar uma fatura (cloud ou local). Atualiza a lista e a UI. */
+/** @deprecated Use eliminarFaturaCloud */
+async function apagarFaturaCloud(id) {
+    return eliminarFaturaCloud(id);
+}
+
+/** Executa eliminação da fatura (cloud ou local) e atualiza estado local. */
 async function apagarFatura(id) {
     if (!id || String(id).trim() === '') {
         mostrarNotificacao('Selecione uma fatura para apagar.', 'warning');
         return;
     }
-    if (!confirm('Tem a certeza que deseja apagar esta fatura? Esta ação não pode ser desfeita.')) return;
+    const fatura = obterFaturas().find(f => String(f.id) === String(id));
+    if (!fatura) {
+        mostrarNotificacao('Fatura não encontrada.', 'error');
+        return;
+    }
+    const pagamentosAtivos = obterPagamentosDaFatura(id);
+    if (pagamentosAtivos.length > 0) {
+        mostrarNotificacao(`Não é possível apagar: existem ${pagamentosAtivos.length} pagamento(s) associado(s). Anule-os primeiro.`, 'warning');
+        return;
+    }
     try {
         if (isCloudReady()) {
-            await apagarFaturaCloud(id);
+            await eliminarFaturaCloud(id);
             if (Array.isArray(window.faturas)) window.faturas = (window.faturas || []).filter(f => String(f.id) !== String(id));
         } else {
             const faturas = obterFaturas().filter(f => String(f.id) !== String(id));
             appStorage.setItem('faturas', JSON.stringify(faturas));
             if (typeof window.faturas !== 'undefined') window.faturas = faturas;
         }
-        mostrarNotificacao('Fatura apagada.', 'success');
+        if (typeof registrarAuditoria === 'function') {
+            registrarAuditoria('apagar', 'fatura', `Fatura ${fatura.numero || id} eliminada`, fatura, null);
+        }
+        mostrarNotificacao(`Fatura ${fatura.numero || id} apagada. O honorário associado pode ser faturado novamente.`, 'success');
         const sel = document.getElementById('templateFatura');
-        if (sel) sel.value = '';
+        if (sel && String(sel.value) === String(id)) sel.value = '';
         if (typeof toggleCamposProcuracaoAima === 'function') toggleCamposProcuracaoAima();
         if (typeof atualizarPreviewTemplateDocumento === 'function') atualizarPreviewTemplateDocumento();
+        window.__faturaReciboFocus = true;
+        if (typeof carregarSecao === 'function') carregarSecao('pagamentos');
     } catch (e) {
         console.warn('Erro ao apagar fatura:', e);
         mostrarNotificacao('Erro ao apagar fatura: ' + (e?.message || e), 'error');
     }
 }
+
+/** Confirmação com digitação do número da fatura — apenas administrador. */
+function confirmarApagarFaturaUi(id) {
+    if (!exigirAdmin('apagar faturas')) return;
+    const fatura = obterFaturas().find(f => String(f.id) === String(id));
+    if (!fatura) {
+        mostrarNotificacao('Fatura não encontrada.', 'error');
+        return;
+    }
+    const numero = String(fatura.numero || fatura.id || '').trim();
+    if (!numero) {
+        mostrarNotificacao('Fatura sem número identificável.', 'error');
+        return;
+    }
+    const pagamentosAtivos = obterPagamentosDaFatura(id);
+    if (pagamentosAtivos.length > 0) {
+        mostrarNotificacao(`Não é possível apagar: existem ${pagamentosAtivos.length} pagamento(s) associado(s). Anule-os primeiro na lista de pagamentos.`, 'warning');
+        return;
+    }
+    mostrarModalConfirmarApagar({
+        titulo: 'Apagar fatura',
+        mensagem: `Para confirmar a eliminação da fatura <strong>${escaparHtml(numero)}</strong>, escreva o número abaixo.<br><br>O honorário associado ficará disponível para nova faturação. Documentos já guardados no cliente <strong>não</strong> serão eliminados.`,
+        textoConfirmar: numero,
+        aoConfirmar: () => apagarFatura(id)
+    });
+}
+
+window.eliminarFaturaCloud = eliminarFaturaCloud;
 window.apagarFatura = apagarFatura;
+window.confirmarApagarFaturaUi = confirmarApagarFaturaUi;
 
 /** Escuta honorários em tempo real. Devolve função para cancelar a subscrição. */
 function ouvirHonorarios(callback) {
@@ -6527,15 +6586,20 @@ function configurarEventos() {
         if (!btn || btn.disabled) return;
         const id = btn.getAttribute('data-fatura-id');
         const acao = btn.getAttribute('data-fatura-acao');
-        if (!id || acao !== 'ver') return;
+        if (!id || (acao !== 'ver' && acao !== 'apagar')) return;
         e.preventDefault();
         e.stopPropagation();
         try {
-            if (typeof mostrarFaturaNoModal === 'function') mostrarFaturaNoModal(id);
-            else mostrarNotificacao('Função de visualização indisponível.', 'error');
+            if (acao === 'ver') {
+                if (typeof mostrarFaturaNoModal === 'function') mostrarFaturaNoModal(id);
+                else mostrarNotificacao('Função de visualização indisponível.', 'error');
+            } else if (acao === 'apagar') {
+                if (typeof confirmarApagarFaturaUi === 'function') confirmarApagarFaturaUi(id);
+                else mostrarNotificacao('Função de eliminação indisponível.', 'error');
+            }
         } catch (err) {
-            console.error('Erro ao abrir fatura:', err);
-            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao abrir a fatura. Veja a consola (F12).', 'error');
+            console.error('Erro ao executar acao fatura:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao executar ação na fatura. Veja a consola (F12).', 'error');
         }
     }, true);
 
@@ -10139,6 +10203,10 @@ function gerarPagamentos() {
         const estado = (f.estado || f.status || 'pendente');
         const estadoLabel = estado === 'pago' ? 'Pago' : estado === 'parcial' ? 'Parcial' : 'Pendente';
         const estadoClass = estado === 'pago' ? 'status-pago' : estado === 'parcial' ? 'status-parcial' : 'status-pendente';
+        const btnApagar = tipoUsuario === 'admin' ? `
+                <button type="button" data-fatura-acao="apagar" data-fatura-id="${escaparHtml(String(f.id))}" class="btn btn-secondary text-sm py-1 px-2 text-red-700 border-red-200 hover:bg-red-50" title="Apagar fatura (apenas admin)">
+                    <i data-lucide="trash-2" class="w-4 h-4 inline-block" style="pointer-events:none"></i>
+                </button>` : '';
         return `
         <tr>
             <td class="py-2 font-medium">${f.numero || f.id}</td>
@@ -10147,10 +10215,13 @@ function gerarPagamentos() {
             <td class="py-2">${dataStr}</td>
             <td class="py-2"><span class="status-badge ${estadoClass}">${estadoLabel}</span></td>
             <td class="py-2">
+                <div class="flex flex-wrap gap-1">
                 <button type="button" data-fatura-acao="ver" data-fatura-id="${escaparHtml(String(f.id))}" class="btn btn-secondary text-sm py-1 px-2" title="Ver fatura profissional">
                     <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1" style="pointer-events:none"></i>
                     Ver fatura
                 </button>
+                ${btnApagar}
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -10190,7 +10261,7 @@ function gerarPagamentos() {
                                 <th class="text-left py-2">Total</th>
                                 <th class="text-left py-2">Emissão</th>
                                 <th class="text-left py-2">Estado</th>
-                                <th class="text-left py-2">Documento</th>
+                                <th class="text-left py-2">Ações</th>
                             </tr>
                         </thead>
                         <tbody>${linhasFaturas}${verMaisFaturas}</tbody>
