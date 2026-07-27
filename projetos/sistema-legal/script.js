@@ -15464,29 +15464,7 @@ function inicializarSecao(secao) {
         }, 100);
     }
     if (secao === 'backup') {
-        firestoreGetBackupLogs().then(logs => {
-            window.__backupLogsCache = logs;
-            if (secaoAtiva === 'backup') {
-                const el = document.getElementById('conteudoDinamico');
-                if (el) el.innerHTML = gerarConteudoSecao('backup');
-            }
-        });
-        const btnExport = document.getElementById('btnExportBackup');
-        if (btnExport) {
-            btnExport.onclick = (typeof window.exportBackup === 'function') ? window.exportBackup : (typeof exportBackupFirestore === 'function' ? exportBackupFirestore : () => mostrarNotificacao('Módulo backup não carregado', 'warning'));
-        }
-        const inputImport = document.getElementById('inputImportBackup');
-        const btnImport = document.getElementById('btnImportBackup');
-        if (inputImport && typeof window.importBackup === 'function') {
-            inputImport.onchange = (e) => {
-                const f = e.target.files && e.target.files[0];
-                if (f) window.importBackup(f, window.startAllListeners);
-                e.target.value = '';
-            };
-        }
-        if (btnImport && inputImport) {
-            btnImport.onclick = () => inputImport.click();
-        }
+        setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
     }
 }
 
@@ -18068,7 +18046,7 @@ function verificarLembreteBackup() {
         if (haExportRecent || haLembreteRecent) return;
         appStorage.setItem(CHAVE_LEMBRETE, new Date().toISOString());
         if (typeof mostrarNotificacao === 'function') {
-            mostrarNotificacao('Recomendamos exportar um backup dos seus dados. Use o botão Exportar no menu.', 'info');
+            mostrarNotificacao('Recomendamos exportar um backup dos seus dados. Use Backup ou Exportar backup no menu.', 'info');
         }
     } catch (e) { console.warn('Lembrete backup:', e); }
 }
@@ -18212,46 +18190,18 @@ function importarDadosCompletos() {
 }
 
 function gerarBackup() {
-    const chaves = Object.keys(appStorage);
-    const backups = chaves.filter(chave => chave.startsWith('backup_'));
-    const ultimoBackupTexto = ultimoBackup ? new Date(ultimoBackup).toLocaleString('pt-PT') : 'Nunca';
-    const ultimoDownloadTexto = ultimoBackupDownload ? new Date(ultimoBackupDownload).toLocaleString('pt-PT') : 'Nunca';
-    const ultimoPersistenciaTexto = persistenciaUltimoSalvamento ? new Date(persistenciaUltimoSalvamento).toLocaleString('pt-PT') : 'Nunca';
     const ultimoSyncSucesso = appStorage.getItem('cloudSyncUltimoSucesso');
     const ultimoSyncErro = appStorage.getItem('cloudSyncUltimoErro');
     const ultimoSyncTexto = ultimoSyncSucesso ? new Date(ultimoSyncSucesso).toLocaleString('pt-PT') : 'Nunca';
     const ultimoErroTexto = ultimoSyncErro ? new Date(ultimoSyncErro).toLocaleString('pt-PT') : 'Sem erros';
     const statusSync = (window.__cloudSyncError ? 'Erro' : (isCloudReady() ? 'Online' : 'Offline'));
-    const ultimaEntidade = appStorage.getItem('cloudSyncUltimaEntidade');
-    const ultimaEntidadeEm = appStorage.getItem('cloudSyncUltimaEntidadeEm');
-    const ultimaEntidadeTexto = ultimaEntidade ? ultimaEntidade : 'Nenhuma';
-    const ultimaEntidadeEmTexto = ultimaEntidadeEm ? new Date(ultimaEntidadeEm).toLocaleString('pt-PT') : 'Nunca';
-    const freqMin = Math.round(BACKUP_CONFIG.intervaloMs / 60000);
-    const freqTexto = `A cada ${freqMin} minutos`;
-    const auditoria = obterAuditoria().slice(0, 10);
-    const backupLogs = (typeof getBackupLogs === 'function' ? getBackupLogs() : []).slice(-20).reverse();
     const ultimoExport = appStorage.getItem('backupExportUltimo');
     const diasDesdeExport = ultimoExport ? Math.floor((Date.now() - new Date(ultimoExport).getTime()) / (24 * 60 * 60 * 1000)) : null;
     const mostrarLembreteExport = diasDesdeExport === null || diasDesdeExport >= 7;
     const textoLembrete = diasDesdeExport === null ? 'Nunca exportou um backup.' : `Última exportação há ${diasDesdeExport} dias.`;
-    
-    const urlAtual = typeof location !== 'undefined' ? (location.href || '') : '';
-    const urlErrada = urlAtual.includes('mchantre26') || urlAtual.includes('prontes');
-    
+
     return `
         <div class="space-y-6">
-            ${urlErrada ? `
-            <div class="card p-4 border-2 border-red-400 bg-red-50 rounded-lg">
-                <div class="flex items-center gap-3">
-                    <i data-lucide="alert-triangle" class="w-8 h-8 text-red-600 flex-shrink-0"></i>
-                    <div>
-                        <p class="font-bold text-red-900">URL incorreta — está num site antigo/diferente!</p>
-                        <p class="text-sm text-red-800 mt-1">Use o link correto: <strong>mchantre28</strong> e <strong>prontos</strong> (não prontes)</p>
-                        <p class="text-xs text-red-700 mt-1">Correto: https://mchantre28.github.io/https-github.com-mchantre28-Sistema-Legal-prontos/</p>
-                    </div>
-                </div>
-            </div>
-            ` : ''}
             ${mostrarLembreteExport ? `
             <div class="card p-4 border-2 border-amber-400 bg-amber-50 rounded-lg">
                 <div class="flex items-center gap-3">
@@ -18260,14 +18210,25 @@ function gerarBackup() {
                         <p class="font-medium text-amber-900">Recomendamos exportar um backup</p>
                         <p class="text-sm text-amber-800">${textoLembrete}</p>
                     </div>
-                    <button onclick="exportarDadosCompletos()" class="btn btn-primary whitespace-nowrap">
+                    <button onclick="typeof exportarBackupFirestore==='function'?exportarBackupFirestore():mostrarNotificacao('Exportação indisponível','warning')" class="btn btn-primary whitespace-nowrap">
                         <i data-lucide="download" class="w-4 h-4 mr-2"></i>Exportar agora
                     </button>
                 </div>
             </div>
             ` : ''}
+
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Status da Sincronização</h3>
+                <h3 class="text-lg font-semibold mb-4">Exportar backup</h3>
+                <p class="text-sm text-gray-600 mb-4">Descarrega um ficheiro JSON com todos os dados ativos do Firestore.</p>
+                <button onclick="typeof exportarBackupFirestore==='function'?exportarBackupFirestore():mostrarNotificacao('Exportação indisponível','warning')"
+                        class="w-full btn btn-primary">
+                    <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
+                    Exportar backup (Firestore)
+                </button>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4">Sincronização</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Estado:</span>
@@ -18281,311 +18242,59 @@ function gerarBackup() {
                         <span class="text-gray-600">Último erro:</span>
                         <span class="font-medium">${ultimoErroTexto}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Última entidade:</span>
-                        <span class="font-medium">${ultimaEntidadeTexto}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Atualizado em:</span>
-                        <span class="font-medium">${ultimaEntidadeEmTexto}</span>
-                    </div>
-                    <div class="pt-2 flex flex-wrap gap-2">
-                        <button onclick="forcarSincronizacaoNuvem()" class="btn btn-primary">
-                            <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
-                            Forçar sincronização agora
-                        </button>
-                        <button onclick="executarMigracaoLocalParaFirebase()" class="btn btn-secondary" title="Migra dados em localStorage/sessionStorage para Firebase e limpa o storage local">
-                            <i data-lucide="cloud-upload" class="w-4 h-4"></i>
-                            Migrar dados locais para Firebase
+                    <div class="pt-2">
+                        <button onclick="forcarSincronizacaoNuvem()" class="btn btn-primary w-full">
+                            <i data-lucide="refresh-ccw" class="w-4 h-4 mr-2"></i>
+                            Forçar sincronização
                         </button>
                     </div>
                 </div>
             </div>
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Status do Sistema de Backup</h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Último backup automático:</span>
-                        <span class="font-medium">${ultimoBackupTexto}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Total de backups:</span>
-                        <span class="font-medium">${backups.length}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Frequência:</span>
-                        <span class="font-medium">${freqTexto}</span>
-                    </div>
-                </div>
-            </div>
 
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Backup Automático com Download</h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Ativo:</span>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" ${backupAutoDownloadAtivo ? 'checked' : ''} onchange="toggleBackupAutoDownload(this.checked)" />
-                            <span class="text-sm">${backupAutoDownloadAtivo ? 'Sim' : 'Não'}</span>
-                        </label>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Último download:</span>
-                        <span class="font-medium">${ultimoDownloadTexto}</span>
-                    </div>
-                    <div class="text-xs text-gray-500">
-                        Intervalo: a cada 24 horas (quando o sistema está aberto)
-                    </div>
-                </div>
-            </div>
-
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Persistência Externa (Ficheiro)</h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Status:</span>
-                        <span class="font-medium">${persistenciaAtiva ? 'Ativa' : 'Inativa'}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Último salvamento:</span>
-                        <span class="font-medium">${ultimoPersistenciaTexto}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="ativarPersistenciaExterna()" class="btn btn-primary flex-1">
-                            <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                            Ativar
-                        </button>
-                        <button onclick="desativarPersistenciaExterna()" class="btn btn-secondary flex-1">
-                            <i data-lucide="pause" class="w-4 h-4 mr-2"></i>
-                            Desativar
-                        </button>
-                    </div>
-                    <p class="text-xs text-gray-500">
-                        Requer um navegador compatível. Você precisará escolher o ficheiro.
-                    </p>
-                </div>
-            </div>
-            
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Ações de Backup</h3>
-                <div class="space-y-3">
-                    <button onclick="criarBackupAutomatico(); mostrarNotificacao('Backup manual criado!', 'success')" 
-                            class="w-full btn btn-primary">
-                        <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                        Criar Backup Manual
-                    </button>
-                    <button onclick="exportarDadosCompletos()" 
-                            class="w-full btn btn-success">
-                        <i data-lucide="download" class="w-4 h-4 mr-2"></i>
-                        Exportar Backup Completo
-                    </button>
-                    <button id="btnExportBackup" class="w-full btn btn-outline" title="Exporta diretamente do Firestore (módulo backup)">
-                        <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
-                        Exportar do Firestore
-                    </button>
-                    <button onclick="typeof exportarBackupFirestore==='function'?exportarBackupFirestore():mostrarNotificacao('Módulo backupExport não carregado','warning')" 
-                            class="w-full btn btn-secondary">
-                        <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
-                        Exportar do Firestore (nuvem)
-                    </button>
-                    <button onclick="if(typeof exportBackupFromFirestore==='function')exportBackupFromFirestore();else mostrarNotificacao('backupExport.js não carregado','warning')" 
-                            class="w-full btn btn-primary">
-                        <i data-lucide="cloud-download" class="w-4 h-4 mr-2"></i>
-                        Exportar do Firestore
-                    </button>
-                    <button onclick="importarDadosCompletos()" 
-                            class="w-full btn btn-warning">
-                        <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
-                        Importar Backup
-                    </button>
-                    <input type="file" id="inputImportBackup" accept=".json" style="display:none">
-                    <button id="btnImportBackup" class="w-full btn btn-outline" title="Importa JSON directamente para o Firestore (substitui todos os dados)">
-                        <i data-lucide="cloud-upload" class="w-4 h-4 mr-2"></i>
-                        Importar para Firestore
-                    </button>
-                    <button onclick="exportarAuditoria()" 
-                            class="w-full btn btn-secondary">
-                        <i data-lucide="clipboard" class="w-4 h-4 mr-2"></i>
-                        Exportar Auditoria
-                    </button>
-                </div>
-            </div>
-
-            <div class="card p-6 border-blue-200 bg-blue-50/50">
-                <h3 class="text-lg font-semibold mb-2">Notificações do browser</h3>
-                <p class="text-sm text-gray-700 mb-3">Receba alertas de prazos e tarefas mesmo com o site em segundo plano.</p>
-                <button onclick="solicitarPermissaoNotificacoes()" class="btn btn-secondary w-full">
-                    <i data-lucide="bell" class="w-4 h-4 mr-2"></i>
-                    Ativar notificações
-                </button>
-            </div>
-
-            <div class="card p-6 border-gray-200">
-                <h3 class="text-lg font-semibold mb-4">Logs de backup</h3>
-                <div class="space-y-1 max-h-40 overflow-y-auto text-sm mb-3">
-                    ${(typeof getBackupLogs === 'function' ? getBackupLogs() : []).slice(-15).reverse().map(l =>
-                        '<div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-700">' + (l.message || '') + '</span><span class="text-xs text-gray-500 whitespace-nowrap ml-2">' + (l.timestamp ? new Date(l.timestamp).toLocaleString('pt-PT') : '') + '</span></div>'
-                    ).join('') || '<p class="text-gray-500 py-2">Nenhum log registado</p>'}
-                </div>
-                <button onclick="if(typeof clearBackupLogs==='function'){clearBackupLogs();carregarSecao('backup');mostrarNotificacao('Logs limpos','info')}" 
-                        class="btn btn-secondary w-full text-sm">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Limpar logs
-                </button>
-            </div>
-
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Histórico de Alterações (Últimas 10)</h3>
-                <div class="space-y-2">
-                    ${auditoria.length > 0 ? auditoria.map(item => `
-                        <div class="flex justify-between items-start p-3 bg-gray-50 rounded">
-                            <div>
-                                <p class="text-sm font-medium">${item.acao.toUpperCase()} ${item.entidade}</p>
-                                <p class="text-xs text-gray-600">${item.descricao}</p>
-                                <p class="text-xs text-gray-500">${new Date(item.timestamp).toLocaleString('pt-PT')}</p>
-                            </div>
-                            <span class="text-xs text-gray-500">${item.usuario}</span>
-                        </div>
-                    `).join('') : `
-                        <div class="text-center py-4 text-sm text-gray-500">Nenhuma alteração registrada</div>
-                    `}
-                </div>
-                <div class="mt-3">
-                    <button onclick="limparAuditoria()" class="btn btn-danger w-full">
-                        <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                        Limpar Auditoria
-                    </button>
-                </div>
-            </div>
-            
-            <div class="card p-6 border-blue-200 bg-blue-50">
-                <h3 class="text-lg font-semibold mb-4 text-blue-800">Alterar senha (Admin)</h3>
-                <p class="text-sm text-blue-700 mb-4">
-                    Altere a senha de acesso do administrador. Recomendado após o primeiro acesso.
+                <h3 class="text-lg font-semibold mb-4">Limpar cache e recarregar</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Se vê dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A página recarrega com dados atualizados da nuvem.
                 </p>
-                <button onclick="abrirModalAlterarSenha()" 
-                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center">
-                    <i data-lucide="key" class="w-4 h-4 mr-2"></i>
-                    Alterar senha
-                </button>
-            </div>
-            
-            <div class="card p-6 border-amber-200 bg-amber-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">Limpar base de dados (itens eliminados)</h3>
-                <p class="text-sm text-amber-800 mb-4">
-                    Remove da base de dados <strong>definitivamente</strong> apenas clientes, convidados, documentos, etc. que já foram "apagados" no sistema. Os dados ativos ficam intactos. Ideal para não ver mais criações antigas e convidados eliminados na consola do Firestore.
-                </p>
-                <button onclick="purgarDocumentosEliminadosFirestore()" 
-                        class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Remover itens eliminados da base de dados
-                </button>
-            </div>
-            
-            <div class="card p-6 border-teal-200 bg-teal-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-teal-900">Impedir reaparecimento (prevenção)</h3>
-                <p class="text-sm text-teal-800 mb-4">
-                    Remove honorários e tarefas antigos do <strong>armazenamento local</strong> do navegador e marca as migrações como concluídas. Assim, ao abrir o sistema noutro dispositivo ou após limpar cache, dados antigos não voltam a ser enviados para a nuvem. <strong>Não afeta</strong> os dados no Firestore.
-                </p>
-                <button onclick="limparDadosLocaisHonorariosTarefas()" 
-                        class="w-full bg-teal-600 text-white py-3 px-4 rounded-md hover:bg-teal-700 flex items-center justify-center">
-                    <i data-lucide="shield-check" class="w-4 h-4 mr-2"></i>
-                    Limpar dados locais de honorários e tarefas
-                </button>
-            </div>
-            
-            <div class="card p-6 border-red-200 bg-red-50/50">
-                <h3 class="text-lg font-semibold mb-4 text-red-900">Remover honorários e tarefas antigos</h3>
-                <p class="text-sm text-red-800 mb-4">
-                    Se honorários ou tarefas apagados há muito tempo voltaram a aparecer, remova-os definitivamente da nuvem. Apaga <strong>todos</strong> os honorários e tarefas do Firestore. Irreversível.
-                </p>
-                <button onclick="purgarHonorariosTarefasFirestore()" 
-                        class="w-full bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 flex items-center justify-center">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Remover todos os honorários e tarefas da nuvem
-                </button>
-            </div>
-            
-            <div class="card p-6 border-orange-300 bg-orange-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-orange-900">Manter só DACIANA e WILSON</h3>
-                <p class="text-sm text-orange-800 mb-4">
-                    Apaga <strong>tudo</strong> excepto o cliente DACIANA e o convidado WILSON. Elimina honorários, contratos, prazos e dados fantasma que reaparecem.
-                </p>
-                <button onclick="limparBaseManterApenasDacianaWilson()" 
-                        class="w-full bg-orange-600 text-white py-3 px-4 rounded-md hover:bg-orange-700 flex items-center justify-center">
-                    <i data-lucide="user-check" class="w-4 h-4 mr-2"></i>
-                    Limpar base — manter apenas DACIANA e WILSON
-                </button>
-            </div>
-            <div class="card p-6 border-amber-300 bg-amber-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-amber-900">Limpar cache do browser (dados antigos reaparecem)</h3>
-                <p class="text-sm text-amber-800 mb-4">
-                    Se vê dados antigos ou apagados a reaparecer, limpe o cache do Firestore. A página recarrega e traz dados atualizados da nuvem.
-                </p>
-                <button onclick="limparCacheFirestoreERecarregar()" 
-                        class="w-full bg-amber-600 text-white py-3 px-4 rounded-md hover:bg-amber-700 flex items-center justify-center font-semibold">
+                <button onclick="limparCacheFirestoreERecarregar()"
+                        class="w-full btn btn-secondary">
                     <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
                     Limpar cache e recarregar
                 </button>
             </div>
-            <div class="card p-6 border-purple-300 bg-purple-50 border-2">
-                <h3 class="text-lg font-semibold mb-4 text-purple-900">Remover João Silva e Maria Santos (demo)</h3>
-                <p class="text-sm text-purple-800 mb-4">
-                    Remove <strong>apenas</strong> os dois clientes de demonstração (João Silva, Maria Santos) e os honorários, contratos, prazos e tarefas associados. Os seus clientes reais <strong>não são afetados</strong>. Na primeira carga após atualização, a remoção é automática se forem detetados.
-                </p>
-                <button onclick="limparDadosDemonstracao()"
-                        class="w-full bg-purple-700 text-white py-3 px-4 rounded-md hover:bg-purple-800 flex items-center justify-center font-semibold">
-                    <i data-lucide="eraser" class="w-4 h-4 mr-2"></i>
-                    Remover João Silva e Maria Santos
-                </button>
-            </div>
-            <div class="card p-6 border-red-300 bg-red-100 border-2 opacity-90">
-                <h3 class="text-lg font-semibold mb-2 text-red-900">⚠️ Zona de perigo — Apagar tudo</h3>
-                <p class="text-sm text-red-800 mb-2 font-medium">
-                    <strong>Não use para limpar demo.</strong> Apaga permanentemente todos os clientes reais, honorários, contratos, processos e faturas. Irreversível.
-                </p>
-                <p class="text-xs text-red-700 mb-4">
-                    Para remover apenas João Silva e Maria Santos, use o botão roxo acima.
-                </p>
-                <button onclick="comecarDoZeroAbsoluto()" 
-                        class="w-full bg-red-700 text-white py-2 px-4 rounded-md hover:bg-red-800 flex items-center justify-center text-sm">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Começar do zero absoluto (apaga tudo)
-                </button>
-            </div>
-            <div class="card p-6 border-red-200 bg-red-50">
-                <h3 class="text-lg font-semibold mb-4 text-red-800">âš ï¸ Limpeza Profissional (só local)</h3>
-                <p class="text-sm text-red-700 mb-4">
-                    Limpa dados locais apenas. Para apagar tudo (incluindo Firestore), use o botão acima.
-                </p>
-                <button onclick="limparDadosParaUsoProfissional()" 
-                        class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center justify-center">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Limpar dados locais
-                </button>
-            </div>
-            
-            <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Informações do Sistema</h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Clientes:</span>
-                        <span class="font-medium">${clientes.length}</span>
+
+            <details class="card p-6">
+                <summary class="text-lg font-semibold cursor-pointer select-none">Avançado — Manutenção</summary>
+                <div class="space-y-6 mt-4 pt-4 border-t border-gray-200">
+                    <div>
+                        <h4 class="font-medium text-amber-900 mb-2">Remover itens eliminados (Firestore)</h4>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Remove definitivamente da base de dados apenas registos já apagados no sistema. Os dados ativos ficam intactos.
+                        </p>
+                        <button onclick="purgarDocumentosEliminadosFirestore()"
+                                class="w-full btn btn-secondary">
+                            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                            Remover itens eliminados
+                        </button>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Contratos:</span>
-                        <span class="font-medium">${contratos.length}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Honorários:</span>
-                        <span class="font-medium">${honorarios.length}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Prazos:</span>
-                        <span class="font-medium">${prazos.length}</span>
+                    <div>
+                        <h4 class="font-medium text-purple-900 mb-2">Remover demo (João Silva / Maria Santos)</h4>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Remove apenas os dois clientes de demonstração e dados associados. Os clientes reais não são afetados.
+                        </p>
+                        <button onclick="limparDadosDemonstracao()"
+                                class="w-full btn btn-secondary">
+                            <i data-lucide="eraser" class="w-4 h-4 mr-2"></i>
+                            Remover João Silva e Maria Santos
+                        </button>
                     </div>
                 </div>
-            </div>
+            </details>
+
+            <p class="text-sm text-gray-500 text-center">
+                <i data-lucide="info" class="w-4 h-4 inline-block mr-1 align-text-bottom"></i>
+                Lembrete: exporte um backup a cada 7 dias.
+            </p>
         </div>
     `;
 }
