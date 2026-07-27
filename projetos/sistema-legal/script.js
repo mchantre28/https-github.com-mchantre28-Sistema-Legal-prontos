@@ -20,7 +20,9 @@ const DEBUG_LOG = false;
 /** Versão de purge de dados de demonstração (legacy localStorage + Firebase). */
 const LEGACY_DEMO_PURGE_VERSION = '2026-07-27-v2';
 /** Nomes de demonstração bloqueados permanentemente (case insensitive). */
-const DEMO_NOMES_BLOQUEADOS = ['joão silva', 'maria santos'];
+const DEMO_NOMES_BLOQUEADOS = ['joão silva', 'maria santos', 'maria costa'];
+/** Emails de utilizadores de teste da API (backend seed) — não são clientes Firestore. */
+const DEMO_EMAILS_BLOQUEADOS = ['cliente@sistema-legal.pt', 'cliente2@sistema-legal.pt'];
 const CHAVE_LEGACY_DEMO_PURGE = 'legacyDemoPurgeVersion';
 (function() {
     const orig = console.log;
@@ -817,6 +819,7 @@ function obterServerTimestamp() {
 async function criarClienteCloud(cliente) {
     if (!isCloudReady()) throw new Error('Firestore não disponível');
     rejeitarSeNomeDemoBloqueado(cliente?.nome);
+    rejeitarSeEmailDemoBloqueado(cliente?.email);
     const id = cliente.id || gerarIdImutavel();
     const prep = prepararClienteParaFirestore({ ...cliente, id });
     const payload = Object.fromEntries(
@@ -842,6 +845,7 @@ async function obterClienteCloud(id) {
 async function atualizarClienteCloud(id, dados) {
     if (!isCloudReady() || !id) throw new Error('Firestore ou id inválido');
     rejeitarSeNomeDemoBloqueado(dados?.nome);
+    rejeitarSeEmailDemoBloqueado(dados?.email);
     const prep = prepararClienteParaFirestore({ ...dados, id });
     const payload = Object.fromEntries(
         Object.entries({ ...prep, updatedAt: obterServerTimestamp() }).filter(([, v]) => v !== undefined)
@@ -3141,9 +3145,30 @@ function isNomeDemoBloqueado(nome) {
     );
 }
 
+function isEmailDemoBloqueado(email) {
+    const e = String(email || '').trim().toLowerCase();
+    return !!e && DEMO_EMAILS_BLOQUEADOS.includes(e);
+}
+
+/** Utilizadores de login da API (seed backend) — separados dos clientes Firestore do CRM. */
+function isClienteApiTeste(cliente) {
+    if (!cliente) return false;
+    if (cliente.origem === 'api') return true;
+    const id = String(cliente.id || '');
+    if (id.startsWith('api-')) return true;
+    if (isEmailDemoBloqueado(cliente.email)) return true;
+    return false;
+}
+
 function rejeitarSeNomeDemoBloqueado(nome) {
     if (isNomeDemoBloqueado(nome)) {
-        throw new Error('Nome reservado para demonstração (João Silva / Maria Santos). Utilize outro nome.');
+        throw new Error('Nome reservado para demonstração (João Silva / Maria Santos / Maria Costa). Utilize outro nome.');
+    }
+}
+
+function rejeitarSeEmailDemoBloqueado(email) {
+    if (isEmailDemoBloqueado(email)) {
+        throw new Error('Email reservado para utilizadores de teste da API. Utilize outro email.');
     }
 }
 
@@ -3161,6 +3186,7 @@ function isSeedInicialItem(item) {
 function isClienteDemonstracao(cliente) {
     if (!cliente) return false;
     if (isSeedInicialItem(cliente)) return true;
+    if (isClienteApiTeste(cliente)) return true;
     return isNomeDemoBloqueado(cliente.nome);
 }
 
@@ -9161,7 +9187,7 @@ document.addEventListener('click', (event) => {
 /** Widget mínimo no dashboard: processos da API Node quando há JWT ativo. */
 /**
  * MIGRAÇÃO SPA — Fase 1
- * Com sessão JWT: processos e clientes vêm da API Node.js.
+ * Com sessão JWT: processos vêm da API Node.js; clientes CRM permanecem no Firestore.
  * Sem JWT: fallback Firebase/Firestore (comportamento legado). Ver MIGRACAO-SPA.md.
  */
 const API_SPA_FASE1 = true;
@@ -9174,17 +9200,24 @@ function isApiJwtAtivo() {
 
 function mapearClientesApiParaSpa(lista) {
     if (!Array.isArray(lista)) return [];
-    return lista.map(function (c) {
-        return {
-            id: 'api-' + c.id,
-            nome: c.nome || c.email || 'Cliente',
-            email: c.email || '',
-            status: 'ativo',
-            origem: 'api'
-        };
-    });
+    return lista
+        .filter(function (c) {
+            return !isEmailDemoBloqueado(c.email) && !isNomeDemoBloqueado(c.nome);
+        })
+        .map(function (c) {
+            return {
+                id: 'api-' + c.id,
+                nome: c.nome || c.email || 'Cliente',
+                email: c.email || '',
+                telefone: c.telefone || '',
+                nif: c.nif || '',
+                status: 'ativo',
+                origem: 'api'
+            };
+        });
 }
 
+/** Cache de utilizadores cliente da API — apenas para formulários de processos (admin), não para a lista CRM. */
 async function sincronizarClientesApi() {
     if (!isApiJwtAtivo()) {
         window.apiClientesCache = null;
@@ -10378,7 +10411,7 @@ function obterRotuloCriadorCliente(cliente) {
 
 function gerarClientes() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
-    let clientesParaMostrar = clientes;
+    let clientesParaMostrar = obterClientesAtual();
     const limit = Math.max(LISTA_PAGINA_TAMANHO, window.__clientesLimit || LISTA_PAGINA_TAMANHO);
     
     // Filtrar clientes para convidados
@@ -11838,23 +11871,17 @@ async function excluirTarefaCloud(id) {
     }
 }
 
-/** Lista clientes: API JWT (Fase 1) ou Firestore (legado). */
+/** Lista clientes CRM: sempre Firestore (ouvirClientes). Utilizadores API seed ficam fora da lista. */
 function obterClientesAtual() {
-    if (typeof isApiJwtAtivo === 'function' && isApiJwtAtivo() &&
-        Array.isArray(window.apiClientesCache) && window.apiClientesCache.length) {
-        return window.apiClientesCache;
-    }
-    return Array.isArray(clientes) ? clientes : [];
+    const lista = Array.isArray(clientes) ? clientes : [];
+    return lista.filter(function (c) { return !isClienteApiTeste(c); });
 }
 
-/** Atualiza clientes em memória e persiste no Firestore. */
+/** Atualiza clientes em memória (Firestore). Nunca persiste em appStorage nem mistura cache API. */
 function atualizarClientesEmMemoria(lista) {
     if (!Array.isArray(lista)) return;
-    clientes = lista;
+    clientes = lista.filter(function (c) { return !isClienteApiTeste(c); });
     window.clientes = clientes;
-    try {
-        appStorage.setItem('clientes', JSON.stringify(lista));
-    } catch (e) { console.warn('LocalStorage clientes:', e?.message); }
 }
 
 /** Lista tarefas: Firestore (global) ou appStorage só offline. */
@@ -16655,8 +16682,12 @@ window.atualizarCliente = atualizarCliente;
 async function excluirCliente(id) {
     if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
     if (!exigirAdmin('exclusão de clientes')) return;
+    if (String(id || '').startsWith('api-') || isClienteApiTeste({ id: id })) {
+        mostrarNotificacao('Utilizadores de teste da API não pertencem à lista de clientes.', 'info');
+        return;
+    }
 
-    const clienteAntes = clientes.find(c => String(c.id) === String(id));
+    const clienteAntes = obterClientesAtual().find(c => String(c.id) === String(id));
     if (!clienteAntes) {
         mostrarNotificacao('Cliente não encontrado.', 'error');
         return;
@@ -16689,9 +16720,18 @@ async function excluirCliente(id) {
 async function excluirClienteDireto(id) {
     
     if (!exigirPermissaoAcao('apagar', 'cliente')) return;
+    if (String(id || '').startsWith('api-') || isClienteApiTeste({ id: id })) {
+        mostrarNotificacao('Utilizadores de teste da API não pertencem à lista de clientes.', 'info');
+        return;
+    }
     if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
 
-    let clientesAtual = obterClientesAtual();
+    const clientesAtual = obterClientesAtual();
+    const clienteAlvo = clientesAtual.find(c => String(c.id) === String(id));
+    if (!clienteAlvo) {
+        mostrarNotificacao('Cliente não encontrado.', 'error');
+        return;
+    }
     const clientesAtualizados = clientesAtual.filter(c => String(c.id) !== String(id));
     
     try {
@@ -16828,12 +16868,12 @@ function aplicarFiltrosClientes() {
     const status = document.getElementById('filtroStatusCliente')?.value || '';
     const dataFiltro = document.getElementById('filtroDataCliente')?.value || '';
     
-    let clientesFiltrados = clientes.filter(cliente => {
+    let clientesFiltrados = obterClientesAtual().filter(cliente => {
         // Filtro por busca de texto (nome, email, telefone)
         const matchBusca = !busca || 
-            cliente.nome.toLowerCase().includes(busca) || 
-            cliente.email.toLowerCase().includes(busca) ||
-            cliente.telefone.toLowerCase().includes(busca);
+            (cliente.nome || '').toLowerCase().includes(busca) || 
+            (cliente.email || '').toLowerCase().includes(busca) ||
+            (cliente.telefone || '').toLowerCase().includes(busca);
         
         // Filtro por NIF
         const matchNif = !buscaNif || 
@@ -17130,7 +17170,7 @@ function atualizarListaClientes(clientesFiltrados) {
     if (!tbody) return;
     if (clientesFiltrados.length === 0) {
         const temFiltros = (document.getElementById('buscaClientes')?.value?.trim() || document.getElementById('buscaNifClientes')?.value?.trim() || document.getElementById('filtroStatusCliente')?.value || document.getElementById('filtroDataCliente')?.value);
-        const msg = clientes.length > 0 && temFiltros
+        const msg = obterClientesAtual().length > 0 && temFiltros
             ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum cliente corresponde aos filtros.</p><button type="button" onclick="limparFiltrosClientes()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
             : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum cliente ainda.</p><button type="button" onclick="abrirModal(\'cliente\')" class="btn btn-primary text-sm">Adicionar primeiro cliente</button></td></tr>';
         tbody.innerHTML = msg;
@@ -17149,8 +17189,14 @@ function atualizarListaClientes(clientesFiltrados) {
                     ${cliente.nome}
                 </button>
             </td>
-            <td>${cliente.email}</td>
-            <td>${cliente.telefone}</td>
+            <td class="group/cell">
+                ${cliente.email || '-'}
+                ${cliente.email ? `<button type="button" data-copiar="${escaparHtml(cliente.email)}" class="copy-btn ml-1 opacity-0 group-hover/cell:opacity-100 inline-flex p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Copiar email"><i data-lucide="copy" class="w-3.5 h-3.5" style="pointer-events:none"></i></button>` : ''}
+            </td>
+            <td class="group/cell">
+                ${cliente.telefone || '-'}
+                ${cliente.telefone ? `<button type="button" data-copiar="${escaparHtml(cliente.telefone)}" class="copy-btn ml-1 opacity-0 group-hover/cell:opacity-100 inline-flex p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Copiar telefone"><i data-lucide="copy" class="w-3.5 h-3.5" style="pointer-events:none"></i></button>` : ''}
+            </td>
             <td>${cliente.nif || '-'}</td>
             <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
             <td>${obterRotuloCriadorCliente(cliente)}</td>

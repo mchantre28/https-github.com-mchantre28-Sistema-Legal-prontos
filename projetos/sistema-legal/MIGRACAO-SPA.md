@@ -16,7 +16,7 @@ A Fase 1 integra a API JWT no `index.html` (SPA principal) **sem reescrever** `s
 1. **Dashboard** — widget `apiProcessosWidget` com processos da API (já existente).
 2. **Heranças** — painel superior com processos filtrados (prefixo `HER-`, título com «herança»/«espólio»).
 3. **Registos** — painel superior com processos filtrados (prefixo `REG-`, título com «registo»).
-4. **Clientes** — `obterClientesAtual()` devolve clientes da API quando JWT ativo e cache preenchida.
+4. **Clientes** — `obterClientesAtual()` devolve clientes Firestore (CRM); utilizadores seed da API ficam fora da lista.
 5. **Admin** — `GET /api/clientes` para dropdown/datalist no formulário de novo processo.
 
 ### Feature flag
