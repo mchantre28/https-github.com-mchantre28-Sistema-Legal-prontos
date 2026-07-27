@@ -1,5 +1,6 @@
 // === SISTEMA LEGAL ===
 // v2026-02-19: filtro clientes Ativo por defeito, restaurarFiltros com fallback
+// v61: Integrações Externas oculta da navegação (gestão via Processos/Tarefas)
 const EURO = '\u20AC'; // Símbolo euro (evita mojibake no browser)
 const EURO_HTML = '&#8364;'; // Entidade HTML para uso em innerHTML (evita problemas de encoding no GitHub Pages)
 // ÍNDICE DE SECÇÕES (para navegação):
@@ -1578,6 +1579,8 @@ function obterEntidadesParaSelect() {
 }
 
 // === INTEGRAÇÕES EXTERNAS ===
+// Secção oculta da navegação (Opção A). Código e Firestore mantidos; gestão via Processos/Tarefas.
+// Acesso dev apenas se necessário: comentar redirect em carregarSecao e chamar carregarSecao('integracoes').
 function prepararIntegracaoParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
@@ -4060,8 +4063,7 @@ function ocultarSecoesConvidado() {
         'nav-relatorios',
         'nav-backup',
         'nav-historico',
-        'nav-convidados',
-        'nav-integracoes'
+        'nav-convidados'
     ];
     
     secoesParaOcultar.forEach(id => {
@@ -4112,7 +4114,6 @@ function mostrarTodasSecoes() {
         'nav-tarefas',
         'nav-calendario',
         'nav-documentos',
-        'nav-integracoes',
         'nav-relatorios',
         'nav-backup',
         'nav-historico',
@@ -5025,7 +5026,7 @@ function inicializarGestosTouch() {
 }
 
 function navegarSecaoAnterior() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual > 0) {
         carregarSecao(secoes[indiceAtual - 1]);
@@ -5033,7 +5034,7 @@ function navegarSecaoAnterior() {
 }
 
 function navegarProximaSecao() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'integracoes', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual < secoes.length - 1) {
         carregarSecao(secoes[indiceAtual + 1]);
@@ -6768,6 +6769,9 @@ function toggleSidebar() {
 function carregarSecao(secao) {
     // Cancelar refresh pendente dos listeners (prioridade à navegação explícita do utilizador)
     if (typeof cancelarRefreshListener === 'function') cancelarRefreshListener();
+
+    // Integrações Externas removida da navegação — redirecionar para Tarefas/Processos
+    if (secao === 'integracoes') secao = 'tarefas';
 
     if (secao === 'calendario') {
         prazosTabAtiva = 'calendario';
@@ -17048,8 +17052,7 @@ function atualizarContadoresSidebar() {
         { secao: 'registos', navId: 'nav-registos', count: () => (Array.isArray(registos) ? registos : []).length },
         { secao: 'prazos', navId: 'nav-prazos', count: () => obterPrazos().length, extra: 'prazos' },
         { secao: 'tarefas', navId: 'nav-tarefas', count: () => obterTarefas().length, extra: 'tarefas' },
-        { secao: 'documentos', navId: 'nav-documentos', count: () => (Array.isArray(documentos) ? documentos : []).length },
-        { secao: 'integracoes', navId: 'nav-integracoes', count: () => (Array.isArray(integracoesExternas) ? integracoesExternas : []).length }
+        { secao: 'documentos', navId: 'nav-documentos', count: () => (Array.isArray(documentos) ? documentos : []).length }
     ];
 
     mapa.forEach(({ navId, count, extra }) => {
