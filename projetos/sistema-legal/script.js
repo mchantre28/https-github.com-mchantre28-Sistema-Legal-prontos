@@ -4120,37 +4120,6 @@ function testarBotao() {
 }
 
 // === FUNÇÕES DE EDIÇÃO DIRETA ===
-function duplicarContrato(id) {
-    const listaContratos = obterContratosAtual();
-    const contrato = listaContratos.find(c => String(c.id) === String(id));
-    if (!contrato) {
-        mostrarNotificacao('Contrato não encontrado!', 'error');
-        return;
-    }
-    if (!exigirPermissaoAcao('criar', 'contrato')) return;
-    fecharModalRobusto();
-    abrirModal('contrato');
-    setTimeout(() => {
-        const set = (idEl, val) => { const el = document.getElementById(idEl); if (el && val != null) el.value = String(val); };
-        set('contratoCliente', contrato.clienteId || '');
-        set('contratoTipo', contrato.tipo || '');
-        set('contratoValor', contrato.valor ?? '');
-        set('contratoIVA', String(contrato.iva ?? 23));
-        set('contratoPercentagem', contrato.percentagem ?? '');
-        set('contratoStatus', 'pendente');
-        set('contratoDataInicio', contrato.dataInicio || '');
-        set('contratoObservacoes', contrato.observacoes || '');
-        const parceria = contrato.parceria || 'sem';
-        set('contratoParceria', parceria);
-        set('contratoParceriaNome', contrato.parceriaNome || '');
-        const parceriaDiv = document.getElementById('contratoParceriaNomeDiv');
-        if (parceriaDiv) parceriaDiv.style.display = (parceria === 'empresa' || parceria === 'pessoa') ? '' : 'none';
-        const titulo = document.querySelector('#modalContainer .modal-content h3');
-        if (titulo) titulo.textContent = 'Duplicar Contrato';
-        lucide.createIcons();
-    }, 150);
-}
-
 function editarContratoDireto(id) {
     const listaContratos = Array.isArray(contratos) ? contratos : (obterContratosAtual?.() || []);
     const contrato = listaContratos.find(c => String(c.id) === String(id));
@@ -6443,7 +6412,7 @@ function configurarEventos() {
         }
     }, true);
 
-    // Delegation: botões Contratos (editar, duplicar, anexos, excluir)
+    // Delegation: botões Contratos (editar, excluir)
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('[data-contrato-acao][data-contrato-id]');
         if (!btn || btn.disabled) return;
@@ -6454,8 +6423,6 @@ function configurarEventos() {
         e.stopPropagation();
         try {
             if (acao === 'editar') editarContratoDireto(id);
-            else if (acao === 'duplicar') duplicarContrato(id);
-            else if (acao === 'anexos') abrirAnexosContrato(id);
             else if (acao === 'excluir') excluirContratoDireto(id);
         } catch (err) {
             console.error('Erro acao contrato:', acao, err);
@@ -11057,6 +11024,24 @@ function isHonorarioEmAberto(h) {
     return h.status === 'pendente' || h.status === 'parcial';
 }
 
+function normalizarStatusContrato(status) {
+    const map = { ativo: 'em_andamento', suspenso: 'pendente', terminado: 'concluido' };
+    return map[status] || status || 'pendente';
+}
+
+function formatarStatusContrato(status) {
+    const s = normalizarStatusContrato(status);
+    if (s === 'concluido') return 'Concluído';
+    if (s === 'em_andamento') return 'Em Andamento';
+    if (s === 'pendente') return 'Pendente';
+    return s;
+}
+
+function isContratoEmCurso(c) {
+    const s = normalizarStatusContrato(c.status);
+    return s === 'pendente' || s === 'em_andamento';
+}
+
 function gerarHonorarios() {
     const honorariosEmDivida = honorarios.filter(h => isHonorarioEmAberto(h)).length;
     const hoje = new Date();
@@ -11205,68 +11190,47 @@ function gerarHonorarios() {
 }
 
 function gerarContratos() {
-    const contratosAtivos = contratos.filter(c => c.status === 'ativo').length;
-    const contratosSuspensos = contratos.filter(c => c.status === 'suspenso').length;
-    const contratosTerminados = contratos.filter(c => c.status === 'terminado').length;
-    const valorTotalContratos = contratos.reduce((sum, c) => {
-        const valor = parseFloat(c.valor) || 0;
-        return sum + valor;
-    }, 0);
+    const contratosEmCurso = contratos.filter(isContratoEmCurso);
+    const totalEmCurso = contratosEmCurso.length;
+    const valorEmCurso = contratosEmCurso.reduce((sum, c) => sum + (parseFloat(c.valor) || 0), 0);
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const mostrarDicaContrato = tipoUsuario === 'admin' && contratos.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaContratoVisto');
 
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
-                <button onclick="abrirModal('contrato')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
-                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            ${mostrarDicaContrato ? `
+            <div id="dicaPrimeiroContrato" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de contratos">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Crie o seu primeiro contrato clicando em "Novo Contrato".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiroContrato')?.remove(); appStorage.setItem('guiaContratoVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <button onclick="abrirModal('contrato')" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Contrato
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+            <div class="grid grid-cols-2 gap-4 max-w-md">
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${contratosAtivos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="pause-circle" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Suspensos</p>
-                            <p class="text-2xl font-bold text-gray-900">${contratosSuspensos}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Em curso</p>
+                            <p class="text-xl font-bold text-gray-900">${totalEmCurso}</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-gray-100 rounded-lg">
-                            <i data-lucide="x-circle" class="w-6 h-6 text-gray-600"></i>
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i data-lucide="euro" class="w-5 h-5 text-green-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Terminados</p>
-                            <p class="text-2xl font-bold text-gray-900">${contratosTerminados}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${EURO_HTML}${Math.round(valorTotalContratos * 100) / 100}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Valor em curso</p>
+                            <p class="text-xl font-bold text-gray-900">${EURO_HTML}${valorEmCurso.toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
@@ -11344,7 +11308,7 @@ function gerarContratos() {
                                             ${renderMetaAuditoria('contrato', contrato)}
                                         </td>
                                         <td>${contrato.tipo}</td>
-                                        <td>${contrato.descricao}</td>
+                                        <td>${contrato.descricao || '-'}</td>
                                         <td>
                                             <div class="flex flex-col">
                                                 <div class="text-sm font-medium text-gray-900">${EURO_HTML}${(Math.round((parseFloat(contrato.valor) || 0) * 100) / 100).toFixed(2)}</div>
@@ -11354,18 +11318,13 @@ function gerarContratos() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'Concluído' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
-                                        <td>${new Date(contrato.dataInicio).toLocaleDateString('pt-PT')}</td>
+                                        <td><span class="status-badge status-${normalizarStatusContrato(contrato.status)}">${formatarStatusContrato(contrato.status)}</span></td>
+                                        <td>${contrato.dataInicio ? new Date(contrato.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
                                         <td>
                                             <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
-                                            <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
-                                                <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
-                                            </button>
-                                            <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
-                                                <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
-                                            </button>
+                                            ${contrato.clienteId ? `<button type="button" onclick="navegarSecaoClienteFicha('documentos', ${JSON.stringify(String(contrato.clienteId))}, ${JSON.stringify(contrato.clienteNome || '')})" class="text-green-600 hover:text-green-800 mr-2 text-xs whitespace-nowrap" title="Ver minutas do cliente">Ver minutas</button>` : ''}
                                             <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                                                 <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
@@ -15647,6 +15606,7 @@ function abrirModalEdicaoCliente(cliente) {
 }
 
 function abrirModalEdicaoContrato(contrato) {
+    const statusNorm = normalizarStatusContrato(contrato.status);
     // Buscar clientes (Firestore)
     const clientes = obterClientesAtual();
     
@@ -15726,9 +15686,9 @@ function abrirModalEdicaoContrato(contrato) {
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                 <select id="editarContratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="pendente" ${contrato.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                    <option value="em_andamento" ${contrato.status === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
-                                    <option value="concluido" ${contrato.status === 'concluido' ? 'selected' : ''}>Concluído</option>
+                                    <option value="pendente" ${statusNorm === 'pendente' ? 'selected' : ''}>Pendente</option>
+                                    <option value="em_andamento" ${statusNorm === 'em_andamento' ? 'selected' : ''}>Em Andamento</option>
+                                    <option value="concluido" ${statusNorm === 'concluido' ? 'selected' : ''}>Concluído</option>
                                 </select>
                             </div>
                         </div>
@@ -16120,6 +16080,11 @@ function criarModalContrato() {
                             </select>
                         </div>
                         
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
+                            <textarea id="contratoDescricao" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição opcional dos serviços..."></textarea>
+                        </div>
+                        
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
@@ -16134,25 +16099,6 @@ function criarModalContrato() {
                                     <option value="13">13% (Intermédia)</option>
                                     <option value="23" selected>23% (Normal)</option>
                                 </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Parceria</label>
-                                <select id="contratoParceria" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="toggleParceriaNome('contrato')">
-                                    <option value="sem">Sem parceria</option>
-                                    <option value="empresa">Empresa</option>
-                                    <option value="pessoa">Pessoa</option>
-                                </select>
-                            </div>
-                            
-                            <div id="contratoParceriaNomeDiv" style="display: none;">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Nome da Parceria</label>
-                                <input type="text" id="contratoParceriaNome" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Nome da empresa ou pessoa">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Percentagem (%)</label>
-                                <input type="number" id="contratoPercentagem" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Ex: 15">
                             </div>
                             
                             <div>
@@ -16186,121 +16132,6 @@ function criarModalContrato() {
                         <button type="submit" class="btn btn-primary">
                             Salvar Contrato
                         </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
-}
-
-function criarModalEdicaoContrato(contrato) {
-    return `
-        <div class="modal show" onclick="fecharModalRobusto()">
-            <div class="modal-content p-6" style="max-width: 600px;" onclick="event.stopPropagation()">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold">Editar Contrato</h3>
-                    <button onclick="fecharModalRobusto()" class="text-gray-500 hover:text-gray-700">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                
-                <form id="formEditarContrato" onsubmit="atualizarContrato(event, ${JSON.stringify(contrato.id)})">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                            <select id="editarContratoCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="">Selecionar Cliente</option>
-                                ${clientes.map(cliente => `
-                                    <option value="${cliente.id}" data-nome="${cliente.nome}" ${cliente.id === contrato.clienteId ? 'selected' : ''}>${cliente.nome}</option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Serviço *</label>
-                            <input type="text" id="editarContratoTipo" value="${contrato.tipo || ''}" list="tiposContratoEdicao2" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Digite ou selecione um tipo">
-                            <datalist id="tiposContratoEdicao2">
-                                <option value="Alteração de pactos sociais">
-                                <option value="Análise e revisão de contratos">
-                                <option value="Cessão de quotas">
-                                <option value="Constituição de sociedades">
-                                <option value="Contratos de arrendamento">
-                                <option value="Contratos de compra e venda">
-                                <option value="Contratos de prestação de serviços">
-                                <option value="Contratos de trabalho">
-                                <option value="Pactos sociais">
-                                <option value="Consultoria">
-                                <option value="Assessoria">
-                                <option value="Representação">
-                                <option value="Compra e Venda">
-                                <option value="Arrendamento">
-                                <option value="Prestação de Serviços">
-                                <option value="Empréstimo">
-                                <option value="Outro">
-                            </datalist>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
-                            <textarea id="editarContratoDescricao" rows="3" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descreva os serviços a serem prestados...">${contrato.descricao || ''}</textarea>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                                <input type="number" id="editarContratoValor" step="0.01" value="${contrato.valor || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">IVA (%)</label>
-                                <select id="editarContratoIVA" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="0" ${contrato.iva === 0 ? 'selected' : ''}>0% (Isento)</option>
-                                    <option value="6" ${contrato.iva === 6 ? 'selected' : ''}>6% (Reduzida)</option>
-                                    <option value="13" ${contrato.iva === 13 ? 'selected' : ''}>13% (Intermédia)</option>
-                                    <option value="23" ${contrato.iva === 23 ? 'selected' : ''}>23% (Normal)</option>
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                <select id="editarContratoStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    <option value="ativo" ${contrato.status === 'ativo' ? 'selected' : ''}>Ativo</option>
-                                    <option value="suspenso" ${contrato.status === 'suspenso' ? 'selected' : ''}>Suspenso</option>
-                                    <option value="terminado" ${contrato.status === 'terminado' ? 'selected' : ''}>Terminado</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Data de Início *</label>
-                                <input type="date" id="editarContratoDataInicio" value="${contrato.dataInicio || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                            <textarea id="editarContratoObservacoes" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Observações adicionais sobre o contrato...">${contrato.observacoes || ''}</textarea>
-                        </div>
-                    </div>
-                    
-                    <div class="flex justify-between mt-6">
-                        <div class="flex space-x-3">
-                            <button type="button" onclick="excluirContrato(${JSON.stringify(contrato.id)})" class="btn btn-error">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                Excluir
-                            </button>
-                        </div>
-                        <div class="flex space-x-3">
-                            <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                <i data-lucide="save" class="w-4 h-4"></i>
-                                Salvar Alterações
-                            </button>
-                        </div>
                     </div>
                 </form>
             </div>
@@ -16491,7 +16322,6 @@ async function salvarContrato(event) {
     
     const valor = parseFloat(document.getElementById('contratoValor').value);
     const ivaPercent = parseFloat(document.getElementById('contratoIVA').value);
-    const percentagem = parseFloat(document.getElementById('contratoPercentagem').value) || 0;
     const valorIVA = (valor * ivaPercent) / 100;
     const valorTotal = valor + valorIVA;
     const tipoContrato = document.getElementById('contratoTipo').value.trim();
@@ -16507,9 +16337,9 @@ async function salvarContrato(event) {
         clienteId: clienteId,
         clienteNome: clienteSelecionado ? clienteSelecionado.nome : '',
         tipo: tipoContrato,
+        descricao: document.getElementById('contratoDescricao')?.value?.trim() || '',
         valor: valor,
         iva: ivaPercent,
-        percentagem: percentagem,
         valorIVA: valorIVA,
         valorTotal: valorTotal,
         status: document.getElementById('contratoStatus').value,
@@ -17147,32 +16977,23 @@ function aplicarFiltrosContratos() {
     const busca = document.getElementById('buscaContratos')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusContrato')?.value || '';
     const clienteId = document.getElementById('filtroClienteContrato')?.value || '';
-    const valorMin = parseFloat(document.getElementById('filtroValorMinContrato')?.value) || 0;
-    const valorMax = parseFloat(document.getElementById('filtroValorMaxContrato')?.value) || Infinity;
     const nif = document.getElementById('filtroNifContrato')?.value || '';
     
     let contratosFiltrados = contratos.filter(contrato => {
-        // Filtro por busca de texto
         const matchBusca = !busca || 
             (contrato.clienteNome || '').toLowerCase().includes(busca) || 
             (contrato.tipo || '').toLowerCase().includes(busca) ||
+            (contrato.descricao || '').toLowerCase().includes(busca) ||
             (contrato.observacoes && contrato.observacoes.toLowerCase().includes(busca));
         
-        // Filtro por status
-        const matchStatus = !status || contrato.status === status;
+        const matchStatus = !status || normalizarStatusContrato(contrato.status) === status;
         
-        // Filtro por cliente
         const matchCliente = !clienteId || contrato.clienteId == clienteId;
         
-        // Filtro por valor
-        const valor = parseFloat(contrato.valor) || 0;
-        const matchValor = valor >= valorMin && valor <= valorMax;
-        
-        // Filtro por NIF
         const cliente = clientes.find(c => c.id === contrato.clienteId);
         const matchNif = !nif || (cliente && cliente.nif && cliente.nif.includes(nif));
         
-        return matchBusca && matchStatus && matchCliente && matchValor && matchNif;
+        return matchBusca && matchStatus && matchCliente && matchNif;
     });
     let ordC = window.__contratosOrdenar;
     if (!ordC || !ordC.col) try { ordC = JSON.parse(appStorage.getItem('ordenarContratos') || '{}'); } catch(e) {}
@@ -17198,7 +17019,7 @@ function aplicarFiltrosContratos() {
             lucide.createIcons();
         }
     }, 100);
-    try { appStorage.setItem('filtrosContratos', JSON.stringify({ busca, status, clienteId, valorMin: valorMin || '', valorMax: valorMax === Infinity ? '' : valorMax, nif })); } catch (e) {}
+    try { appStorage.setItem('filtrosContratos', JSON.stringify({ busca, status, clienteId, nif })); } catch (e) {}
 }
 
 function restaurarFiltrosContratos() {
@@ -17210,14 +17031,12 @@ function restaurarFiltrosContratos() {
         set('buscaContratos', o.busca);
         set('filtroStatusContrato', o.status);
         set('filtroClienteContrato', o.clienteId);
-        set('filtroValorMinContrato', o.valorMin);
-        set('filtroValorMaxContrato', o.valorMax);
         set('filtroNifContrato', o.nif);
     } catch (e) {}
 }
 
 function limparFiltrosContratos() {
-    const els = ['buscaContratos','filtroStatusContrato','filtroClienteContrato','filtroValorMinContrato','filtroValorMaxContrato','filtroNifContrato'];
+    const els = ['buscaContratos','filtroStatusContrato','filtroClienteContrato','filtroNifContrato'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosContratos();
 }
@@ -17328,7 +17147,7 @@ function atualizarListaContratos(contratosFiltrados) {
     const tbody = document.getElementById('listaContratos');
     if (!tbody) return;
     if (contratosFiltrados.length === 0) {
-        const temFiltros = (document.getElementById('buscaContratos')?.value?.trim() || document.getElementById('filtroStatusContrato')?.value || document.getElementById('filtroClienteContrato')?.value || document.getElementById('filtroValorMinContrato')?.value || document.getElementById('filtroValorMaxContrato')?.value || document.getElementById('filtroNifContrato')?.value);
+        const temFiltros = (document.getElementById('buscaContratos')?.value?.trim() || document.getElementById('filtroStatusContrato')?.value || document.getElementById('filtroClienteContrato')?.value || document.getElementById('filtroNifContrato')?.value);
         const msg = contratos.length > 0 && temFiltros
             ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum contrato corresponde aos filtros.</p><button type="button" onclick="limparFiltrosContratos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
             : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum contrato registado.</p><button type="button" onclick="abrirModal(\'contrato\')" class="btn btn-primary text-sm">Adicionar contrato</button></td></tr>';
@@ -17356,18 +17175,13 @@ function atualizarListaContratos(contratosFiltrados) {
                     `;
                 })()}
             </td>
-            <td><span class="status-badge status-${contrato.status}">${contrato.status === 'concluido' ? 'Concluído' : contrato.status === 'em_andamento' ? 'Em Andamento' : 'Pendente'}</span></td>
+            <td><span class="status-badge status-${normalizarStatusContrato(contrato.status)}">${formatarStatusContrato(contrato.status)}</span></td>
             <td>${contrato.dataInicio ? new Date(contrato.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
             <td>
                 <button type="button" data-contrato-acao="editar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" data-contrato-acao="duplicar" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
-                    <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button type="button" data-contrato-acao="anexos" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
-                    <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
+                ${contrato.clienteId ? `<button type="button" onclick="navegarSecaoClienteFicha('documentos', ${JSON.stringify(String(contrato.clienteId))}, ${JSON.stringify(contrato.clienteNome || '')})" class="text-green-600 hover:text-green-800 mr-2 text-xs whitespace-nowrap" title="Ver minutas do cliente">Ver minutas</button>` : ''}
                 <button type="button" data-contrato-acao="excluir" data-contrato-id="${String(contrato.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
@@ -25461,7 +25275,6 @@ window.toggleTipoPersonalizado = toggleTipoPersonalizado;
 window.atualizarContrato = atualizarContrato;
 window.abrirModalEdicaoContrato = abrirModalEdicaoContrato;
 window.editarContratoDireto = editarContratoDireto;
-window.duplicarContrato = duplicarContrato;
 window.excluirContratoDireto = excluirContratoDireto;
 window.editarHerancaDireto = editarHerancaDireto;
 window.duplicarHeranca = duplicarHeranca;
