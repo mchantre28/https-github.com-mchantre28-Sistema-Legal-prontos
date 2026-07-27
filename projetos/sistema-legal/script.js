@@ -10305,18 +10305,21 @@ function isHonorarioEmAberto(h) {
 }
 
 function gerarHonorarios() {
-    const honorariosPagos = honorarios.filter(h => h.status === 'pago').length;
-    const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
-    const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
-    const valorTotal = honorarios.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
+    const honorariosEmDivida = honorarios.filter(h => isHonorarioEmAberto(h)).length;
+    const hoje = new Date();
+    const honorariosVencidos = honorarios.filter(h => {
+        if (!h.vencimento) return false;
+        const dataVencimento = new Date(h.vencimento);
+        return dataVencimento < hoje && isHonorarioEmAberto(h);
+    }).length;
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const mostrarDicaHonorario = tipoUsuario === 'admin' && honorarios.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaHonorarioVisto');
 
     return `
         <div class="space-y-6">
             ${mostrarDicaHonorario ? `
-            <div id="dicaPrimeiroHonorario" class="card p-4 border-2 border-amber-200 bg-amber-50 flex items-center justify-between gap-4" role="region" aria-label="Dica de honorários">
-                <p class="text-sm text-amber-800"><strong>Próximo passo:</strong> Crie o seu primeiro honorário clicando em "Novo Honorário".</p>
+            <div id="dicaPrimeiroHonorario" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de honorários">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Crie o seu primeiro honorário clicando em "Novo Honorário".</p>
                 <button type="button" onclick="document.getElementById('dicaPrimeiroHonorario')?.remove(); appStorage.setItem('guiaHonorarioVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
             </div>
             ` : ''}
@@ -10331,51 +10334,26 @@ function gerarHonorarios() {
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+            <div class="grid grid-cols-2 gap-4 max-w-md">
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-yellow-100 rounded-lg">
+                            <i data-lucide="clock" class="w-5 h-5 text-yellow-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Pagos</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosPagos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="clock" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Pendentes</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosPendentes}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Em dívida</p>
+                            <p class="text-xl font-bold text-gray-900">${honorariosEmDivida}</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-red-100 rounded-lg">
-                            <i data-lucide="alert-circle" class="w-6 h-6 text-red-600"></i>
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-100 rounded-lg">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Vencidos</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosVencidos}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${EURO_HTML}${(Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Vencidos</p>
+                            <p class="text-xl font-bold text-gray-900">${honorariosVencidos}</p>
                         </div>
                     </div>
                 </div>
@@ -10388,8 +10366,7 @@ function gerarHonorarios() {
                            class="search-input" onkeyup="filtrarHonorarios()" title="Pode escrever o nome do cliente, o serviço ou o valor">
                 </div>
                 
-                <!-- Filtros Avançados -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select id="filtroStatusHonorario" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
@@ -10400,17 +10377,6 @@ function gerarHonorarios() {
                             <option value="vencido">Vencido</option>
                         </select>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor Mínimo</label>
-                        <input type="number" id="filtroValorMinHonorario" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Valor Máximo</label>
-                        <input type="number" id="filtroValorMaxHonorario" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
-                    </div>
-                    
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Data de Vencimento</label>
                         <select id="filtroVencimentoHonorario" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHonorarios()">
@@ -15333,7 +15299,6 @@ function criarModalHonorario() {
                             <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                             <select id="honorarioStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                 <option value="pendente">Pendente</option>
-                                <option value="parcial">Parcial</option>
                                 <option value="pago">Pago</option>
                                 <option value="vencido">Vencido</option>
                             </select>
@@ -16319,8 +16284,6 @@ function aplicarFiltrosHonorarios() {
     if (!document.getElementById('listaHonorarios')) return;
     const busca = document.getElementById('buscaHonorarios')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusHonorario')?.value || '';
-    const valorMin = parseFloat(document.getElementById('filtroValorMinHonorario')?.value) || 0;
-    const valorMax = parseFloat(document.getElementById('filtroValorMaxHonorario')?.value) || Infinity;
     const vencimento = document.getElementById('filtroVencimentoHonorario')?.value || '';
     
     
@@ -16336,10 +16299,6 @@ function aplicarFiltrosHonorarios() {
         
         // Filtro por status
         const matchStatus = !status || honorario.status === status;
-        
-        // Filtro por valor
-        const valor = parseFloat(honorario.valor) || 0;
-        const matchValor = valor >= valorMin && valor <= valorMax;
         
         // Filtro por vencimento
         let matchVencimento = true;
@@ -16367,7 +16326,7 @@ function aplicarFiltrosHonorarios() {
             }
         }
         
-        return matchBusca && matchStatus && matchValor && matchVencimento;
+        return matchBusca && matchStatus && matchVencimento;
     });
     let ordH = window.__honorariosOrdenar;
     if (!ordH || !ordH.col) try { ordH = JSON.parse(appStorage.getItem('ordenarHonorarios') || '{}'); } catch(e) {}
@@ -16394,7 +16353,7 @@ function aplicarFiltrosHonorarios() {
             lucide.createIcons();
         }
     }, 100);
-    try { appStorage.setItem('filtrosHonorarios', JSON.stringify({ busca, status, valorMin: valorMin || '', valorMax: valorMax === Infinity ? '' : valorMax, vencimento })); } catch (e) {}
+    try { appStorage.setItem('filtrosHonorarios', JSON.stringify({ busca, status, vencimento })); } catch (e) {}
 }
 
 function restaurarFiltrosHonorarios() {
@@ -16405,14 +16364,12 @@ function restaurarFiltrosHonorarios() {
         const set = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
         set('buscaHonorarios', o.busca);
         set('filtroStatusHonorario', o.status);
-        set('filtroValorMinHonorario', o.valorMin);
-        set('filtroValorMaxHonorario', o.valorMax);
         set('filtroVencimentoHonorario', o.vencimento);
     } catch (e) {}
 }
 
 function limparFiltrosHonorarios() {
-    const els = ['buscaHonorarios','filtroStatusHonorario','filtroValorMinHonorario','filtroValorMaxHonorario','filtroVencimentoHonorario'];
+    const els = ['buscaHonorarios','filtroStatusHonorario','filtroVencimentoHonorario'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosHonorarios();
 }
@@ -16572,7 +16529,7 @@ function atualizarListaHonorarios(honorariosFiltrados) {
     const tbody = document.getElementById('listaHonorarios');
     if (!tbody) return;
     if (honorariosFiltrados.length === 0) {
-        const temFiltros = (document.getElementById('buscaHonorarios')?.value?.trim() || document.getElementById('filtroStatusHonorario')?.value || document.getElementById('filtroValorMinHonorario')?.value || document.getElementById('filtroValorMaxHonorario')?.value || document.getElementById('filtroVencimentoHonorario')?.value);
+        const temFiltros = (document.getElementById('buscaHonorarios')?.value?.trim() || document.getElementById('filtroStatusHonorario')?.value || document.getElementById('filtroVencimentoHonorario')?.value);
         const msg = honorarios.length > 0 && temFiltros
             ? '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorário corresponde aos filtros.</p><button type="button" onclick="limparFiltrosHonorarios()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
             : '<tr><td colspan="6" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum honorário registado.</p><button type="button" onclick="abrirModal(\'honorario\')" class="btn btn-primary text-sm">Adicionar honorário</button></td></tr>';
@@ -16594,9 +16551,6 @@ function atualizarListaHonorarios(honorariosFiltrados) {
             <td>
                 <button type="button" data-honorario-acao="editar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button type="button" data-honorario-acao="duplicar" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-green-600 hover:text-green-800 mr-2" title="Duplicar">
-                    <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
                 <button type="button" data-honorario-acao="excluir" data-honorario-id="${String(honorario.id).replace(/"/g, '&quot;')}" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
@@ -22872,7 +22826,12 @@ function abrirModalEdicaoHonorario(honorario) {
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                                <input type="text" id="honorarioCliente" value="${honorario.cliente}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                <select id="honorarioCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                    <option value="">Selecionar Cliente</option>
+                                    ${clientes.map(cliente => `
+                                        <option value="${cliente.id}" ${String(cliente.id) === String(honorario.clienteId) ? 'selected' : ''}>${cliente.nome}</option>
+                                    `).join('')}
+                                </select>
                             </div>
                             
                             <div>
@@ -22890,7 +22849,7 @@ function abrirModalEdicaoHonorario(honorario) {
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                     <select id="honorarioStatus" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                                         <option value="pendente" ${honorario.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                                        <option value="parcial" ${honorario.status === 'parcial' ? 'selected' : ''}>Parcial</option>
+                                        ${honorario.status === 'parcial' ? '<option value="parcial" selected>Parcial</option>' : ''}
                                         <option value="pago" ${honorario.status === 'pago' ? 'selected' : ''}>Pago</option>
                                         <option value="vencido" ${honorario.status === 'vencido' ? 'selected' : ''}>Vencido</option>
                                     </select>
@@ -23515,9 +23474,13 @@ async function atualizarHonorario(event, id) {
     }
     if (!exigirPermissaoAcao('editar', 'honorario')) return;
 
+    const clienteIdHon = parseIdSafe(document.getElementById('honorarioCliente')?.value);
+    const clienteHon = clientes.find(c => String(c.id) === String(clienteIdHon));
     const dados = {
         ...honorarios[honorarioIndex],
-        cliente: document.getElementById('honorarioCliente')?.value,
+        cliente: clienteHon?.nome || honorarios[honorarioIndex].cliente,
+        clienteId: clienteIdHon || honorarios[honorarioIndex].clienteId,
+        clienteNome: clienteHon?.nome || honorarios[honorarioIndex].clienteNome,
         servico: document.getElementById('honorarioServico')?.value,
         valor: parseFloat(document.getElementById('honorarioValor')?.value) || 0,
         status: document.getElementById('honorarioStatus')?.value,
