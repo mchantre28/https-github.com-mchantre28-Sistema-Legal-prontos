@@ -9021,7 +9021,7 @@ async function carregarPainelApiProcessosSecao(secao) {
         return;
     }
 
-    widget.classList.remove('hidden');
+    widget.classList.add('hidden');
 
     const ESTADO_LABELS = {
         em_tramitacao: 'Em tramitação',
@@ -9039,30 +9039,33 @@ async function carregarPainelApiProcessosSecao(secao) {
     try {
         const res = await SistemaLegalAPI.apiFetch('/api/processos');
         if (!res.ok) {
-            const err = await res.json().catch(function () { return {}; });
-            throw new Error(err.erro || 'Não foi possível carregar processos da API.');
+            widget.classList.add('hidden');
+            return;
         }
 
         const data = await res.json();
         const filtrados = filtrarProcessosApiPorSecao(data.processos || [], secao);
 
         if (!filtrados.length) {
-            conteudo.innerHTML = '<p class="text-sm text-gray-500">Nenhum processo da API nesta secção.</p>';
-        } else {
-            const lista = filtrados.map(function (p) {
-                return '<li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">' +
-                    '<span class="font-medium text-gray-900">' + escaparHtml(p.titulo || 'Processo') + '</span>' +
-                    '<span class="text-xs text-gray-500">N.º ' + escaparHtml(p.numero_processo || '—') + '</span>' +
-                    '<span class="text-xs font-medium text-indigo-700">' + escaparHtml(labelEstado(p.estado)) + '</span>' +
-                    (p.cliente_email ? '<span class="text-xs text-gray-400">' + escaparHtml(p.cliente_email) + '</span>' : '') +
-                    '</li>';
-            }).join('');
-            conteudo.innerHTML = '<ul class="space-y-2">' + lista + '</ul>';
+            widget.classList.add('hidden');
+            return;
         }
+
+        widget.classList.remove('hidden');
+        const lista = filtrados.map(function (p) {
+            return '<li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">' +
+                '<span class="font-medium text-gray-900">' + escaparHtml(p.titulo || 'Processo') + '</span>' +
+                '<span class="text-xs text-gray-500">N.º ' + escaparHtml(p.numero_processo || '—') + '</span>' +
+                '<span class="text-xs font-medium text-indigo-700">' + escaparHtml(labelEstado(p.estado)) + '</span>' +
+                (p.cliente_email ? '<span class="text-xs text-gray-400">' + escaparHtml(p.cliente_email) + '</span>' : '') +
+                '</li>';
+        }).join('');
+        conteudo.innerHTML = '<ul class="space-y-2">' + lista + '</ul>';
 
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     } catch (e) {
-        conteudo.innerHTML = '<p class="text-sm text-red-600">' + escaparHtml(e.message || 'Erro ao contactar a API.') + '</p>';
+        console.warn('carregarPainelApiProcessosSecao:', e);
+        widget.classList.add('hidden');
     }
 }
 
@@ -20126,85 +20129,59 @@ function atualizarListaPrazos(prazosFiltrados) {
 // === FUNÇÕES DAS NOVAS SECÇÕES ===
 
 function gerarHerancas() {
-    const totalHerancas = herancas.length;
-    const herancasAtivas = herancas.filter(h => h.status === 'em_andamento').length;
-    const herancasSuspensas = herancas.filter(h => h.status === 'pendente').length;
-    const herancasTerminadas = herancas.filter(h => h.status === 'concluido').length;
-    const valorTotalHerancas = herancas.reduce((total, h) => total + (h.valorComIva || h.valor || 0), 0);
+    const herancasEmCurso = herancas.filter(isContratoEmCurso);
+    const totalEmCurso = herancasEmCurso.length;
+    const totalConcluidas = herancas.filter(h => normalizarStatusContrato(h.status) === 'concluido').length;
+    const tipoUsuario = appStorage.getItem('tipoUsuario');
+    const mostrarDicaHeranca = tipoUsuario === 'admin' && herancas.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaHerancaVisto');
 
     return htmlPainelApiProcessosPlaceholder('herancas') + `
         <div class="space-y-6">
-            <!-- Header único com botões de ação -->
-            <div class="flex justify-between items-center">
-                <div class="flex space-x-3">
-                    <button onclick="abrirModalHeranca()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
-                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                        Nova Herança
-                    </button>
-                </div>
+            ${mostrarDicaHeranca ? `
+            <div id="dicaPrimeiraHeranca" class="card p-3 border border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3" role="region" aria-label="Dica de heranças">
+                <p class="text-xs text-amber-800"><strong>Próximo passo:</strong> Crie a sua primeira herança clicando em "Nova Herança".</p>
+                <button type="button" onclick="document.getElementById('dicaPrimeiraHeranca')?.remove(); appStorage.setItem('guiaHerancaVisto', 'true');" class="text-amber-600 hover:text-amber-800 text-xs whitespace-nowrap" aria-label="Fechar dica">Ocultar</button>
+            </div>
+            ` : ''}
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <button onclick="abrirModalHeranca()" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Nova Herança
+                </button>
             </div>
 
-            <!-- Estatísticas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+            <div class="grid grid-cols-2 gap-4 max-w-md">
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="briefcase" class="w-5 h-5 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${herancasAtivas}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="pause-circle" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Suspensos</p>
-                            <p class="text-2xl font-bold text-gray-900">${herancasSuspensas}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Em curso</p>
+                            <p class="text-xl font-bold text-gray-900">${totalEmCurso}</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-gray-100 rounded-lg">
-                            <i data-lucide="x-circle" class="w-6 h-6 text-gray-600"></i>
+                <div class="card p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Terminados</p>
-                            <p class="text-2xl font-bold text-gray-900">${herancasTerminadas}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${EURO_HTML}${Number(valorTotalHerancas).toFixed(2)}</p>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600">Concluídas</p>
+                            <p class="text-xl font-bold text-gray-900">${totalConcluidas}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Barra de busca -->
             <div class="card p-6">
                 <div class="search-container mb-4">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
-                    <input type="text" id="buscaHerancas" placeholder="Buscar heranças..." 
-                           class="search-input" onkeyup="filtrarHerancas()">
+                    <input type="text" id="buscaHerancas" placeholder="Buscar por cliente, tipo ou descrição..."
+                           class="search-input" onkeyup="filtrarHerancas()" title="Pode escrever o nome do cliente, o tipo ou a descrição">
                 </div>
-                
-                <!-- Filtros Avançados -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select id="filtroStatusHeranca" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHerancas()">
@@ -20214,30 +20191,7 @@ function gerarHerancas() {
                             <option value="concluido">Concluído</option>
                         </select>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                        <select id="filtroTipoHeranca" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHerancas()">
-                            <option value="">Todos os tipos</option>
-                            <option value="Aceitação da herança">Aceitação da herança</option>
-                            <option value="Doações">Doações</option>
-                            <option value="Escrituras de partilha">Escrituras de partilha</option>
-                            <option value="Habilitação de herdeiros">Habilitação de herdeiros</option>
-                            <option value="Partilhas em vida">Partilhas em vida</option>
-                            <option value="Partilhas por óbito">Partilhas por óbito</option>
-                            <option value="Processo de inventário">Processo de inventário</option>
-                            <option value="Renúncia à herança">Renúncia à herança</option>
-                            <option value="Testamentos">Testamentos</option>
-                        </select>
-                    </div>
-                    
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">NIF</label>
-                        <input type="text" id="filtroNifHeranca" placeholder="Buscar por NIF..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosHerancas()">
-                    </div>
                 </div>
-                
                 <div class="flex justify-between items-center mt-4">
                     <button onclick="limparFiltrosHerancas()" class="btn btn-secondary">
                         <i data-lucide="x" class="w-4 h-4 mr-2"></i>
@@ -20248,27 +20202,28 @@ function gerarHerancas() {
                     </div>
                 </div>
             </div>
-            
+
             <div class="card">
-                <div class="overflow-x-auto table-responsive">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prioridade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entidade</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data Início</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-        <tbody id="listaHerancas" class="bg-white divide-y divide-gray-200">
-            <!-- Lista dinâmica de heranças -->
-        </tbody>
-                    </table>
+                <div class="p-6">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="font-bold">Cliente</th>
+                                    <th class="font-bold">Tipo</th>
+                                    <th class="font-bold">Descrição</th>
+                                    <th class="font-bold">Valor</th>
+                                    <th class="font-bold">Status</th>
+                                    <th class="font-bold">Prioridade</th>
+                                    <th class="font-bold">Entidade</th>
+                                    <th class="font-bold">Data Início</th>
+                                    <th class="font-bold">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaHerancas">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -21098,28 +21053,15 @@ function aplicarFiltrosHerancas() {
     if (!document.getElementById('listaHerancas')) return;
     const busca = document.getElementById('buscaHerancas')?.value?.toLowerCase() || '';
     const status = document.getElementById('filtroStatusHeranca')?.value || '';
-    const tipo = document.getElementById('filtroTipoHeranca')?.value || '';
-    const nif = document.getElementById('filtroNifHeranca')?.value || '';
     
     const herancasFiltradas = herancas.filter(heranca => {
-        // Filtro por busca de texto
-        const matchBusca = !busca || 
-            (heranca.clienteNome || '').toLowerCase().includes(busca) || 
+        const matchBusca = !busca ||
+            (heranca.clienteNome || '').toLowerCase().includes(busca) ||
             (heranca.tipo || '').toLowerCase().includes(busca) ||
+            (heranca.descricao || '').toLowerCase().includes(busca) ||
             (heranca.observacoes || '').toLowerCase().includes(busca);
-        
-        // Filtro por status
-        const matchStatus = !status || heranca.status === status;
-        
-        // Filtro por tipo
-        const matchTipo = !tipo || heranca.tipo === tipo;
-        
-        
-        // Filtro por NIF
-        const cliente = clientes.find(c => c.id === heranca.clienteId);
-        const matchNif = !nif || (cliente && cliente.nif && cliente.nif.includes(nif));
-        
-        return matchBusca && matchStatus && matchTipo && matchNif;
+        const matchStatus = !status || normalizarStatusContrato(heranca.status) === status;
+        return matchBusca && matchStatus;
     });
     
     const limitH = Math.max(LISTA_PAGINA_TAMANHO, window.__herancasLimit || LISTA_PAGINA_TAMANHO);
@@ -21129,7 +21071,7 @@ function aplicarFiltrosHerancas() {
 }
 
 function limparFiltrosHerancas() {
-    const els = ['buscaHerancas','filtroStatusHeranca','filtroTipoHeranca','filtroValorMinHeranca','filtroValorMaxHeranca','filtroNifHeranca'];
+    const els = ['buscaHerancas', 'filtroStatusHeranca'];
     els.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     aplicarFiltrosHerancas();
 }
@@ -21341,35 +21283,31 @@ function atualizarListaHerancas(herancasFiltradas, total, limit) {
     const verMais = total > limit ? `<tr><td colspan="9" class="text-center py-3 border-t"><button type="button" onclick="window.__herancasLimit = (window.__herancasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosHerancas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></td></tr>` : '';
     const html = herancasFiltradas.map(heranca => `
         <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td>
                 ${renderClienteLink(heranca.clienteId, heranca.clienteNome || 'N/A')}
                 ${renderMetaAuditoria('heranca', heranca)}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.tipo || 'N/A'}</td>
-            <td class="px-6 py-4 text-sm text-gray-500">${heranca.descricao || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="text-sm font-bold text-black">${EURO_HTML}${Number(heranca.valor || 0).toFixed(2)}</div>
-                <div class="text-xs font-bold text-red-600">+ IVA: ${EURO_HTML}${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</div>
+            <td>${heranca.tipo || '-'}</td>
+            <td>${heranca.descricao || '-'}</td>
+            <td>
+                <div class="text-sm font-medium text-gray-900">${EURO_HTML}${Number(heranca.valor || 0).toFixed(2)}</div>
+                <div class="text-xs text-gray-500">
+                    <span class="text-gray-400">+ ${heranca.iva || 0}% IVA:</span>
+                    <span class="font-medium text-gray-700">${EURO_HTML}${(Number(heranca.valor || 0) + (Number(heranca.valor || 0) * Number(heranca.iva || 0) / 100)).toFixed(2)}</span>
+                </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${heranca.status || 'pendente'}">${heranca.status || 'Pendente'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="status-badge status-${heranca.prioridade || 'media'}">${heranca.prioridade || 'media'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === heranca.entidade)?.nome || heranca.entidade) : '—'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${heranca.dataInicio || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button onclick="editarHerancaDireto(${JSON.stringify(heranca.id)})" class="text-blue-600 hover:text-blue-900 mr-2" title="Editar">
+            <td><span class="status-badge status-${normalizarStatusContrato(heranca.status)}">${formatarStatusContrato(heranca.status)}</span></td>
+            <td><span class="status-badge status-${heranca.prioridade || 'media'}">${heranca.prioridade || 'media'}</span></td>
+            <td>${heranca.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? (ENTIDADES_PORTUGAL.find(e => e.id === heranca.entidade)?.nome || heranca.entidade) : '—'}</td>
+            <td>${heranca.dataInicio ? new Date(heranca.dataInicio).toLocaleDateString('pt-PT') : '-'}</td>
+            <td>
+                <button onclick="editarHerancaDireto(${JSON.stringify(heranca.id)})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="duplicarHeranca(${JSON.stringify(heranca.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Duplicar">
-                    <i data-lucide="copy" class="w-4 h-4" style="pointer-events:none"></i>
-                </button>
-                <button onclick="abrirAnexosHeranca(${JSON.stringify(heranca.id)})" class="text-green-600 hover:text-green-900 mr-2" title="Documentos">
+                <button onclick="abrirAnexosHeranca(${JSON.stringify(heranca.id)})" class="text-green-600 hover:text-green-800 mr-2" title="Documentos">
                     <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button onclick="excluirHerancaDireto(${JSON.stringify(heranca.id)})" class="text-red-600 hover:text-red-900" title="Excluir">
+                <button onclick="excluirHerancaDireto(${JSON.stringify(heranca.id)})" class="text-red-600 hover:text-red-800" title="Excluir">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -22358,40 +22296,6 @@ async function salvarRegisto(event) {
 }
 
 // === FUNÇÕES DE EDIÇÃO E EXCLUSÃO ===
-
-function duplicarHeranca(id) {
-    const heranca = obterHerancasAtual().find(h => String(h.id) === String(id));
-    if (!heranca) {
-        mostrarNotificacao('Herança não encontrada!', 'error');
-        return;
-    }
-    if (!exigirPermissaoAcao('criar', 'heranca')) return;
-    fecharModalRobusto();
-    abrirModalHeranca();
-    setTimeout(() => {
-        const form = document.getElementById('formHeranca');
-        if (form) {
-            form.clienteId.value = heranca.clienteId || '';
-            form.tipo.value = heranca.tipo || '';
-            form.elements['descricao'] && (form.elements['descricao'].value = heranca.descricao || '');
-            form.valor.value = heranca.valor ?? '';
-            form.iva.value = String(heranca.iva ?? 23);
-            form.elements['parceria'] && (form.elements['parceria'].value = heranca.parceria || 'sem');
-            form.elements['parceriaNome'] && (form.elements['parceriaNome'].value = heranca.parceriaNome || '');
-            form.elements['percentagem'] && (form.elements['percentagem'].value = heranca.percentagem ?? '');
-            form.status.value = 'pendente';
-            form.elements['prioridade'] && (form.elements['prioridade'].value = heranca.prioridade || 'media');
-            form.elements['entidade'] && (form.elements['entidade'].value = heranca.entidade || '');
-            form.dataInicio.value = heranca.dataInicio || '';
-            form.observacoes.value = heranca.observacoes || '';
-            const parceriaDiv = document.getElementById('herancaParceriaNomeDiv');
-            if (parceriaDiv) parceriaDiv.style.display = (heranca.parceria === 'empresa' || heranca.parceria === 'pessoa') ? '' : 'none';
-        }
-        const titulo = document.querySelector('#modalContainer .modal-content h3');
-        if (titulo) titulo.textContent = 'Duplicar Herança';
-        lucide.createIcons();
-    }, 150);
-}
 
 function duplicarMigracao(id) {
     const migracao = obterMigracoesAtual().find(m => String(m.id) === String(id));
@@ -25277,7 +25181,6 @@ window.abrirModalEdicaoContrato = abrirModalEdicaoContrato;
 window.editarContratoDireto = editarContratoDireto;
 window.excluirContratoDireto = excluirContratoDireto;
 window.editarHerancaDireto = editarHerancaDireto;
-window.duplicarHeranca = duplicarHeranca;
 window.excluirHerancaDireto = excluirHerancaDireto;
 window.duplicarMigracao = duplicarMigracao;
 window.duplicarRegisto = duplicarRegisto;
