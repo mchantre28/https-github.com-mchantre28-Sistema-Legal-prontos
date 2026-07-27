@@ -28,6 +28,9 @@ Toda a identidade visual dos documentos gerados (minutas, contratos, requeriment
 
 - `LOGO_DATA_URI` — data URI da logo (carregada de `assets/logo-solicitadora.png` ou .svg).
 - `BRANDING` — objeto com `logoWidth`, `headerHeight`, `marginMm`, `fontFamily`, `lineHeight`, `firmName`, `firmTitle`, `documentStyles`.
-- `getBrandedLogoHTML(logoDataUri?)` — fragmento HTML da logo para inserir em `.header-left`.
-- `getBrandedHeaderHTML(logoDataUri?)` — header completo com logo.
+- `getBrandedLogoHTML(logoDataUri?)` — fragmento HTML da logo para inserir em `.branding-header-left`.
+- `getBrandedHeaderHTML(logoDataUri?, dadosSolicitadora?)` — header completo (logo esq. + dados dir.).
+- `renderCabecalhoDocumentoSolicitadora(dadosSolicitadora?, logoDataUri?)` — cabeçalho oficial reutilizável.
+- `getDadosCabecalhoSolicitadora(override?)` — dados formatados da solicitadora.
+- `wrapDocumentWithBrandingHeader(title, bodyHtml, extraStyles?)` — documento HTML completo com cabeçalho.
 - `applyBrandingToDocument(html, injectHeaderAfter?)` — injeta header oficial em HTML e remove logos embutidas.

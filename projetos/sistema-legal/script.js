@@ -7209,7 +7209,7 @@ function gerarHtmlRelatorioCompleto(d) {
         return `<li>${p.descricao} (${p.clienteNome}) - ${p.tipo} - ${dias} dias</li>`;
     }).join('') || '<li>Nenhum prazo próximo</li>';
     const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - ${EURO_HTML}${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px}th{background:#f3f4f6}ul{margin:4px 0;padding-left:20px}</style></head><body>
+    const corpo = `
 <h1 class="h1">RELATÓRIO COMPLETO - SISTEMA LEGAL</h1>
 <p>Data: ${dataStr}</p>
 <h2>Resumo Geral</h2>
@@ -7219,8 +7219,12 @@ function gerarHtmlRelatorioCompleto(d) {
 <p><strong>VALOR TOTAL: ${EURO_HTML}${total.toFixed(2)}</strong></p>
 <h2>Prazos Próximos (7 dias)</h2><ul>${prazosHtml}</ul>
 <h2>Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
-<p><em>Sistema Legal - Relatório gerado automaticamente</em></p>
-</body></html>`;
+<p><em>Sistema Legal - Relatório gerado automaticamente</em></p>`;
+    const extraStyles = '.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}ul{margin:4px 0;padding-left:20px}';
+    if (typeof wrapDocumentWithBrandingHeader === 'function') {
+        return wrapDocumentWithBrandingHeader('Relatório Completo', corpo, extraStyles);
+    }
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}${extraStyles}</style></head><body>${corpo}</body></html>`;
 }
 
 /** Converte texto em PDF (download ou imprimir). Usado para todos os relatórios. */
@@ -7277,7 +7281,11 @@ function abrirRelatorioTextoComoPdf(titulo, relatorioTexto) {
         mostrarNotificacao('Permita abrir a janela para imprimir ou guardar como PDF.', 'warning');
         return;
     }
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111;font-size:12px}pre{white-space:pre-wrap;word-wrap:break-word}</style></head><body><h1>${escaparHtml(titulo)}</h1><pre>${escaparHtml(relatorioTexto)}</pre></body></html>`;
+    const corpo = `<h1 class="doc-report-title">${escaparHtml(titulo)}</h1><pre class="doc-report-body">${escaparHtml(relatorioTexto)}</pre>`;
+    const extraStyles = '.doc-report-title{font-size:16px;margin:0 0 12px 0;font-weight:700}.doc-report-body{white-space:pre-wrap;word-wrap:break-word;font-size:12px;margin:0}';
+    const html = typeof wrapDocumentWithBrandingHeader === 'function'
+        ? wrapDocumentWithBrandingHeader(titulo, corpo, extraStyles)
+        : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111;font-size:12px}${extraStyles}</style></head><body>${corpo}</body></html>`;
     janela.document.write(html);
     janela.document.close();
     setTimeout(() => { janela.focus(); janela.print(); }, 250);
@@ -13255,41 +13263,76 @@ function carregarLogoBase64() {
     });
 }
 
-/** Logo em todos os PDFs: mesma resolução e nitidez que na fatura (190px ≈ 48mm). */
+/** Cabeçalho em PDFs: logo à esquerda, dados da solicitadora alinhados à direita. */
 async function adicionarLogoAoPdf(doc, margin) {
     const b = typeof window.BRANDING !== 'undefined' ? window.BRANDING : null;
     const marginMm = (b && b.marginMm) ? b.marginMm : 25;
-    const marginY = margin != null ? margin : marginMm;
+    const marginX = margin != null ? margin : marginMm;
+    const marginY = marginX;
     if (!doc) return marginY;
     const pageWidth = doc.internal.pageSize.getWidth();
-    const name = (b && b.firmName) ? b.firmName : 'ANA PAULA MEDINA';
-    const title = (b && b.firmTitle) ? b.firmTitle : 'SOLICITADORA';
+    const textX = pageWidth - marginX;
     const logoWidthMm = 48;
     const logoHeightMm = logoWidthMm * 0.62;
     const headerGap = 8;
+    const lineStep = 4.5;
+    const cab = typeof getDadosCabecalhoSolicitadora === 'function'
+        ? getDadosCabecalhoSolicitadora(typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {})
+        : {
+            nome: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.nome) || 'Dra. Ana Paula Medina',
+            nif: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.nif) || '288 132 335',
+            phone: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.phone) || '938057340',
+            email: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.email) || 'anapaulamedina09738@osae.pt',
+            iban: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.iban) || 'PT50 0193 0000 10514937886 86',
+            morada: (b && b.solicitadoraDefaults && b.solicitadoraDefaults.morada) || 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa'
+        };
+
+    let logoBottom = marginY;
     const logoBase64 = await carregarLogoBase64();
     if (logoBase64 && !/^data:image\/svg\+xml/i.test(logoBase64)) {
         try {
-            const x = (pageWidth - logoWidthMm) / 2;
             const logoFormat = /^data:image\/jpe?g/i.test(logoBase64) ? 'JPEG' : 'PNG';
-            doc.addImage(logoBase64, logoFormat, x, marginY - 2, logoWidthMm, logoHeightMm);
-            return marginY + logoHeightMm + headerGap;
+            doc.addImage(logoBase64, logoFormat, marginX, marginY - 2, logoWidthMm, logoHeightMm);
+            logoBottom = marginY + logoHeightMm;
         } catch (e) {
             // fallback para cabeçalho textual
         }
     }
 
+    let textY = marginY + 2;
     try {
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 15, 15);
-        doc.text(name, pageWidth / 2, marginY, { align: 'center' });
-        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(cab.nome || 'Dra. Ana Paula Medina', textX, textY, { align: 'right' });
+        textY += lineStep + 1;
         doc.setFont('helvetica', 'normal');
-        doc.text(title, pageWidth / 2, marginY + 7, { align: 'center' });
+        doc.setFontSize(9);
+        [
+            `NIF: ${cab.nif || ''}`,
+            `Tlm.: ${cab.phone || ''}`,
+            `Email: ${cab.email || ''}`,
+            `IBAN: ${cab.iban || ''}`,
+            `Sede: ${cab.morada || ''}`
+        ].forEach(linha => {
+            const partes = doc.splitTextToSize(linha, pageWidth * 0.48);
+            partes.forEach(p => {
+                doc.text(p, textX, textY, { align: 'right' });
+                textY += lineStep;
+            });
+        });
         doc.setTextColor(0, 0, 0);
+    } catch (e) {
         return marginY + 20;
-    } catch (e) { return marginY; }
+    }
+
+    const headerBottom = Math.max(logoBottom, textY) + headerGap;
+    try {
+        doc.setDrawColor(26, 26, 26);
+        doc.setLineWidth(0.4);
+        doc.line(marginX, headerBottom - 4, pageWidth - marginX, headerBottom - 4);
+    } catch (e) { /* ignore */ }
+    return headerBottom;
 }
 
 /** Dados da solicitadora — edite aqui para personalizar procurações, faturas e rodapé. */
@@ -13439,8 +13482,9 @@ function gerarHtmlFaturaBilling(dados) {
     const qrData = `${siteUrl}/?fatura=${encodeURIComponent(numero)}`;
     const qrSrc = dados.qrBase64 ? `data:image/png;base64,${dados.qrBase64}` : `https://api.qrserver.com/v1/create-qrcode/?size=150x150&data=${encodeURIComponent(qrData)}`;
 
-    // Fatura com logotipo em imagem (getBrandedLogoHTML / logo-data.js).
-    const logoHtml = (typeof getBrandedLogoHTML === 'function' ? getBrandedLogoHTML() : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? '<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="branding-logo" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">' : '<div class="branding-logo-placeholder" style="width:220px;font-size:14px;font-weight:600">ANA PAULA MEDINA<br/><span style="font-size:10px;font-weight:500">SOLICITADORA</span></div>'));
+    const headerHtml = typeof renderCabecalhoDocumentoSolicitadora === 'function'
+        ? renderCabecalhoDocumentoSolicitadora(sol)
+        : (typeof getBrandedHeaderHTML === 'function' ? getBrandedHeaderHTML(undefined, sol) : '');
 
     const rowsServicos = servicos.map(i => {
         const q = parseFloat(i.quantidade || 1);
@@ -13477,12 +13521,7 @@ ${docStyles ? docStyles + '\n' : ''}
 .invoice-container{max-width:210mm;margin:0 auto}
 .action-bar{margin-top:20px;padding:12px;border-top:1px solid #000;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;background:#fff;color:#000}
 @media print{.action-bar{display:none!important}.invoice-container{page-break-inside:avoid}body,.invoice-body{padding:24px 32px!important;margin:0!important}html,body{height:auto;overflow:visible}}
-.header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:0;padding-bottom:12px;border-bottom:1px solid #000}
-.header-left{flex-shrink:0;background:#e8e8e8;padding:10px;border:1px solid #999;box-sizing:border-box}
 .branding-logo,.logo{width:220px;max-width:220px;height:auto;object-fit:contain;display:block;image-rendering:crisp-edges}
-.issuer-info{flex:1;text-align:right;min-width:200px}
-.issuer-info h2{margin:0 0 6px 0;font-size:18px;font-weight:700;color:#000}
-.issuer-info p{margin:3px 0;font-size:11px;color:#000}
 .doc-title-block{text-align:left;margin-bottom:16px}
 .doc-title-block .doc-type{margin:0 0 2px 0;font-size:15pt;font-weight:700;color:#000}
 .doc-title-block .doc-date{margin:0;font-size:11pt;color:#000}
@@ -13515,13 +13554,7 @@ ${docStyles ? docStyles + '\n' : ''}
 @media print{.client-section,.doc-title-block,.items-section,.totals-section,.receipt-section,.notes-section{page-break-inside:avoid}}
 `;
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-store,no-cache"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Fatura/Recibo ${numero}</title><style>${billingCss}</style></head><body class="invoice-body"><div class="invoice-container">
-<header class="header">
-  <div class="header-left">${logoHtml}</div>
-  <div class="issuer-info">
-    <h2>${(sol.titulo || 'Dra.') + ' ' + (sol.nome || 'Ana Paula Medina')}</h2>
-    ${sol.nif ? `<p>NIF: ${fmtNif(sol.nif)}</p>` : ''}<p>Tlm: ${sol.contacto || ''}</p><p>Email: ${sol.email || ''}</p><p>IBAN: ${sol.iban || ''}</p><p>Sede: ${sol.sede || ''}</p>
-  </div>
-</header>
+${headerHtml}
 <div class="doc-title-block">
   <h2 class="doc-type">Fatura/Recibo ${numero}</h2>
   <p class="doc-date">Data: ${fmtDate(dataEmissao)}</p>

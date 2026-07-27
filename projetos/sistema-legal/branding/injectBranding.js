@@ -21,8 +21,29 @@
     lineHeightMax: 1.5,
     fontFamily: "'Inter', 'Lato', 'Roboto', 'Segoe UI', Arial, sans-serif",
     firmName: 'ANA PAULA MEDINA',
-    firmTitle: 'SOLICITADORA'
+    firmTitle: 'SOLICITADORA',
+    solicitadoraDefaults: {
+      nome: 'Dra. Ana Paula Medina',
+      nif: '288 132 335',
+      phone: '938057340',
+      email: 'anapaulamedina09738@osae.pt',
+      iban: 'PT50 0193 0000 10514937886 86',
+      morada: 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa'
+    }
   };
+
+  function escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtNif(nif) {
+    var n = String(nif || '').replace(/\s/g, '');
+    return n.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+  }
 
   function setLogoEmpty() {
     window.LOGO_DATA_URI = '';
@@ -44,13 +65,11 @@
 
   function loadLogoFromAsset() {
     var base = getBaseUrl();
-    // ana.png existe em sistema-legal/assets/; tentar primeiro para evitar 404 no GitHub Pages
     var paths = ['assets/ana.png', BRANDING.logoPathPng, 'assets/ana.svg', 'assets/logo-solicitadora.svg'];
     if (BRANDING.logoPathFallback) paths.push(BRANDING.logoPathFallback);
     var idx = 0;
     function tryNext() {
       if (idx >= paths.length) {
-        // Não sobrescrever: logo-data.js pode já ter definido LOGO_DATA_URI (evita texto no .bat)
         return Promise.resolve(false);
       }
       var url = base + paths[idx] + '?v=' + (typeof Date.now === 'function' ? Date.now() : 1);
@@ -68,23 +87,42 @@
   }
 
   setLogoEmpty();
-  // A logo é definida por logo-data.js (carregado a seguir no index e no fatura-recibo). Evitar fetch aqui para não gerar 404 na consola.
-  // Se precisar de fallback por fetch: loadLogoFromAsset().then(...)
 
-  window.BRANDING = BRANDING;
-
-  /** Estilos base para todos os documentos: margens 25mm, fontes profissionais, sem sombras/bordas decorativas. */
+  /** Estilos base para todos os documentos: margens 25mm, fontes profissionais, cabeçalho logo esq. + texto dir. */
   BRANDING.documentStyles = [
     'html,body{font-family:' + BRANDING.fontFamily + ';font-size:11px;color:#1a1a1a;margin:0;padding:25mm;background:#fff;line-height:' + BRANDING.lineHeight + '}',
     '.doc-container{max-width:210mm;margin:0 auto;background:#fff}',
-    '.branding-header{height:' + BRANDING.headerHeight + 'px;min-height:' + BRANDING.headerHeight + 'px;display:flex;align-items:flex-end;padding-bottom:10px;margin-bottom:20px;border-bottom:2px solid #1a1a1a;box-sizing:border-box}',
-    '.branding-header-left{flex-shrink:0}',
+    '.branding-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;min-height:' + BRANDING.headerHeight + 'px;padding-bottom:10px;margin-bottom:20px;border-bottom:2px solid #1a1a1a;box-sizing:border-box}',
+    '.branding-header-left{flex-shrink:0;text-align:left}',
+    '.branding-header-right{flex:1;text-align:right;font-size:11px;line-height:1.4;min-width:0;align-self:flex-start}',
+    '.branding-firm-name{font-weight:700;font-size:12pt;margin:0 0 4px 0;letter-spacing:0.02em;color:#1a1a1a}',
+    '.branding-header-right p{margin:2px 0;color:#1a1a1a}',
     '.branding-logo{width:' + BRANDING.logoWidth + 'px;height:auto;max-width:' + BRANDING.logoWidth + 'px;min-width:' + BRANDING.logoWidth + 'px;flex-shrink:0;display:block;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;margin-bottom:' + BRANDING.logoMarginBottom + 'px}',
     '.branding-logo-placeholder{width:' + BRANDING.logoWidth + 'px;min-height:60px;display:flex;align-items:center;justify-content:flex-start;font-size:18px;font-weight:700;color:#1a1a1a;line-height:1.3}',
     '.branding-logo-placeholder span{font-size:11px;font-weight:500;letter-spacing:.15em;color:#444}'
   ].join('\n');
 
-  /** Retorna apenas o fragmento da logo (img ou placeholder) para inserir em .header-left. */
+  /** Dados da solicitadora para o cabeçalho (override > DADOS_SOLICITADORA > defaults). */
+  window.getDadosCabecalhoSolicitadora = function(override) {
+    var o = override || {};
+    var d = (typeof window.DADOS_SOLICITADORA !== 'undefined') ? window.DADOS_SOLICITADORA : {};
+    var defs = BRANDING.solicitadoraDefaults;
+    var nome = o.nome || d.nome || defs.nome;
+    if (nome && !/^Dra\.|^Dr\./i.test(nome) && (o.titulo || d.titulo || 'Solicitadora')) {
+      var tit = o.titulo || d.titulo || 'Dra.';
+      if (tit && nome.indexOf(tit) !== 0) nome = tit + ' ' + nome.replace(/^(Dra\.|Dr\.)\s*/i, '');
+    }
+    return {
+      nome: nome,
+      nif: fmtNif(o.nif || d.nif || defs.nif),
+      phone: o.contacto || o.phone || d.contacto || defs.phone,
+      email: o.email || d.email || defs.email,
+      iban: o.iban || d.iban || defs.iban,
+      morada: o.sede || o.morada || d.sede || d.morada || defs.morada
+    };
+  };
+
+  /** Retorna apenas o fragmento da logo (img ou placeholder) para inserir em .branding-header-left. */
   window.getBrandedLogoHTML = function(logoDataUri) {
     var uri = logoDataUri || window.LOGO_DATA_URI;
     var name = BRANDING.firmName;
@@ -96,15 +134,41 @@
   };
 
   /**
+   * Cabeçalho oficial: logo à esquerda, dados da solicitadora alinhados à direita.
+   * Usar em relatórios, procurações, declarações, faturas e PDFs HTML.
+   */
+  window.renderCabecalhoDocumentoSolicitadora = function(dadosSolicitadora, logoDataUri) {
+    var d = window.getDadosCabecalhoSolicitadora(dadosSolicitadora);
+    var logo = window.getBrandedLogoHTML(logoDataUri);
+    return '<header class="branding-header">' +
+      '<div class="branding-header-left">' + logo + '</div>' +
+      '<div class="branding-header-right">' +
+        '<p class="branding-firm-name">' + escHtml(d.nome) + '</p>' +
+        '<p>NIF: ' + escHtml(d.nif) + '</p>' +
+        '<p>Tlm.: ' + escHtml(d.phone) + '</p>' +
+        '<p>Email: ' + escHtml(d.email) + '</p>' +
+        '<p>IBAN: ' + escHtml(d.iban) + '</p>' +
+        '<p>Sede: ' + escHtml(d.morada) + '</p>' +
+      '</div>' +
+    '</header>';
+  };
+
+  /**
    * Retorna o HTML do header com logo para injetar em documentos.
    * Única forma permitida de exibir a logo em documentos — nenhum template deve conter logo embutida.
    */
-  window.getBrandedHeaderHTML = function(logoDataUri) {
-    var img = window.getBrandedLogoHTML ? window.getBrandedLogoHTML(logoDataUri) : '';
-    return '<div class="branding-header"><div class="branding-header-left">' + img + '</div></div>';
+  window.getBrandedHeaderHTML = function(logoDataUri, dadosSolicitadora) {
+    return window.renderCabecalhoDocumentoSolicitadora(dadosSolicitadora, logoDataUri);
   };
 
-  /** Garante que o documento usa apenas o branding do módulo: remove logos embutidas em HTML e injeta o header oficial. */
+  /** Envolve conteúdo HTML num documento completo com cabeçalho e estilos de branding. */
+  window.wrapDocumentWithBrandingHeader = function(title, bodyHtml, extraStyles) {
+    var styles = BRANDING.documentStyles + (extraStyles ? '\n' + extraStyles : '');
+    var header = window.renderCabecalhoDocumentoSolicitadora();
+    return '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styles + '</style></head><body class="doc-container">' + header + (bodyHtml || '') + '</body></html>';
+  };
+
+  /** Garante que o documento usa apenas o branding do módulo: injeta o header oficial. */
   window.applyBrandingToDocument = function(html, injectHeaderAfter) {
     if (!html || typeof html !== 'string') return html;
     var openBody = injectHeaderAfter || '<body';
@@ -117,4 +181,6 @@
     var inserted = after.substring(0, bodyContentStart) + header + after.substring(bodyContentStart);
     return before + inserted;
   };
+
+  window.BRANDING = BRANDING;
 })();
