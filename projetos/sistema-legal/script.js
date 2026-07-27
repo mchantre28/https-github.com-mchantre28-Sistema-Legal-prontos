@@ -9321,6 +9321,15 @@ async function carregarPainelApiProcessosSecao(secao) {
     }
 }
 
+function temHonorariosUltimos3Meses(honorariosLista) {
+    const agora = new Date();
+    const inicio = new Date(agora.getFullYear(), agora.getMonth() - 2, 1);
+    return (honorariosLista || []).some((h) => {
+        const data = h.dataCriacao ? new Date(h.dataCriacao) : null;
+        return data && !Number.isNaN(data.getTime()) && data >= inicio;
+    });
+}
+
 async function carregarWidgetProcessosApi() {
     const widget = document.getElementById('apiProcessosWidget');
     const conteudo = document.getElementById('apiProcessosConteudo');
@@ -9332,7 +9341,7 @@ async function carregarWidgetProcessosApi() {
         return;
     }
 
-    widget.classList.remove('hidden');
+    widget.classList.add('hidden');
 
     const ESTADO_LABELS = {
         em_tramitacao: 'Em tramitação',
@@ -9349,32 +9358,34 @@ async function carregarWidgetProcessosApi() {
     try {
         const res = await api.apiFetch('/api/processos');
         if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.erro || 'Não foi possível carregar processos da API.');
+            widget.classList.add('hidden');
+            return;
         }
 
         const data = await res.json();
         const processos = data.processos || [];
 
         if (!processos.length) {
-            conteudo.innerHTML = '<p class="text-sm text-gray-500">Nenhum processo registado na API.</p>';
-        } else {
-            const lista = processos.slice(0, 8).map(p => `
-                <li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">
-                    <span class="font-medium text-gray-900">${escaparHtml(p.titulo || 'Processo')}</span>
-                    <span class="text-xs text-gray-500">N.º ${escaparHtml(p.numero_processo || '—')}</span>
-                    <span class="text-xs font-medium text-indigo-700">${escaparHtml(labelEstado(p.estado))}</span>
-                </li>
-            `).join('');
-            const extra = processos.length > 8
-                ? `<p class="text-xs text-gray-500 mt-2">+ ${processos.length - 8} processo(s) adicional(is)</p>`
-                : '';
-            conteudo.innerHTML = `<ul class="space-y-2">${lista}</ul>${extra}`;
+            widget.classList.add('hidden');
+            return;
         }
+
+        widget.classList.remove('hidden');
+        const lista = processos.slice(0, 8).map(p => `
+            <li class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white border border-indigo-100">
+                <span class="font-medium text-gray-900">${escaparHtml(p.titulo || 'Processo')}</span>
+                <span class="text-xs text-gray-500">N.º ${escaparHtml(p.numero_processo || '—')}</span>
+                <span class="text-xs font-medium text-indigo-700">${escaparHtml(labelEstado(p.estado))}</span>
+            </li>
+        `).join('');
+        const extra = processos.length > 8
+            ? `<p class="text-xs text-gray-500 mt-2">+ ${processos.length - 8} processo(s) adicional(is)</p>`
+            : '';
+        conteudo.innerHTML = `<ul class="space-y-2">${lista}</ul>${extra}`;
 
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     } catch (e) {
-        conteudo.innerHTML = `<p class="text-sm text-red-600">${escaparHtml(e.message || 'Erro ao contactar a API.')}</p>`;
+        widget.classList.add('hidden');
     }
 }
 
@@ -9417,9 +9428,6 @@ function gerarDashboard() {
     }
     
     const totalClientes = clientesParaMostrar.filter(c => (c.status || 'ativo') === 'ativo').length;
-    const totalHonorarios = honorariosParaMostrar.length;
-    const valorTotal = honorariosParaMostrar.reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
-    const honorariosPagos = honorariosParaMostrar.filter(h => h.status === 'pago').length;
     const honorariosPendentes = honorariosParaMostrar.filter(h => isHonorarioEmAberto(h)).length;
     const hoje = new Date();
     const honorariosVencidos = honorariosParaMostrar.filter(h => {
@@ -9427,81 +9435,12 @@ function gerarDashboard() {
         const dataVencimento = new Date(h.vencimento);
         return dataVencimento < hoje && isHonorarioEmAberto(h);
     }).length;
-    const clientesComHonorarios = new Set(
-        honorariosParaMostrar
-            .map(h => h.clienteId || h.cliente || h.clienteNome)
-            .filter(Boolean)
-    ).size;
     const totalHerancas = herancasParaMostrar.length;
     const totalMigracoes = migracoesParaMostrar.length;
     const totalRegistos = registosParaMostrar.length;
-    
-    // Calcular IVA acumulado trimestral
+
     const agora = new Date();
-    const trimestreAtual = Math.floor(agora.getMonth() / 3);
     const anoAtual = agora.getFullYear();
-    const inicioTrimestre = new Date(anoAtual, trimestreAtual * 3, 1);
-    const fimTrimestre = new Date(anoAtual, (trimestreAtual + 1) * 3, 0);
-    
-    // Calcular IVA de todos os itens do trimestre atual
-    let ivaAcumuladoTrimestral = 0;
-    
-    // IVA dos honorários do trimestre
-    const honorariosTrimestre = honorariosParaMostrar.filter(h => {
-        const dataHonorario = new Date(h.dataCriacao);
-        return dataHonorario >= inicioTrimestre && dataHonorario <= fimTrimestre;
-    });
-    honorariosTrimestre.forEach(h => {
-        const valor = parseFloat(h.valor) || 0;
-        const iva = parseFloat(h.iva) || 0;
-        ivaAcumuladoTrimestral += (valor * iva / 100);
-    });
-    
-    // IVA dos contratos do trimestre
-    const contratosTrimestre = contratosParaMostrar.filter(c => {
-        const dataContrato = new Date(c.dataCriacao);
-        return dataContrato >= inicioTrimestre && dataContrato <= fimTrimestre;
-    });
-    contratosTrimestre.forEach(c => {
-        const valor = parseFloat(c.valor) || 0;
-        const iva = parseFloat(c.iva) || 0;
-        ivaAcumuladoTrimestral += (valor * iva / 100);
-    });
-    
-    // IVA das heranças do trimestre
-    const herancasTrimestre = herancasParaMostrar.filter(h => {
-        const dataHeranca = new Date(h.dataCriacao);
-        return dataHeranca >= inicioTrimestre && dataHeranca <= fimTrimestre;
-    });
-    herancasTrimestre.forEach(h => {
-        const valor = parseFloat(h.valor) || 0;
-        const iva = parseFloat(h.iva) || 0;
-        ivaAcumuladoTrimestral += (valor * iva / 100);
-    });
-    
-    // IVA das migrações do trimestre
-    const migracoesTrimestre = migracoesParaMostrar.filter(m => {
-        const dataMigracao = new Date(m.dataCriacao);
-        return dataMigracao >= inicioTrimestre && dataMigracao <= fimTrimestre;
-    });
-    migracoesTrimestre.forEach(m => {
-        const valor = parseFloat(m.valor) || 0;
-        const iva = parseFloat(m.iva) || 0;
-        ivaAcumuladoTrimestral += (valor * iva / 100);
-    });
-    
-    // IVA dos registos do trimestre
-    const registosTrimestre = registosParaMostrar.filter(r => {
-        const dataRegisto = new Date(r.dataCriacao);
-        return dataRegisto >= inicioTrimestre && dataRegisto <= fimTrimestre;
-    });
-    registosTrimestre.forEach(r => {
-        const valor = parseFloat(r.valor) || 0;
-        const iva = parseFloat(r.iva) || 0;
-        ivaAcumuladoTrimestral += (valor * iva / 100);
-    });
-    
-    const nomeTrimestre = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'][trimestreAtual];
     const prazosHoje = prazosParaMostrar.filter(p => {
         if (!p.dataLimite) return false;
         return new Date(p.dataLimite).toDateString() === hoje.toDateString() && p.status === 'ativo';
@@ -9533,7 +9472,7 @@ function gerarDashboard() {
     const totaisRegistosMes = calcularTotaisPeriodo(registosParaMostrar, inicioMes, fimMes);
     const totalEntradasMes = totaisHonorariosMes.total + totaisContratosMes.total + totaisHerancasMes.total + totaisMigracoesMes.total + totaisRegistosMes.total;
     const ivaMes = totaisHonorariosMes.iva + totaisContratosMes.iva + totaisHerancasMes.iva + totaisMigracoesMes.iva + totaisRegistosMes.iva;
-    
+
     const totaisHonorariosMesAnterior = calcularTotaisPeriodo(honorariosParaMostrar, inicioMesAnterior, fimMesAnterior);
     const totaisContratosMesAnterior = calcularTotaisPeriodo(contratosParaMostrar, inicioMesAnterior, fimMesAnterior);
     const totaisHerancasMesAnterior = calcularTotaisPeriodo(herancasParaMostrar, inicioMesAnterior, fimMesAnterior);
@@ -9541,7 +9480,7 @@ function gerarDashboard() {
     const totaisRegistosMesAnterior = calcularTotaisPeriodo(registosParaMostrar, inicioMesAnterior, fimMesAnterior);
     const totalEntradasMesAnterior = totaisHonorariosMesAnterior.total + totaisContratosMesAnterior.total + totaisHerancasMesAnterior.total + totaisMigracoesMesAnterior.total + totaisRegistosMesAnterior.total;
     const ivaMesAnterior = totaisHonorariosMesAnterior.iva + totaisContratosMesAnterior.iva + totaisHerancasMesAnterior.iva + totaisMigracoesMesAnterior.iva + totaisRegistosMesAnterior.iva;
-    
+
     const formatarVariacao = (atual, anterior) => {
         if (anterior === 0 && atual === 0) {
             return { texto: '0%', classe: 'text-gray-600', icone: 'minus' };
@@ -9575,6 +9514,13 @@ function gerarDashboard() {
         .filter(p => !Number.isNaN(p.dataLimiteDate.getTime()))
         .sort((a, b) => a.dataLimiteDate - b.dataLimiteDate)
         .slice(0, 5);
+
+    const top5Clientes = clientesParaMostrar.map(cliente => {
+        const valorCliente = honorariosParaMostrar
+            .filter(h => h.clienteId === cliente.id)
+            .reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
+        return { ...cliente, valorTotal: valorCliente };
+    }).sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 5);
 
     const movimentosRecentes = [
         ...honorariosParaMostrar.map(h => ({
@@ -9615,6 +9561,12 @@ function gerarDashboard() {
     ].filter(m => m.data && !Number.isNaN(new Date(m.data).getTime()))
         .sort((a, b) => new Date(b.data) - new Date(a.data))
         .slice(0, 5);
+
+    const temHonorariosGraficos = temHonorariosUltimos3Meses(honorariosParaMostrar);
+    const temContadoresSecundarios = totalHerancas > 0 || totalMigracoes > 0 || totalRegistos > 0;
+    const proximoPrazoResumo = proximoPrazo
+        ? `${escaparHtml(proximoPrazo.descricao || proximoPrazo.tipo || 'Prazo')} — ${diasParaProximoPrazo === 0 ? 'Hoje' : (diasParaProximoPrazo === 1 ? 'Amanhã' : `${diasParaProximoPrazo} dias`)}`
+        : 'Nenhum prazo agendado';
 
     const mostrarGuiaPrimeiroUso = totalClientes === 0 && tipoUsuario === 'admin' && !appStorage.getItem('guiaPrimeiroUsoConcluido');
     const fecharGuia = "document.getElementById('guiaPrimeiroUso')?.remove(); appStorage.setItem('guiaPrimeiroUsoConcluido', 'true');";
@@ -9665,533 +9617,268 @@ function gerarDashboard() {
                     </span>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="card p-6">
+            <!-- Alertas (linha única) -->
+            <div class="card p-4">
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                    <button type="button" onclick="carregarSecao('honorarios')" class="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 ${honorariosVencidos > 0 ? 'text-red-600' : 'text-gray-400'}"></i>
+                        <span class="text-gray-600">Honorários vencidos:</span>
+                        <span class="font-bold ${honorariosVencidos > 0 ? 'text-red-600' : 'text-gray-900'}">${honorariosVencidos}</span>
+                    </button>
+                    <span class="hidden sm:inline text-gray-300" aria-hidden="true">|</span>
+                    <button type="button" onclick="carregarSecao('prazos')" class="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+                        <i data-lucide="calendar" class="w-4 h-4 ${prazosHoje > 0 ? 'text-yellow-600' : 'text-gray-400'}"></i>
+                        <span class="text-gray-600">Prazos hoje:</span>
+                        <span class="font-bold ${prazosHoje > 0 ? 'text-yellow-600' : 'text-gray-900'}">${prazosHoje}</span>
+                    </button>
+                    <span class="hidden sm:inline text-gray-300" aria-hidden="true">|</span>
+                    <span class="inline-flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-blue-600"></i>
+                        <span class="text-gray-600">Próximo prazo:</span>
+                        <span class="font-medium text-gray-900">${proximoPrazoResumo}</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div class="card p-5">
                     <div class="flex items-center">
-                        <div class="p-3 bg-red-100 rounded-lg">
-                            <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+                        <div class="p-2.5 bg-blue-100 rounded-lg">
+                            <i data-lucide="users" class="w-5 h-5 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Honorários Vencidos</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosVencidos}</p>
+                        <div class="ml-3">
+                            <p class="text-xs font-medium text-gray-600">Clientes</p>
+                            <p class="text-xl font-bold text-gray-900">${totalClientes}</p>
                         </div>
                     </div>
                 </div>
-                <div class="card p-6">
+                <div class="card p-5">
                     <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="calendar" class="w-6 h-6 text-yellow-600"></i>
+                        <div class="p-2.5 bg-yellow-100 rounded-lg">
+                            <i data-lucide="receipt" class="w-5 h-5 text-yellow-600"></i>
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Prazos Hoje</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosHoje}</p>
+                        <div class="ml-3">
+                            <p class="text-xs font-medium text-gray-600">Honorários abertos</p>
+                            <p class="text-xl font-bold text-gray-900">${honorariosPendentes}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-5">
+                    <div class="flex items-center">
+                        <div class="p-2.5 bg-indigo-100 rounded-lg">
+                            <i data-lucide="trending-up" class="w-5 h-5 text-indigo-600"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs font-medium text-gray-600">Entradas mês</p>
+                            <p class="text-xl font-bold text-gray-900">${EURO_HTML}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-5">
+                    <div class="flex items-center">
+                        <div class="p-2.5 bg-emerald-100 rounded-lg">
+                            <i data-lucide="percent" class="w-5 h-5 text-emerald-600"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs font-medium text-gray-600">IVA mês</p>
+                            <p class="text-xl font-bold text-gray-900">${EURO_HTML}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</p>
                         </div>
                     </div>
                 </div>
             </div>
-            ${proximos5Prazos.length > 0 ? `
-            <div class="card p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                        <i data-lucide="clock" class="w-5 h-5 text-blue-600"></i>
-                        Próximos prazos
-                    </h3>
-                    <button onclick="carregarSecao('prazos')" class="btn btn-secondary text-sm">Ver todos</button>
-                </div>
-                <ul class="space-y-2">
-                    ${proximos5Prazos.map(p => {
-                        const dias = Math.ceil((p.dataLimiteDate - hoje) / (1000 * 60 * 60 * 24));
-                        const dataStr = p.dataLimiteDate.toLocaleDateString('pt-PT');
-                        const clienteNome = p.clienteNome || p.cliente || 'Cliente';
-                        const label = dias < 0 ? `${Math.abs(dias)} d atrasado` : (dias === 0 ? 'Hoje' : (dias === 1 ? 'Amanhã' : `${dias} dias`));
-                        return `<li><button type="button" onclick="carregarSecao('prazos')" class="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 text-left">
-                            <span class="text-sm">${escaparHtml(p.descricao || p.tipo || 'Prazo')} <span class="text-gray-500">— ${escaparHtml(clienteNome)}</span></span>
-                            <span class="text-xs ${dias <= 2 ? 'text-red-600 font-medium' : 'text-gray-600'}">${label} (${dataStr})</span>
-                        </button></li>`;
-                    }).join('')}
-                </ul>
+
+            ${temContadoresSecundarios ? `
+            <div class="flex flex-wrap gap-4">
+                ${totalHerancas > 0 ? `
+                <button type="button" onclick="carregarSecao('herancas')" class="card px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                    <i data-lucide="home" class="w-5 h-5 text-green-600"></i>
+                    <span class="text-sm text-gray-600">Heranças</span>
+                    <span class="font-bold text-gray-900">${totalHerancas}</span>
+                </button>` : ''}
+                ${totalMigracoes > 0 ? `
+                <button type="button" onclick="carregarSecao('migracoes')" class="card px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                    <i data-lucide="globe" class="w-5 h-5 text-orange-600"></i>
+                    <span class="text-sm text-gray-600">Migrações</span>
+                    <span class="font-bold text-gray-900">${totalMigracoes}</span>
+                </button>` : ''}
+                ${totalRegistos > 0 ? `
+                <button type="button" onclick="carregarSecao('registos')" class="card px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                    <i data-lucide="book-open" class="w-5 h-5 text-indigo-600"></i>
+                    <span class="text-sm text-gray-600">Registos</span>
+                    <span class="font-bold text-gray-900">${totalRegistos}</span>
+                </button>` : ''}
             </div>
             ` : ''}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="users" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Clientes</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalClientes}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-lg">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-yellow-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Honorários</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalHonorarios}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Pagos</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosPagos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-purple-100 rounded-lg">
-                            <i data-lucide="trending-up" class="w-6 h-6 text-purple-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Valor Total</p>
-                            <p class="text-2xl font-bold text-gray-900">&#8364;${(Math.abs(valorTotal) < 0.01 ? 0 : Math.round(valorTotal * 100) / 100).toFixed(2)}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-red-100 rounded-lg">
-                            <i data-lucide="receipt" class="w-6 h-6 text-red-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">IVA Acumulado ${nomeTrimestre}</p>
-                            <p class="text-2xl font-bold text-gray-900">&#8364;${(Math.abs(ivaAcumuladoTrimestral) < 0.01 ? 0 : Number(ivaAcumuladoTrimestral)).toFixed(2)}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Métricas Avançadas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Operacional -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-indigo-100 rounded-lg">
-                            <i data-lucide="target" class="w-6 h-6 text-indigo-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Taxa de Conversão</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalClientes > 0 ? Math.round((clientesComHonorarios / totalClientes) * 100) : 0}%</p>
-                        </div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <i data-lucide="clock" class="w-5 h-5 text-blue-600"></i>
+                            Próximos prazos
+                        </h3>
+                        <button onclick="carregarSecao('prazos')" class="btn btn-secondary text-sm">Ver todos</button>
                     </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-teal-100 rounded-lg">
-                            <i data-lucide="calculator" class="w-6 h-6 text-teal-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Média por Cliente</p>
-                            <p class="text-2xl font-bold text-gray-900">&#8364;${totalClientes > 0 ? (() => { const v = Math.round((valorTotal / totalClientes) * 100) / 100; return (Math.abs(v) < 0.01 ? 0 : v).toFixed(2); })() : '0.00'}</p>
-                        </div>
+                    ${proximos5Prazos.length > 0 ? `
+                    <ul class="space-y-2">
+                        ${proximos5Prazos.map(p => {
+                            const dias = Math.ceil((p.dataLimiteDate - hoje) / (1000 * 60 * 60 * 24));
+                            const dataStr = p.dataLimiteDate.toLocaleDateString('pt-PT');
+                            const clienteNome = p.clienteNome || p.cliente || 'Cliente';
+                            const label = dias < 0 ? `${Math.abs(dias)} d atrasado` : (dias === 0 ? 'Hoje' : (dias === 1 ? 'Amanhã' : `${dias} dias`));
+                            return `<li><button type="button" onclick="carregarSecao('prazos')" class="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 text-left">
+                                <span class="text-sm">${escaparHtml(p.descricao || p.tipo || 'Prazo')} <span class="text-gray-500">— ${escaparHtml(clienteNome)}</span></span>
+                                <span class="text-xs ${dias <= 2 ? 'text-red-600 font-medium' : 'text-gray-600'}">${label} (${dataStr})</span>
+                            </button></li>`;
+                        }).join('')}
+                    </ul>
+                    ` : `
+                    <div class="text-center py-6">
+                        <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
+                        <p class="text-sm text-gray-500">Nenhum prazo pendente</p>
                     </div>
+                    `}
                 </div>
-                
                 <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-orange-100 rounded-lg">
-                            <i data-lucide="alert-triangle" class="w-6 h-6 text-orange-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Honorários Vencidos</p>
-                            <p class="text-2xl font-bold text-gray-900">${honorariosVencidos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-pink-100 rounded-lg">
-                            <i data-lucide="clock" class="w-6 h-6 text-pink-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Prazos Próximos</p>
-                            <p class="text-2xl font-bold text-gray-900">${prazosParaMostrar.filter(p => {
-                                if (!p.dataLimite) return false;
-                                const dataLimite = new Date(p.dataLimite);
-                                const diferencaDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
-                                return diferencaDias <= 7 && diferencaDias >= 0 && p.status === 'ativo';
-                            }).length}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Alertas e Resumos Inteligentes -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Alertas Urgentes</h3>
+                    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i data-lucide="award" class="w-5 h-5 text-blue-600"></i>
+                        Top 5 clientes por valor
+                    </h3>
                     <div class="space-y-3">
-                        ${honorariosParaMostrar.filter(h => {
-                            if (!h.vencimento) return false;
-                            const dataVencimento = new Date(h.vencimento);
-                            const hoje = new Date();
-                            return dataVencimento < hoje && isHonorarioEmAberto(h);
-                        }).slice(0, 3).map(honorario => `
-                            <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
-                                <div>
-                                    <p class="text-sm font-medium text-red-800">${honorario.cliente}</p>
-                                    <p class="text-xs text-red-600">Vencido em ${new Date(honorario.vencimento).toLocaleDateString('pt-PT')}</p>
+                        ${top5Clientes.map((cliente, index) => `
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center min-w-0">
+                                    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full mr-3 shrink-0">${index + 1}</span>
+                                    <div class="min-w-0">
+                                        <p class="font-medium text-gray-800 truncate">${renderClienteLink(cliente.id, cliente.nome)}</p>
+                                        ${cliente.email ? `<p class="text-xs text-gray-600 truncate">${escaparHtml(cliente.email)}</p>` : ''}
+                                    </div>
                                 </div>
-                                <span class="text-red-600 font-bold">${EURO_HTML}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</span>
+                                <span class="text-blue-600 font-bold shrink-0 ml-2">${EURO_HTML}${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
                             </div>
                         `).join('')}
-                        ${honorariosParaMostrar.filter(h => {
-                            if (!h.vencimento) return false;
-                            const dataVencimento = new Date(h.vencimento);
-                            const hoje = new Date();
-                            return dataVencimento < hoje && isHonorarioEmAberto(h);
-                        }).length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                <p class="text-sm text-green-600">Nenhum honorário vencido!</p>
+                        ${top5Clientes.length === 0 ? `
+                            <div class="text-center py-6">
+                                <i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
+                                <p class="text-sm text-gray-500">Nenhum cliente com honorários</p>
                             </div>
                         ` : ''}
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Prazos Próximos</h3>
-                    ${proximoPrazo ? `
-                        <div class="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                            <p class="text-xs text-blue-600 mb-1">Próximo prazo</p>
-                            <p class="text-sm font-medium text-blue-800">${proximoPrazo.descricao}</p>
-                            <p class="text-xs text-blue-600">${renderClienteLink(proximoPrazo.clienteId, proximoPrazo.clienteNome)} - ${proximoPrazo.dataLimiteDate.toLocaleDateString('pt-PT')} (${diasParaProximoPrazo} dias)</p>
+            </div>
+
+            <!-- Financeiro -->
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600"></i>
+                    Comparativo mensal
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex justify-between items-center p-4 bg-indigo-50 rounded-lg">
+                        <div>
+                            <span class="text-indigo-800 font-medium">Entradas do mês</span>
+                            <p class="text-xs text-indigo-600 mt-1">Mês anterior: ${EURO_HTML}${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
                         </div>
-                    ` : ''}
-                    <div class="space-y-3">
-                        ${prazosParaMostrar.filter(p => {
-                            if (!p.dataLimite) return false;
-                            const dataLimite = new Date(p.dataLimite);
-                            const diferencaDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
-                            return diferencaDias <= 7 && diferencaDias >= 0 && p.status === 'ativo';
-                        }).slice(0, 3).map(prazo => `
-                            <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-                                <div>
-                                    <p class="text-sm font-medium text-yellow-800">${prazo.descricao}</p>
-                                    <p class="text-xs text-yellow-600">${renderClienteLink(prazo.clienteId, prazo.clienteNome)} - ${Math.ceil((new Date(prazo.dataLimite) - new Date()) / (1000 * 60 * 60 * 24))} dias</p>
-                                </div>
-                                <span class="text-yellow-600 font-bold">${prazo.tipo}</span>
+                        <div class="text-right">
+                            <span class="text-indigo-600 font-bold text-lg">${EURO_HTML}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
+                            <div class="flex items-center justify-end gap-1 text-xs ${variacaoEntradas.classe}">
+                                <i data-lucide="${variacaoEntradas.icone}" class="w-3 h-3"></i>
+                                <span>${variacaoEntradas.texto}</span>
                             </div>
-                        `).join('')}
-                        ${prazosParaMostrar.filter(p => {
-                            if (!p.dataLimite) return false;
-                            const dataLimite = new Date(p.dataLimite);
-                            const diferencaDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
-                            return diferencaDias <= 7 && diferencaDias >= 0 && p.status === 'ativo';
-                        }).length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                <p class="text-sm text-green-600">Nenhum prazo próximo!</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Resumo Financeiro</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                            <span class="text-green-800 font-medium">Honorários Pagos</span>
-                            <span class="text-green-600 font-bold">${honorariosPagos}</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-                            <span class="text-yellow-800 font-medium">Honorários Pendentes</span>
-                            <span class="text-yellow-600 font-bold">${honorariosPendentes}</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                            <span class="text-blue-800 font-medium">Valor Total</span>
-                            <span class="text-blue-600 font-bold">${EURO_HTML}${(Math.round(valorTotal * 100) / 100).toFixed(2)}</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                            <span class="text-indigo-800 font-medium">Entradas do Mês</span>
-                            <span class="text-indigo-600 font-bold">${EURO_HTML}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                            <span class="text-emerald-800 font-medium">IVA do Mês</span>
-                            <span class="text-emerald-600 font-bold">${EURO_HTML}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                            <span class="text-purple-800 font-medium">Taxa de Conversão</span>
-                            <span class="text-purple-600 font-bold">${totalClientes > 0 ? Math.round((honorariosParaMostrar.filter(h => h.clienteId).length / totalClientes) * 100) : 0}%</span>
                         </div>
                     </div>
-                </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Comparativo Mensal</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                            <div>
-                                <span class="text-indigo-800 font-medium">Entradas do Mês</span>
-                                <p class="text-xs text-indigo-600">Mês anterior: ${EURO_HTML}${(Math.round(totalEntradasMesAnterior * 100) / 100).toFixed(2)}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-indigo-600 font-bold">${EURO_HTML}${(Math.round(totalEntradasMes * 100) / 100).toFixed(2)}</span>
-                                <div class="flex items-center justify-end gap-1 text-xs ${variacaoEntradas.classe}">
-                                    <i data-lucide="${variacaoEntradas.icone}" class="w-3 h-3"></i>
-                                    <span>${variacaoEntradas.texto}</span>
-                                </div>
-                            </div>
+                    <div class="flex justify-between items-center p-4 bg-emerald-50 rounded-lg">
+                        <div>
+                            <span class="text-emerald-800 font-medium">IVA do mês</span>
+                            <p class="text-xs text-emerald-600 mt-1">Mês anterior: ${EURO_HTML}${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
                         </div>
-                        <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                            <div>
-                                <span class="text-emerald-800 font-medium">IVA do Mês</span>
-                                <p class="text-xs text-emerald-600">Mês anterior: ${EURO_HTML}${(Math.round(ivaMesAnterior * 100) / 100).toFixed(2)}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-emerald-600 font-bold">${EURO_HTML}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
-                                <div class="flex items-center justify-end gap-1 text-xs ${variacaoIva.classe}">
-                                    <i data-lucide="${variacaoIva.icone}" class="w-3 h-3"></i>
-                                    <span>${variacaoIva.texto}</span>
-                                </div>
+                        <div class="text-right">
+                            <span class="text-emerald-600 font-bold text-lg">${EURO_HTML}${(Math.round(ivaMes * 100) / 100).toFixed(2)}</span>
+                            <div class="flex items-center justify-end gap-1 text-xs ${variacaoIva.classe}">
+                                <i data-lucide="${variacaoIva.icone}" class="w-3 h-3"></i>
+                                <span>${variacaoIva.texto}</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Gráficos Avançados -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Evolução temporal dos honorários</h3>
-                    <div class="chart-container">
-                        <canvas id="chartEvolucaoTemporal"></canvas>
+            ${temHonorariosGraficos ? `
+            <!-- Gráficos (condicional) -->
+            <div id="dashboardGraficosSection" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Evolução temporal dos honorários</h3>
+                        <div class="chart-container">
+                            <canvas id="chartEvolucaoTemporal"></canvas>
+                        </div>
+                    </div>
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">Comparação mensal</h3>
+                        <div class="chart-container">
+                            <canvas id="chartComparacaoMensal"></canvas>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Comparação mensal</h3>
-                    <div class="chart-container">
-                        <canvas id="chartComparacaoMensal"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="card p-6">
+                <div class="card p-6 max-w-xl">
                     <h3 class="text-lg font-semibold mb-4">Distribuição por tipo</h3>
                     <div class="chart-container">
                         <canvas id="chartDistribuicaoTipo"></canvas>
                     </div>
                 </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Top 5 clientes por valor</h3>
-                    <div class="space-y-3">
-                        ${clientesParaMostrar.map(cliente => {
-                            const valorCliente = honorariosParaMostrar
-                                .filter(h => h.clienteId === cliente.id)
-                                .reduce((sum, h) => sum + (parseFloat(h.valor) || 0), 0);
-                            return { ...cliente, valorTotal: valorCliente };
-                        }).sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 5).map((cliente, index) => `
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div class="flex items-center">
-                                    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full mr-3">${index + 1}</span>
-                                    <div>
-                                        <p class="font-medium text-gray-800">${renderClienteLink(cliente.id, cliente.nome)}</p>
-                                        <p class="text-xs text-gray-600">${cliente.email}</p>
-                                    </div>
-                                </div>
-                                <span class="text-blue-600 font-bold">${EURO_HTML}${(Math.round(cliente.valorTotal * 100) / 100).toFixed(2)}</span>
-                            </div>
-                        `).join('')}
-                        ${clientesParaMostrar.length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Nenhum cliente encontrado</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
             </div>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Últimos Clientes</h3>
-                    <div class="space-y-3">
-                        ${clientesParaMostrar.slice(-3).map(cliente => `
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div>
-                                    <p class="font-medium">${renderClienteLink(cliente.id, cliente.nome)}</p>
-                                    <p class="text-sm text-gray-600">${cliente.email}</p>
-                                </div>
-                                <span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span>
-                            </div>
-                        `).join('')}
-                        ${clientesParaMostrar.length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Nenhum cliente encontrado</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Últimos Honorários</h3>
-                    <div class="space-y-3">
-                        ${honorariosParaMostrar.slice(-3).map(honorario => `
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div>
-                                    <p class="font-medium">${renderClienteLink(honorario.clienteId, honorario.cliente || honorario.clienteNome)}</p>
-                                    <p class="text-sm text-gray-600">${EURO_HTML}${(Math.round((parseFloat(honorario.valor) || 0) * 100) / 100).toFixed(2)}</p>
-                                </div>
-                                <span class="status-badge status-${honorario.status}">${formatarStatusHonorario(honorario.status)}</span>
-                            </div>
-                        `).join('')}
-                        ${honorariosParaMostrar.length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="receipt" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Nenhum honorário encontrado</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
+            ` : ''}
 
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Últimos Movimentos</h3>
-                    <div class="space-y-3">
-                        ${movimentosRecentes.map(movimento => `
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div>
-                                    <p class="font-medium">${movimento.tipo} - ${renderClienteLink(movimento.clienteId, movimento.cliente)}</p>
-                                    <p class="text-xs text-gray-600">${new Date(movimento.data).toLocaleDateString('pt-PT')}</p>
-                                </div>
-                                <span class="text-blue-600 font-bold">${EURO_HTML}${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
-                            </div>
-                        `).join('')}
-                        ${movimentosRecentes.length === 0 ? `
-                            <div class="text-center py-4">
-                                <i data-lucide="activity" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Nenhum movimento encontrado</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Ações Rápidas -->
+            ${movimentosRecentes.length > 0 ? `
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">âš¡ Ações Rápidas</h3>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <button onclick="carregarSecao('honorarios')" class="flex items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="dollar-sign" class="w-6 h-6 text-blue-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-blue-800">Criar Honorário</p>
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5 text-gray-600"></i>
+                    Actividade recente
+                </h3>
+                <div class="space-y-2">
+                    ${movimentosRecentes.map(movimento => `
+                        <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50">
+                            <div>
+                                <p class="text-sm font-medium">${movimento.tipo} — ${renderClienteLink(movimento.clienteId, movimento.cliente)}</p>
+                                <p class="text-xs text-gray-500">${new Date(movimento.data).toLocaleDateString('pt-PT')}</p>
+                            </div>
+                            <span class="text-blue-600 font-bold text-sm">${EURO_HTML}${(Math.round((parseFloat(movimento.valor) || 0) * 100) / 100).toFixed(2)}</span>
                         </div>
-                    </button>
-                    
-                    <button onclick="carregarSecao('prazos')" class="flex items-center justify-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="clock" class="w-6 h-6 text-yellow-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-yellow-800">Ver Prazos</p>
-                        </div>
-                    </button>
-                    
-                    <button onclick="carregarSecao('clientes')" class="flex items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="user-plus" class="w-6 h-6 text-green-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-green-800">Novo Cliente</p>
-                        </div>
-                    </button>
-
-                    <button onclick="carregarSecao('herancas')" class="flex items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="home" class="w-6 h-6 text-emerald-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-emerald-800">Nova Herança</p>
-                        </div>
-                    </button>
-
-                    <button onclick="carregarSecao('migracoes')" class="flex items-center justify-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="globe" class="w-6 h-6 text-orange-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-orange-800">Nova Migração</p>
-                        </div>
-                    </button>
-
-                    <button onclick="carregarSecao('registos')" class="flex items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="book-open" class="w-6 h-6 text-slate-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-slate-800">Novo Registo</p>
-                        </div>
-                    </button>
-                    
-                    <button onclick="gerarRelatorioCompleto()" class="flex items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="download" class="w-6 h-6 text-purple-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-purple-800">Relatório Geral</p>
-                        </div>
-                    </button>
-                    
-                    <button onclick="gerarRelatorioCliente()" class="flex items-center justify-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors">
-                        <div class="text-center">
-                            <i data-lucide="user-check" class="w-6 h-6 text-indigo-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-medium text-indigo-800">Relatório Cliente</p>
-                        </div>
-                    </button>
-                    
+                    `).join('')}
                 </div>
             </div>
+            ` : ''}
 
-            <!-- Novas Seções -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="home" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Heranças</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalHerancas}</p>
-                        </div>
-                    </div>
+            <!-- Atalhos -->
+            <div class="card p-4">
+                <div class="flex flex-wrap gap-3">
+                    <button type="button" onclick="carregarSecao('clientes'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('cliente'); }, 400);" class="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors text-sm font-medium text-green-800">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        Novo cliente
+                    </button>
+                    <button type="button" onclick="carregarSecao('honorarios'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('honorario'); }, 400);" class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors text-sm font-medium text-blue-800">
+                        <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                        Honorário
+                    </button>
+                    <button type="button" onclick="carregarSecao('prazos'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('prazo'); }, 400);" class="inline-flex items-center gap-2 px-4 py-2.5 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors text-sm font-medium text-yellow-800">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                        Prazo
+                    </button>
+                    <button type="button" onclick="gerarRelatorioCompleto()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors text-sm font-medium text-purple-800">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Relatório
+                    </button>
                 </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-orange-100 rounded-lg">
-                            <i data-lucide="users-2" class="w-6 h-6 text-orange-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Migrações</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalMigracoes}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-indigo-100 rounded-lg">
-                            <i data-lucide="book-open" class="w-6 h-6 text-indigo-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Registos</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalRegistos}</p>
-                        </div>
-                    </div>
-                </div>
-                
             </div>
         </div>
     `;
 }
 
 function criarGraficosAvancados() {
-    if (typeof Chart === 'undefined') return; // Chart.js não carregou (CDN falhou); evita ReferenceError
+    if (typeof Chart === 'undefined') return;
+    if (!document.getElementById('chartEvolucaoTemporal')) return;
     // Dados para os gráficos
     const dadosEvolucaoTemporal = calcularEvolucaoTemporal();
     const dadosComparacaoMensal = calcularComparacaoMensal();
@@ -15420,11 +15107,6 @@ function exportarRelatorioAvancadoPdf() {
 function inicializarSecao(secao) {
     lucide.createIcons();
     
-    if (secao === 'dashboard') {
-        setTimeout(() => {
-            criarGraficoHonorarios();
-        }, 100);
-    }
     if (secao === 'relatorios') {
         setTimeout(() => {
             inicializarRelatoriosAvancados();
@@ -15466,44 +15148,6 @@ function inicializarSecao(secao) {
     if (secao === 'backup') {
         setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
     }
-}
-
-function criarGraficoHonorarios() {
-    const ctx = document.getElementById('chartHonorarios');
-    if (!ctx) return;
-
-    const chartAntigo = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(ctx) : null;
-    if (chartAntigo) chartAntigo.destroy();
-
-    const honorariosPagos = honorarios.filter(h => h.status === 'pago').length;
-    const honorariosPendentes = honorarios.filter(h => isHonorarioEmAberto(h)).length;
-    const honorariosVencidos = honorarios.filter(h => h.status === 'vencido').length;
-
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Pagos', 'Pendentes', 'Vencidos'],
-            datasets: [{
-                data: [honorariosPagos, honorariosPendentes, honorariosVencidos],
-                backgroundColor: [
-                    '#10b981',
-                    '#f59e0b',
-                    '#ef4444'
-                ],
-                borderWidth: 2,
-                borderColor: '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
 }
 
 function abrirModal(tipo) {
