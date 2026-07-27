@@ -901,7 +901,7 @@
         var logoEl = document.querySelector('[data-field="issuer.logo"]');
         if (logoEl) {
           var logoSrc = (i.logo && i.logo.trim()) ? i.logo : (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
-          logoEl.src = logoSrc || 'assets/ana.png';
+          logoEl.src = logoSrc || obterUrlLogoFallback();
           function sinalizarProntoParaImprimir() {
             if (window.opener) window.opener.postMessage({ type: 'INVOICE_READY_TO_PRINT' }, '*');
           }
@@ -1028,11 +1028,17 @@
         }
       });
     }
+    /** URL absoluta da logo — compatível com GitHub Pages (mesmo diretório que fatura-recibo.html). */
+    function obterUrlLogoFallback() {
+      var base = document.location.href.replace(/[#?].*$/, '').replace(/[^/]+$/, '');
+      return base + 'assets/logo-solicitadora.png';
+    }
     /** Garantir que a logo aparece (usa LOGO_DATA_URI ou uri passada pela janela pai). */
     function garantirLogoSempre(uri) {
       var logoEl = document.querySelector('[data-field="issuer.logo"]');
       if (!logoEl) return;
       var src = (uri && uri.trim()) || (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI ? LOGO_DATA_URI : '');
+      if (!src) src = obterUrlLogoFallback();
       if (src && (!logoEl.src || logoEl.src.indexOf('data:') !== 0)) logoEl.src = src;
     }
     setTimeout(function() { garantirLogoSempre(); }, 100);

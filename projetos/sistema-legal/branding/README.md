@@ -32,5 +32,6 @@ Toda a identidade visual dos documentos gerados (minutas, contratos, requeriment
 - `getBrandedHeaderHTML(logoDataUri?, dadosSolicitadora?)` — header completo (logo esq. + dados dir.).
 - `renderCabecalhoDocumentoSolicitadora(dadosSolicitadora?, logoDataUri?)` — cabeçalho oficial reutilizável.
 - `getDadosCabecalhoSolicitadora(override?)` — dados formatados da solicitadora.
-- `wrapDocumentWithBrandingHeader(title, bodyHtml, extraStyles?)` — documento HTML completo com cabeçalho.
+- `wrapDocumentWithBrandingHeader(title, bodyHtml, extraStyles?)` — documento HTML completo com cabeçalho e corpo `.doc-body` (margens e justificação).
+- `obterUrlLogoGithubPages(nomeFicheiro?)` — URL absoluta da logo para GitHub Pages e subpastas.
 - `applyBrandingToDocument(html, injectHeaderAfter?)` — injeta header oficial em HTML e remove logos embutidas.

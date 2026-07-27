@@ -13226,7 +13226,7 @@ function salvarDocumentosLocal(novos) {
 }
 
 /** Logo para PDFs — apenas via módulo de branding (branding/injectBranding.js). Não usar logos embutidas em templates. */
-const LOGO_EMPRESA_URLS = ['assets/ana.png', 'assets/logo-solicitadora.png', 'logotipo-legal-gestao-juridica-pequena.png', '../../assets/ana.png'];
+const LOGO_EMPRESA_URLS = ['assets/logo-solicitadora.png', 'assets/ana.png', 'logotipo-legal-gestao-juridica-pequena.png', '../../assets/logo-solicitadora.png', '../../assets/ana.png'];
 
 /** Carrega a logo como base64. Usa exclusivamente LOGO_DATA_URI definido pelo módulo de branding. */
 function carregarLogoBase64() {
@@ -14944,17 +14944,13 @@ function imprimirDocumento(id) {
         conteudo = doc.descricao || 'Conteúdo do documento.';
     }
     const janela = window.open('', '_blank');
-    janela.document.write(`
-        <!DOCTYPE html>
-        <html><head>
-            <meta charset="UTF-8">
-            <title>${doc.nomeArquivo || 'documento'}</title>
-            <style>
-                body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; max-width: 21cm; margin: 2cm auto; padding: 0 1cm; white-space: pre-wrap; }
-                @media print { body { margin: 0; padding: 1cm; } }
-            </style>
-        </head><body>${conteudo.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</body></html>
-    `);
+    const tituloDoc = escaparHtml(doc.nomeArquivo || 'Documento');
+    const corpoImpressao = `<div class="doc-body-pre">${conteudo.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`;
+    const extraStylesImpressao = '.doc-body-pre{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;white-space:pre-wrap;text-align:justify}@media print{.doc-container{padding:12mm!important}}';
+    const htmlImpressao = typeof wrapDocumentWithBrandingHeader === 'function'
+        ? wrapDocumentWithBrandingHeader(tituloDoc, corpoImpressao, extraStylesImpressao)
+        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tituloDoc}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;max-width:21cm;margin:2cm auto;padding:0 1cm;white-space:pre-wrap;text-align:justify}${extraStylesImpressao}</style></head><body>${corpoImpressao}</body></html>`;
+    janela.document.write(htmlImpressao);
     janela.document.close();
     janela.focus();
     setTimeout(() => { janela.print(); }, 250);
@@ -15316,23 +15312,10 @@ function exportarRelatorioAvancadoPdf() {
         </tr>
     `).join('');
     
-    janela.document.write(`
-        <html>
-        <head>
-            <title>Relatório Avançado</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-                h1 { font-size: 20px; margin-bottom: 6px; }
-                p { font-size: 12px; color: #6b7280; margin-top: 0; }
-                table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
-                th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-                th { background: #f3f4f6; }
-            </style>
-        </head>
-        <body>
-            <h1>Relatório Avançado</h1>
-            <p>Gerado em ${dataRelatorio}</p>
-            <table>
+    const corpoAvancado = `
+            <h1 class="doc-report-title">Relatório Avançado</h1>
+            <p class="doc-meta">Gerado em ${dataRelatorio}</p>
+            <table class="doc-table">
                 <thead>
                     <tr>
                         <th>Tipo</th>
@@ -15347,10 +15330,12 @@ function exportarRelatorioAvancadoPdf() {
                     ${linhas}
                 </tbody>
             </table>
-            ${relatorioAvancadoUltimosResultados.length > 500 ? `<p>Mostrando 500 de ${relatorioAvancadoUltimosResultados.length} resultados.</p>` : ''}
-        </body>
-        </html>
-    `);
+            ${relatorioAvancadoUltimosResultados.length > 500 ? `<p class="doc-meta">Mostrando 500 de ${relatorioAvancadoUltimosResultados.length} resultados.</p>` : ''}`;
+    const extraStylesAvancado = '.doc-report-title{font-size:20px;margin-bottom:6px;font-weight:700}.doc-meta{font-size:12px;color:#6b7280;margin-top:0}';
+    const htmlAvancado = typeof wrapDocumentWithBrandingHeader === 'function'
+        ? wrapDocumentWithBrandingHeader('Relatório Avançado', corpoAvancado, extraStylesAvancado)
+        : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Avançado</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111827}${extraStylesAvancado}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}th{background:#f3f4f6}</style></head><body>${corpoAvancado}</body></html>`;
+    janela.document.write(htmlAvancado);
     janela.document.close();
     setTimeout(() => {
         janela.focus();

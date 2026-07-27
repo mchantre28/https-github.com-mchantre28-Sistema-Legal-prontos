@@ -6,7 +6,7 @@
   'use strict';
 
   var BRANDING = {
-    logoPath: 'assets/ana.png',
+    logoPath: 'assets/logo-solicitadora.png',
     logoPathPng: 'assets/logo-solicitadora.png',
     logoPathFallback: '../../assets/ana.png',
     logoWidth: 220,
@@ -54,6 +54,11 @@
     return base.charAt(base.length - 1) === '/' ? base : base + '/';
   }
 
+  /** URL absoluta da logo — compatível com GitHub Pages e subpastas do repo. */
+  window.obterUrlLogoGithubPages = function(nomeFicheiro) {
+    return getBaseUrl() + (nomeFicheiro || BRANDING.logoPathPng || 'assets/logo-solicitadora.png');
+  };
+
   function blobToDataUrl(blob) {
     return new Promise(function(resolve, reject) {
       var r = new FileReader();
@@ -65,7 +70,7 @@
 
   function loadLogoFromAsset() {
     var base = getBaseUrl();
-    var paths = ['assets/ana.png', BRANDING.logoPathPng, 'assets/ana.svg', 'assets/logo-solicitadora.svg'];
+    var paths = [BRANDING.logoPathPng, 'assets/logo-solicitadora.png', 'assets/ana.png', 'assets/logo-solicitadora.svg', 'assets/ana.svg'];
     if (BRANDING.logoPathFallback) paths.push(BRANDING.logoPathFallback);
     var idx = 0;
     function tryNext() {
@@ -99,7 +104,13 @@
     '.branding-header-right p{margin:2px 0;color:#1a1a1a}',
     '.branding-logo{width:' + BRANDING.logoWidth + 'px;height:auto;max-width:' + BRANDING.logoWidth + 'px;min-width:' + BRANDING.logoWidth + 'px;flex-shrink:0;display:block;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;margin-bottom:' + BRANDING.logoMarginBottom + 'px}',
     '.branding-logo-placeholder{width:' + BRANDING.logoWidth + 'px;min-height:60px;display:flex;align-items:center;justify-content:flex-start;font-size:18px;font-weight:700;color:#1a1a1a;line-height:1.3}',
-    '.branding-logo-placeholder span{font-size:11px;font-weight:500;letter-spacing:.15em;color:#444}'
+    '.branding-logo-placeholder span{font-size:11px;font-weight:500;letter-spacing:.15em;color:#444}',
+    '.doc-body{max-width:210mm;margin:0 auto;text-align:justify}',
+    '.doc-body p,.doc-body li{text-align:justify}',
+    '.doc-body h1,.doc-body h2,.doc-body h3,.doc-body .doc-report-title,.doc-body .doc-meta,.doc-body table,.doc-body .doc-table,.doc-body pre,.doc-body .doc-report-body{text-align:left}',
+    '.doc-body table,.doc-body .doc-table{width:100%;border-collapse:collapse}',
+    '.doc-body .doc-table th,.doc-body .doc-table td{border:1px solid #e5e7eb;padding:6px 8px;font-size:12px}',
+    '.doc-body .doc-table th{background:#f3f4f6}'
   ].join('\n');
 
   /** Dados da solicitadora para o cabeçalho (override > DADOS_SOLICITADORA > defaults). */
@@ -165,7 +176,7 @@
   window.wrapDocumentWithBrandingHeader = function(title, bodyHtml, extraStyles) {
     var styles = BRANDING.documentStyles + (extraStyles ? '\n' + extraStyles : '');
     var header = window.renderCabecalhoDocumentoSolicitadora();
-    return '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styles + '</style></head><body class="doc-container">' + header + (bodyHtml || '') + '</body></html>';
+    return '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styles + '</style></head><body class="doc-container">' + header + '<div class="doc-body">' + (bodyHtml || '') + '</div></body></html>';
   };
 
   /** Garante que o documento usa apenas o branding do módulo: injeta o header oficial. */
