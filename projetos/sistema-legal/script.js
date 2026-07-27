@@ -6627,7 +6627,7 @@ function configurarEventos() {
                 migracoes: () => { if (typeof abrirModal === 'function') abrirModal('migracao'); },
                 registos: () => { if (typeof abrirModal === 'function') abrirModal('registo'); },
                 prazos: () => { if (typeof abrirModal === 'function') abrirModal('prazo'); },
-                tarefas: () => { if (typeof criarTarefa === 'function') criarTarefa(); }
+                tarefas: () => { if (typeof abrirModalCriarTarefa === 'function') abrirModalCriarTarefa(); }
             };
             if (acoes[sec]) acoes[sec]();
             return;
@@ -11939,12 +11939,6 @@ function salvarTarefasLocal(novos, options = {}) {
     }
 }
 
-function obterFiltroSoComPrazo() {
-    const tipoUsuario = appStorage.getItem('tipoUsuario');
-    const salvo = appStorage.getItem('tarefasFiltroSoComPrazo') === 'true';
-    return tipoUsuario === 'admin' ? false : salvo;
-}
-
 /** Cria ou atualiza tarefa na nuvem. isNew: true para criar (serverTimestamp), false para atualizar. */
 async function salvarTarefaCloud(tarefa, isNew = false) {
     if (!isCloudReady() || !tarefa) return;
@@ -12058,142 +12052,61 @@ async function finalizarCriacaoTarefa(tarefa) {
     }
     registrarAuditoria('criar', 'tarefa', `Tarefa criada: ${tarefa.titulo}`, null, tarefa);
     mostrarNotificacao('Tarefa criada com sucesso!', 'success');
-
-    const ids = ['tarefaCliente', 'tarefaTitulo', 'tarefaDescricao', 'tarefaObservacoes', 'tarefaLinks', 'tarefaDataLimite', 'tarefaLembrete', 'tarefaAnexos'];
-    const elEntidade = document.getElementById('tarefaEntidade');
-    if (elEntidade) elEntidade.value = '';
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-    const prioridadeEl = document.getElementById('tarefaPrioridade');
-    if (prioridadeEl) prioridadeEl.value = 'media';
+    fecharModalRobusto();
     aplicarFiltrosTarefas();
+}
+
+function obterNotasTarefa(tarefa) {
+    if (!tarefa) return '';
+    const partes = [tarefa.descricao, tarefa.observacoes].filter(s => s && String(s).trim());
+    return partes.join('\n\n');
+}
+
+function opcoesProcessoTarefa(valorSelecionado) {
+    const opcoes = [
+        ['contrato', 'Contrato'],
+        ['heranca', 'Herança'],
+        ['migracao', 'Migração'],
+        ['registo', 'Registo'],
+        ['outro', 'Outro']
+    ];
+    return opcoes.map(([valor, rotulo]) =>
+        `<option value="${valor}" ${valorSelecionado === valor ? 'selected' : ''}>${rotulo}</option>`
+    ).join('');
 }
 
 function gerarTarefas() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const isConvidado = tipoUsuario === 'convidado' || !!appStorage.getItem('convidadoId');
     let clientesParaSelect = Array.isArray(clientes) ? clientes : [];
-    let tarefasParaMostrar = obterTarefasAtual();
-    const convidadosLista = obterConvidados();
-    
+
     if (isConvidado) {
         clientesParaSelect = clientesParaSelect.filter(c => verificarPermissaoCliente(c.id));
-        const convidadoAtualRaw = appStorage.getItem('convidadoId');
-        const convidadoAtualId = parseInt(convidadoAtualRaw);
-        const convidadosAtuais = obterConvidados();
-        const convidadoAtual = convidadosAtuais.find(c =>
-            String(c.id) === String(convidadoAtualRaw) || String(c.codigo) === String(convidadoAtualRaw)
-        );
-        tarefasParaMostrar = tarefasParaMostrar.filter(t =>
-            t.responsavelTipo === 'convidado' &&
-            (
-                (Number.isFinite(convidadoAtualId) && parseInt(t.responsavelId) === convidadoAtualId) ||
-                (t.responsavelCodigo && String(t.responsavelCodigo) === String(convidadoAtualRaw)) ||
-                (convidadoAtual && String(t.responsavelId) === String(convidadoAtual.id)) ||
-                (convidadoAtual && String(t.responsavelCodigo) === String(convidadoAtual.codigo)) ||
-                (convidadoAtual && t.responsavelNome && t.responsavelNome === convidadoAtual.nome)
-            )
-        );
     }
-    
+
     return `
         <div class="space-y-6">
-            <div class="flex justify-between items-center">
-                <h2 class="text-2xl font-bold">Tarefas</h2>
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <p class="text-sm text-gray-500">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    Tarefas = quem faz o quê. Prazos e datas limite ficam na secção Prazos.
+                </p>
                 ${isConvidado ? '' : `
-                    <button onclick="criarTarefa()" class="btn btn-primary">
+                    <button type="button" onclick="abrirModalCriarTarefa()" class="btn btn-primary">
                         <i data-lucide="plus" class="w-4 h-4"></i>
-                        Adicionar Tarefa
+                        Nova Tarefa
                     </button>
                 `}
             </div>
-            
-            ${isConvidado ? '' : `
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold mb-4">Nova Tarefa</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-                            <select id="tarefaCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="">Selecione</option>
-                                ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
-                            <select id="tarefaProcessoTipo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="contrato">Contrato</option>
-                                <option value="heranca">Herança</option>
-                                <option value="migracao">Migração</option>
-                                <option value="registo">Registo</option>
-                                <option value="prazo">Prazo</option>
-                                <option value="outro">Outro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                            <select id="tarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal (Finanças, IRN, IMT, etc.)">
-                                ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                            </select>
-                        </div>
-                    <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
-                            <select id="tarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <option value="baixa">Baixa</option>
-                                <option value="media" selected>Média</option>
-                                <option value="alta">Alta</option>
-                                <option value="critica">Crítica</option>
-                            </select>
-                        </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
-                        <select id="tarefaResponsavel" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <option value="admin">Admin</option>
-                            ${convidadosLista.map(c => `<option value="convidado:${c.id}">${c.nome}</option>`).join('')}
-                        </select>
-                    </div>
-                        <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
-                            <input id="tarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Recolher documentação do cliente">
-                        </div>
-                        <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
-                            <textarea id="tarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3" placeholder="Detalhes adicionais"></textarea>
-                        </div>
-                        <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                            <textarea id="tarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2" placeholder="Observações internas"></textarea>
-                        </div>
-                        <div class="md:col-span-2 lg:col-span-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
-                            <input id="tarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: https://..., https://...">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Anexos</label>
-                            <input id="tarefaAnexos" type="file" multiple class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB por anexo.</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
-                            <input id="tarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Lembrete</label>
-                            <input id="tarefaLembrete" type="datetime-local" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                        </div>
-                    </div>
-                </div>
-            `}
-            
+
             <div class="card p-6">
-                <h3 class="text-lg font-semibold mb-4">Filtros rápidos</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Pesquisa</label>
-                        <input id="filtroTarefasTexto" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="título, cliente, processo..." oninput="aplicarFiltrosTarefas()">
-                    </div>
+                <div class="search-container mb-4">
+                    <i data-lucide="search" class="search-icon w-4 h-4"></i>
+                    <input type="text" id="filtroTarefasTexto" placeholder="Buscar por título, cliente ou processo..."
+                           class="search-input" oninput="aplicarFiltrosTarefas()">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
                         <select id="filtroTarefasCliente" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
@@ -12219,57 +12132,20 @@ function gerarTarefas() {
                             <option value="critica">Crítica</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Prazo</label>
-                        <select id="filtroTarefasPrazo" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
-                            <option value="">Todos</option>
-                            <option value="vencidas">Vencidas</option>
-                            <option value="hoje">Hoje</option>
-                            <option value="semana">Esta semana</option>
-                            <option value="mes">Este mês</option>
-                            <option value="sem_prazo">Sem prazo</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
-                        <select id="filtroTarefasEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
-                            <option value="">Todas</option>
-                            ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL.filter(e => e.id) : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Ordenar por</label>
-                        <select id="filtroTarefasOrdenacao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="aplicarFiltrosTarefas()">
-                            <option value="prazo">Prazo (data limite)</option>
-                            <option value="prioridade">Prioridade</option>
-                            <option value="titulo">Título</option>
-                            <option value="cliente">Cliente</option>
-                            <option value="prioridade_prazo">Prioridade + Prazo</option>
-                            <option value="prazo_prioridade">Prazo + Prioridade</option>
-                        </select>
-                    </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 mt-4">
-                    <button id="btnSoComPrazo" onclick="alternarFiltroSoComPrazo()" class="btn ${obterFiltroSoComPrazo() ? 'btn-primary' : 'btn-secondary'}" data-ativo="${obterFiltroSoComPrazo() ? 'true' : 'false'}">
-                        <i data-lucide="clock" class="w-4 h-4"></i>
-                        ${obterFiltroSoComPrazo() ? 'Só com prazo: ON' : 'Só com prazo'}
-                    </button>
-                    <button onclick="aplicarFiltrosTarefas()" class="btn btn-primary">
-                        <i data-lucide="filter" class="w-4 h-4"></i>
-                        Aplicar filtros
-                    </button>
-                    <button onclick="limparFiltrosTarefas()" class="btn btn-secondary">
-                        <i data-lucide="x" class="w-4 h-4"></i>
+
+                <div class="flex flex-wrap justify-between items-center gap-3 mt-4">
+                    <button type="button" onclick="limparFiltrosTarefas()" class="btn btn-secondary text-sm">
+                        <i data-lucide="x" class="w-4 h-4 mr-1"></i>
                         Limpar
                     </button>
+                    <div class="text-sm text-gray-600">
+                        <span id="contadorTarefas">0</span> tarefas encontradas
+                    </div>
                 </div>
             </div>
-            
+
             <div class="card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">Tarefas</h3>
-                    <div class="text-sm text-gray-600"><span id="contadorTarefas">0</span> tarefas</div>
-                </div>
                 <div id="listaTarefas" class="space-y-3"></div>
             </div>
         </div>
@@ -12277,35 +12153,10 @@ function gerarTarefas() {
 }
 
 function limparFiltrosTarefas() {
-    ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade', 'filtroTarefasPrazo', 'filtroTarefasEntidade'].forEach(id => {
+    ['filtroTarefasTexto', 'filtroTarefasCliente', 'filtroTarefasStatus', 'filtroTarefasPrioridade'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    const elOrdenar = document.getElementById('filtroTarefasOrdenacao');
-    if (elOrdenar) elOrdenar.value = 'prazo';
-    const btnSoComPrazo = document.getElementById('btnSoComPrazo');
-    if (btnSoComPrazo) {
-        btnSoComPrazo.dataset.ativo = 'false';
-        btnSoComPrazo.classList.remove('btn-primary');
-        btnSoComPrazo.classList.add('btn-secondary');
-        btnSoComPrazo.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i> Só com prazo';
-    }
-    appStorage.setItem('tarefasFiltroSoComPrazo', 'false');
-    aplicarFiltrosTarefas();
-}
-
-function alternarFiltroSoComPrazo() {
-    const btn = document.getElementById('btnSoComPrazo');
-    if (!btn) return;
-    const tipoUsuario = appStorage.getItem('tipoUsuario');
-    const ativo = btn.dataset.ativo === 'true';
-    btn.dataset.ativo = ativo ? 'false' : 'true';
-    btn.classList.toggle('btn-primary', !ativo);
-    btn.classList.toggle('btn-secondary', ativo);
-    btn.innerHTML = `<i data-lucide="clock" class="w-4 h-4"></i> ${ativo ? 'Só com prazo' : 'Só com prazo: ON'}`;
-    if (tipoUsuario !== 'admin') {
-        appStorage.setItem('tarefasFiltroSoComPrazo', ativo ? 'false' : 'true');
-    }
     aplicarFiltrosTarefas();
 }
 
@@ -12337,48 +12188,11 @@ function aplicarFiltrosTarefas() {
     const clienteId = document.getElementById('filtroTarefasCliente')?.value || '';
     const status = document.getElementById('filtroTarefasStatus')?.value || '';
     const prioridade = document.getElementById('filtroTarefasPrioridade')?.value || '';
-    const prazo = document.getElementById('filtroTarefasPrazo')?.value || '';
-    const entidade = document.getElementById('filtroTarefasEntidade')?.value || '';
-    const ordenacao = document.getElementById('filtroTarefasOrdenacao')?.value || 'prazo';
-    const soComPrazo = document.getElementById('btnSoComPrazo')?.dataset?.ativo === 'true';
-    
+
     if (clienteId) lista = lista.filter(t => String(t.clienteId) === clienteId);
     if (status) lista = lista.filter(t => t.status === status);
     if (prioridade) lista = lista.filter(t => t.prioridade === prioridade);
-    if (entidade) lista = lista.filter(t => (t.entidade || '') === entidade);
-    if (soComPrazo) lista = lista.filter(t => !!t.dataLimite);
-    if (prazo) {
-        const agora = new Date();
-        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-        const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - hoje.getDay());
-        const fimSemana = new Date(inicioSemana);
-        fimSemana.setDate(inicioSemana.getDate() + 6);
-        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-        const fimMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0);
-        
-        lista = lista.filter(t => {
-            if (!t.dataLimite) return prazo === 'sem_prazo';
-            const dataLimite = new Date(t.dataLimite);
-            if (isNaN(dataLimite.getTime())) return false;
-            
-            switch (prazo) {
-                case 'vencidas':
-                    return dataLimite < hoje;
-                case 'hoje':
-                    return dataLimite.toDateString() === hoje.toDateString();
-                case 'semana':
-                    return dataLimite >= inicioSemana && dataLimite <= fimSemana;
-                case 'mes':
-                    return dataLimite >= inicioMes && dataLimite <= fimMes;
-                case 'sem_prazo':
-                    return false;
-                default:
-                    return true;
-            }
-        });
-    }
-    
+
     if (texto) {
         lista = lista.filter(t => {
             const alvo = [
@@ -12392,48 +12206,21 @@ function aplicarFiltrosTarefas() {
             return alvo.includes(texto);
         });
     }
-    
+
     const prioridadePeso = (valor) => {
         switch (valor) {
-            case 'critica':
-                return 4;
-            case 'alta':
-                return 3;
-            case 'media':
-                return 2;
-            case 'baixa':
-                return 1;
-            default:
-                return 0;
+            case 'critica': return 4;
+            case 'alta': return 3;
+            case 'media': return 2;
+            case 'baixa': return 1;
+            default: return 0;
         }
     };
-    
+
     lista = lista.sort((a, b) => {
-        if (ordenacao === 'titulo') return (String(a.titulo || '').toLowerCase()).localeCompare(String(b.titulo || '').toLowerCase());
-        if (ordenacao === 'cliente') return (String(a.clienteNome || a.cliente || '').toLowerCase()).localeCompare(String(b.clienteNome || b.cliente || '').toLowerCase());
-        
-        const ordenarPorPrioridade = ordenacao === 'prioridade' || ordenacao === 'prioridade_prazo';
-        const ordenarPorPrazo = ordenacao === 'prazo' || ordenacao === 'prazo_prioridade';
-        
-        if (ordenarPorPrioridade) {
-            const pesoA = prioridadePeso(a.prioridade);
-            const pesoB = prioridadePeso(b.prioridade);
-            if (pesoA !== pesoB) return pesoB - pesoA;
-        }
-        
-        const dataA = a.dataLimite ? new Date(a.dataLimite) : null;
-        const dataB = b.dataLimite ? new Date(b.dataLimite) : null;
-        if (ordenarPorPrazo || ordenacao === 'prioridade_prazo') {
-            if (dataA && dataB) return dataA - dataB;
-            if (dataA && !dataB) return -1;
-            if (!dataA && dataB) return 1;
-        }
-        
-        if (ordenacao === 'prazo_prioridade') {
-            const pesoA = prioridadePeso(a.prioridade);
-            const pesoB = prioridadePeso(b.prioridade);
-            if (pesoA !== pesoB) return pesoB - pesoA;
-        }
+        const pesoA = prioridadePeso(a.prioridade);
+        const pesoB = prioridadePeso(b.prioridade);
+        if (pesoA !== pesoB) return pesoB - pesoA;
         return (b.dataCriacao || '').localeCompare(a.dataCriacao || '');
     });
     
@@ -12451,50 +12238,35 @@ function renderizarListaTarefas(lista, total, limit) {
     if (!container) return;
     
     if (lista.length === 0) {
-        container.innerHTML = '<div class="text-sm text-gray-500">Nenhuma tarefa encontrada.</div>';
+        container.innerHTML = '<div class="text-sm text-gray-500 text-center py-8">Nenhuma tarefa encontrada.</div>';
         return;
     }
-    
+
     const isConvidado = appStorage.getItem('tipoUsuario') === 'convidado' || !!appStorage.getItem('convidadoId');
-    const formatarDataHora = (valor) => {
-        if (!valor) return '';
-        const data = new Date(valor);
-        if (isNaN(data.getTime())) return '';
-        return data.toLocaleString('pt-PT');
-    };
-    container.innerHTML = lista.map(tarefa => `
+    container.innerHTML = lista.map(tarefa => {
+        const notas = obterNotasTarefa(tarefa);
+        return `
         <div class="flex flex-col gap-2 border border-gray-200 rounded-lg p-4">
             <div class="flex justify-between items-start gap-3">
                 <div class="flex-1">
-                    <div class="text-sm font-semibold text-gray-800">${tarefa.titulo}</div>
-                    <div class="text-xs text-gray-500">${tarefa.descricao || 'Sem descrição'}</div>
-                    ${tarefa.observacoes ? `<div class="text-xs text-gray-500">Observações: ${tarefa.observacoes}</div>` : ''}
-                    <div class="text-xs text-gray-500">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}${tarefa.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === tarefa.entidade)?.nome || tarefa.entidade) : ''}</div>
+                    <div class="text-sm font-semibold text-gray-800">${escaparHtml(tarefa.titulo || '')}</div>
+                    ${notas ? `<div class="text-xs text-gray-500 mt-1 whitespace-pre-line">${escaparHtml(notas)}</div>` : ''}
+                    <div class="text-xs text-gray-500 mt-1">${renderClienteLink(tarefa.clienteId, tarefa.clienteNome || 'Cliente')} • ${tarefa.processoTipo || 'outro'}${tarefa.entidade && typeof ENTIDADES_PORTUGAL !== 'undefined' ? ' • ' + (ENTIDADES_PORTUGAL.find(e => e.id === tarefa.entidade)?.nome || tarefa.entidade) : ''}</div>
                     ${tarefa.responsavelNome ? `<div class="text-xs text-gray-400">Responsável: <span class="font-bold text-gray-700">${escaparHtml(tarefa.responsavelNome)}</span></div>` : ''}
                     ${renderMetaAuditoria('tarefa', tarefa)}
-                    ${tarefa.dataLimite ? `<div class="text-xs text-gray-400">Prazo: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')}</div>` : ''}
+                    ${tarefa.dataLimite ? `<div class="text-xs text-amber-600 italic mt-1">Prazo legado: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')} — consulte a secção Prazos</div>` : ''}
                     ${tarefa.concluidaPorNome ? `<div class="text-xs text-gray-400">Concluída por: ${escaparHtml(tarefa.concluidaPorNome)}${tarefa.concluidaEm ? ` em ${new Date(tarefa.concluidaEm).toLocaleString('pt-PT')}` : ''}</div>` : ''}
-                    ${tarefa.lembreteEm ? `<div class="text-xs text-gray-400">Lembrete: ${formatarDataHora(tarefa.lembreteEm)}</div>` : ''}
                     ${tarefa.links && tarefa.links.length ? `
-                        <div class="text-xs text-gray-400">
+                        <div class="text-xs text-gray-400 mt-1">
                             Links:
                             ${tarefa.links.map(link => {
                                 const href = normalizarLinkTarefa(link);
-                                return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline mr-2">${link}</a>` : '';
+                                return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline mr-2">${escaparHtml(link)}</a>` : '';
                             }).join('')}
                         </div>
                     ` : ''}
-                    ${tarefa.anexos && tarefa.anexos.length ? `
-                        <div class="flex flex-wrap gap-2 mt-1">
-                            ${tarefa.anexos.map(anexo => `
-                                <button onclick="baixarAnexoTarefa(${JSON.stringify(tarefa.id)}, ${JSON.stringify(anexo.id)})" class="text-xs text-blue-600 hover:text-blue-800 underline">
-                                    ${anexo.nome}
-                                </button>
-                            `).join('')}
-                        </div>
-                    ` : ''}
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0">
                     <span class="status-badge status-${tarefa.prioridade || 'media'}">${tarefa.prioridade || 'media'}</span>
                     <span class="status-badge status-${tarefa.status}">${tarefa.status === 'concluida' ? 'Concluída' : 'Aberta'}</span>
                 </div>
@@ -12523,7 +12295,8 @@ function renderizarListaTarefas(lista, total, limit) {
                 </div>
             `}
         </div>
-    `).join('');
+    `;
+    }).join('');
     const verMais = total > limit ? `<div class="flex justify-center py-4"><button type="button" onclick="window.__tarefasLimit = (window.__tarefasLimit || ${LISTA_PAGINA_TAMANHO}) + ${LISTA_PAGINA_TAMANHO}; aplicarFiltrosTarefas();" class="btn btn-secondary text-sm">Ver mais (${total - limit} restantes)</button></div>` : '';
     container.innerHTML = container.innerHTML + verMais;
     lucide.createIcons();
@@ -12547,36 +12320,105 @@ function renderizarListaTarefas(lista, total, limit) {
     }
 }
 
-function criarTarefa() {
-    if (!exigirPermissaoAcao('criar', 'tarefa')) {
-        return;
-    }
-    const clienteId = parseIdSafe(document.getElementById('tarefaCliente')?.value || '');
-    const processoTipo = document.getElementById('tarefaProcessoTipo')?.value || 'outro';
-    const entidade = document.getElementById('tarefaEntidade')?.value || '';
-    const prioridade = document.getElementById('tarefaPrioridade')?.value || 'media';
-    const responsavelRaw = document.getElementById('tarefaResponsavel')?.value || 'admin';
-    const titulo = document.getElementById('tarefaTitulo')?.value?.trim() || '';
-    const descricao = document.getElementById('tarefaDescricao')?.value?.trim() || '';
-    const observacoes = document.getElementById('tarefaObservacoes')?.value?.trim() || '';
-    const linksRaw = document.getElementById('tarefaLinks')?.value || '';
+function abrirModalCriarTarefa() {
+    if (!exigirPermissaoAcao('criar', 'tarefa')) return;
+
+    const clientesParaSelect = Array.isArray(clientes) ? clientes : [];
+    const convidadosLista = obterConvidados();
+    const modal = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-900">Nova Tarefa</h3>
+                        <button type="button" onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <form onsubmit="salvarNovaTarefa(event)">
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
+                                    <select id="novaTarefaCliente" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="">Selecione</option>
+                                        ${clientesParaSelect.map(cliente => `<option value="${cliente.id}">${cliente.nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
+                                    <select id="novaTarefaProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        ${opcoesProcessoTarefa('contrato')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Entidade</label>
+                                    <select id="novaTarefaEntidade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" title="Instituição em Portugal (Finanças, IRN, IMT, etc.)">
+                                        ${(typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                                    <select id="novaTarefaPrioridade" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media" selected>Média</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="critica">Crítica</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
+                                    <select id="novaTarefaResponsavel" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                        <option value="admin">Admin</option>
+                                        ${convidadosLista.map(c => `<option value="convidado:${c.id}">${c.nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Título *</label>
+                                <input id="novaTarefaTitulo" type="text" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: Recolher documentação do cliente">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Notas</label>
+                                <textarea id="novaTarefaNotas" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Detalhes ou observações internas"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
+                                <input id="novaTarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="ex: https://..., https://...">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Criar Tarefa</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+    lucide.createIcons();
+}
+
+function salvarNovaTarefa(event) {
+    event.preventDefault();
+    if (!exigirPermissaoAcao('criar', 'tarefa')) return;
+
+    const clienteId = parseIdSafe(document.getElementById('novaTarefaCliente')?.value || '');
+    const processoTipo = document.getElementById('novaTarefaProcesso')?.value || 'outro';
+    const entidade = document.getElementById('novaTarefaEntidade')?.value || '';
+    const prioridade = document.getElementById('novaTarefaPrioridade')?.value || 'media';
+    const responsavelRaw = document.getElementById('novaTarefaResponsavel')?.value || 'admin';
+    const titulo = document.getElementById('novaTarefaTitulo')?.value?.trim() || '';
+    const notas = document.getElementById('novaTarefaNotas')?.value?.trim() || '';
+    const linksRaw = document.getElementById('novaTarefaLinks')?.value || '';
     const links = linksRaw.split(',').map(item => item.trim()).filter(Boolean);
-    const dataLimite = document.getElementById('tarefaDataLimite')?.value || '';
-    const lembreteValor = document.getElementById('tarefaLembrete')?.value || '';
-    const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
-    if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
-        mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
-        return;
-    }
-    const anexosInput = document.getElementById('tarefaAnexos');
-    const arquivos = anexosInput && anexosInput.files ? Array.from(anexosInput.files) : [];
-    const maxAnexo = 5 * 1024 * 1024;
-    const anexoGrande = arquivos.find(arquivo => arquivo.size > maxAnexo);
-    if (anexoGrande) {
-        mostrarNotificacao('Anexo acima de 5 MB. Tente um ficheiro menor.', 'error');
-        return;
-    }
-    
+
     if (!clienteId) {
         mostrarNotificacao('Selecione o cliente da tarefa.', 'warning');
         return;
@@ -12585,7 +12427,7 @@ function criarTarefa() {
         mostrarNotificacao('Informe o título da tarefa.', 'warning');
         return;
     }
-    
+
     const cliente = clientes.find(c => c.id === clienteId);
     let responsavelTipo = 'admin';
     let responsavelId = null;
@@ -12593,7 +12435,7 @@ function criarTarefa() {
     let responsavelNome = 'Admin';
     if (responsavelRaw.startsWith('convidado:')) {
         responsavelTipo = 'convidado';
-        responsavelId = responsavelRaw.split(':')[1]; // manter string (UUID ou número)
+        responsavelId = responsavelRaw.split(':')[1];
         const convidado = obterConvidados().find(c => String(c.id) === String(responsavelId) || String(c.codigo) === String(responsavelId));
         responsavelCodigo = convidado ? (convidado.codigo || null) : null;
         responsavelNome = convidado ? convidado.nome : 'Convidado';
@@ -12606,8 +12448,8 @@ function criarTarefa() {
         processoTipo,
         entidade,
         titulo,
-        descricao,
-        observacoes,
+        descricao: '',
+        observacoes: notas,
         links,
         prioridade,
         responsavelTipo,
@@ -12615,8 +12457,8 @@ function criarTarefa() {
         responsavelCodigo,
         responsavelNome,
         status: 'aberta',
-        dataLimite: dataLimite || null,
-        lembreteEm: lembreteData ? lembreteData.toISOString() : null,
+        dataLimite: null,
+        lembreteEm: null,
         lembreteDisparado: false,
         anexos: [],
         criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
@@ -12624,14 +12466,11 @@ function criarTarefa() {
         dataCriacao: new Date().toISOString()
     };
 
-    if (arquivos.length === 0) {
-        finalizarCriacaoTarefa(tarefa);
-        return;
-    }
-
-    mostrarNotificacao('Anexos em tarefas foram desativados para evitar perda de dados.', 'warning');
-    tarefa.anexos = [];
     finalizarCriacaoTarefa(tarefa);
+}
+
+function criarTarefa() {
+    abrirModalCriarTarefa();
 }
 
 function formatarDataHoraLocal(valor) {
@@ -12654,16 +12493,18 @@ function abrirModalEditarTarefa(id) {
     const clientesParaSelect = Array.isArray(clientes) ? clientes : [];
     const convidadosLista = obterConvidados();
     const linksValor = Array.isArray(tarefa.links) ? tarefa.links.join(', ') : '';
+    const notasValor = obterNotasTarefa(tarefa);
     const responsavelAtual = tarefa.responsavelTipo === 'convidado' && tarefa.responsavelId
         ? `convidado:${tarefa.responsavelId}`
         : 'admin';
     const modal = `
-        <div class="modal show" onclick="fecharModalRobusto()">
-            <div class="modal-content" style="max-width: 720px;" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">Editar Tarefa</h3>
-                <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
-                    <i data-lucide="x" class="w-5 h-5"></i>
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
+            <div class="p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900">Editar Tarefa</h3>
+                <button type="button" onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-6 h-6"></i>
                 </button>
             </div>
             <form onsubmit="atualizarTarefa(event, ${JSON.stringify(tarefa.id)})" class="space-y-4">
@@ -12678,12 +12519,7 @@ function abrirModalEditarTarefa(id) {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Processo</label>
                         <select id="editarTarefaProcesso" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            <option value="contrato" ${tarefa.processoTipo === 'contrato' ? 'selected' : ''}>Contrato</option>
-                            <option value="heranca" ${tarefa.processoTipo === 'heranca' ? 'selected' : ''}>Herança</option>
-                            <option value="migracao" ${tarefa.processoTipo === 'migracao' ? 'selected' : ''}>Migração</option>
-                            <option value="registo" ${tarefa.processoTipo === 'registo' ? 'selected' : ''}>Registo</option>
-                            <option value="prazo" ${tarefa.processoTipo === 'prazo' ? 'selected' : ''}>Prazo</option>
-                            <option value="outro" ${tarefa.processoTipo === 'outro' ? 'selected' : ''}>Outro</option>
+                            ${opcoesProcessoTarefa(tarefa.processoTipo || 'outro')}
                         </select>
                     </div>
                     <div>
@@ -12720,31 +12556,25 @@ function abrirModalEditarTarefa(id) {
                         <input id="editarTarefaTitulo" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${escaparHtml(tarefa.titulo || '')}" required>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
-                        <textarea id="editarTarefaDescricao" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3">${escaparHtml(tarefa.descricao || '')}</textarea>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                        <textarea id="editarTarefaObservacoes" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="2">${escaparHtml(tarefa.observacoes || '')}</textarea>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Notas</label>
+                        <textarea id="editarTarefaNotas" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" rows="3">${escaparHtml(notasValor)}</textarea>
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Links (separados por vírgula)</label>
                         <input id="editarTarefaLinks" type="text" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${escaparHtml(linksValor)}">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Data limite</label>
-                        <input id="editarTarefaDataLimite" type="date" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${tarefa.dataLimite ? new Date(tarefa.dataLimite).toISOString().split('T')[0] : ''}">
+                    ${tarefa.dataLimite ? `
+                    <div class="md:col-span-2">
+                        <p class="text-xs text-amber-600 italic">Prazo legado: ${new Date(tarefa.dataLimite).toLocaleDateString('pt-PT')} — gerir na secção Prazos</p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Lembrete</label>
-                        <input id="editarTarefaLembrete" type="datetime-local" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" value="${formatarDataHoraLocal(tarefa.lembreteEm)}">
-                    </div>
+                    ` : ''}
                 </div>
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Salvar</button>
                 </div>
             </form>
+            </div>
             </div>
         </div>
     `;
@@ -12775,17 +12605,9 @@ async function atualizarTarefa(event, id) {
     const responsavelRaw = document.getElementById('editarTarefaResponsavel')?.value || 'admin';
     const status = document.getElementById('editarTarefaStatus')?.value || 'aberta';
     const titulo = document.getElementById('editarTarefaTitulo')?.value?.trim() || '';
-    const descricao = document.getElementById('editarTarefaDescricao')?.value?.trim() || '';
-    const observacoes = document.getElementById('editarTarefaObservacoes')?.value?.trim() || '';
+    const notas = document.getElementById('editarTarefaNotas')?.value?.trim() || '';
     const linksRaw = document.getElementById('editarTarefaLinks')?.value || '';
     const links = linksRaw.split(',').map(item => item.trim()).filter(Boolean);
-    const dataLimite = document.getElementById('editarTarefaDataLimite')?.value || '';
-    const lembreteValor = document.getElementById('editarTarefaLembrete')?.value || '';
-    const lembreteData = lembreteValor ? new Date(lembreteValor) : null;
-    if (lembreteValor && (!lembreteData || isNaN(lembreteData.getTime()))) {
-        mostrarNotificacao('Data/hora do lembrete inválida.', 'warning');
-        return;
-    }
     if (!clienteId) {
         mostrarNotificacao('Selecione o cliente da tarefa.', 'warning');
         return;
@@ -12817,20 +12639,17 @@ async function atualizarTarefa(event, id) {
         prioridade,
         status,
         titulo,
-        descricao,
-        observacoes,
+        descricao: '',
+        observacoes: notas,
         links,
         responsavelTipo,
         responsavelId,
         responsavelCodigo,
         responsavelNome,
-        dataLimite,
-        lembreteEm: lembreteData ? lembreteData.toISOString() : null,
+        dataLimite: lista[index].dataLimite ?? null,
+        lembreteEm: lista[index].lembreteEm ?? null,
         dataAtualizacao: new Date().toISOString()
     };
-    if (lembreteData) {
-        lista[index].lembreteDisparado = false;
-    }
     try {
         if (isCloudReady()) {
             await salvarTarefaCloud(lista[index]);
