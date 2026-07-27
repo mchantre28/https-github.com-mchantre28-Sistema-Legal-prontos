@@ -6982,6 +6982,7 @@ function atualizarTitulo(secao) {
         relatorios: 'Gestão de Relatórios',
         backup: 'Sistema de Backup',
         historico: 'Histórico de Alterações',
+        convidados: 'Gestão de Convidados',
     };
     
     const tituloElement = document.getElementById('tituloSecao');
@@ -15754,21 +15755,6 @@ function criarModalCliente() {
                                 <option value="suspenso">Suspenso</option>
                             </select>
                         </div>
-                        ${appStorage.getItem('tipoUsuario') === 'admin' ? `
-                        <div class="border-t pt-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Convidados que podem ver este cliente</label>
-                            <p class="text-xs text-gray-500 mb-2">Selecione os convidados a quem autorizar o acesso a este cliente</p>
-                            <div id="convidadosAutorizarCliente" class="space-y-2 max-h-32 overflow-y-auto">
-                                ${(obterConvidadosAtual() || []).filter(c => c.ativo).map(c => `
-                                    <label class="flex items-center space-x-2">
-                                        <input type="checkbox" value="${c.codigo || c.id}" class="convidadoAutorizarCliente rounded border-gray-300">
-                                        <span class="text-sm text-gray-700">${c.nome} (${c.codigo || ''})</span>
-                                    </label>
-                                `).join('')}
-                            </div>
-                            ${(obterConvidadosAtual() || []).filter(c => c.ativo).length === 0 ? '<p class="text-xs text-gray-500">Nenhum convidado ativo. Crie em Gestão de Convidados.</p>' : ''}
-                        </div>
-                        ` : ''}
                     </div>
                     
                     <div class="flex justify-end space-x-3 mt-6">
@@ -16040,24 +16026,6 @@ async function salvarCliente(event) {
         atualizarClientesEmMemoria(clientes);
     }
     registrarAuditoria('criar', 'cliente', `Cliente criado: ${cliente.nome}`, null, cliente);
-    
-    // Se admin selecionou convidados, adicionar cliente à s permissões deles
-    const convidadosCheck = document.querySelectorAll('.convidadoAutorizarCliente:checked');
-    if (convidadosCheck.length > 0 && tipoUsuario === 'admin') {
-        const codigosSelecionados = Array.from(convidadosCheck).map(cb => String(cb.value));
-        const listaConvidados = obterConvidadosAtual();
-        listaConvidados.forEach(c => {
-            if (codigosSelecionados.includes(String(c.codigo)) || codigosSelecionados.includes(String(c.id))) {
-                const ids = new Set((c.clientesAutorizados || []).map(a => String(a)));
-                ids.add(String(cliente.id));
-                c.clientesAutorizados = Array.from(ids);
-                if (isCloudReady()) salvarConvidadoCloud(c);
-            }
-        });
-        convidados = listaConvidados;
-        window.convidados = convidados;
-        salvarDados('convidados', listaConvidados);
-    }
     
     mostrarNotificacao('Cliente salvo com sucesso!', 'success');
     
@@ -19946,74 +19914,20 @@ function gerarHerancas() {
 
 function gerarConvidados() {
     const convidados = obterConvidados();
-    const convidadosAtivos = convidados.filter(c => c.ativo).length;
-    const convidadosInativos = convidados.filter(c => !c.ativo).length;
-    const totalConvidados = convidados.length;
 
     return `
         <div class="space-y-6">
-            <!-- Header com botões de ação -->
-            <div class="flex justify-between items-center">
-                <div class="flex space-x-3">
-                    <button onclick="abrirModalNovoConvidado()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
-                        <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>
-                        Novo Convidado
-                    </button>
-                    <button onclick="enviarMensagemConvidado()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center" title="Enviar notificação ou mensagem para um convidado">
-                        <i data-lucide="send" class="w-4 h-4 mr-2"></i>
-                        Enviar para Convidado
-                    </button>
-                    <button onclick="verConversas()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center" title="Ver conversas com convidados">
-                        <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i>
-                        Ver Conversas
-                    </button>
-                    <button onclick="limparConvidadosInativosConfirmado()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center" title="Eliminar convidados desativados há mais de 7 dias">
-                        <i data-lucide="user-minus" class="w-4 h-4 mr-2"></i>
-                        Limpar Inativos (7+ dias)
-                    </button>
-                </div>
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <button onclick="abrirModalNovoConvidado()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
+                    <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>
+                    Novo Convidado
+                </button>
+                <button onclick="limparConvidadosInativosConfirmado()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center text-sm" title="Eliminar convidados desativados há mais de 7 dias">
+                    <i data-lucide="user-minus" class="w-4 h-4 mr-2"></i>
+                    Limpar Inativos (7+ dias)
+                </button>
             </div>
 
-            <!-- Estatísticas -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <i data-lucide="users" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Total</p>
-                            <p class="text-2xl font-bold text-gray-900">${totalConvidados}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-green-100 rounded-lg">
-                            <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Ativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${convidadosAtivos}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 bg-gray-100 rounded-lg">
-                            <i data-lucide="user-x" class="w-6 h-6 text-gray-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">Inativos</p>
-                            <p class="text-2xl font-bold text-gray-900">${convidadosInativos}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Lista de Convidados -->
             <div class="card">
                 <div class="p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">Lista de Convidados</h3>
@@ -20399,19 +20313,6 @@ function enviarConviteConvidado(codigo, nome) {
     });
 }
 window.enviarConviteConvidado = enviarConviteConvidado;
-
-function enviarConviteDoSeletor() {
-    const sel = document.getElementById('conviteConvidadoNotificacoes');
-    if (!sel || !sel.value) {
-        mostrarNotificacao('Escolha um convidado na lista.', 'warning');
-        return;
-    }
-    const codigo = sel.value;
-    const conv = obterConvidados().find(c => String(c.codigo || c.id) === String(codigo));
-    const nome = conv?.nome || 'Convidado';
-    enviarConviteConvidado(codigo, nome);
-}
-window.enviarConviteDoSeletor = enviarConviteDoSeletor;
 
 function gerarMigracao() {
     if (!migracoes) {
