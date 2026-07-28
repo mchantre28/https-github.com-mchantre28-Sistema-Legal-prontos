@@ -19,7 +19,7 @@ const EURO_HTML = '&#8364;'; // Entidade HTML para uso em innerHTML (evita probl
 // Debug: em true permite logs na consola; em false silencia (produção)
 const DEBUG_LOG = false;
 /** Versão de purge de dados de demonstração (legacy localStorage + Firebase). */
-const LEGACY_DEMO_PURGE_VERSION = '2026-07-27-v2';
+const LEGACY_DEMO_PURGE_VERSION = '2026-07-27-v3';
 /** Nomes de demonstração bloqueados permanentemente (case insensitive). */
 const DEMO_NOMES_BLOQUEADOS = ['joão silva', 'maria santos', 'maria costa'];
 /** Emails de utilizadores de teste da API (backend seed) — não são clientes Firestore. */
@@ -408,7 +408,7 @@ function iniciarListenersFirestore() {
     // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
-        clientes = lista; window.clientes = clientes;
+        atualizarClientesEmMemoria(lista);
         agendarRefreshListener();
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
@@ -2151,6 +2151,7 @@ async function migrarHonorariosLocalParaFirestore() {
     try {
         for (const h of honorariosLocal) {
             if (!h || (h.deleted === true)) continue;
+            if (typeof isItemDemonstracao === 'function' && isItemDemonstracao('honorarios', h)) continue;
             if (!h.id) h.id = gerarIdImutavel();
             await criarHonorarioCloud(h);
         }
@@ -2184,6 +2185,7 @@ async function migrarProcessosLocalParaFirestore(entidade) {
     try {
         for (const p of lista) {
             if (!p || (p.deleted === true)) continue;
+            if (typeof isItemDemonstracao === 'function' && isItemDemonstracao(entidade, p)) continue;
             if (!p.id) p.id = gerarIdImutavel();
             await criarProcessoCloud(entidade, p);
         }
@@ -2214,6 +2216,7 @@ async function migrarContratosLocalParaFirestore() {
     try {
         for (const c of contratosLocal) {
             if (!c || (c.deleted === true)) continue;
+            if (typeof isItemDemonstracao === 'function' && isItemDemonstracao('contratos', c)) continue;
             if (!c.id) c.id = gerarIdImutavel();
             await criarContratoCloud(c);
         }
@@ -3388,16 +3391,17 @@ async function obterIdsClientesDemoFirestore() {
 async function detectarDadosDemonstracaoFirestore() {
     if (!isCloudReady()) return false;
     const demoClienteIds = await obterIdsClientesDemoFirestore();
+    if (demoClienteIds.size > 0) return true;
     const verificacoes = [
-        ['clientes', (item) => isClienteDemonstracao(item)],
         ['honorarios', (item) => isHonorarioDemonstracao(item, demoClienteIds)],
         ['contratos', (item) => isContratoDemonstracao(item, demoClienteIds)],
         ['prazos', (item) => isPrazoDemonstracao(item, demoClienteIds)],
-        ['tarefas', (item) => isRegistoLigadoClienteDemo(item, demoClienteIds)]
+        ['tarefas', (item) => isRegistoLigadoClienteDemo(item, demoClienteIds)],
+        ['faturas', (item) => isRegistoLigadoClienteDemo(item, demoClienteIds)]
     ];
     for (const [col, fn] of verificacoes) {
         try {
-            const snap = await firestoreDb.collection(col).limit(200).get();
+            const snap = await firestoreDb.collection(col).get();
             if (snap.docs.some(d => fn({ id: d.id, ...d.data() }))) return true;
         } catch (e) { console.warn('detectarDadosDemonstracaoFirestore:', col, e); }
     }
@@ -3443,15 +3447,13 @@ async function executarPurgeDemoCompleto() {
 }
 
 async function migracaoAutomaticaRemoverDemo() {
-    if (appStorage.getItem(CHAVE_LEGACY_DEMO_PURGE) === LEGACY_DEMO_PURGE_VERSION) return;
+    filtrarDemoDoStorageLocal();
     if (!isCloudReady()) {
-        filtrarDemoDoStorageLocal();
         appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
         return;
     }
     const temDemo = await detectarDadosDemonstracaoFirestore();
     if (!temDemo) {
-        filtrarDemoDoStorageLocal();
         appStorage.setItem(CHAVE_LEGACY_DEMO_PURGE, LEGACY_DEMO_PURGE_VERSION);
         return;
     }
@@ -4295,6 +4297,7 @@ function init() {
     }
     
     // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
+    filtrarDemoDoStorageLocal();
     carregarDados();
     // Indicador de sync: mostrar último estado conhecido (erro se último evento foi erro)
     const ultimoErro = appStorage.getItem('cloudSyncUltimoErro');
@@ -12029,13 +12032,13 @@ async function excluirTarefaCloud(id) {
 /** Lista clientes CRM: sempre Firestore (ouvirClientes). Utilizadores API seed ficam fora da lista. */
 function obterClientesAtual() {
     const lista = Array.isArray(clientes) ? clientes : [];
-    return lista.filter(function (c) { return !isClienteApiTeste(c); });
+    return lista.filter(function (c) { return !isClienteApiTeste(c) && !isClienteDemonstracao(c); });
 }
 
 /** Atualiza clientes em memória (Firestore). Nunca persiste em appStorage nem mistura cache API. */
 function atualizarClientesEmMemoria(lista) {
     if (!Array.isArray(lista)) return;
-    clientes = lista.filter(function (c) { return !isClienteApiTeste(c); });
+    clientes = lista.filter(function (c) { return !isClienteApiTeste(c) && !isClienteDemonstracao(c); });
     window.clientes = clientes;
 }
 
@@ -13613,6 +13616,7 @@ function obterRodapeDocumento() {
 function obterModelosDocumentos() {
     // Unicode escapes (\u00e7=ç \u00e3=ã \u00ea=ê) para evitar mojibake com encoding errado
     return [
+        { id: 'procuracao_nacionalidade', nome: 'Procura\u00e7\u00e3o \u2014 Atribui\u00e7\u00e3o de Nacionalidade', arquivo: 'procuracao_nacionalidade', tipo: 'procuracao' },
         { id: 'procuracao_simples', nome: 'Procura\u00e7\u00e3o Simples', arquivo: 'procuracao_simples', tipo: 'procuracao' },
         { id: 'procuracao_aima', nome: 'Procura\u00e7\u00e3o para AIMA / Resid\u00eancia', arquivo: 'procuracao_aima', tipo: 'procuracao' },
         { id: 'procuracao_irn', nome: 'Procura\u00e7\u00e3o para IRN', arquivo: 'procuracao_irn', tipo: 'procuracao' },
@@ -13629,6 +13633,7 @@ function obterModelosDocumentos() {
 /** Modelos visíveis na secção Minutas (faturas ficam em Honorários). */
 function obterModelosDocumentosVisiveis() {
     const ids = new Set([
+        'procuracao_nacionalidade',
         'procuracao_aima',
         'declaracao_comparecimento',
         'declaracao_residencia',
@@ -13707,7 +13712,7 @@ function atualizarPreviewTemplateDocumento() {
         if (placeholderFatura) placeholderFatura.style.display = 'block';
         var dadosOutros = obterDadosTemplateDocumento(true) || { cliente: { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' }, modeloId, numeroProcesso: '', objetoProcuracao: '', hoje: new Date(), solicitadora: typeof DADOS_SOLICITADORA !== 'undefined' ? DADOS_SOLICITADORA : {} };
         if (!dadosOutros.cliente) dadosOutros.cliente = { nome: '[Nome do Cliente]', nif: '[NIF]', morada: '[Morada]', endereco: '[Endereço]' };
-        if (ta) ta.value = gerarConteudoTemplateDocumento(dadosOutros.modeloId, dadosOutros);
+        if (ta) ta.value = reformatarTextoJuridicoPadrao(gerarConteudoTemplateDocumento(dadosOutros.modeloId, dadosOutros));
     }
     setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
 }
@@ -13768,73 +13773,87 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
     const solCcValidade = sol.cartaoCidadaoValidade || '__________';
 
     switch (modeloId) {
-        case 'procuracao_aima':
+        case 'procuracao_nacionalidade': {
+            const c = dados.cliente || {};
+            const filiacao1 = c.filiacaoPai || c.nomePai || '';
+            const filiacao2 = c.filiacaoMae || c.nomeMae || '';
+            const nomeOut = (nomeCliente && nomeCliente !== 'N/D') ? nomeCliente : '';
+            const moradaOut = (moradaBase && moradaBase !== 'N/D') ? moradaBase : '';
+            const cpOut = codigoPostal || '';
+            const corpo = `Sr.(a) ${valorOuCampoJuridico(nomeOut, 'longo')}, de nacionalidade ${valorOuCampoJuridico(c.nacionalidade, 'medio')}, filho de ${valorOuCampoJuridico(filiacao1, 'medio')} e de ${valorOuCampoJuridico(filiacao2, 'medio')}, portador(a) do Passaporte n.º ${valorOuCampoJuridico(c.passaporteNumero || c.documentoNumero || docOutorgante, 'medio')}, emitido pela ${valorOuCampoJuridico(c.documentoPais || docOutorgantePais, 'medio')}, residente ${valorOuCampoJuridico(moradaOut, 'longo')}, com o código postal ${valorOuCampoJuridico(cpOut, 'medio')}, constitui seu bastante procurador a ${sol.nome || 'Dra. Ana Paula Pinto Medina'}, ${sol.titulo || 'Solicitadora'}, cédula profissional n.º ${sol.cedula || '9738'}, com sede na ${sol.sede || 'Av. Aquilino Ribeiro Machado n.º 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, a quem confere poderes para acompanhar e praticar todos os atos necessários à **Atribuição** da nacionalidade portuguesa, incluindo requerer, instruir, prestar declarações, juntar documentos, efetuar pagamentos e levantar certidões, podendo, se necessário, substabelecer os poderes que lhe forem conferidos.`;
             return [
                 'PROCURAÇÃO',
                 '',
-                `${nomeCliente}, NIF ${nif}, solteiro(a), maior, residente na ${morada}, portador(a) do passaporte n.º ${docOutorgante}, emitido pela ${docOutorgantePais}, válido até ${docOutorganteValidade}, constitui sua procuradora ${sol.nome || 'Dra. Ana Paula Medina'}, ${sol.titulo || 'Solicitadora'}, com cédula profissional n.º ${sol.cedula || '9738'}, com sede na ${sol.sede || 'Av. Aquilino Ribeiro Machado, n.º 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, solteira, maior, residente em ${sol.morada || 'Rua Melo Antunes, número 34, 3.º DTO, 2526-728 Vialonga'}, portadora do cartão de cidadão n.º ${solCc}, emitido pela República Portuguesa, válido até ${solCcValidade}, a quem confere poderes para, em seu nome, ${objCustom ? objCustom.trim() : `acompanhar e praticar todos os atos necessários à concessão do título de residência em Portugal, com base no processo n.º ${numProc}, ao abrigo do artigo 88.º da Lei n.º 23/2007, de 4 de julho, na sua redação atual, junto das competentes entidades portuguesas, nomeadamente a Agência para a Integração, Migrações e Asilo (AIMA), podendo para o efeito declarar, praticar e assinar tudo o que seja necessário ao indicado fim e, se necessário, substabelecer os poderes que lhe forem conferidos`}.`,
+                corpo,
                 '',
-                `Lisboa, ${dataHoje}`,
+                `Feita e assinada em ${CAMPO_JURIDICO.medio}, aos __ de ${CAMPO_JURIDICO.medio} de ________.`,
                 '',
-                obterRodapeDocumento()
+                CAMPO_JURIDICO.longo
             ].join('\n');
+        }
+        case 'procuracao_aima': {
+            const nomeOut = (nomeCliente && nomeCliente !== 'N/D') ? nomeCliente : '';
+            const moradaOut = (moradaBase && moradaBase !== 'N/D') ? moradaBase : '';
+            const cpOut = codigoPostal || '';
+            const poderes = objCustom ? objCustom.trim() : `acompanhar e praticar todos os atos necessários à concessão do título de residência em Portugal, com base no processo n.º ${numProc}, ao abrigo do artigo 88.º da Lei n.º 23/2007, de 4 de julho, na sua redação atual, junto das competentes entidades portuguesas, nomeadamente a Agência para a Integração, Migrações e Asilo (AIMA), podendo para o efeito declarar, praticar e assinar tudo o que seja necessário ao indicado fim e, se necessário, substabelecer os poderes que lhe forem conferidos`;
+            const corpo = `Sr.(a) ${valorOuCampoJuridico(nomeOut, 'longo')}, de nacionalidade ${valorOuCampoJuridico(dados.cliente?.nacionalidade, 'medio')}, NIF ${nif !== 'N/D' ? nif : valorOuCampoJuridico('', 'curto')}, solteiro(a), maior, residente ${valorOuCampoJuridico(moradaOut, 'longo')}, com o código postal ${valorOuCampoJuridico(cpOut, 'medio')}, portador(a) do passaporte n.º ${valorOuCampoJuridico(docOutorgante, 'medio')}, emitido pela ${valorOuCampoJuridico(docOutorgantePais, 'medio')}, válido até ${valorOuCampoJuridico(docOutorganteValidade, 'curto')}, constitui seu bastante procurador a ${sol.nome || 'Dra. Ana Paula Pinto Medina'}, ${sol.titulo || 'Solicitadora'}, cédula profissional n.º ${sol.cedula || '9738'}, com sede na ${sol.sede || 'Av. Aquilino Ribeiro Machado n.º 8, 1800-399 Lisboa'}, NIF ${sol.nif || '288132335'}, solteira, maior, residente em ${sol.morada || 'Rua Melo Antunes, número 34, 3.º DTO, 2526-728 Vialonga'}, portadora do cartão de cidadão n.º ${valorOuCampoJuridico(solCc, 'medio')}, emitido pela República Portuguesa, válido até ${valorOuCampoJuridico(solCcValidade, 'curto')}, a quem confere poderes para, em seu nome, ${poderes}.`;
+            return [
+                'PROCURAÇÃO',
+                '',
+                corpo,
+                '',
+                `Feita e assinada em ${CAMPO_JURIDICO.medio}, aos __ de ${CAMPO_JURIDICO.medio} de ________.`,
+                '',
+                CAMPO_JURIDICO.longo
+            ].join('\n');
+        }
         case 'procuracao_simples':
             return [
                 'PROCURAÇÃO SIMPLES',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto das entidades competentes.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a) o(a) Dr(a). ________________________, para me representar junto das entidades competentes.',
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                `Feita e assinada em _____________________, ${dataHoje}.`,
+                '',
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'procuracao_irn':
             return [
                 'PROCURAÇÃO PARA INSTITUTO DOS REGISTOS E NOTARIADO',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'pelo presente instrumento particular, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto do IRN e Conservatórias,',
-                'com poderes para praticar actos de registo civil, predial e comercial, requerer certidões,',
-                'autenticar documentos e demais actos inerentes ao âmbito notarial e registral.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                'pelo presente instrumento particular, nomeio e constituo como meu bastante procurador(a) o(a) Dr(a). ________________________, para me representar junto do IRN e Conservatórias, com poderes para praticar actos de registo civil, predial e comercial, requerer certidões, autenticar documentos e demais actos inerentes ao âmbito notarial e registral.',
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                `Feita e assinada em _____________________, ${dataHoje}.`,
+                '',
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'procuracao_financas':
             return [
                 'PROCURAÇÃO PARA AUTORIDADE TRIBUTÁRIA',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto das Finanças / AT,',
-                'com poderes para consultar e submeter declarações fiscais, obter certidões,',
-                'tratar de matéria contributiva e aduaneira, e demais actos necessários.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a) o(a) Dr(a). ________________________, para me representar junto das Finanças / AT, com poderes para consultar e submeter declarações fiscais, obter certidões, tratar de matéria contributiva e aduaneira, e demais actos necessários.',
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                `Feita e assinada em _____________________, ${dataHoje}.`,
+                '',
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'procuracao_geral':
             return [
                 'PROCURAÇÃO GERAL',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a)',
-                'o(a) Dr(a). ________________________, para me representar junto de quaisquer entidades,',
-                'com poderes genéricos para praticar todos os actos que no meu interesse entender,',
-                'incluindo representação em organismos públicos, bancos e serviços administrativos.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                'pelo presente instrumento, nomeio e constituo como meu bastante procurador(a) o(a) Dr(a). ________________________, para me representar junto de quaisquer entidades, com poderes genéricos para praticar todos os actos que no meu interesse entender, incluindo representação em organismos públicos, bancos e serviços administrativos.',
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                `Feita e assinada em _____________________, ${dataHoje}.`,
+                '',
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'declaracao_comparecimento':
             return [
@@ -13844,10 +13863,9 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 'Para os devidos efeitos, assino a presente declaração.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                `Feita e assinada em _____________________, ${dataHoje}.`,
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'declaracao_residencia':
             return [
@@ -13857,26 +13875,23 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 'Declaro, sob compromisso de honra, que as informações acima são verdadeiras.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                `Feita e assinada em _____________________, ${dataHoje}.`,
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'declaracao_conhecimento':
             return [
                 'DECLARAÇÃO DE CONHECIMENTO',
                 '',
                 `Eu, ${nomeCliente}, NIF ${nif}, residente em ${morada},`,
-                'declaro, sob compromisso de honra, que tomei conhecimento do conteúdo',
-                'dos documentos que me foram apresentados e que as informações prestadas',
-                'correspondem à verdade dos factos.',
+                '',
+                'declaro, sob compromisso de honra, que tomei conhecimento do conteúdo dos documentos que me foram apresentados e que as informações prestadas correspondem à verdade dos factos.',
                 '',
                 'Para os devidos efeitos legais, assino a presente declaração.',
                 '',
-                `Local e data: _____________________, ${dataHoje}`,
+                `Feita e assinada em _____________________, ${dataHoje}.`,
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'recibo_honorarios':
             return [
@@ -13887,8 +13902,7 @@ function gerarConteudoTemplateDocumento(modeloId, dados) {
                 '',
                 `Local e data: _____________________, ${dataHoje}`,
                 '',
-                'Assinatura: ________________________________',
-                obterRodapeDocumento()
+                'Assinatura: ________________________________'
             ].join('\n');
         case 'fatura_recibo':
             return gerarConteudoFaturaRecibo(dados);
@@ -13945,6 +13959,202 @@ async function guardarFaturaComoDocumentoCliente() {
     }
 }
 
+/** Campos em branco padrão para documentos jurídicos (sublinhados longos alinhados). */
+const CAMPO_JURIDICO = {
+    curto: '____________________________',
+    medio: '____________________________________________',
+    longo: '________________________________________________'
+};
+
+function valorOuCampoJuridico(valor, tamanho) {
+    const v = String(valor ?? '').trim();
+    if (!v || v === 'N/D' || /^_{3,}$/.test(v)) return CAMPO_JURIDICO[tamanho] || CAMPO_JURIDICO.medio;
+    return v;
+}
+
+/** Normaliza sublinhados e blocos de texto jurídico para o padrão formal português. */
+function limparRodapeDocumentoDoTexto(texto) {
+    const t = String(texto || '');
+    const idx = t.search(/\n---\n|\nContacto:\s|\nEndere[cç]o:\s|\nWebsite:\s/i);
+    return idx >= 0 ? t.slice(0, idx).trim() : t.trim();
+}
+
+function normalizarFechoJuridico(texto) {
+    let t = limparRodapeDocumentoDoTexto(texto);
+    if (!/Feita e assinada/i.test(t)) {
+        t = t.replace(/\n\s*Lisboa,\s*([^\n]+)\s*/gi, `\n\nFeita e assinada em ${CAMPO_JURIDICO.medio}, aos __ de ${CAMPO_JURIDICO.medio} de ________.\n\n`);
+        t = t.replace(/\n\s*Local e data:\s*[^\n]+\s*/gi, `\n\nFeita e assinada em ${CAMPO_JURIDICO.medio}, aos __ de ${CAMPO_JURIDICO.medio} de ________.\n\n`);
+    }
+    const trimmed = t.trim();
+    const temLinhaAssinatura = /_{8,}\s*$/.test(trimmed) || /\n_{8,}\s*$/.test(trimmed);
+    const temAssinaturaRotulo = /Assinatura:\s*_{3,}/i.test(trimmed);
+    if (!temLinhaAssinatura && !temAssinaturaRotulo) {
+        t = trimmed + '\n\n' + CAMPO_JURIDICO.longo;
+    }
+    return t;
+}
+
+function reformatarTextoJuridicoPadrao(texto) {
+    let t = normalizarFechoJuridico(String(texto || '').replace(/\r\n/g, '\n'));
+    if (!t) return t;
+    t = t.replace(/_{3,}/g, (m) => {
+        if (m.length >= 44) return CAMPO_JURIDICO.longo;
+        if (m.length >= 28) return CAMPO_JURIDICO.medio;
+        return CAMPO_JURIDICO.curto;
+    });
+    const linhas = t.split('\n');
+    const blocos = [];
+    let buf = [];
+    for (const linha of linhas) {
+        const trimmed = linha.trim();
+        if (!trimmed) {
+            if (buf.length) { blocos.push(buf.join('\n')); buf = []; }
+            continue;
+        }
+        if (/^_{8,}$/.test(trimmed) && !buf.length) {
+            blocos.push(trimmed);
+            continue;
+        }
+        buf.push(trimmed);
+    }
+    if (buf.length) blocos.push(buf.join('\n'));
+    return blocos.join('\n\n');
+}
+window.reformatarTextoJuridicoPadrao = reformatarTextoJuridicoPadrao;
+
+/** Estilos inline para garantir justificação na impressão/PDF (ignora cache CSS). */
+const MINUTA_ESTILO_TITULO = 'font-family:"Times New Roman",Times,serif;font-size:13pt;font-weight:700;text-align:center;width:100%;margin:0 0 22pt 0;letter-spacing:0.08em;text-transform:uppercase;line-height:1.4';
+const MINUTA_ESTILO_CORPO = 'font-family:"Times New Roman",Times,serif;font-size:12pt;margin:0 0 14pt 0;text-align:justify;text-justify:inter-word;line-height:1.5;hyphens:auto';
+const MINUTA_ESTILO_FECHO = MINUTA_ESTILO_CORPO + ';margin-top:20pt;text-indent:0';
+const MINUTA_ESTILO_ASSINATURA = 'margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:32pt;width:100%;text-align:center;font-family:"Times New Roman",Times,serif;font-size:12pt';
+
+function estiloInlineParagrafoMinuta(classe) {
+    if (classe.includes('minuta-fecho') || classe.includes('minuta-assinatura')) return MINUTA_ESTILO_FECHO;
+    return MINUTA_ESTILO_CORPO;
+}
+
+/** Estilos extra para PDFs de minutas — padrão jurídico português (Times, justificado, campos sublinhados). */
+const ESTILOS_MINUTA_PDF = [
+    '.doc-body .minuta-doc{font-family:"Times New Roman",Times,Georgia,serif;font-size:12pt;color:#000}',
+    '.minuta-paragrafo{page-break-inside:avoid;orphans:3;widows:3;text-align:justify!important;text-justify:inter-word!important;line-height:1.5!important}',
+    '.minuta-texto-juridico{text-indent:0!important}',
+    '.minuta-campo-branco{letter-spacing:0.04em}',
+    '.minuta-linha-assinatura{border-top:1px solid #000;min-height:28pt;margin-top:36pt}',
+    '@media print{.doc-container{padding:0!important}.minuta-paragrafo{text-align:justify!important;text-justify:inter-word!important}}'
+].join('\n');
+
+function envolverCamposSublinhadosHtml(html) {
+    return String(html || '').replace(/(_{8,})/g, '<span class="minuta-campo-branco">$1</span>');
+}
+
+/** Destaques tipográficos em minutas (negrito em termos jurídicos e rótulos). */
+function aplicarDestaquesMinutaHtml(texto) {
+    let html = escaparHtml(texto);
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(à Atribuição)/gi, 'à <strong>Atribuição</strong>');
+    html = html.replace(/(Assinatura:)/gi, '<strong>$1</strong>');
+    return html;
+}
+
+function classificarParagrafoMinuta(bloco, idx, linhas) {
+    const inicio = (linhas[0] || '').trim();
+    const linhaUnica = linhas.length === 1 ? inicio : '';
+    const ehTitulo = idx === 0 && linhaUnica && linhaUnica.length <= 80 &&
+        /^[A-ZÁÉÍÓÚÀÃÕÇÂÊÔ0-9\s\-\/\.]+$/.test(linhaUnica) &&
+        linhaUnica === linhaUnica.toUpperCase();
+    if (ehTitulo) return 'minuta-titulo';
+    if (/^_{8,}$/.test(bloco.trim())) return 'minuta-linha-assinatura';
+    if (/^Assinatura:/i.test(inicio)) return 'minuta-paragrafo minuta-assinatura';
+    if (/^(Feita e assinada|Lisboa,|Local e data:)/i.test(inicio)) return 'minuta-paragrafo minuta-fecho';
+    if (/^(Sr\.\(a\)|Eu,)/i.test(inicio) || /constitui seu bastante procurador/i.test(bloco)) return 'minuta-paragrafo minuta-texto-juridico';
+    if (/^constitui\s+(sua|seu|seus)/i.test(inicio)) return 'minuta-paragrafo minuta-texto-juridico';
+    if (/^pelo\s+presente\s+instrumento/i.test(inicio)) return 'minuta-paragrafo minuta-corpo';
+    if (/^declaro/i.test(inicio) && idx > 1) return 'minuta-paragrafo minuta-corpo';
+    if (/^(Para os devidos)/i.test(inicio)) return 'minuta-paragrafo minuta-fecho';
+    return 'minuta-paragrafo minuta-corpo';
+}
+
+/** Converte texto plano de minuta em HTML com parágrafos justificados, campos sublinhados e fecho formal. */
+function formatarConteudoMinutaHtml(conteudo) {
+    const texto = reformatarTextoJuridicoPadrao(conteudo);
+    const blocos = texto.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    if (!blocos.length) return '<p class="minuta-paragrafo minuta-texto-juridico">&nbsp;</p>';
+    return blocos.map((bloco, idx) => {
+        const linhas = bloco.split('\n').map(l => l.trim()).filter(Boolean);
+        const classe = classificarParagrafoMinuta(bloco, idx, linhas);
+        if (classe === 'minuta-titulo') return `<h1 class="minuta-titulo" style="${MINUTA_ESTILO_TITULO}">${escaparHtml(linhas[0])}</h1>`;
+        if (classe === 'minuta-linha-assinatura') {
+            return `<div class="minuta-linha-assinatura" style="${MINUTA_ESTILO_ASSINATURA}">${envolverCamposSublinhadosHtml(aplicarDestaquesMinutaHtml(bloco))}</div>`;
+        }
+        const htmlLinhas = classe.includes('minuta-texto-juridico')
+            ? envolverCamposSublinhadosHtml(aplicarDestaquesMinutaHtml(linhas.join(' ')))
+            : envolverCamposSublinhadosHtml(linhas.map(l => aplicarDestaquesMinutaHtml(l)).join('<br>'));
+        return `<p class="${classe}" style="${estiloInlineParagrafoMinuta(classe)}">${htmlLinhas}</p>`;
+    }).join('\n');
+}
+window.formatarConteudoMinutaHtml = formatarConteudoMinutaHtml;
+
+function montarElementoPdfMinuta(htmlCompleto) {
+    const host = document.createElement('div');
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1;pointer-events:none';
+    const parsed = new DOMParser().parseFromString(htmlCompleto, 'text/html');
+    const styleNode = parsed.querySelector('style');
+    if (styleNode && styleNode.textContent) {
+        const styleEl = document.createElement('style');
+        styleEl.textContent = styleNode.textContent;
+        host.appendChild(styleEl);
+    }
+    const container = document.createElement('div');
+    container.className = 'doc-container';
+    const origem = parsed.querySelector('.doc-container') || parsed.body;
+    container.innerHTML = origem.innerHTML;
+    host.appendChild(container);
+    document.body.appendChild(host);
+    return host;
+}
+
+async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+        mostrarNotificacao('Permita abrir janelas (pop-up) para gerar o PDF.', 'warning');
+        return false;
+    }
+    janela.document.open();
+    janela.document.write(htmlCompleto);
+    janela.document.close();
+    if (nomeArquivo) janela.document.title = nomeArquivo.replace(/\.pdf$/i, '');
+    const extra = janela.document.createElement('style');
+    extra.textContent = [
+        '@page{size:A4;margin:20mm}',
+        'html,body{margin:0;padding:0;background:#fff}',
+        '.doc-body,.minuta-doc{width:100%;max-width:170mm;margin:0 auto}',
+        '.minuta-paragrafo,.minuta-texto-juridico,.doc-body p{text-align:justify!important;text-justify:inter-word!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
+        '.minuta-titulo{text-align:center!important;width:100%}',
+        '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}',
+        '.minuta-fecho{text-align:justify!important;margin-top:20pt}'
+    ].join('\n');
+    janela.document.head.appendChild(extra);
+    janela.focus();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    janela.print();
+    mostrarNotificacao('Use «Guardar como PDF» ou «Microsoft Print to PDF» na janela de impressão.', 'success');
+    return true;
+}
+
+/** Gera PDF de minuta com parágrafos justificados, espaçamento e cabeçalho profissional. */
+async function gerarPdfMinutaProfissional({ conteudo, titulo, nomeArquivo, acao }) {
+    const logoUri = await carregarLogoBase64();
+    if (logoUri && !window.LOGO_DATA_URI) window.LOGO_DATA_URI = logoUri;
+
+    const corpoHtml = formatarConteudoMinutaHtml(conteudo);
+    const htmlCompleto = typeof wrapDocumentWithBrandingHeader === 'function'
+        ? wrapDocumentWithBrandingHeader(titulo, `<div class="minuta-doc">${corpoHtml}</div>`, ESTILOS_MINUTA_PDF)
+        : `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;text-align:justify;padding:25mm}${ESTILOS_MINUTA_PDF}</style></head><body>${corpoHtml}</body></html>`;
+
+    return imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo);
+}
+
 async function gerarTemplateDocumento(acao) {
     if (!exigirPermissaoAcao('criar', 'documento')) {
         return;
@@ -13959,8 +14169,10 @@ async function gerarTemplateDocumento(acao) {
         return;
     }
 
-    const conteudoAdaptado = document.getElementById('templateConteudoAdaptavel')?.value?.trim();
-    const conteudo = conteudoAdaptado || gerarConteudoTemplateDocumento(modelo.id, dados);
+    const conteudoModelo = gerarConteudoTemplateDocumento(modelo.id, dados);
+    const conteudo = reformatarTextoJuridicoPadrao(conteudoModelo);
+    const ta = document.getElementById('templateConteudoAdaptavel');
+    if (ta) ta.value = conteudo;
     const nomeBase = normalizarNomeArquivo(`${modelo.arquivo}_${dados.cliente?.nome || 'cliente'}`);
     const nomeArquivo = `${nomeBase || modelo.arquivo}.pdf`;
 
@@ -14006,46 +14218,13 @@ async function gerarTemplateDocumento(acao) {
             return;
         }
         try {
-            const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-            if (!jsPDF) {
-                mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar a página.', 'error');
-                return;
-            }
-            const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-            const margin = (typeof window.BRANDING !== 'undefined' && window.BRANDING.marginMm != null) ? window.BRANDING.marginMm : 25;
-            let y = await adicionarLogoAoPdf(doc, margin);
-            doc.setFont('times', 'normal');
-            doc.setFontSize(12);
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const maxWidth = pageWidth - margin * 2;
-            const lineHeight = 7;
-            const blocos = conteudo.split('\n');
-            blocos.forEach(bloco => {
-                const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-                linhas.forEach(linha => {
-                    if (y > 277) { doc.addPage(); y = margin; }
-                    doc.text(linha, margin, y);
-                    y += lineHeight;
-                });
+            await gerarPdfMinutaProfissional({
+                conteudo,
+                titulo: modelo.nome || 'Minuta',
+                nomeArquivo,
+                acao: acao === 'baixar' ? 'baixar' : 'imprimir'
             });
-            if (acao === 'baixar') {
-                doc.save(nomeArquivo);
-                mostrarNotificacao('Documento PDF gerado com sucesso!', 'success');
-                return;
-            }
-            if (acao === 'imprimir') {
-                const blob = doc.output('blob');
-                const url = URL.createObjectURL(blob);
-                const janela = window.open(url, '_blank');
-                if (janela) {
-                    janela.addEventListener('load', () => setTimeout(() => { janela.print(); URL.revokeObjectURL(url); }, 500));
-                } else {
-                    mostrarNotificacao('Permita abrir a janela para imprimir.', 'warning');
-                    doc.save(nomeArquivo);
-                    URL.revokeObjectURL(url);
-                }
-                return;
-            }
+            return;
         } catch (e) {
             console.error('Erro ao gerar PDF:', e);
             mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
@@ -14945,11 +15124,10 @@ function imprimirDocumento(id) {
     }
     const janela = window.open('', '_blank');
     const tituloDoc = escaparHtml(doc.nomeArquivo || 'Documento');
-    const corpoImpressao = `<div class="doc-body-pre">${conteudo.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`;
-    const extraStylesImpressao = '.doc-body-pre{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;white-space:pre-wrap;text-align:justify}@media print{.doc-container{padding:12mm!important}}';
+    const corpoImpressao = `<div class="minuta-doc">${formatarConteudoMinutaHtml(conteudo)}</div>`;
     const htmlImpressao = typeof wrapDocumentWithBrandingHeader === 'function'
-        ? wrapDocumentWithBrandingHeader(tituloDoc, corpoImpressao, extraStylesImpressao)
-        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tituloDoc}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;max-width:21cm;margin:2cm auto;padding:0 1cm;white-space:pre-wrap;text-align:justify}${extraStylesImpressao}</style></head><body>${corpoImpressao}</body></html>`;
+        ? wrapDocumentWithBrandingHeader(tituloDoc, corpoImpressao, ESTILOS_MINUTA_PDF)
+        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tituloDoc}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.65;max-width:21cm;margin:2cm auto;padding:0 1cm;text-align:justify}${ESTILOS_MINUTA_PDF}</style></head><body>${corpoImpressao}</body></html>`;
     janela.document.write(htmlImpressao);
     janela.document.close();
     janela.focus();
@@ -16403,12 +16581,7 @@ async function excluirCliente(id) {
         setTimeout(() => carregarSecao('clientes'), 100);
     } catch (err) {
         console.warn('Erro ao apagar cliente na nuvem:', err);
-        clientes = clientes.filter(c => String(c.id) !== String(id));
-        atualizarClientesEmMemoria(clientes);
-        registrarAuditoria('excluir', 'cliente', `Cliente excluído: ${clienteAntes.nome}`, clienteAntes, null);
-        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
-        fecharModal();
-        setTimeout(() => carregarSecao('clientes'), 100);
+        mostrarNotificacao('Não foi possível excluir o cliente na nuvem. O registo pode reaparecer após sincronizar. Tente novamente.', 'error');
     }
 }
 
@@ -16444,10 +16617,8 @@ async function excluirClienteDireto(id) {
             if (typeof atualizarListaClientes === 'function') atualizarListaClientes(clientesAtualizados);
         }, 100);
     } catch (err) {
-        console.warn('Erro ao apagar na nuvem, a guardar localmente:', err);
-        atualizarClientesEmMemoria(clientesAtualizados);
-        mostrarNotificacao('Cliente excluído com sucesso!', 'success');
-        setTimeout(() => carregarSecao('clientes'), 100);
+        console.warn('Erro ao apagar na nuvem:', err);
+        mostrarNotificacao('Não foi possível excluir o cliente na nuvem. O registo pode reaparecer após sincronizar. Tente novamente.', 'error');
     }
 }
 
