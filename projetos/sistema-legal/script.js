@@ -7144,24 +7144,18 @@ Sistema Legal - ANA PAULA MEDINA
 }
 
 /** Abre o relatório completo em janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
-function imprimirRelatorioCompletoComoPdf() {
-    const janela = window.open('', '_blank');
-    if (!janela) {
-        mostrarNotificacao('Permita abrir a janela para imprimir ou guardar como PDF.', 'warning');
-        return;
-    }
+async function imprimirRelatorioCompletoComoPdf() {
     const conteudo = document.getElementById('relatorioCompletoParaImpressao');
-    if (conteudo) {
-        janela.document.write(conteudo.innerHTML);
+    let html;
+    if (conteudo && conteudo.innerHTML.trim()) {
+        html = conteudo.innerHTML;
     } else {
         carregarSecao('relatorios');
         const dados = obterDadosRelatorioCompleto();
         if (!dados) return;
-        const html = gerarHtmlRelatorioCompleto(dados);
-        janela.document.write(html);
+        html = gerarHtmlRelatorioCompleto(dados);
     }
-    janela.document.close();
-    setTimeout(() => { janela.focus(); janela.print(); }, 250);
+    await imprimirHtmlDocumentoProfissional(html, 'imprimir', null);
 }
 function obterDadosRelatorioCompleto() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
@@ -7213,64 +7207,35 @@ function gerarHtmlRelatorioCompleto(d) {
     }).join('') || '<li>Nenhum prazo próximo</li>';
     const top5Html = d.top5.map((c, i) => `<li>${i + 1}. ${c.nome} - ${EURO_HTML}${(Math.round(c.valorTotal * 100) / 100).toFixed(2)}</li>`).join('');
     const corpo = `
-<h1 class="h1">RELATÓRIO COMPLETO - SISTEMA LEGAL</h1>
-<p>Data: ${dataStr}</p>
-<h2>Resumo Geral</h2>
-<p>Clientes: ${d.clientesParaMostrar.length} | Honorários: ${d.honorariosParaMostrar.length} | Heranças: ${d.clientesParaMostrar.length} | Migrações: ${d.clientesParaMostrar.length} | Registos: ${d.clientesParaMostrar.length} | Contratos: ${d.clientesParaMostrar.length}</p>
-<h2>Resumo Financeiro</h2>
-<p>Honorários: ${EURO_HTML}${d.valorTotalH.toFixed(2)} | Heranças: ${EURO_HTML}${d.valorTotalHer.toFixed(2)} | Migrações: ${EURO_HTML}${d.valorTotalMig.toFixed(2)} | Registos: ${EURO_HTML}${d.valorTotalReg.toFixed(2)} | Contratos: ${EURO_HTML}${d.valorTotalCont.toFixed(2)}</p>
-<p><strong>VALOR TOTAL: ${EURO_HTML}${total.toFixed(2)}</strong></p>
-<h2>Prazos Próximos (7 dias)</h2><ul>${prazosHtml}</ul>
-<h2>Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
-<p><em>Sistema Legal - Relatório gerado automaticamente</em></p>`;
-    const extraStyles = '.h1{font-size:20px;margin-bottom:8px}h2{font-size:14px;margin-top:20px;margin-bottom:8px}ul{margin:4px 0;padding-left:20px}';
+<h1 class="doc-report-title">RELATÓRIO COMPLETO - SISTEMA LEGAL</h1>
+<p class="doc-meta">Data: ${dataStr}</p>
+<h2 class="doc-report-section">Resumo Geral</h2>
+<p class="doc-report-paragrafo">Clientes: ${d.clientesParaMostrar.length} | Honorários: ${d.honorariosParaMostrar.length} | Heranças: ${d.clientesParaMostrar.length} | Migrações: ${d.clientesParaMostrar.length} | Registos: ${d.clientesParaMostrar.length} | Contratos: ${d.clientesParaMostrar.length}</p>
+<h2 class="doc-report-section">Resumo Financeiro</h2>
+<p class="doc-report-paragrafo">Honorários: ${EURO_HTML}${d.valorTotalH.toFixed(2)} | Heranças: ${EURO_HTML}${d.valorTotalHer.toFixed(2)} | Migrações: ${EURO_HTML}${d.valorTotalMig.toFixed(2)} | Registos: ${EURO_HTML}${d.valorTotalReg.toFixed(2)} | Contratos: ${EURO_HTML}${d.valorTotalCont.toFixed(2)}</p>
+<p class="doc-report-paragrafo"><strong>VALOR TOTAL: ${EURO_HTML}${total.toFixed(2)}</strong></p>
+<h2 class="doc-report-section">Prazos Próximos (7 dias)</h2><ul>${prazosHtml}</ul>
+<h2 class="doc-report-section">Top 5 Clientes por Valor</h2><ul>${top5Html}</ul>
+<p class="doc-meta"><em>Sistema Legal — relatório gerado automaticamente</em></p>`;
+    const extraStyles = (typeof ESTILOS_RELATORIO_PDF !== 'undefined' ? ESTILOS_RELATORIO_PDF + '\n' : '') + 'ul{margin:4px 0 12pt 20px}li{text-align:left;line-height:1.5}';
     if (typeof wrapDocumentWithBrandingHeader === 'function') {
         return wrapDocumentWithBrandingHeader('Relatório Completo', corpo, extraStyles);
     }
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Completo</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}${extraStyles}</style></head><body>${corpo}</body></html>`;
 }
 
-/** Converte texto em PDF (download ou imprimir). Usado para todos os relatórios. */
+/** Converte texto em PDF via impressão HTML (download ou imprimir). Usado para todos os relatórios. */
 async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
     try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return;
-        }
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = (typeof window.BRANDING !== 'undefined' && window.BRANDING.marginMm != null) ? window.BRANDING.marginMm : 25;
-        let y = await adicionarLogoAoPdf(doc, margin);
-        doc.setFont('times', 'normal');
-        doc.setFontSize(11);
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 6;
-        const textoComRodape = (texto || '') + '\n' + (typeof obterRodapeDocumento === 'function' ? obterRodapeDocumento() : '');
-        const blocos = textoComRodape.split('\n');
-        blocos.forEach(bloco => {
-            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-            linhas.forEach(linha => {
-                if (y > 280) { doc.addPage(); y = margin; }
-                doc.text(linha, margin, y);
-                y += lineHeight;
-            });
-        });
+        const limpo = typeof limparRodapeDocumentoDoTexto === 'function' ? limparRodapeDocumentoDoTexto(texto) : String(texto || '');
+        const juridico = typeof textoEhJuridico === 'function' && textoEhJuridico(limpo);
+        const corpoHtml = juridico
+            ? `<div class="minuta-doc">${formatarConteudoDocumentoHtml(limpo)}</div>`
+            : formatarTextoRelatorioHtml(limpo);
+        const extraStyles = juridico ? ESTILOS_DOCUMENTO_PDF : ESTILOS_RELATORIO_PDF;
+        const htmlCompleto = await montarHtmlDocumentoProfissional(titulo, corpoHtml, extraStyles);
         const nome = nomeFicheiro || `${(titulo || 'relatorio').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-        if (acao === 'baixar') {
-            doc.save(nome);
-            mostrarNotificacao('Relatório PDF gerado com sucesso!', 'success');
-        } else if (acao === 'imprimir') {
-            const blob = doc.output('blob');
-            const url = URL.createObjectURL(blob);
-            const janela = window.open(url, '_blank');
-            if (janela) {
-                janela.addEventListener('load', () => setTimeout(() => { janela.print(); URL.revokeObjectURL(url); }, 500));
-            } else {
-                doc.save(nome);
-                URL.revokeObjectURL(url);
-            }
-        }
+        await imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nome);
     } catch (e) {
         console.error('Erro ao gerar PDF:', e);
         mostrarNotificacao('Erro ao gerar PDF. Verifique a consola.', 'error');
@@ -7278,20 +7243,15 @@ async function textoParaPdf(titulo, texto, acao, nomeFicheiro) {
 }
 
 /** Abre relatório em texto numa janela imprimível (utilizador pode "Guardar como PDF" no diálogo de impressão). */
-function abrirRelatorioTextoComoPdf(titulo, relatorioTexto) {
-    const janela = window.open('', '_blank');
-    if (!janela) {
-        mostrarNotificacao('Permita abrir a janela para imprimir ou guardar como PDF.', 'warning');
-        return;
-    }
-    const corpo = `<h1 class="doc-report-title">${escaparHtml(titulo)}</h1><pre class="doc-report-body">${escaparHtml(relatorioTexto)}</pre>`;
-    const extraStyles = '.doc-report-title{font-size:16px;margin:0 0 12px 0;font-weight:700}.doc-report-body{white-space:pre-wrap;word-wrap:break-word;font-size:12px;margin:0}';
-    const html = typeof wrapDocumentWithBrandingHeader === 'function'
-        ? wrapDocumentWithBrandingHeader(titulo, corpo, extraStyles)
-        : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111;font-size:12px}${extraStyles}</style></head><body>${corpo}</body></html>`;
-    janela.document.write(html);
-    janela.document.close();
-    setTimeout(() => { janela.focus(); janela.print(); }, 250);
+async function abrirRelatorioTextoComoPdf(titulo, relatorioTexto) {
+    const limpo = typeof limparRodapeDocumentoDoTexto === 'function' ? limparRodapeDocumentoDoTexto(relatorioTexto) : String(relatorioTexto || '');
+    const juridico = typeof textoEhJuridico === 'function' && textoEhJuridico(limpo);
+    const corpoHtml = juridico
+        ? `<div class="minuta-doc">${formatarConteudoDocumentoHtml(limpo)}</div>`
+        : formatarTextoRelatorioHtml(limpo);
+    const extraStyles = juridico ? ESTILOS_DOCUMENTO_PDF : ESTILOS_RELATORIO_PDF;
+    const html = await montarHtmlDocumentoProfissional(titulo, corpoHtml, extraStyles);
+    await imprimirHtmlDocumentoProfissional(html, 'imprimir', null);
 }
 
 // NOVA FUNÇÃO: Relatório personalizado por cliente
@@ -14096,6 +14056,66 @@ function formatarConteudoMinutaHtml(conteudo) {
     }).join('\n');
 }
 window.formatarConteudoMinutaHtml = formatarConteudoMinutaHtml;
+window.formatarConteudoDocumentoHtml = formatarConteudoMinutaHtml;
+
+/** Alias partilhado — estilos jurídicos (minutas, procurações, declarações). */
+const ESTILOS_DOCUMENTO_PDF = ESTILOS_MINUTA_PDF;
+
+/** Estilos para relatórios em texto/tabela (Times, justificado, sem rodapé contacto). */
+const ESTILOS_RELATORIO_PDF = [
+    '.doc-body{font-family:"Times New Roman",Times,Georgia,serif;font-size:12pt;color:#000}',
+    '.doc-report-title{font-family:"Times New Roman",Times,serif;font-size:14pt;font-weight:700;text-align:left!important;margin:0 0 12pt 0}',
+    '.doc-report-section{font-family:"Times New Roman",Times,serif;font-size:12pt;font-weight:700;text-align:left!important;margin:16pt 0 8pt 0}',
+    '.doc-report-paragrafo{text-align:justify!important;text-align-last:left!important;text-justify:inter-word!important;line-height:1.5!important;margin:0 0 10pt 0;font-family:"Times New Roman",Times,serif;font-size:12pt}',
+    '.doc-meta{font-size:11pt;color:#444;text-align:left!important;margin:0 0 12pt 0}',
+    '.doc-notificacao-item{margin:0 0 14pt 0;padding-bottom:10pt;border-bottom:1px solid #e5e7eb}',
+    '.doc-notificacao-titulo{font-weight:700;text-align:left!important;margin:0 0 4pt 0}',
+    '.doc-notificacao-meta{font-size:10pt;color:#555;text-align:left!important;margin:0 0 4pt 0}',
+    '@media print{.doc-report-paragrafo{text-align:justify!important;text-align-last:left!important}}'
+].join('\n');
+
+function textoEhJuridico(texto) {
+    const t = String(texto || '');
+    return /Feita e assinada|constitui\s+(seu|sua|seus)\s+bastante\s+procurador|pelo\s+presente\s+instrumento|declaro,?\s+(para|que|sob|em)/i.test(t)
+        || (/procura[cç][aã]o|declara[cç][aã]o/i.test(t) && /_{8,}/.test(t));
+}
+window.textoEhJuridico = textoEhJuridico;
+
+function formatarTextoRelatorioHtml(texto) {
+    const limpo = limparRodapeDocumentoDoTexto(texto);
+    if (!limpo) return '<p class="doc-report-paragrafo">&nbsp;</p>';
+    if (textoEhJuridico(limpo)) {
+        return `<div class="minuta-doc">${formatarConteudoMinutaHtml(limpo)}</div>`;
+    }
+    return limpo.split(/\n{2,}/).map(bloco => {
+        const trimmed = bloco.trim();
+        if (!trimmed || /^=+$/.test(trimmed)) return '';
+        const linhas = trimmed.split('\n').map(l => l.trim()).filter(Boolean);
+        const primeira = linhas[0] || '';
+        const ehTituloPrincipal = linhas.length === 1 && primeira.length <= 80 &&
+            /^[A-ZÁÉÍÓÚÀÃÕÇÂÊÔ0-9\s\-\/\.=]+$/.test(primeira.replace(/=/g, ''));
+        const ehSubtitulo = linhas.length === 1 && primeira.length <= 60 &&
+            (/:$/.test(primeira) || (/^[A-ZÁÉÍÓÚÀÃÕÇ\s\-]+$/.test(primeira) && !primeira.includes('|')));
+        if (ehTituloPrincipal) {
+            return `<h1 class="doc-report-title">${escaparHtml(primeira.replace(/=+/g, '').trim())}</h1>`;
+        }
+        if (ehSubtitulo) {
+            return `<h2 class="doc-report-section">${escaparHtml(primeira)}</h2>`;
+        }
+        const inner = envolverCamposSublinhadosHtml(linhas.map(l => escaparHtml(l)).join('<br>'));
+        return `<p class="doc-report-paragrafo" style="${MINUTA_ESTILO_CORPO}">${inner}</p>`;
+    }).filter(Boolean).join('\n');
+}
+window.formatarTextoRelatorioHtml = formatarTextoRelatorioHtml;
+
+async function montarHtmlDocumentoProfissional(titulo, corpoHtml, extraStyles) {
+    const logoUri = typeof carregarLogoBase64 === 'function' ? await carregarLogoBase64() : '';
+    if (logoUri && !window.LOGO_DATA_URI) window.LOGO_DATA_URI = logoUri;
+    return typeof wrapDocumentWithBrandingHeader === 'function'
+        ? wrapDocumentWithBrandingHeader(titulo, corpoHtml, extraStyles)
+        : `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;text-align:justify;padding:25mm}${extraStyles || ''}</style></head><body>${corpoHtml}</body></html>`;
+}
+window.montarHtmlDocumentoProfissional = montarHtmlDocumentoProfissional;
 
 function montarElementoPdfMinuta(htmlCompleto) {
     const host = document.createElement('div');
@@ -14117,7 +14137,7 @@ function montarElementoPdfMinuta(htmlCompleto) {
     return host;
 }
 
-async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
+async function imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo) {
     const janela = window.open('', '_blank');
     if (!janela) {
         mostrarNotificacao('Permita abrir janelas (pop-up) para gerar o PDF.', 'warning');
@@ -14132,9 +14152,10 @@ async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
         '@page{size:A4;margin:20mm}',
         'html,body{margin:0;padding:0;background:#fff}',
         '.doc-body,.minuta-doc{width:100%;max-width:170mm;margin:0 auto}',
-        '.minuta-paragrafo.minuta-texto-juridico,.minuta-texto-juridico{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
+        '.minuta-paragrafo.minuta-texto-juridico,.minuta-texto-juridico,.doc-report-paragrafo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
         '.minuta-paragrafo.minuta-corpo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important}',
-        '.minuta-titulo{text-align:center!important;width:100%}',
+        '.minuta-titulo,.doc-report-title.doc-center{text-align:center!important;width:100%}',
+        '.doc-report-title,.doc-report-section,.doc-meta,.doc-notificacao-titulo,.doc-notificacao-meta{text-align:left!important}',
         '.minuta-fecho,.minuta-paragrafo.minuta-fecho{text-align:left!important;margin-top:20pt}',
         '.minuta-campo-branco{display:inline-block!important;min-width:4em;border-bottom:1px solid #000!important;vertical-align:baseline!important;white-space:normal!important;height:1em;line-height:1.2}',
         '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}'
@@ -14146,6 +14167,11 @@ async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
     mostrarNotificacao('Use «Guardar como PDF» ou «Microsoft Print to PDF» na janela de impressão.', 'success');
     return true;
 }
+window.imprimirHtmlDocumentoProfissional = imprimirHtmlDocumentoProfissional;
+
+async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
+    return imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo);
+}
 
 /** Gera PDF de minuta com parágrafos justificados, espaçamento e cabeçalho profissional. */
 async function gerarPdfMinutaProfissional({ conteudo, titulo, nomeArquivo, acao }) {
@@ -14154,10 +14180,10 @@ async function gerarPdfMinutaProfissional({ conteudo, titulo, nomeArquivo, acao 
 
     const corpoHtml = formatarConteudoMinutaHtml(conteudo);
     const htmlCompleto = typeof wrapDocumentWithBrandingHeader === 'function'
-        ? wrapDocumentWithBrandingHeader(titulo, `<div class="minuta-doc">${corpoHtml}</div>`, ESTILOS_MINUTA_PDF)
-        : `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;text-align:justify;padding:25mm}${ESTILOS_MINUTA_PDF}</style></head><body>${corpoHtml}</body></html>`;
+        ? wrapDocumentWithBrandingHeader(titulo, `<div class="minuta-doc">${corpoHtml}</div>`, ESTILOS_DOCUMENTO_PDF)
+        : `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;text-align:justify;padding:25mm}${ESTILOS_DOCUMENTO_PDF}</style></head><body>${corpoHtml}</body></html>`;
 
-    return imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo);
+    return imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo);
 }
 
 async function gerarTemplateDocumento(acao) {
@@ -15127,16 +15153,14 @@ function imprimirDocumento(id) {
     } else {
         conteudo = doc.descricao || 'Conteúdo do documento.';
     }
-    const janela = window.open('', '_blank');
-    const tituloDoc = escaparHtml(doc.nomeArquivo || 'Documento');
-    const corpoImpressao = `<div class="minuta-doc">${formatarConteudoMinutaHtml(conteudo)}</div>`;
-    const htmlImpressao = typeof wrapDocumentWithBrandingHeader === 'function'
-        ? wrapDocumentWithBrandingHeader(tituloDoc, corpoImpressao, ESTILOS_MINUTA_PDF)
-        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tituloDoc}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.65;max-width:21cm;margin:2cm auto;padding:0 1cm;text-align:justify}${ESTILOS_MINUTA_PDF}</style></head><body>${corpoImpressao}</body></html>`;
-    janela.document.write(htmlImpressao);
-    janela.document.close();
-    janela.focus();
-    setTimeout(() => { janela.print(); }, 250);
+    const tituloDoc = doc.nomeArquivo || 'Documento';
+    const corpoImpressao = `<div class="minuta-doc">${formatarConteudoDocumentoHtml(conteudo)}</div>`;
+    montarHtmlDocumentoProfissional(tituloDoc, corpoImpressao, ESTILOS_DOCUMENTO_PDF)
+        .then(html => imprimirHtmlDocumentoProfissional(html, 'imprimir', null))
+        .catch(err => {
+            console.error('Erro ao imprimir documento:', err);
+            mostrarNotificacao('Erro ao imprimir documento.', 'error');
+        });
 }
 
 async function excluirDocumento(id) {
@@ -15473,13 +15497,7 @@ function exportarRelatorioAvancadoPdf() {
         mostrarNotificacao('Aplique filtros para gerar resultados antes de exportar.', 'warning');
         return;
     }
-    
-    const janela = window.open('', '_blank');
-    if (!janela) {
-        mostrarNotificacao('Bloqueio de pop-up: permita abrir a janela para exportar PDF.', 'warning');
-        return;
-    }
-    
+
     const dataRelatorio = new Date().toLocaleString('pt-PT');
     const linhas = relatorioAvancadoUltimosResultados.slice(0, 500).map(item => `
         <tr>
@@ -15494,7 +15512,7 @@ function exportarRelatorioAvancadoPdf() {
             <td>${item.data}</td>
         </tr>
     `).join('');
-    
+
     const corpoAvancado = `
             <h1 class="doc-report-title">Relatório Avançado</h1>
             <p class="doc-meta">Gerado em ${dataRelatorio}</p>
@@ -15514,16 +15532,13 @@ function exportarRelatorioAvancadoPdf() {
                 </tbody>
             </table>
             ${relatorioAvancadoUltimosResultados.length > 500 ? `<p class="doc-meta">Mostrando 500 de ${relatorioAvancadoUltimosResultados.length} resultados.</p>` : ''}`;
-    const extraStylesAvancado = '.doc-report-title{font-size:20px;margin-bottom:6px;font-weight:700}.doc-meta{font-size:12px;color:#6b7280;margin-top:0}';
-    const htmlAvancado = typeof wrapDocumentWithBrandingHeader === 'function'
-        ? wrapDocumentWithBrandingHeader('Relatório Avançado', corpoAvancado, extraStylesAvancado)
-        : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Avançado</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111827}${extraStylesAvancado}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}th{background:#f3f4f6}</style></head><body>${corpoAvancado}</body></html>`;
-    janela.document.write(htmlAvancado);
-    janela.document.close();
-    setTimeout(() => {
-        janela.focus();
-        janela.print();
-    }, 400);
+    const extraStylesAvancado = (typeof ESTILOS_RELATORIO_PDF !== 'undefined' ? ESTILOS_RELATORIO_PDF + '\n' : '') + '.doc-table th,.doc-table td{text-align:left}';
+    montarHtmlDocumentoProfissional('Relatório Avançado', corpoAvancado, extraStylesAvancado)
+        .then(html => imprimirHtmlDocumentoProfissional(html, 'baixar', `relatorio_avancado_${new Date().toISOString().split('T')[0]}.pdf`))
+        .catch(err => {
+            console.error('Erro ao exportar relatório avançado:', err);
+            mostrarNotificacao('Erro ao exportar PDF.', 'error');
+        });
 }
 
 function inicializarSecao(secao) {
@@ -18889,39 +18904,15 @@ function gerarResumoAlertasAutomaticos() {
     return linhas.join('\n');
 }
 
-/** Gera o resumo de alertas em PDF e guarda no disco. Retorna nome do ficheiro ou null. */
+/** Gera o resumo de alertas em PDF via impressão HTML. Retorna nome do ficheiro ou null. */
 async function gerarResumoAlertasPDF() {
     try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
         const texto = gerarResumoAlertasAutomaticos();
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = (typeof window.BRANDING !== 'undefined' && window.BRANDING.marginMm != null) ? window.BRANDING.marginMm : 25;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(12);
-        doc.text('Alertas Automáticos - Resumo de Prazos e Honorários', margin, y);
-        y += 10;
-        doc.setFontSize(11);
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 6;
-        const textoComRodape = (texto || '') + '\n' + (typeof obterRodapeDocumento === 'function' ? obterRodapeDocumento() : '');
-        const blocos = textoComRodape.split('\n');
-        blocos.forEach(bloco => {
-            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-            linhas.forEach(linha => {
-                if (y > 280) { doc.addPage(); y = margin; }
-                doc.text(linha, margin, y);
-                y += lineHeight;
-            });
-        });
         const dataStr = new Date().toISOString().split('T')[0];
         const nome = `Alertas_Automaticos_${dataStr}.pdf`;
-        doc.save(nome);
+        const corpoHtml = `<h1 class="doc-report-title">Alertas Automáticos — Resumo de Prazos e Honorários</h1>${formatarTextoRelatorioHtml(texto)}`;
+        const html = await montarHtmlDocumentoProfissional('Alertas Automáticos', corpoHtml, ESTILOS_RELATORIO_PDF);
+        await imprimirHtmlDocumentoProfissional(html, 'baixar', nome);
         return nome;
     } catch (e) {
         console.error('Erro ao gerar PDF de alertas:', e);
@@ -19005,65 +18996,33 @@ function obterNotificacoesFiltradasParaExport() {
     return lista;
 }
 
-/** Gera PDF das notificações filtradas e guarda. Retorna nome do ficheiro ou null. */
+/** Gera PDF das notificações filtradas via impressão HTML. Retorna nome do ficheiro ou null. */
 async function gerarNotificacoesPDF() {
     try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
         const lista = obterNotificacoesFiltradasParaExport();
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = (typeof window.BRANDING !== 'undefined' && window.BRANDING.marginMm != null) ? window.BRANDING.marginMm : 25;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'bold');
-        doc.setFontSize(14);
-        doc.text('Notificações - Sistema Legal', margin, y);
-        y += 10;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(10);
-        doc.text('Gerado em ' + new Date().toLocaleString('pt-PT') + ' | Total: ' + lista.length + ' notificação(ões)', margin, y);
-        y += 12;
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 5;
-
-        if (lista.length === 0) {
-            doc.setFontSize(11);
-            doc.text('Nenhuma notificação encontrada com os filtros atuais.', margin, y);
-        } else {
-            lista.forEach((n, i) => {
-                if (y > 275) { doc.addPage(); y = margin; }
-                doc.setFont('times', 'bold');
-                doc.setFontSize(10);
-                const titulo = (n.titulo || 'Sem título').substring(0, 60);
-                const linhasTitulo = doc.splitTextToSize(titulo, maxWidth);
-                linhasTitulo.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
-                doc.setFont('times', 'normal');
-                doc.setFontSize(9);
-                const tipo = n.tipo || '-';
-                const prioridade = n.prioridade ? ' [' + n.prioridade + ']' : '';
-                const dataStr = n.dataCriacao ? new Date(n.dataCriacao).toLocaleString('pt-PT') : '-';
-                doc.text(tipo + prioridade + ' | ' + dataStr + (n.lida ? ' [lida]' : ''), margin, y);
-                y += lineHeight + 2;
-                const msg = (n.mensagem || '').substring(0, 200);
-                if (msg) {
-                    const linhas = doc.splitTextToSize(msg, maxWidth);
-                    linhas.forEach(l => { doc.text(l, margin, y); y += lineHeight; });
-                    y += 4;
-                }
-                y += 3;
-            });
-        }
-        y += 4;
-        if (typeof obterRodapeDocumento === 'function') {
-            const rodape = obterRodapeDocumento();
-            if (rodape) { doc.setFontSize(8); doc.text(rodape, margin, y); }
-        }
         const dataStr = new Date().toISOString().split('T')[0];
         const nome = 'Notificacoes_' + dataStr + '.pdf';
-        doc.save(nome);
+        const geradoEm = new Date().toLocaleString('pt-PT');
+        let corpo = `<h1 class="doc-report-title">Notificações — Sistema Legal</h1>
+<p class="doc-meta">Gerado em ${escaparHtml(geradoEm)} | Total: ${lista.length} notificação(ões)</p>`;
+        if (lista.length === 0) {
+            corpo += '<p class="doc-report-paragrafo">Nenhuma notificação encontrada com os filtros atuais.</p>';
+        } else {
+            corpo += lista.map(n => {
+                const titulo = escaparHtml((n.titulo || 'Sem título').substring(0, 120));
+                const tipo = escaparHtml(n.tipo || '-');
+                const prioridade = n.prioridade ? ' [' + escaparHtml(n.prioridade) + ']' : '';
+                const dataNotif = n.dataCriacao ? new Date(n.dataCriacao).toLocaleString('pt-PT') : '-';
+                const msg = escaparHtml((n.mensagem || '').substring(0, 500));
+                return `<div class="doc-notificacao-item">
+<p class="doc-notificacao-titulo">${titulo}</p>
+<p class="doc-notificacao-meta">${tipo}${prioridade} | ${escaparHtml(dataNotif)}${n.lida ? ' [lida]' : ''}</p>
+${msg ? `<p class="doc-report-paragrafo">${msg}</p>` : ''}
+</div>`;
+            }).join('');
+        }
+        const html = await montarHtmlDocumentoProfissional('Notificações', corpo, ESTILOS_RELATORIO_PDF);
+        await imprimirHtmlDocumentoProfissional(html, 'baixar', nome);
         return nome;
     } catch (e) {
         console.error('Erro ao gerar PDF de notificações:', e);
@@ -20377,38 +20336,15 @@ Qualquer dúvida, contacte o solicitador.
 — Sistema Legal`;
 }
 
-/** Gera o convite em PDF e guarda. Retorna nome do ficheiro ou null. */
+/** Gera o convite em PDF via impressão HTML. Retorna nome do ficheiro ou null. */
 async function gerarConvitePDF(nome, codigo) {
     try {
-        const jsPDF = (window.jspdf && window.jspdf.jsPDF) || (window.jspdf && window.jspdf.default) || window.jsPDF;
-        if (!jsPDF) {
-            mostrarNotificacao('Biblioteca PDF não carregada. Faça Ctrl+F5 para recarregar.', 'error');
-            return null;
-        }
         const texto = gerarTextoConvite(nome, codigo);
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-        const margin = (typeof window.BRANDING !== 'undefined' && window.BRANDING.marginMm != null) ? window.BRANDING.marginMm : 25;
-        let y = typeof adicionarLogoAoPdf === 'function' ? await adicionarLogoAoPdf(doc, margin) : margin;
-        doc.setFont('times', 'normal');
-        doc.setFontSize(14);
-        doc.text('Convite - Sistema Legal', margin, y);
-        y += 12;
-        doc.setFontSize(11);
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const maxWidth = pageWidth - margin * 2;
-        const lineHeight = 6;
-        const blocos = texto.split('\n');
-        blocos.forEach(bloco => {
-            const linhas = doc.splitTextToSize(bloco || ' ', maxWidth);
-            linhas.forEach(linha => {
-                if (y > 280) { doc.addPage(); y = margin; }
-                doc.text(linha, margin, y);
-                y += lineHeight;
-            });
-        });
         const dataStr = new Date().toISOString().split('T')[0];
         const nomeFicheiro = `Convite_Sistema_Legal_${(nome || 'convidado').replace(/\s+/g, '_')}_${dataStr}.pdf`;
-        doc.save(nomeFicheiro);
+        const corpoHtml = `<h1 class="doc-report-title">Convite — Sistema Legal</h1>${formatarTextoRelatorioHtml(texto)}`;
+        const html = await montarHtmlDocumentoProfissional('Convite - Sistema Legal', corpoHtml, ESTILOS_RELATORIO_PDF);
+        await imprimirHtmlDocumentoProfissional(html, 'baixar', nomeFicheiro);
         return nomeFicheiro;
     } catch (e) {
         console.error('Erro ao gerar PDF do convite:', e);
