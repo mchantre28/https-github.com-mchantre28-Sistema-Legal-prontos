@@ -115,7 +115,7 @@
     '.minuta-paragrafo.minuta-identificacao,.minuta-paragrafo.minuta-fecho,.minuta-paragrafo.minuta-assinatura{text-indent:0}',
     '.minuta-paragrafo.minuta-fecho{margin-top:20pt;margin-bottom:8pt}',
     '.minuta-paragrafo.minuta-assinatura{margin-top:8pt}',
-    '.minuta-campo-branco{letter-spacing:0.04em;white-space:nowrap}',
+    '.minuta-campo-branco{display:inline-block;min-width:5em;border-bottom:1px solid #000;vertical-align:baseline;line-height:1.2;height:1em;white-space:normal}',
     '.minuta-linha-assinatura{margin-top:36pt;padding-top:8pt;border-top:1px solid #000;min-height:28pt;text-align:center;font-family:"Times New Roman",Times,Georgia,serif;font-size:12pt}',
     '.minuta-paragrafo:last-child{margin-bottom:0}',
     '.minuta-paragrafo strong{font-weight:700}',

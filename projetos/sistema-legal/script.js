@@ -13959,11 +13959,11 @@ async function guardarFaturaComoDocumentoCliente() {
     }
 }
 
-/** Campos em branco padrão para documentos jurídicos (sublinhados longos alinhados). */
+/** Campos em branco padrão para documentos jurídicos (sublinhados curtos — evitam quebras de linha no PDF). */
 const CAMPO_JURIDICO = {
-    curto: '____________________________',
-    medio: '____________________________________________',
-    longo: '________________________________________________'
+    curto: '________',
+    medio: '____________',
+    longo: '________________'
 };
 
 function valorOuCampoJuridico(valor, tamanho) {
@@ -13998,8 +13998,8 @@ function reformatarTextoJuridicoPadrao(texto) {
     let t = normalizarFechoJuridico(String(texto || '').replace(/\r\n/g, '\n'));
     if (!t) return t;
     t = t.replace(/_{3,}/g, (m) => {
-        if (m.length >= 44) return CAMPO_JURIDICO.longo;
-        if (m.length >= 28) return CAMPO_JURIDICO.medio;
+        if (m.length >= 24) return CAMPO_JURIDICO.longo;
+        if (m.length >= 12) return CAMPO_JURIDICO.medio;
         return CAMPO_JURIDICO.curto;
     });
     const linhas = t.split('\n');
@@ -14024,8 +14024,8 @@ window.reformatarTextoJuridicoPadrao = reformatarTextoJuridicoPadrao;
 
 /** Estilos inline para garantir justificação na impressão/PDF (ignora cache CSS). */
 const MINUTA_ESTILO_TITULO = 'font-family:"Times New Roman",Times,serif;font-size:13pt;font-weight:700;text-align:center;width:100%;margin:0 0 22pt 0;letter-spacing:0.08em;text-transform:uppercase;line-height:1.4';
-const MINUTA_ESTILO_CORPO = 'font-family:"Times New Roman",Times,serif;font-size:12pt;margin:0 0 14pt 0;text-align:justify;text-justify:inter-word;line-height:1.5;hyphens:auto';
-const MINUTA_ESTILO_FECHO = MINUTA_ESTILO_CORPO + ';margin-top:20pt;text-indent:0';
+const MINUTA_ESTILO_CORPO = 'font-family:"Times New Roman",Times,serif;font-size:12pt;margin:0 0 14pt 0;text-align:justify;text-align-last:left;text-justify:inter-word;line-height:1.5;hyphens:auto;word-spacing:normal';
+const MINUTA_ESTILO_FECHO = 'font-family:"Times New Roman",Times,serif;font-size:12pt;margin:20pt 0 8pt 0;text-align:left;line-height:1.5';
 const MINUTA_ESTILO_ASSINATURA = 'margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:32pt;width:100%;text-align:center;font-family:"Times New Roman",Times,serif;font-size:12pt';
 
 function estiloInlineParagrafoMinuta(classe) {
@@ -14038,13 +14038,16 @@ const ESTILOS_MINUTA_PDF = [
     '.doc-body .minuta-doc{font-family:"Times New Roman",Times,Georgia,serif;font-size:12pt;color:#000}',
     '.minuta-paragrafo{page-break-inside:avoid;orphans:3;widows:3;text-align:justify!important;text-justify:inter-word!important;line-height:1.5!important}',
     '.minuta-texto-juridico{text-indent:0!important}',
-    '.minuta-campo-branco{letter-spacing:0.04em}',
+    '.minuta-campo-branco{display:inline-block;min-width:5em;border-bottom:1px solid #000;vertical-align:baseline;line-height:1.2;height:1em;white-space:normal}',
     '.minuta-linha-assinatura{border-top:1px solid #000;min-height:28pt;margin-top:36pt}',
     '@media print{.doc-container{padding:0!important}.minuta-paragrafo{text-align:justify!important;text-justify:inter-word!important}}'
 ].join('\n');
 
 function envolverCamposSublinhadosHtml(html) {
-    return String(html || '').replace(/(_{8,})/g, '<span class="minuta-campo-branco">$1</span>');
+    return String(html || '').replace(/(_{4,})/g, (match) => {
+        const em = match.length >= 20 ? 9 : match.length >= 12 ? 6 : 4;
+        return `<span class="minuta-campo-branco" style="display:inline-block;min-width:${em}em;border-bottom:1px solid #000;vertical-align:baseline;line-height:1.2;height:1em">&nbsp;</span>`;
+    });
 }
 
 /** Destaques tipográficos em minutas (negrito em termos jurídicos e rótulos). */
@@ -14084,7 +14087,7 @@ function formatarConteudoMinutaHtml(conteudo) {
         const classe = classificarParagrafoMinuta(bloco, idx, linhas);
         if (classe === 'minuta-titulo') return `<h1 class="minuta-titulo" style="${MINUTA_ESTILO_TITULO}">${escaparHtml(linhas[0])}</h1>`;
         if (classe === 'minuta-linha-assinatura') {
-            return `<div class="minuta-linha-assinatura" style="${MINUTA_ESTILO_ASSINATURA}">${envolverCamposSublinhadosHtml(aplicarDestaquesMinutaHtml(bloco))}</div>`;
+            return `<div class="minuta-linha-assinatura" style="${MINUTA_ESTILO_ASSINATURA}">&nbsp;</div>`;
         }
         const htmlLinhas = classe.includes('minuta-texto-juridico')
             ? envolverCamposSublinhadosHtml(aplicarDestaquesMinutaHtml(linhas.join(' ')))
@@ -14129,10 +14132,12 @@ async function imprimirHtmlMinutaProfissional(htmlCompleto, acao, nomeArquivo) {
         '@page{size:A4;margin:20mm}',
         'html,body{margin:0;padding:0;background:#fff}',
         '.doc-body,.minuta-doc{width:100%;max-width:170mm;margin:0 auto}',
-        '.minuta-paragrafo,.minuta-texto-juridico,.doc-body p{text-align:justify!important;text-justify:inter-word!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
+        '.minuta-paragrafo.minuta-texto-juridico,.minuta-texto-juridico{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
+        '.minuta-paragrafo.minuta-corpo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important}',
         '.minuta-titulo{text-align:center!important;width:100%}',
-        '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}',
-        '.minuta-fecho{text-align:justify!important;margin-top:20pt}'
+        '.minuta-fecho,.minuta-paragrafo.minuta-fecho{text-align:left!important;margin-top:20pt}',
+        '.minuta-campo-branco{display:inline-block!important;min-width:4em;border-bottom:1px solid #000!important;vertical-align:baseline!important;white-space:normal!important;height:1em;line-height:1.2}',
+        '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}'
     ].join('\n');
     janela.document.head.appendChild(extra);
     janela.focus();
