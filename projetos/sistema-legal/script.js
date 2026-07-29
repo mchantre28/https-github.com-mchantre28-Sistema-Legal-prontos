@@ -4784,6 +4784,8 @@ function fecharModalRobusto() {
         
         document.body.style.overflow = '';
         document.documentElement.style.overflow = '';
+        document.body.style.pointerEvents = '';
+        document.documentElement.style.pointerEvents = '';
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
             document.activeElement.blur();
         }
@@ -4792,6 +4794,29 @@ function fecharModalRobusto() {
         console.warn('âŒ Erro na solução definitiva final:', e);
     }
 }
+
+/** Restaura cliques e foco na página principal após gerar PDF / imprimir (evita rato encravado no Edge). */
+function restaurarInteracaoPagina() {
+    try {
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        document.body.style.pointerEvents = '';
+        document.documentElement.style.pointerEvents = '';
+        document.body.classList.remove('sidebar-open');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay) overlay.classList.remove('active');
+        const mc = document.getElementById('modalContainer');
+        if (mc && !mc.querySelector('.modal, .fixed.inset-0, .modal-content')) {
+            mc.classList.remove('show');
+            mc.innerHTML = '';
+            mc.setAttribute('aria-hidden', 'true');
+        }
+        window.focus();
+    } catch (e) {
+        console.warn('restaurarInteracaoPagina:', e);
+    }
+}
+window.restaurarInteracaoPagina = restaurarInteracaoPagina;
 
 // Função simples para fechar modal (backup)
 function fecharModalSimples() {
@@ -14165,6 +14190,12 @@ function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo) {
     } else {
         html = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${titulo}</title>${blocoEstilos}</head><body>${html}</body></html>`;
     }
+    const scriptPrint = '<script>(function(){function imprimir(){try{window.focus();window.print();}catch(e){}try{if(window.opener&&!window.opener.closed&&typeof window.opener.restaurarInteracaoPagina==="function")window.opener.restaurarInteracaoPagina();else if(window.opener&&!window.opener.closed)window.opener.focus();}catch(e2){}}if(document.readyState==="complete")setTimeout(imprimir,400);else window.addEventListener("load",function(){setTimeout(imprimir,400);},{once:true});})();<\/script>';
+    if (/<\/body>/i.test(html)) {
+        html = html.replace(/<\/body>/i, scriptPrint + '</body>');
+    } else {
+        html += scriptPrint;
+    }
     return html;
 }
 
@@ -14222,15 +14253,13 @@ async function imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo
         janela.addEventListener('load', () => URL.revokeObjectURL(blobUrl), { once: true });
     }
 
-    await aguardarJanelaDocumentoPronta(janela, 2500);
-    try {
-        janela.focus();
-        janela.print();
-    } catch (e) {
-        console.warn('print() na janela filha falhou:', e);
-        mostrarNotificacao('Documento aberto. Use Ctrl+P na nova janela para imprimir ou guardar como PDF.', 'warning');
-        return true;
-    }
+    restaurarInteracaoPagina();
+    const refocus = () => restaurarInteracaoPagina();
+    window.addEventListener('focus', refocus, { once: true });
+    setTimeout(restaurarInteracaoPagina, 600);
+    setTimeout(restaurarInteracaoPagina, 2000);
+    setTimeout(() => window.removeEventListener('focus', refocus), 8000);
+
     mostrarNotificacao('Use «Guardar como PDF» ou «Microsoft Print to PDF» na janela de impressão.', 'success');
     return true;
 }

@@ -465,6 +465,19 @@ body.sidebar-open {
     z-index: 1;
 }
 
+/* modalContainer vazio não bloqueia cliques; filhos activos sim */
+#modalContainer {
+    pointer-events: none;
+}
+#modalContainer.show > *,
+#modalContainer .modal,
+#modalContainer .fixed.inset-0 {
+    pointer-events: auto;
+}
+#modalContainer:empty {
+    display: none;
+}
+
 .card {
     background: white;
     border-radius: 12px;
