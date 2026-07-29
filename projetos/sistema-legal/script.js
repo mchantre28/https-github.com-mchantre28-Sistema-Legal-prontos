@@ -14137,33 +14137,100 @@ function montarElementoPdfMinuta(htmlCompleto) {
     return host;
 }
 
+const ESTILOS_IMPRESSAO_DOCUMENTO = [
+    '@page{size:A4;margin:20mm}',
+    'html,body{margin:0;padding:0;background:#fff}',
+    '.doc-body,.minuta-doc{width:100%;max-width:170mm;margin:0 auto}',
+    '.minuta-paragrafo.minuta-texto-juridico,.minuta-texto-juridico,.doc-report-paragrafo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
+    '.minuta-paragrafo.minuta-corpo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important}',
+    '.minuta-titulo,.doc-report-title.doc-center{text-align:center!important;width:100%}',
+    '.doc-report-title,.doc-report-section,.doc-meta,.doc-notificacao-titulo,.doc-notificacao-meta{text-align:left!important}',
+    '.minuta-fecho,.minuta-paragrafo.minuta-fecho{text-align:left!important;margin-top:20pt}',
+    '.minuta-campo-branco{display:inline-block!important;min-width:4em;border-bottom:1px solid #000!important;vertical-align:baseline!important;white-space:normal!important;height:1em;line-height:1.2}',
+    '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}'
+].join('\n');
+
+function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo) {
+    let html = String(htmlCompleto || '').trim();
+    if (!html) return '';
+    const titulo = nomeArquivo ? String(nomeArquivo).replace(/\.pdf$/i, '').replace(/[<>"']/g, '') : 'Documento';
+    if (/<title[^>]*>/i.test(html)) {
+        html = html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${titulo}</title>`);
+    } else if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/<head([^>]*)>/i, `<head$1><title>${titulo}</title>`);
+    }
+    const blocoEstilos = `<style id="print-extra">\n${ESTILOS_IMPRESSAO_DOCUMENTO}\n</style>`;
+    if (/<\/head>/i.test(html)) {
+        html = html.replace(/<\/head>/i, blocoEstilos + '</head>');
+    } else {
+        html = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${titulo}</title>${blocoEstilos}</head><body>${html}</body></html>`;
+    }
+    return html;
+}
+
+function aguardarJanelaDocumentoPronta(janela, timeoutMs) {
+    return new Promise((resolve) => {
+        if (!janela) { resolve(false); return; }
+        let feito = false;
+        const concluir = () => {
+            if (feito) return;
+            feito = true;
+            resolve(true);
+        };
+        const limite = setTimeout(concluir, timeoutMs || 2500);
+        try {
+            if (janela.document && janela.document.readyState === 'complete') {
+                clearTimeout(limite);
+                concluir();
+                return;
+            }
+            janela.addEventListener('load', () => { clearTimeout(limite); concluir(); }, { once: true });
+        } catch (e) {
+            clearTimeout(limite);
+            setTimeout(concluir, 600);
+        }
+    });
+}
+
 async function imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo) {
-    const janela = window.open('', '_blank');
-    if (!janela) {
-        mostrarNotificacao('Permita abrir janelas (pop-up) para gerar o PDF.', 'warning');
+    const html = prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo);
+    if (!html) {
+        mostrarNotificacao('Erro: documento vazio. Recarregue a página (Ctrl+F5) e tente novamente.', 'error');
         return false;
     }
-    janela.document.open();
-    janela.document.write(htmlCompleto);
-    janela.document.close();
-    if (nomeArquivo) janela.document.title = nomeArquivo.replace(/\.pdf$/i, '');
-    const extra = janela.document.createElement('style');
-    extra.textContent = [
-        '@page{size:A4;margin:20mm}',
-        'html,body{margin:0;padding:0;background:#fff}',
-        '.doc-body,.minuta-doc{width:100%;max-width:170mm;margin:0 auto}',
-        '.minuta-paragrafo.minuta-texto-juridico,.minuta-texto-juridico,.doc-report-paragrafo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important;line-height:1.5!important;font-family:"Times New Roman",Times,serif!important;font-size:12pt!important}',
-        '.minuta-paragrafo.minuta-corpo{text-align:justify!important;text-align-last:left!important;word-spacing:normal!important}',
-        '.minuta-titulo,.doc-report-title.doc-center{text-align:center!important;width:100%}',
-        '.doc-report-title,.doc-report-section,.doc-meta,.doc-notificacao-titulo,.doc-notificacao-meta{text-align:left!important}',
-        '.minuta-fecho,.minuta-paragrafo.minuta-fecho{text-align:left!important;margin-top:20pt}',
-        '.minuta-campo-branco{display:inline-block!important;min-width:4em;border-bottom:1px solid #000!important;vertical-align:baseline!important;white-space:normal!important;height:1em;line-height:1.2}',
-        '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}'
-    ].join('\n');
-    janela.document.head.appendChild(extra);
-    janela.focus();
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    janela.print();
+
+    let janela = null;
+    let blobUrl = null;
+    try {
+        blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+        janela = window.open(blobUrl, '_blank');
+    } catch (e) {
+        console.warn('Blob URL falhou, a usar document.write:', e);
+    }
+
+    if (!janela) {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        janela = window.open('', '_blank');
+        if (!janela) {
+            mostrarNotificacao('Permita abrir janelas (pop-up) para gerar o PDF.', 'warning');
+            return false;
+        }
+        janela.document.open();
+        janela.document.write(html);
+        janela.document.close();
+    } else if (blobUrl) {
+        janela.addEventListener('load', () => URL.revokeObjectURL(blobUrl), { once: true });
+    }
+
+    await aguardarJanelaDocumentoPronta(janela, 2500);
+    try {
+        janela.focus();
+        janela.print();
+    } catch (e) {
+        console.warn('print() na janela filha falhou:', e);
+        mostrarNotificacao('Documento aberto. Use Ctrl+P na nova janela para imprimir ou guardar como PDF.', 'warning');
+        return true;
+    }
     mostrarNotificacao('Use «Guardar como PDF» ou «Microsoft Print to PDF» na janela de impressão.', 'success');
     return true;
 }
