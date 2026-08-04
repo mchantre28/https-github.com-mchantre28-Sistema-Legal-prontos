@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sistema Legal</string>
+    <string name="title_activity_main">Sistema Legal</string>
+    <string name="package_name">com.sistemalegal.app</string>
+    <string name="custom_url_scheme">com.sistemalegal.app</string>
+</resources>

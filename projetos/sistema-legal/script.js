@@ -6449,6 +6449,9 @@ function configurarEventos() {
         toggleSidebar();
     });
 
+    initAppMobile();
+    window.addEventListener('resize', () => initAppMobile(), { passive: true });
+
     // Botão Voltar ao topo: mostrar ao rolar, esconder no topo
     const btnVoltarTopo = document.getElementById('btnVoltarTopo');
     if (btnVoltarTopo) {
@@ -6779,6 +6782,41 @@ function configurarEventos() {
     }
 }
 
+function fecharSidebarSeMobile() {
+    if (window.innerWidth > 1024) return;
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar || !sidebar.classList.contains('open')) return;
+    sidebar.classList.remove('open');
+    document.body.classList.remove('sidebar-open');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (overlay) overlay.classList.remove('active');
+    const menuHamburguer = document.getElementById('menuHamburguer');
+    if (menuHamburguer) menuHamburguer.setAttribute('aria-expanded', 'false');
+}
+
+function adaptarTabelasMobile(root) {
+    const el = root || document.getElementById('conteudoDinamico');
+    if (!el) return;
+    el.querySelectorAll('table').forEach((table) => {
+        if (table.closest('.table-responsive')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'table-responsive overflow-x-auto';
+        table.parentNode.insertBefore(wrap, table);
+        wrap.appendChild(table);
+    });
+}
+
+function initAppMobile() {
+    const isCap = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    const isNarrow = window.matchMedia('(max-width: 1024px)').matches;
+    document.documentElement.classList.toggle('app-native', isCap);
+    document.documentElement.classList.toggle('app-mobile', isCap || isNarrow);
+    if (isCap) document.body.classList.add('cap-app');
+}
+window.fecharSidebarSeMobile = fecharSidebarSeMobile;
+window.adaptarTabelasMobile = adaptarTabelasMobile;
+window.initAppMobile = initAppMobile;
+
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -6790,7 +6828,6 @@ function toggleSidebar() {
         if (overlay) overlay.classList.toggle('active', aberto);
         if (menuBtn) menuBtn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
         if (menuHamburguer) menuHamburguer.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-        if (aberto && menuBtn && typeof menuBtn.focus === 'function') try { menuBtn.focus(); } catch (e) {}
     }
 }
 
@@ -6838,6 +6875,7 @@ function carregarSecao(secao) {
     // Fechar qualquer modal aberto antes de carregar nova secção
     if (typeof fecharModalRobusto === 'function') fecharModalRobusto();
     else if (typeof fecharModal === 'function') fecharModal();
+    fecharSidebarSeMobile();
     
     // Mostrar loader em secções pesadas
     const secoesComLoader = ['dashboard', 'clientes', 'honorarios', 'contratos', 'relatorios', 'tarefas', 'documentos', 'integracoes', 'migracoes', 'herancas', 'registos', 'prazos'];
@@ -6893,6 +6931,7 @@ function carregarSecao(secao) {
         if (conteudoEl) {
             conteudoEl.innerHTML = conteudo;
             removerBotoesAnexos();
+            adaptarTabelasMobile(conteudoEl);
         } else {
             console.error('âŒ Elemento conteudoDinamico não encontrado');
         }

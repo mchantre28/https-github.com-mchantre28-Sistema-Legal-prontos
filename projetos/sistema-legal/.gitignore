@@ -7,6 +7,9 @@ playwright/.cache/
 # Node
 node_modules/
 
+# Capacitor (gerado por npm run build:cap)
+www/
+
 # Backend SQLite
 backend/data/*.db
 backend/data/*.db-*

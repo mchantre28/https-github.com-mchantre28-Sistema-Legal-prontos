@@ -1508,3 +1508,188 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
         padding-left: 0.25rem;
     }
 }
+
+/* ========== Smartphone / Capacitor ========== */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+html.app-mobile,
+html.app-native {
+    scroll-behavior: smooth;
+}
+
+body.cap-app {
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+body.cap-app .main-content {
+    min-height: 100dvh;
+}
+
+/* Botão menu único — safe area (notch) */
+.mobile-nav-toggle {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary-color);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 1024px) {
+    .mobile-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-menu-btn {
+        display: none !important;
+    }
+
+    .app-header .px-6 {
+        padding-left: calc(56px + env(safe-area-inset-left, 0px));
+        padding-right: calc(12px + env(safe-area-inset-right, 0px));
+        padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    }
+
+    .main-content {
+        padding-top: calc(72px + env(safe-area-inset-top, 0px));
+    }
+
+    #main {
+        padding: 12px !important;
+    }
+
+    #pageTitle {
+        font-size: 1.125rem;
+        line-height: 1.3;
+    }
+
+    #globalSearchInput {
+        font-size: 16px;
+    }
+
+    #globalSearchInput::placeholder {
+        font-size: 14px;
+    }
+
+    .header-actions .btn {
+        font-size: 0;
+        min-width: 44px;
+        padding: 10px 12px;
+        gap: 0;
+    }
+
+    .header-actions .btn svg,
+    .header-actions .btn i {
+        width: 1.125rem;
+        height: 1.125rem;
+        font-size: 1.125rem;
+    }
+
+    .header-actions .btn-danger,
+    .header-actions .btn-primary {
+        font-size: 0;
+    }
+
+    #notificationsContainer {
+        top: calc(64px + env(safe-area-inset-top, 0px));
+        right: 12px;
+        left: 12px;
+        max-width: none;
+    }
+
+    #btnVoltarTopo {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        right: calc(16px + env(safe-area-inset-right, 0px));
+    }
+
+    .flex.justify-between.items-center {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .grid.md\\:grid-cols-2,
+    .grid.md\\:grid-cols-3,
+    .grid.lg\\:grid-cols-2,
+    .grid.lg\\:grid-cols-3,
+    .grid.lg\\:grid-cols-4 {
+        grid-template-columns: 1fr !important;
+    }
+
+    #conteudoDinamico .overflow-x-auto,
+    #conteudoDinamico .table-responsive {
+        margin-left: -4px;
+        margin-right: -4px;
+        border-radius: 8px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #conteudoDinamico table {
+        font-size: 13px;
+    }
+
+    #conteudoDinamico .modal-content,
+    #modalContainer .modal-content {
+        max-width: calc(100vw - 16px);
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+    }
+
+    textarea,
+    select,
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="password"],
+    input[type="date"],
+    input[type="search"] {
+        font-size: 16px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .sync-status .sync-text {
+        font-size: 12px;
+    }
+
+    .card h2,
+    .card .text-2xl {
+        font-size: 1.25rem;
+    }
+
+    #conteudoDinamico .btn-group,
+    #conteudoDinamico .flex.gap-2:not(.header-actions) {
+        flex-wrap: wrap;
+    }
+
+    #conteudoDinamico .flex.gap-2 .btn {
+        flex: 1 1 auto;
+        min-width: min(100%, 140px);
+        justify-content: center;
+    }
+}
+
+html.app-native .mobile-nav-toggle {
+    top: calc(14px + env(safe-area-inset-top, 0px));
+}
