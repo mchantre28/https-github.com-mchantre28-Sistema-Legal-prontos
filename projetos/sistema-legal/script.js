@@ -6811,7 +6811,14 @@ function initAppMobile() {
     const isNarrow = window.matchMedia('(max-width: 1024px)').matches;
     document.documentElement.classList.toggle('app-native', isCap);
     document.documentElement.classList.toggle('app-mobile', isCap || isNarrow);
-    if (isCap) document.body.classList.add('cap-app');
+    if (isCap || isNarrow) document.body.classList.add('cap-app');
+    if (isNarrow) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && !sidebar.classList.contains('open')) {
+            sidebar.classList.remove('open');
+            document.body.classList.remove('sidebar-open');
+        }
+    }
 }
 window.fecharSidebarSeMobile = fecharSidebarSeMobile;
 window.adaptarTabelasMobile = adaptarTabelasMobile;
