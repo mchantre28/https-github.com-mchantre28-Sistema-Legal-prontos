@@ -6884,13 +6884,19 @@ function initAppMobile() {
     const isNarrow = window.matchMedia('(max-width: 1024px)').matches;
     document.documentElement.classList.toggle('app-native', isCap);
     document.documentElement.classList.toggle('app-mobile', isCap || isNarrow);
-    if (isCap || isNarrow) document.body.classList.add('cap-app');
+    document.body.classList.toggle('cap-app', isCap || isNarrow);
     if (isNarrow) {
         const sidebar = document.getElementById('sidebar');
         if (sidebar && !sidebar.classList.contains('open')) {
             sidebar.classList.remove('open');
             document.body.classList.remove('sidebar-open');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (overlay) overlay.classList.remove('active');
         }
+    }
+    if (!document.body.classList.contains('sidebar-open')) {
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
     }
 }
 window.fecharSidebarSeMobile = fecharSidebarSeMobile;

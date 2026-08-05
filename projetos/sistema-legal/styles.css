@@ -343,12 +343,16 @@ body.sidebar-open {
 
     html, body {
         overflow-x: hidden !important;
+        overflow-y: auto !important;
         max-width: 100vw;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
     }
 
     .sidebar:not(.open) {
         transform: translateX(-100%) !important;
     }
+}
 
 /* Mobile Menu Button */
 .mobile-menu-btn {
@@ -1532,12 +1536,17 @@ html.app-native {
 
 body.cap-app {
     min-height: 100dvh;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: auto;
     padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+body.cap-app:not(.sidebar-open) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 body.cap-app .main-content {
-    min-height: 100dvh;
+    min-height: 0;
 }
 
 /* Botão menu único — safe area (notch) */
