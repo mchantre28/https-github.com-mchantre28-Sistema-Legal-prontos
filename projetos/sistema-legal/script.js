@@ -377,21 +377,84 @@ window.startAllListeners = startAllListeners;
 /** Debounce para refresh dos listeners: evita que múltiplos callbacks sobrescrevam a navegação do utilizador (ex.: Central de Notificações) */
 let __listenerRefreshTimer = null;
 const LISTENER_REFRESH_DEBOUNCE_MS = 150;
-function agendarRefreshListener() {
+const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 450;
+
+function isMobileApp() {
+    if (document.documentElement.classList.contains('app-mobile') || document.documentElement.classList.contains('app-native')) return true;
+    return window.matchMedia('(max-width: 1024px)').matches
+        || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+}
+
+function secaoAfetadaPorEntidade(entidade) {
+    if (!entidade) return null;
+    if (entidade === 'faturas') return 'pagamentos';
+    if (entidade === 'integracoes_externas') return 'integracoes';
+    return entidade;
+}
+
+const REFRESH_LEVE_POR_SECAO = {
+    honorarios: () => { if (typeof aplicarFiltrosHonorarios === 'function') aplicarFiltrosHonorarios(); },
+    clientes: () => { if (typeof aplicarFiltrosClientes === 'function') aplicarFiltrosClientes(); },
+    contratos: () => { if (typeof aplicarFiltrosContratos === 'function') aplicarFiltrosContratos(); },
+    pagamentos: () => { if (typeof aplicarFiltrosPagamentos === 'function') aplicarFiltrosPagamentos(); },
+    despesas: () => { if (typeof aplicarFiltrosDespesas === 'function') aplicarFiltrosDespesas(); },
+    tarefas: () => { if (typeof aplicarFiltrosTarefas === 'function') aplicarFiltrosTarefas(); },
+    herancas: () => { if (typeof aplicarFiltrosHerancas === 'function') aplicarFiltrosHerancas(); },
+    migracoes: () => { if (typeof aplicarFiltrosMigracoes === 'function') aplicarFiltrosMigracoes(); },
+    registos: () => { if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos(); },
+    prazos: () => { if (typeof aplicarFiltrosPrazos === 'function') aplicarFiltrosPrazos(); }
+};
+
+function atualizarContadoresInterfaceLeve() {
+    if (typeof atualizarContadoresSidebar === 'function') atualizarContadoresSidebar();
+    if (typeof atualizarBadgeNotificacoes === 'function') atualizarBadgeNotificacoes();
+}
+
+function tentarRefreshLeveSecao(entidadeOrigem) {
+    const secao = typeof secaoAtiva === 'string' ? secaoAtiva : '';
+    const secaoEntidade = secaoAfetadaPorEntidade(entidadeOrigem);
+    if (!secaoEntidade || secaoEntidade !== secao) return false;
+    const fn = REFRESH_LEVE_POR_SECAO[secao];
+    if (typeof fn !== 'function') return false;
+    fn();
+    atualizarContadoresInterfaceLeve();
+    window.__ultimoHashSecao = obterHashDadosSecao(secao);
+    return true;
+}
+
+function agendarRefreshListener(entidadeOrigem) {
     if (__listenerRefreshTimer) clearTimeout(__listenerRefreshTimer);
+    const debounceMs = isMobileApp() ? LISTENER_REFRESH_DEBOUNCE_MOBILE_MS : LISTENER_REFRESH_DEBOUNCE_MS;
     __listenerRefreshTimer = setTimeout(() => {
         __listenerRefreshTimer = null;
+        if (document.hidden) return;
         // Não re-renderizar se o utilizador estiver a escrever num input (evita perder foco e cursor)
         const ativo = document.activeElement;
         const conteudo = document.getElementById('conteudoDinamico');
         if (ativo && conteudo && conteudo.contains(ativo) && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName)) {
             return;
         }
-        if (typeof secaoAtiva === 'string') {
-            carregarSecao(secaoAtiva);
-            if (typeof atualizarInterface === 'function') atualizarInterface();
+        const secao = typeof secaoAtiva === 'string' ? secaoAtiva : 'dashboard';
+        const secaoEntidade = secaoAfetadaPorEntidade(entidadeOrigem);
+
+        if (secaoEntidade && secaoEntidade === secao && tentarRefreshLeveSecao(entidadeOrigem)) {
+            return;
         }
-    }, LISTENER_REFRESH_DEBOUNCE_MS);
+        if (secaoEntidade && secaoEntidade !== secao) {
+            atualizarContadoresInterfaceLeve();
+            return;
+        }
+
+        const hashAntes = window.__ultimoHashSecao || obterHashDadosSecao(secao);
+        const hashDepois = obterHashDadosSecao(secao);
+        if (hashDepois !== hashAntes) {
+            window.__ultimoHashSecao = hashDepois;
+            carregarSecao(secao);
+            if (typeof atualizarInterface === 'function') atualizarInterface();
+        } else {
+            atualizarContadoresInterfaceLeve();
+        }
+    }, debounceMs);
 }
 
 /** Cancela refresh pendente quando o utilizador navega explicitamente (evita race condition) */
@@ -409,17 +472,17 @@ function iniciarListenersFirestore() {
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
         atualizarClientesEmMemoria(lista);
-        agendarRefreshListener();
+        agendarRefreshListener('clientes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
         contratos = lista; window.contratos = contratos;
-        agendarRefreshListener();
+        agendarRefreshListener('contratos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirContratosUnsubscribe);
     window.__ouvirHonorariosUnsubscribe = ouvirHonorarios((lista) => {
         honorarios = lista; window.honorarios = honorarios;
-        agendarRefreshListener();
+        agendarRefreshListener('honorarios');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirHonorariosUnsubscribe);
     for (const entidade of PROCESSO_ENTIDADES) {
@@ -428,33 +491,33 @@ function iniciarListenersFirestore() {
             if (entidade === 'herancas') { herancas = lista; window.herancas = herancas; }
             else if (entidade === 'migracoes') { migracoes = lista; window.migracoes = migracoes; }
             else if (entidade === 'registos') { registos = lista; window.registos = registos; }
-            agendarRefreshListener();
+            agendarRefreshListener(entidade);
         });
     }
     PROCESSO_ENTIDADES.forEach(ent => { const k = '__ouvir' + ent.charAt(0).toUpperCase() + ent.slice(1).replace(/s$/, '') + 'sUnsubscribe'; if (window[k]) (window.addListener || listenerManager.add.bind(listenerManager))(window[k]); });
     window.__ouvirTarefasUnsubscribe = ouvirTarefas((lista) => {
         tarefas = lista; window.tarefas = tarefas;
-        agendarRefreshListener();
+        agendarRefreshListener('tarefas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirTarefasUnsubscribe);
     window.__ouvirPrazosUnsubscribe = ouvirPrazos((lista) => {
         prazos = lista; window.prazos = prazos;
-        agendarRefreshListener();
+        agendarRefreshListener('prazos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPrazosUnsubscribe);
     window.__ouvirNotificacoesUnsubscribe = ouvirNotificacoes((lista) => {
         notificacoes = lista; window.notificacoes = notificacoes;
-        agendarRefreshListener();
+        agendarRefreshListener('notificacoes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirNotificacoesUnsubscribe);
     window.__ouvirDocumentosUnsubscribe = ouvirDocumentos((lista) => {
         documentos = lista; window.documentos = documentos;
-        agendarRefreshListener();
+        agendarRefreshListener('documentos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDocumentosUnsubscribe);
     window.__ouvirConvidadosUnsubscribe = ouvirConvidados((lista) => {
         convidados = lista; window.convidados = convidados;
-        agendarRefreshListener();
+        agendarRefreshListener('convidados');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirConvidadosUnsubscribe);
     window.__ouvirEntidadesUnsubscribe = ouvirEntidades((lista) => {
@@ -463,34 +526,34 @@ function iniciarListenersFirestore() {
             window.__entidadesSeedTentado = true;
             seedEntidadesSeVazio();
         }
-        agendarRefreshListener();
+        agendarRefreshListener('entidades');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirEntidadesUnsubscribe);
     window.__ouvirIntegracoesExternasUnsubscribe = ouvirIntegracoesExternas((lista) => {
         integracoesExternas = lista; window.integracoesExternas = integracoesExternas;
-        agendarRefreshListener();
+        agendarRefreshListener('integracoes_externas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirIntegracoesExternasUnsubscribe);
     window.__ouvirRepresentantesUnsubscribe = ouvirRepresentantes((lista) => {
         representantes = lista; window.representantes = representantes;
-        agendarRefreshListener();
+        agendarRefreshListener('representantes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirRepresentantesUnsubscribe);
     window.__ouvirFaturasUnsubscribe = ouvirFaturas((lista) => {
         window.faturas = lista;
-        agendarRefreshListener();
+        agendarRefreshListener('faturas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirFaturasUnsubscribe);
     window.__ouvirPagamentosUnsubscribe = ouvirPagamentos((lista) => {
         pagamentos = lista;
         window.pagamentos = pagamentos;
-        agendarRefreshListener();
+        agendarRefreshListener('pagamentos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPagamentosUnsubscribe);
     window.__ouvirDespesasUnsubscribe = ouvirDespesas((lista) => {
         despesas = lista;
         window.despesas = despesas;
-        agendarRefreshListener();
+        agendarRefreshListener('despesas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDespesasUnsubscribe);
 }
@@ -1904,6 +1967,8 @@ function obterHashDadosSecao(secao) {
         const entidades = { clientes: 'clientes', honorarios: 'honorarios', contratos: 'contratos', prazos: 'prazos', notificacoes: 'notificacoes', documentos: 'documentos', tarefas: 'tarefas', herancas: 'herancas', migracoes: 'migracoes', registos: 'registos' };
         if (entidades[secao]) return hashLista(obterListaGlobal(entidades[secao]));
         if (secao === 'dashboard') return [ 'clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes' ].map(e => hashLista(obterListaGlobal(e))).join('|');
+        if (secao === 'pagamentos') return hashLista(pagamentos || []) + '|' + hashLista(window.faturas || []);
+        if (secao === 'despesas') return hashLista(despesas || []);
         return hashLista(obterListaGlobal(secao)) || '';
     } catch (e) { return ''; }
 }
@@ -4349,19 +4414,24 @@ function init() {
         }
     }, 500);
 
-    // Sincronização periódica em background (a cada 5 min)
-    const SYNC_PERIODICO_MS = 5 * 60 * 1000;
+    // Sincronização periódica em background (5 min desktop; 10 min mobile; pausa com separador oculto)
+    const SYNC_PERIODICO_MS = isMobileApp() ? 10 * 60 * 1000 : 5 * 60 * 1000;
     if (isCloudReady()) {
         window.__syncPeriodico = setInterval(() => {
-            if (isCloudReady()) {
-                sincronizarTodasEntidadesNuvem().then(() => {
-                    if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
-                    carregarDados();
-                    carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                    atualizarInterface();
-                    atualizarIndicadorSync('ok');
-                });
-            }
+            if (document.hidden || !isCloudReady()) return;
+            sincronizarTodasEntidadesNuvem().then(() => {
+                if (document.hidden) return;
+                if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
+                carregarDados();
+                const secao = typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard';
+                const hashDepois = obterHashDadosSecao(secao);
+                if (hashDepois !== window.__ultimoHashSecao) {
+                    window.__ultimoHashSecao = hashDepois;
+                    carregarSecao(secao);
+                }
+                atualizarInterface();
+                atualizarIndicadorSync('ok');
+            });
         }, SYNC_PERIODICO_MS);
     }
 
@@ -4370,6 +4440,7 @@ function init() {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
             __visibilityHashAntes = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
+            if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
         } else if (document.visibilityState === 'visible' && isCloudReady()) {
             if (typeof listenerManager !== 'undefined' && listenerManager.pause && listenerManager.resume) {
                 listenerManager.pause();
@@ -4380,8 +4451,11 @@ function init() {
                 carregarDados();
                 const hashDepois = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
                 if (hashDepois !== __visibilityHashAntes) {
+                    window.__ultimoHashSecao = hashDepois;
                     carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
                     atualizarInterface();
+                } else {
+                    window.__ultimoHashSecao = hashDepois;
                 }
                 atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             });
@@ -4996,61 +5070,49 @@ function desativarModoEscuro() {
 
 // Gestos Touch
 function inicializarGestosTouch() {
+    if (window.__gestosTouchInicializados) return;
+    window.__gestosTouchInicializados = true;
+
     let startX, startY, endX, endY;
-    
+
+    const alvoIgnorarGestos = (el) => {
+        if (!el || !el.closest) return false;
+        return !!el.closest('input, textarea, select, button, a, .table-responsive, [data-honorario-acao], [data-cliente-acao], [data-contrato-acao], [data-tarefa-acao], [data-prazo-acao], [data-fatura-acao], .modal, #modalContainer, #sidebar');
+    };
+
     document.addEventListener('touchstart', (e) => {
+        if (alvoIgnorarGestos(e.target)) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
-    });
-    
+    }, { passive: true });
+
     document.addEventListener('touchend', (e) => {
+        if (startX == null || startY == null) return;
+        if (alvoIgnorarGestos(e.target)) {
+            startX = startY = endX = endY = null;
+            return;
+        }
         endX = e.changedTouches[0].clientX;
         endY = e.changedTouches[0].clientY;
-        
+
         const deltaX = endX - startX;
         const deltaY = endY - startY;
-        
-        // Swipe horizontal (mudança de secção)
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-            if (deltaX > 0) {
-                // Swipe direita - secção anterior
-                navegarSecaoAnterior();
-            } else {
-                // Swipe esquerda - próxima secção
-                navegarProximaSecao();
-            }
+        const limiarSwipe = isMobileApp() ? 80 : 50;
+
+        // Swipe horizontal (mudança de secção) — não interferir com scroll vertical
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > limiarSwipe && Math.abs(deltaY) < 40) {
+            if (deltaX > 0) navegarSecaoAnterior();
+            else navegarProximaSecao();
         }
-        
-        // Swipe vertical (fechar modais)
-        if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 100) {
-            if (deltaY > 0) {
-                // Swipe para baixo - fechar modal
-                fecharModal();
-            }
+
+        // Swipe vertical para baixo — fechar modal (sem reload da página)
+        if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 120) {
+            if (typeof fecharModalRobusto === 'function') fecharModalRobusto();
+            else if (typeof fecharModal === 'function') fecharModal();
         }
-    });
-    
-    // Pull to refresh
-    let pullStartY = 0;
-    let isPulling = false;
-    
-    document.addEventListener('touchstart', (e) => {
-        if (window.scrollY === 0) {
-            pullStartY = e.touches[0].clientY;
-            isPulling = true;
-        }
-    });
-    
-    document.addEventListener('touchmove', (e) => {
-        if (isPulling && window.scrollY === 0) {
-            const pullDistance = e.touches[0].clientY - pullStartY;
-            if (pullDistance > 100) {
-                // Pull to refresh
-                window.location.reload();
-                isPulling = false;
-            }
-        }
-    });
+
+        startX = startY = endX = endY = null;
+    }, { passive: true });
 }
 
 function navegarSecaoAnterior() {
@@ -6450,18 +6512,29 @@ function configurarEventos() {
     });
 
     initAppMobile();
-    window.addEventListener('resize', () => initAppMobile(), { passive: true });
+    let __initMobileTimer = null;
+    window.addEventListener('resize', () => {
+        if (__initMobileTimer) clearTimeout(__initMobileTimer);
+        __initMobileTimer = setTimeout(() => {
+            __initMobileTimer = null;
+            initAppMobile();
+        }, 180);
+    }, { passive: true });
 
     // Botão Voltar ao topo: mostrar ao rolar, esconder no topo
     const btnVoltarTopo = document.getElementById('btnVoltarTopo');
     if (btnVoltarTopo) {
         const limiar = 300;
+        let scrollRaf = null;
         const atualizarVisibilidade = () => {
+            scrollRaf = null;
             const visivel = window.scrollY > limiar;
             btnVoltarTopo.classList.toggle('opacity-0', !visivel);
             btnVoltarTopo.classList.toggle('pointer-events-none', !visivel);
         };
-        window.addEventListener('scroll', atualizarVisibilidade, { passive: true });
+        window.addEventListener('scroll', () => {
+            if (scrollRaf == null) scrollRaf = requestAnimationFrame(atualizarVisibilidade);
+        }, { passive: true });
         atualizarVisibilidade();
         btnVoltarTopo.addEventListener('click', () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7003,11 +7076,6 @@ function carregarSecao(secao) {
     }
     // Sem execução de testes automáticos para heranças/registos
     
-    // Só tentar fechar sidebar se estiver no sistema principal
-    if (window.innerWidth <= 1024 && document.getElementById('sidebar')) {
-        toggleSidebar();
-    }
-    
     // Criar gráficos avançados se for a secção dashboard
     if (secao === 'dashboard') {
         setTimeout(() => {
@@ -7016,6 +7084,7 @@ function carregarSecao(secao) {
             if (typeof carregarWidgetProcessosApi === 'function') carregarWidgetProcessosApi();
         }, 500);
     }
+    window.__ultimoHashSecao = obterHashDadosSecao(secao);
     };
     requestAnimationFrame(carregarConteudo);
 }
@@ -17820,10 +17889,11 @@ function iniciarSistemaBackup() {
     // Backup inicial
     criarBackupAutomatico();
     
-    // Backup a cada 5 minutos
+    const intervaloBackup = isMobileApp() ? 30 * 60 * 1000 : BACKUP_CONFIG.intervaloMs;
     backupInterval = setInterval(() => {
+        if (document.hidden) return;
         criarBackupAutomatico();
-    }, BACKUP_CONFIG.intervaloMs);
+    }, intervaloBackup);
     
     // Backup antes de fechar a página
     window.addEventListener('beforeunload', () => {
@@ -18939,14 +19009,16 @@ function iniciarSistemaNotificacoes() {
     verificarLembretesTarefas();
     atualizarBadgeNotificacoes();
     
-    // Verificar a cada 5 minutos (inclui notificações do browser para prazos/tarefas)
+    // Verificar a cada 5 min (10 min mobile); pausa com separador oculto
+    const intervaloNotif = isMobileApp() ? 10 * 60 * 1000 : 5 * 60 * 1000;
     setInterval(() => {
+        if (document.hidden) return;
         verificarHonorariosVencidos();
         verificarPrazosUrgentes();
         verificarLembretesTarefas();
         verificarNotificacaoBrowserPrazos();
         atualizarBadgeNotificacoes();
-    }, 5 * 60 * 1000);
+    }, intervaloNotif);
 }
 
 function inicializarAlertasAutomaticos() {
@@ -24009,6 +24081,9 @@ document.addEventListener('click', function(event) {
         if (window.innerWidth <= 1024 && sidebar && mobileMenuBtn) {
             if (!sidebar.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
                 sidebar.classList.remove('open');
+                document.body.classList.remove('sidebar-open');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (overlay) overlay.classList.remove('active');
             }
         }
     } catch (error) {
@@ -24016,11 +24091,19 @@ document.addEventListener('click', function(event) {
 });
 
 // Fechar sidebar ao redimensionar para desktop
+let __resizeSidebarTimer = null;
 window.addEventListener('resize', function() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && window.innerWidth > 1024) {
-        sidebar.classList.remove('open');
-    }
+    if (__resizeSidebarTimer) clearTimeout(__resizeSidebarTimer);
+    __resizeSidebarTimer = setTimeout(function() {
+        __resizeSidebarTimer = null;
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && window.innerWidth > 1024) {
+            sidebar.classList.remove('open');
+            document.body.classList.remove('sidebar-open');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (overlay) overlay.classList.remove('active');
+        }
+    }, 180);
 });
 
 // === FUNÇÃO PARA CONTROLAR VISIBILIDADE DO NOME DA PARCERIA ===
