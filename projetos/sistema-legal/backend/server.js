@@ -72,7 +72,9 @@ const CORS_ORIGINS = [
   'https://mchantre28.github.io',
   /^https:\/\/[\w-]+\.github\.io$/,
   /^http:\/\/localhost(:\d+)?$/,
-  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^https:\/\/localhost(:\d+)?$/,
+  /^capacitor:\/\//,
+  /^ionic:\/\//,
 ];
 
 function isAllowedCorsOrigin(origin) {

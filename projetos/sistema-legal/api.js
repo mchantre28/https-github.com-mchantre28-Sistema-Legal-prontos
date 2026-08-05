@@ -27,19 +27,35 @@
         return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
     }
 
+    /** App Capacitor no telemóvel — localhost do WebView não é o PC. */
+    function isCapacitorNative() {
+        if (global.Capacitor && typeof global.Capacitor.isNativePlatform === 'function') {
+            return global.Capacitor.isNativePlatform();
+        }
+        if (typeof location !== 'undefined') {
+            const protocol = (location.protocol || '').toLowerCase();
+            return protocol === 'capacitor:' || protocol === 'ionic:';
+        }
+        return false;
+    }
+
     function resolveApiBaseUrl() {
         const fromWindow = normalizeBaseUrl(global.API_BASE_URL);
         if (fromWindow) return fromWindow;
-
-        // Em localhost, priorizar backend local (:3001) mesmo com meta de produção no HTML.
-        if (isLocalPageHost()) {
-            return 'http://localhost:3001';
-        }
 
         if (typeof document !== 'undefined') {
             const meta = document.querySelector('meta[name="api-base-url"]');
             const fromMeta = normalizeBaseUrl(meta && meta.content);
             if (fromMeta) return fromMeta;
+        }
+
+        // Em localhost no browser do PC, priorizar backend local (:3001).
+        if (isLocalPageHost() && !isCapacitorNative()) {
+            return 'http://localhost:3001';
+        }
+
+        if (isCapacitorNative()) {
+            return 'https://sistema-legal-api.onrender.com';
         }
 
         return 'http://localhost:3001';
@@ -131,7 +147,7 @@
             && pageHost !== '127.0.0.1'
             && pageHost !== '[::1]';
 
-        if (remotePage && isLocalApiUrl(apiUrl)) {
+        if (remotePage && isLocalApiUrl(apiUrl) && !isCapacitorNative()) {
             const githubNote = isGithubPagesHost()
                 ? ' No GitHub Pages é obrigatório publicar o backend (Railway/Render) e definir api-base-url nos HTML.'
                 : '';
