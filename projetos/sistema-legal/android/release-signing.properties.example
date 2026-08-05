@@ -1,0 +1,7 @@
+# Copie para release-signing.properties e preencha com os seus dados.
+# NUNCA faça commit de release-signing.properties nem do ficheiro .keystore.
+#
+# storeFile=../keystore/sistema-legal-release.keystore
+# storePassword=SUA_PASSWORD_DA_KEYSTORE
+# keyAlias=sistema-legal
+# keyPassword=SUA_PASSWORD_DA_CHAVE

@@ -10,6 +10,10 @@ node_modules/
 # Capacitor (gerado por npm run build:cap)
 www/
 
+# Android release signing (segredos locais)
+android/release-signing.properties
+android/keystore/
+
 # Backend SQLite
 backend/data/*.db
 backend/data/*.db-*
