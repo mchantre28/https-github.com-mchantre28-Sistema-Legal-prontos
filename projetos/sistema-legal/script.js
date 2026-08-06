@@ -9539,13 +9539,27 @@ function renderBadgePortalCliente(cliente) {
     return '';
 }
 
+function blocoEstadoEmailPortal(opts) {
+    opts = opts || {};
+    if (opts.email_enviado === true) {
+        return '<p class="mt-3 text-xs text-green-800 bg-green-50 border border-green-200 rounded p-2">✓ Credenciais enviadas por email para o cliente.</p>';
+    }
+    if (opts.email_enviado === false && opts.email_erro) {
+        return '<p class="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">' +
+            'Email não enviado: ' + escaparHtml(opts.email_erro) +
+            (opts.password ? ' Pode reenviar abaixo ou copiar manualmente.' : '') +
+            '</p>';
+    }
+    return '';
+}
+
 function mostrarModalCredenciaisPortal(opts) {
     opts = opts || {};
     const email = escaparHtml(opts.email || '');
     const nome = escaparHtml(opts.nome || '');
     const password = opts.password ? escaparHtml(opts.password) : '';
     const titulo = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
-    const aviso = escaparHtml(opts.mensagem || 'Envie estas credenciais ao cliente por canal seguro. Recomenda-se alterar a password no primeiro acesso.');
+    const aviso = escaparHtml(opts.mensagem || 'As credenciais foram enviadas por email quando o SMTP está configurado. Também pode copiá-las abaixo.');
     const blocoPassword = password
         ? '<div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded">' +
             '<p class="text-xs text-gray-500 mb-1">Password temporária</p>' +
@@ -9554,6 +9568,19 @@ function mostrarModalCredenciaisPortal(opts) {
             '<button type="button" class="btn btn-secondary btn-sm" onclick="copiarTextoParaClipboard(document.getElementById(\'portalCredPassword\').textContent, \'Password copiada\')">Copiar</button>' +
             '</div></div>'
         : '<p class="mt-3 text-sm text-gray-600">A conta já existia. Use «Gerar nova password» se precisar de credenciais.</p>';
+
+    const reenviarBtn = password
+        ? '<button type="button" class="btn btn-secondary" onclick="reenviarCredenciaisPortal()">Reenviar email</button>'
+        : '';
+
+    if (password && opts.email) {
+        window._portalCredCache = {
+            email: String(opts.email || ''),
+            nome: String(opts.nome || ''),
+            password: String(opts.password || ''),
+            tipo: opts.redefinida ? 'reset' : 'criacao'
+        };
+    }
 
     const html = '<div class="p-1">' +
         '<div class="flex justify-between items-start mb-4 gap-3">' +
@@ -9566,12 +9593,39 @@ function mostrarModalCredenciaisPortal(opts) {
         '<button type="button" class="text-blue-600 hover:underline text-xs ml-1" onclick="copiarTextoParaClipboard(document.getElementById(\'portalCredEmail\').textContent, \'Email copiado\')">Copiar</button></p>' +
         '</div>' +
         blocoPassword +
+        blocoEstadoEmailPortal(opts) +
         '<p class="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">' + aviso + '</p>' +
-        '<div class="mt-5 flex justify-end gap-2">' +
+        '<div class="mt-5 flex justify-end gap-2 flex-wrap">' +
+        reenviarBtn +
         '<button type="button" class="btn btn-primary" onclick="fecharModalRobusto()">Fechar</button>' +
         '</div></div>';
 
     mostrarModalRobusto(html);
+}
+
+async function reenviarCredenciaisPortal() {
+    if (!isApiJwtAtivo()) {
+        mostrarNotificacao('Inicie sessão com a API (admin) para reenviar email.', 'warning');
+        return;
+    }
+    const cache = window._portalCredCache;
+    if (!cache || !cache.email || !cache.password) {
+        mostrarNotificacao('Credenciais indisponíveis para reenvio.', 'warning');
+        return;
+    }
+    try {
+        const res = await SistemaLegalAPI.sendPortalCredentials({
+            email: cache.email,
+            nome: cache.nome,
+            password: cache.password,
+            tipo: cache.tipo
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.erro || data.email_erro || 'Não foi possível reenviar.');
+        mostrarNotificacao('Credenciais reenviadas por email.', 'success');
+    } catch (e) {
+        mostrarNotificacao(e.message || 'Erro ao reenviar email.', 'error');
+    }
 }
 
 async function marcarClientePortalActivado(clienteId, apiCliente) {
@@ -9625,7 +9679,8 @@ async function ativarAcessoPortalCliente(clienteId) {
         const res = await SistemaLegalAPI.createClienteAccount({
             nome: nome,
             email: email,
-            gerar_password: true
+            gerar_password: true,
+            enviar_email: true
         });
         const data = await res.json().catch(function () { return {}; });
         if (res.status === 409) {
@@ -9645,7 +9700,9 @@ async function ativarAcessoPortalCliente(clienteId) {
             email: (data.cliente && data.cliente.email) || email,
             nome: (data.cliente && data.cliente.nome) || nome,
             password: data.password_temporaria,
-            criado: true
+            criado: true,
+            email_enviado: data.email_enviado,
+            email_erro: data.email_erro
         });
         mostrarNotificacao('Acesso ao portal activado.', 'success');
     } catch (e) {
@@ -9677,7 +9734,9 @@ async function redefinirPasswordPortalCliente(clienteId) {
             email: (data.cliente && data.cliente.email) || email,
             nome: (data.cliente && data.cliente.nome) || nome,
             password: data.password_temporaria,
-            redefinida: true
+            redefinida: true,
+            email_enviado: data.email_enviado,
+            email_erro: data.email_erro
         });
         mostrarNotificacao('Nova password gerada.', 'success');
     } catch (e) {
@@ -9687,6 +9746,7 @@ async function redefinirPasswordPortalCliente(clienteId) {
 
 window.ativarAcessoPortalCliente = ativarAcessoPortalCliente;
 window.redefinirPasswordPortalCliente = redefinirPasswordPortalCliente;
+window.reenviarCredenciaisPortal = reenviarCredenciaisPortal;
 
 function copiarTextoParaClipboard(texto, msgSucesso) {
     const valor = String(texto || '');

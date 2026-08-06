@@ -603,6 +603,8 @@
         window.prompt('Copiar:', valor);
     }
 
+    let portalCredCache = null;
+
     function abrirModalCredenciaisPortal(opts) {
         opts = opts || {};
         const modal = $('modalCredenciaisPortal');
@@ -612,6 +614,8 @@
         const passWrap = $('modalCredenciaisPasswordWrap');
         const passEl = $('modalCredenciaisPassword');
         const aviso = $('modalCredenciaisAviso');
+        const estadoEmail = $('modalCredenciaisEstadoEmail');
+        const btnReenviar = $('btnReenviarEmailPortal');
 
         if (titulo) {
             titulo.textContent = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
@@ -622,13 +626,40 @@
             if (opts.password) {
                 passWrap.classList.remove('hidden');
                 passEl.textContent = opts.password;
+                portalCredCache = {
+                    email: String(opts.email || ''),
+                    nome: String(opts.nome || ''),
+                    password: String(opts.password || ''),
+                    tipo: opts.redefinida ? 'reset' : 'criacao'
+                };
             } else {
                 passWrap.classList.add('hidden');
                 passEl.textContent = '';
+                portalCredCache = null;
             }
         }
+        if (estadoEmail) {
+            if (opts.email_enviado === true) {
+                estadoEmail.textContent = '✓ Credenciais enviadas por email.';
+                estadoEmail.className = 'text-xs text-green-800 bg-green-50 border border-green-200 rounded p-2';
+                estadoEmail.classList.remove('hidden');
+            } else if (opts.email_enviado === false && opts.email_erro) {
+                estadoEmail.textContent = 'Email não enviado: ' + opts.email_erro;
+                estadoEmail.className = 'text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2';
+                estadoEmail.classList.remove('hidden');
+            } else {
+                estadoEmail.textContent = '';
+                estadoEmail.classList.add('hidden');
+            }
+        }
+        if (btnReenviar) {
+            if (opts.password) btnReenviar.classList.remove('hidden');
+            else btnReenviar.classList.add('hidden');
+        }
         if (aviso) {
-            aviso.textContent = opts.mensagem || 'Envie estas credenciais ao cliente por canal seguro.';
+            aviso.textContent = opts.password
+                ? 'Recomenda-se alterar a password no primeiro acesso. Pode copiar ou reenviar as credenciais abaixo.'
+                : (opts.mensagem || 'Use «Gerar nova password» na área CRM se precisar de credenciais.');
         }
         if (modal) modal.classList.add('show');
     }
@@ -657,7 +688,8 @@
             const res = await SistemaLegalAPI.createClienteAccount({
                 nome: nome,
                 email: email,
-                gerar_password: true
+                gerar_password: true,
+                enviar_email: true
             });
             const data = await res.json().catch(function () { return {}; });
 
@@ -682,10 +714,36 @@
                 email: (data.cliente && data.cliente.email) || email,
                 nome: (data.cliente && data.cliente.nome) || nome,
                 password: data.password_temporaria,
-                criado: true
+                criado: true,
+                email_enviado: data.email_enviado,
+                email_erro: data.email_erro
             });
         } catch (e) {
             mostrarMsg($('formPortalErro'), e.message || 'Erro ao criar conta.', 'erro');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function reenviarEmailPortal() {
+        if (!portalCredCache || !portalCredCache.email || !portalCredCache.password) {
+            window.alert('Credenciais indisponíveis para reenvio.');
+            return;
+        }
+        const btn = $('btnReenviarEmailPortal');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await SistemaLegalAPI.sendPortalCredentials({
+                email: portalCredCache.email,
+                nome: portalCredCache.nome,
+                password: portalCredCache.password,
+                tipo: portalCredCache.tipo
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) throw new Error(data.erro || data.email_erro || 'Não foi possível reenviar.');
+            window.alert('Credenciais reenviadas por email.');
+        } catch (e) {
+            window.alert(e.message || 'Erro ao reenviar email.');
         } finally {
             if (btn) btn.disabled = false;
         }
@@ -708,6 +766,8 @@
         $('btnCopiarPasswordPortal').addEventListener('click', function () {
             copiarTexto($('modalCredenciaisPassword') && $('modalCredenciaisPassword').textContent, 'Password copiada.');
         });
+        const btnReenviar = $('btnReenviarEmailPortal');
+        if (btnReenviar) btnReenviar.addEventListener('click', reenviarEmailPortal);
 
         const modal = $('modalTramite');
         const modalEditar = $('modalEditarProcesso');

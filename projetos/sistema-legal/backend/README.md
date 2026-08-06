@@ -39,6 +39,14 @@ Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e reinicie
 |--------------|------------------------------------|---------------------------------------|
 | `PORT`       | Porta do servidor                  | `3001`                                |
 | `JWT_SECRET` | Segredo para tokens JWT            | valor de desenvolvimento (alterar!)   |
+| `SMTP_HOST`  | Servidor SMTP (ex.: `smtp.gmail.com`) | — (opcional; necessário para email) |
+| `SMTP_PORT`  | Porta SMTP                         | `587`                                 |
+| `SMTP_SECURE`| `true` para TLS na porta 465       | `false`                               |
+| `SMTP_USER`  | Utilizador SMTP                    | —                                     |
+| `SMTP_PASS`  | Password ou app password SMTP      | —                                     |
+| `SMTP_FROM`  | Remetente (ex.: `escritorio@dominio.pt`) | `SMTP_USER`                      |
+| `PORTAL_URL` | URL do portal cliente no email     | —                                     |
+| `SMTP_ESCRITORIO` | Nome do escritório no email   | `Ana Paula Medina — Solicitadora`     |
 
 ## Frontend (login JWT)
 
@@ -94,6 +102,15 @@ Authorization: Bearer <token>
 - `POST /api/documentos` — admin
 - `PUT /api/documentos/:id` — admin
 - `DELETE /api/documentos/:id` — admin
+
+### Clientes (portal)
+
+- `GET /api/clientes` — lista contas cliente (admin)
+- `GET /api/clientes/lookup?email=` — verificar se email já tem conta (admin)
+- `POST /api/clientes` — criar conta (`gerar_password`, `enviar_email`)
+- `POST /api/clientes/gerar-password` — nova password temporária (`enviar_email`)
+- `POST /api/clientes/enviar-credenciais` — reenviar credenciais por email (admin)
+- `GET /api/email/status` — estado da configuração SMTP (admin)
 
 ### Saúde
 

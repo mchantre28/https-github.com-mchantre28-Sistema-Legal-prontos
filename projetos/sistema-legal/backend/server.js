@@ -8,6 +8,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { getDb } = require('./database');
 const { seedIfEmpty, hashPassword } = require('./seed');
+const emailService = require('./email');
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'sistema-legal-dev-secret-alterar-em-producao';
@@ -347,6 +348,35 @@ function validateClienteAccountInput(nome, email) {
   return { nome: nomeTrim, email: emailNorm };
 }
 
+function shouldSendPortalEmail(body) {
+  return body?.enviar_email !== false && body?.enviarEmail !== false;
+}
+
+async function maybeSendPortalCredentials({ enviarEmail, nome, email, password, tipo }) {
+  if (!enviarEmail) {
+    return { email_enviado: false, email_erro: null };
+  }
+  if (!password) {
+    return { email_enviado: false, email_erro: 'Password em falta para envio por email.' };
+  }
+  if (!emailService.isConfigured()) {
+    return {
+      email_enviado: false,
+      email_erro: 'SMTP não configurado no servidor (defina SMTP_HOST, SMTP_USER e SMTP_PASS).',
+    };
+  }
+  try {
+    await emailService.sendPortalCredentials({ nome, email, password, tipo });
+    return { email_enviado: true, email_erro: null };
+  } catch (err) {
+    console.error('Erro ao enviar email portal:', err);
+    return {
+      email_enviado: false,
+      email_erro: err.message || 'Falha ao enviar email.',
+    };
+  }
+}
+
 // --- Clientes (utilizadores com perfil cliente) ---
 
 app.get('/api/clientes', authMiddleware, requireAdmin, (req, res) => {
@@ -417,10 +447,21 @@ app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
       WHERE id = ?
     `).get(result.lastInsertRowid);
 
+    const emailResult = passwordTemporaria
+      ? await maybeSendPortalCredentials({
+          enviarEmail: shouldSendPortalEmail(req.body),
+          nome: validado.nome,
+          email: validado.email,
+          password: passwordTemporaria,
+          tipo: 'criacao',
+        })
+      : { email_enviado: false, email_erro: null };
+
     res.status(201).json({
       cliente: sanitizeUser(cliente),
       password_temporaria: passwordTemporaria,
       criado: true,
+      ...emailResult,
     });
   } catch (err) {
     console.error('Erro ao criar conta cliente:', err);
@@ -458,15 +499,58 @@ app.post('/api/clientes/gerar-password', authMiddleware, requireAdmin, async (re
       FROM utilizadores
       WHERE id = ?
     `).get(user.id);
+
+    const emailResult = await maybeSendPortalCredentials({
+      enviarEmail: shouldSendPortalEmail(req.body),
+      nome: user.nome,
+      email: user.email,
+      password: passwordTemporaria,
+      tipo: 'reset',
+    });
+
     res.json({
       cliente: sanitizeUser(updated),
       password_temporaria: passwordTemporaria,
       redefinida: true,
+      ...emailResult,
     });
   } catch (err) {
     console.error('Erro ao gerar nova password cliente:', err);
     res.status(500).json({ erro: 'Erro ao gerar nova password.' });
   }
+});
+
+app.post('/api/clientes/enviar-credenciais', authMiddleware, requireAdmin, async (req, res) => {
+  const { nome, email, password, password_temporaria: passwordTemporaria, tipo } = req.body || {};
+  const emailNorm = normalizeEmail(email);
+  const plainPassword = String(password || passwordTemporaria || '');
+  if (!emailNorm) {
+    return res.status(400).json({ erro: 'Email é obrigatório.' });
+  }
+  if (!plainPassword) {
+    return res.status(400).json({ erro: 'Password temporária é obrigatória para reenvio.' });
+  }
+
+  const emailResult = await maybeSendPortalCredentials({
+    enviarEmail: true,
+    nome: String(nome || '').trim(),
+    email: emailNorm,
+    password: plainPassword,
+    tipo: tipo === 'reset' ? 'reset' : 'criacao',
+  });
+
+  if (!emailResult.email_enviado) {
+    return res.status(502).json({
+      erro: emailResult.email_erro || 'Não foi possível enviar o email.',
+      ...emailResult,
+    });
+  }
+
+  res.json({ enviado: true, ...emailResult });
+});
+
+app.get('/api/email/status', authMiddleware, requireAdmin, (req, res) => {
+  res.json(emailService.getPublicStatus());
 });
 
 // --- Processos ---

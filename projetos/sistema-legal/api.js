@@ -354,11 +354,26 @@
         });
     }
 
-    async function resetClientePassword(email) {
+    async function resetClientePassword(email, options) {
+        const opts = options || {};
         return apiFetch('/api/clientes/gerar-password', {
             method: 'POST',
-            body: JSON.stringify({ email: String(email || '').trim().toLowerCase() })
+            body: JSON.stringify({
+                email: String(email || '').trim().toLowerCase(),
+                enviar_email: opts.enviar_email !== false
+            })
         });
+    }
+
+    async function sendPortalCredentials(payload) {
+        return apiFetch('/api/clientes/enviar-credenciais', {
+            method: 'POST',
+            body: JSON.stringify(payload || {})
+        });
+    }
+
+    async function getEmailStatus() {
+        return apiFetch('/api/email/status');
     }
 
     async function lookupClienteByEmail(email) {
@@ -445,6 +460,8 @@
         documentoUrl: documentoUrl,
         createClienteAccount: createClienteAccount,
         resetClientePassword: resetClientePassword,
+        sendPortalCredentials: sendPortalCredentials,
+        getEmailStatus: getEmailStatus,
         lookupClienteByEmail: lookupClienteByEmail,
         changePassword: changePassword,
         recoverPassword: recoverPassword,
