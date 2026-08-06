@@ -7104,9 +7104,9 @@ function adaptarTabelasMobile(root) {
 
 function initAppMobile() {
     const isCap = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     const isNarrow = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
-    const isMobileLayout = isCap || isCoarse || isNarrow;
+    /* Desktop com ecrã touch mantém sidebar fixa — só mobile por largura ou Capacitor */
+    const isMobileLayout = isCap || isNarrow;
     document.documentElement.classList.toggle('app-native', isCap);
     document.documentElement.classList.toggle('app-mobile', isMobileLayout);
     document.body.classList.toggle('cap-app', isMobileLayout);
@@ -7118,21 +7118,21 @@ function initAppMobile() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
 
-    if (isMobileLayout) {
-        if (sidebar && !sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
+    if (sidebar) {
+        if (!isMobileLayout) {
+            sidebar.classList.add('open', 'sidebar-pinned');
             document.body.classList.remove('sidebar-open');
             if (overlay) {
                 overlay.classList.remove('active');
                 overlay.setAttribute('aria-hidden', 'true');
             }
-        }
-    } else if (sidebar) {
-        sidebar.classList.remove('open');
-        document.body.classList.remove('sidebar-open');
-        if (overlay) {
-            overlay.classList.remove('active');
-            overlay.setAttribute('aria-hidden', 'true');
+        } else {
+            sidebar.classList.remove('open', 'sidebar-pinned');
+            document.body.classList.remove('sidebar-open');
+            if (overlay) {
+                overlay.classList.remove('active');
+                overlay.setAttribute('aria-hidden', 'true');
+            }
         }
     }
 
@@ -7162,6 +7162,7 @@ window.initAppMobile = initAppMobile;
 
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('sidebar-pinned')) return;
     const overlay = document.getElementById('sidebarOverlay');
     const menuHamburguer = document.getElementById('menuHamburguer');
     if (sidebar) {

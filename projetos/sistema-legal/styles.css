@@ -237,11 +237,15 @@ svg.lucide-paperclip {
 }
 
 /* Desktop — sidebar fixa à esquerda; conteúdo alinhado ao lado */
-body.layout-desktop .sidebar {
+body.layout-desktop .sidebar,
+.sidebar.sidebar-pinned {
     width: 280px !important;
     min-width: 280px !important;
     max-width: 280px !important;
     transform: translateX(0) !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 body.layout-desktop .main-content {
@@ -434,20 +438,20 @@ body.modal-open {
         touch-action: pan-y;
     }
 
-    .sidebar:not(.open) {
+    body.layout-mobile .sidebar:not(.open) {
         transform: translateX(-100%) !important;
     }
 }
 
-/* Telemóvel/tablet touch — SEMPRE layout centrado (mesmo se o WebView reportar ecrã largo) */
-@media (hover: none), (pointer: coarse) {
+/* Telemóvel/tablet — só abaixo de 1024px */
+@media (max-width: 1024px) and (hover: none), (max-width: 1024px) and (pointer: coarse) {
     .main-content {
         margin-left: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
     }
 
-    .sidebar:not(.open) {
+    body.layout-mobile .sidebar:not(.open) {
         transform: translateX(-100%) !important;
     }
 

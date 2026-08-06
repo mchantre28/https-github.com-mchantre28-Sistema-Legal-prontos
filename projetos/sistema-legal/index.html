@@ -69,7 +69,7 @@
         document.write('<script src="' + base + 'logo-data.js"><\/script>');
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=23">
+    <link rel="stylesheet" href="styles.css?v=24">
     <style>
       /* Layout crítico — sidebar + conteúdo centrado (cache antigo) */
       html, body {
@@ -93,8 +93,11 @@
         box-sizing: border-box !important;
       }
       /* Desktop — sidebar sempre visível à esquerda */
-      body.layout-desktop .sidebar {
+      body.layout-desktop .sidebar,
+      .sidebar.sidebar-pinned {
         transform: translateX(0) !important;
+        visibility: visible !important;
+        width: 280px !important;
       }
       body.layout-desktop .main-content {
         margin-left: 280px !important;
@@ -132,16 +135,11 @@
       (function () {
         function aplicar() {
           var cap = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-          var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
           var estreito = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
-          var mobile = cap || touch || estreito;
-          if (mobile) {
-            document.documentElement.classList.add('app-mobile');
-            if (cap) document.documentElement.classList.add('app-native');
-          } else {
-            document.documentElement.classList.remove('app-mobile');
-            document.documentElement.classList.remove('app-native');
-          }
+          /* Só largura ou app nativa — NÃO pointer:coarse (PCs touch ficavam sem sidebar) */
+          var mobile = cap || estreito;
+          document.documentElement.classList.toggle('app-mobile', mobile);
+          document.documentElement.classList.toggle('app-native', !!cap);
           if (document.body) {
             document.body.classList.toggle('cap-app', mobile);
             document.body.classList.toggle('layout-mobile', mobile);
@@ -340,7 +338,7 @@
     <script defer src="./api.js?v=7"></script>
     <script defer src="./app.js?v=1"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=94" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=95" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){
