@@ -639,14 +639,13 @@
             }
         }
         if (estadoEmail) {
+            estadoEmail.classList.remove('hidden');
             if (opts.email_enviado === true) {
-                estadoEmail.textContent = '✓ Credenciais enviadas por email.';
-                estadoEmail.className = 'text-xs text-green-800 bg-green-50 border border-green-200 rounded p-2';
-                estadoEmail.classList.remove('hidden');
-            } else if (opts.email_enviado === false && opts.email_erro) {
-                estadoEmail.textContent = 'Email não enviado: ' + opts.email_erro;
-                estadoEmail.className = 'text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2';
-                estadoEmail.classList.remove('hidden');
+                estadoEmail.innerHTML = '<strong>📧 Email enviado</strong><br><span class="text-green-800">Credenciais enviadas para o email do cliente.</span>';
+                estadoEmail.className = 'text-sm text-green-900 bg-green-50 border-2 border-green-300 rounded-lg p-3';
+            } else if (opts.email_enviado === false) {
+                estadoEmail.innerHTML = '<strong>📧 Email não enviado</strong><br><span>' + (opts.email_erro || 'Falha no envio.') + '</span>';
+                estadoEmail.className = 'text-sm text-amber-900 bg-amber-50 border-2 border-amber-400 rounded-lg p-3';
             } else {
                 estadoEmail.textContent = '';
                 estadoEmail.classList.add('hidden');
@@ -707,7 +706,13 @@
                 throw new Error(data.erro || 'Não foi possível criar a conta.');
             }
 
-            mostrarMsg($('formPortalSucesso'), 'Conta criada com sucesso.', 'sucesso');
+            if (data.email_enviado === true) {
+                mostrarMsg($('formPortalSucesso'), 'Conta criada e credenciais enviadas por email.', 'sucesso');
+            } else if (data.email_enviado === false && data.email_erro) {
+                mostrarMsg($('formPortalSucesso'), 'Conta criada. Email não enviado: ' + data.email_erro, 'erro');
+            } else {
+                mostrarMsg($('formPortalSucesso'), 'Conta criada com sucesso.', 'sucesso');
+            }
             $('formNovoClientePortal').reset();
             await carregarClientes();
             abrirModalCredenciaisPortal({

@@ -9542,15 +9542,35 @@ function renderBadgePortalCliente(cliente) {
 function blocoEstadoEmailPortal(opts) {
     opts = opts || {};
     if (opts.email_enviado === true) {
-        return '<p class="mt-3 text-xs text-green-800 bg-green-50 border border-green-200 rounded p-2">✓ Credenciais enviadas por email para o cliente.</p>';
+        return '<div class="mt-4 p-3 rounded-lg border-2 border-green-300 bg-green-50">' +
+            '<p class="text-sm font-semibold text-green-900">📧 Email enviado</p>' +
+            '<p class="text-xs text-green-800 mt-1">As credenciais foram enviadas para o email do cliente.</p></div>';
     }
-    if (opts.email_enviado === false && opts.email_erro) {
-        return '<p class="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">' +
-            'Email não enviado: ' + escaparHtml(opts.email_erro) +
-            (opts.password ? ' Pode reenviar abaixo ou copiar manualmente.' : '') +
-            '</p>';
+    if (opts.email_enviado === false) {
+        const erro = opts.email_erro || 'Não foi possível enviar o email.';
+        return '<div class="mt-4 p-3 rounded-lg border-2 border-amber-400 bg-amber-50">' +
+            '<p class="text-sm font-semibold text-amber-900">📧 Email não enviado</p>' +
+            '<p class="text-xs text-amber-900 mt-1">' + escaparHtml(erro) + '</p>' +
+            (opts.password ? '<p class="text-xs text-amber-800 mt-2">Copie as credenciais abaixo ou use «Reenviar email» após configurar o SMTP no Render.</p>' : '') +
+            '</div>';
+    }
+    if (opts.password) {
+        return '<div class="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">' +
+            '<p class="text-sm font-semibold text-gray-800">📧 Envio por email</p>' +
+            '<p class="text-xs text-gray-600 mt-1">A verificar estado do envio…</p></div>';
     }
     return '';
+}
+
+function notificarEstadoEmailPortal(opts) {
+    opts = opts || {};
+    if (opts.email_enviado === true) {
+        mostrarNotificacao('Credenciais enviadas por email ao cliente.', 'success');
+        return;
+    }
+    if (opts.email_enviado === false && opts.email_erro) {
+        mostrarNotificacao('Email não enviado: ' + opts.email_erro, 'warning');
+    }
 }
 
 function mostrarModalCredenciaisPortal(opts) {
@@ -9559,7 +9579,6 @@ function mostrarModalCredenciaisPortal(opts) {
     const nome = escaparHtml(opts.nome || '');
     const password = opts.password ? escaparHtml(opts.password) : '';
     const titulo = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
-    const aviso = escaparHtml(opts.mensagem || 'As credenciais foram enviadas por email quando o SMTP está configurado. Também pode copiá-las abaixo.');
     const blocoPassword = password
         ? '<div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded">' +
             '<p class="text-xs text-gray-500 mb-1">Password temporária</p>' +
@@ -9594,7 +9613,9 @@ function mostrarModalCredenciaisPortal(opts) {
         '</div>' +
         blocoPassword +
         blocoEstadoEmailPortal(opts) +
-        '<p class="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">' + aviso + '</p>' +
+        '<p class="mt-4 text-xs text-gray-600 border-t border-gray-100 pt-3">' +
+        (opts.password ? 'Guarde ou envie as credenciais por canal seguro. O cliente deve alterar a password no primeiro acesso.' : '') +
+        '</p>' +
         '<div class="mt-5 flex justify-end gap-2 flex-wrap">' +
         reenviarBtn +
         '<button type="button" class="btn btn-primary" onclick="fecharModalRobusto()">Fechar</button>' +
@@ -9704,6 +9725,7 @@ async function ativarAcessoPortalCliente(clienteId) {
             email_enviado: data.email_enviado,
             email_erro: data.email_erro
         });
+        notificarEstadoEmailPortal(data);
         mostrarNotificacao('Acesso ao portal activado.', 'success');
     } catch (e) {
         mostrarNotificacao(e.message || 'Erro ao activar portal.', 'error');
@@ -9738,6 +9760,7 @@ async function redefinirPasswordPortalCliente(clienteId) {
             email_enviado: data.email_enviado,
             email_erro: data.email_erro
         });
+        notificarEstadoEmailPortal(data);
         mostrarNotificacao('Nova password gerada.', 'success');
     } catch (e) {
         mostrarNotificacao(e.message || 'Erro ao gerar password.', 'error');
