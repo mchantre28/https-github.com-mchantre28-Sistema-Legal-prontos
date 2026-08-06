@@ -74,6 +74,10 @@
             return null;
         }
 
+        if (api.updateCurrentUser) {
+            api.updateCurrentUser(user);
+        }
+
         if (expectedPerfil && user.perfil !== expectedPerfil) {
             global.location.href = redirectForPerfil(user.perfil);
             return null;
@@ -100,6 +104,12 @@
     global.SistemaLegalAuth = {
         requireAuth: requireAuth,
         logout: logout,
-        redirectClienteFromFullSystem: redirectClienteFromFullSystem
+        redirectClienteFromFullSystem: redirectClienteFromFullSystem,
+        userMustChangePassword: function () {
+            const api = global.SistemaLegalAPI;
+            if (api && api.userMustChangePassword) return api.userMustChangePassword();
+            const user = api && api.getCurrentUser ? api.getCurrentUser() : null;
+            return !!(user && user.must_change_password);
+        }
     };
 })(typeof window !== 'undefined' ? window : globalThis);

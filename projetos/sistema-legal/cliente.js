@@ -33,6 +33,101 @@
         return 'status-processo status-processo-' + key;
     }
 
+    function mostrarMsgTipo(el, texto, tipo) {
+        if (!el) return;
+        el.textContent = texto || '';
+        el.classList.remove('hidden', 'admin-msg-erro', 'admin-msg-sucesso');
+        if (!texto) {
+            el.classList.add('hidden');
+            return;
+        }
+        el.classList.add(tipo === 'sucesso' ? 'admin-msg-sucesso' : 'admin-msg-erro');
+    }
+
+    function limparMsgsTrocarPassword() {
+        ['trocarPasswordErro', 'trocarPasswordSucesso'].forEach(function (id) {
+            const el = $(id);
+            if (el) {
+                el.textContent = '';
+                el.classList.add('hidden');
+            }
+        });
+    }
+
+    function mostrarEcraTrocarPassword(user) {
+        const secTrocar = $('secaoTrocarPassword');
+        const secProcessos = $('secaoProcessos');
+        if (secTrocar) secTrocar.classList.remove('hidden');
+        if (secProcessos) secProcessos.classList.add('hidden');
+        const welcome = $('welcome');
+        if (welcome) {
+            welcome.textContent = 'Olá, ' + (user.nome || user.email || 'Cliente') + ' — defina a sua password';
+        }
+    }
+
+    function mostrarEcraProcessos(user) {
+        const secTrocar = $('secaoTrocarPassword');
+        const secProcessos = $('secaoProcessos');
+        if (secTrocar) secTrocar.classList.add('hidden');
+        if (secProcessos) secProcessos.classList.remove('hidden');
+        const welcome = $('welcome');
+        if (welcome) {
+            welcome.textContent = 'Bem-vindo, ' + (user.nome || user.email || 'Cliente');
+        }
+    }
+
+    async function submeterTrocarPassword(ev) {
+        ev.preventDefault();
+        limparMsgsTrocarPassword();
+
+        const atual = $('passwordAtual').value;
+        const nova = $('passwordNova').value;
+        const confirmar = $('passwordConfirmar').value;
+
+        if (!atual || !nova || !confirmar) {
+            mostrarMsgTipo($('trocarPasswordErro'), 'Preencha todos os campos.', 'erro');
+            return;
+        }
+        if (nova.length < 6) {
+            mostrarMsgTipo($('trocarPasswordErro'), 'A nova password deve ter pelo menos 6 caracteres.', 'erro');
+            return;
+        }
+        if (nova !== confirmar) {
+            mostrarMsgTipo($('trocarPasswordErro'), 'A confirmação não coincide com a nova password.', 'erro');
+            return;
+        }
+
+        const btn = $('btnTrocarPassword');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await SistemaLegalAPI.changePassword(atual, nova);
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                throw new Error(data.erro || 'Não foi possível alterar a password.');
+            }
+
+            if (data.utilizador && SistemaLegalAPI.updateCurrentUser) {
+                SistemaLegalAPI.updateCurrentUser(data.utilizador);
+            } else if (SistemaLegalAPI.updateCurrentUser) {
+                SistemaLegalAPI.updateCurrentUser({ must_change_password: false });
+            }
+
+            mostrarMsgTipo($('trocarPasswordSucesso'), 'Password alterada com sucesso.', 'sucesso');
+            $('formTrocarPassword').reset();
+
+            const user = SistemaLegalAPI.getCurrentUser();
+            setTimeout(async function () {
+                mostrarEcraProcessos(user || {});
+                await carregarProcessos();
+            }, 600);
+        } catch (e) {
+            mostrarMsgTipo($('trocarPasswordErro'), e.message || 'Erro ao alterar password.', 'erro');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function mostrarMsg(el, texto) {
         if (!el) return;
         el.textContent = texto || '';
@@ -354,6 +449,8 @@
             toggleTema();
             initIcones();
         });
+        const formTrocar = $('formTrocarPassword');
+        if (formTrocar) formTrocar.addEventListener('submit', submeterTrocarPassword);
     }
 
     async function init() {
@@ -371,13 +468,15 @@
             nomeEl.textContent = user.nome || user.email || 'Cliente';
         }
 
-        const welcome = $('welcome');
-        if (welcome) {
-            welcome.textContent = 'Bem-vindo, ' + (user.nome || user.email || 'Cliente');
-        }
-
         bindEventos();
         initIcones();
+
+        if (user.must_change_password || SistemaLegalAuth.userMustChangePassword()) {
+            mostrarEcraTrocarPassword(user);
+            return;
+        }
+
+        mostrarEcraProcessos(user);
         await carregarProcessos();
     }
 

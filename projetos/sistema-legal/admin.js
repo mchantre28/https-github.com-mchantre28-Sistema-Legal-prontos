@@ -589,6 +589,108 @@
         }
     }
 
+    function copiarTexto(texto, msg) {
+        const valor = String(texto || '');
+        if (!valor) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(valor).then(function () {
+                window.alert(msg || 'Copiado.');
+            }).catch(function () {
+                window.alert('Não foi possível copiar.');
+            });
+            return;
+        }
+        window.prompt('Copiar:', valor);
+    }
+
+    function abrirModalCredenciaisPortal(opts) {
+        opts = opts || {};
+        const modal = $('modalCredenciaisPortal');
+        const titulo = $('modalCredenciaisTitulo');
+        const meta = $('modalCredenciaisMeta');
+        const emailEl = $('modalCredenciaisEmail');
+        const passWrap = $('modalCredenciaisPasswordWrap');
+        const passEl = $('modalCredenciaisPassword');
+        const aviso = $('modalCredenciaisAviso');
+
+        if (titulo) {
+            titulo.textContent = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
+        }
+        if (meta) meta.textContent = opts.nome || '';
+        if (emailEl) emailEl.textContent = opts.email || '';
+        if (passWrap && passEl) {
+            if (opts.password) {
+                passWrap.classList.remove('hidden');
+                passEl.textContent = opts.password;
+            } else {
+                passWrap.classList.add('hidden');
+                passEl.textContent = '';
+            }
+        }
+        if (aviso) {
+            aviso.textContent = opts.mensagem || 'Envie estas credenciais ao cliente por canal seguro.';
+        }
+        if (modal) modal.classList.add('show');
+    }
+
+    function fecharModalCredenciaisPortal() {
+        const modal = $('modalCredenciaisPortal');
+        if (modal) modal.classList.remove('show');
+    }
+
+    async function criarClientePortal(ev) {
+        ev.preventDefault();
+        limparMsgs(['formPortalErro', 'formPortalSucesso']);
+
+        const nome = $('portalClienteNome').value.trim();
+        const email = $('portalClienteEmail').value.trim().toLowerCase();
+
+        if (!nome || !email) {
+            mostrarMsg($('formPortalErro'), 'Nome e email são obrigatórios.', 'erro');
+            return;
+        }
+
+        const btn = $('btnCriarClientePortal');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await SistemaLegalAPI.createClienteAccount({
+                nome: nome,
+                email: email,
+                gerar_password: true
+            });
+            const data = await res.json().catch(function () { return {}; });
+
+            if (res.status === 409) {
+                mostrarMsg($('formPortalErro'), data.erro || 'Já existe conta com este email.', 'erro');
+                abrirModalCredenciaisPortal({
+                    email: (data.cliente && data.cliente.email) || email,
+                    nome: (data.cliente && data.cliente.nome) || nome,
+                    mensagem: 'Conta já existia. Pode gerar nova password na área CRM.'
+                });
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error(data.erro || 'Não foi possível criar a conta.');
+            }
+
+            mostrarMsg($('formPortalSucesso'), 'Conta criada com sucesso.', 'sucesso');
+            $('formNovoClientePortal').reset();
+            await carregarClientes();
+            abrirModalCredenciaisPortal({
+                email: (data.cliente && data.cliente.email) || email,
+                nome: (data.cliente && data.cliente.nome) || nome,
+                password: data.password_temporaria,
+                criado: true
+            });
+        } catch (e) {
+            mostrarMsg($('formPortalErro'), e.message || 'Erro ao criar conta.', 'erro');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function bindEventos() {
         $('btnLogout').addEventListener('click', SistemaLegalAuth.logout);
         $('btnDarkMode').addEventListener('click', toggleTema);
@@ -598,9 +700,18 @@
         $('formNovoProcesso').addEventListener('submit', criarProcesso);
         $('formNovoTramite').addEventListener('submit', criarTramite);
         $('formNovoDocumento').addEventListener('submit', criarDocumento);
+        $('formNovoClientePortal').addEventListener('submit', criarClientePortal);
+        $('btnFecharModalCredenciais').addEventListener('click', fecharModalCredenciaisPortal);
+        $('btnCopiarEmailPortal').addEventListener('click', function () {
+            copiarTexto($('modalCredenciaisEmail') && $('modalCredenciaisEmail').textContent, 'Email copiado.');
+        });
+        $('btnCopiarPasswordPortal').addEventListener('click', function () {
+            copiarTexto($('modalCredenciaisPassword') && $('modalCredenciaisPassword').textContent, 'Password copiada.');
+        });
 
         const modal = $('modalTramite');
         const modalEditar = $('modalEditarProcesso');
+        const modalCredenciais = $('modalCredenciaisPortal');
         if (modal) {
             modal.addEventListener('click', function (ev) {
                 if (ev.target === modal) fecharModalTramite();
@@ -611,6 +722,11 @@
                 if (ev.target === modalEditar) fecharModalEditar();
             });
         }
+        if (modalCredenciais) {
+            modalCredenciais.addEventListener('click', function (ev) {
+                if (ev.target === modalCredenciais) fecharModalCredenciaisPortal();
+            });
+        }
 
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && modal && modal.classList.contains('show')) {
@@ -618,6 +734,9 @@
             }
             if (ev.key === 'Escape' && modalEditar && modalEditar.classList.contains('show')) {
                 fecharModalEditar();
+            }
+            if (ev.key === 'Escape' && modalCredenciais && modalCredenciais.classList.contains('show')) {
+                fecharModalCredenciaisPortal();
             }
         });
     }

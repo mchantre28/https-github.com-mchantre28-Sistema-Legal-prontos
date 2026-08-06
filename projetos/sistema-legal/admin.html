@@ -6,7 +6,7 @@
     <title>Sistema Legal — Área Administrativa</title>
     <meta name="theme-color" content="#111827">
     <meta name="api-base-url" content="https://sistema-legal-api.onrender.com">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body class="admin-page">
     <div id="loading" class="admin-loading" style="min-height:100vh;justify-content:center;">
@@ -33,6 +33,31 @@
         </header>
 
         <main class="admin-main">
+            <section class="card p-6">
+                <h2 class="admin-section-title">Novo cliente — Portal</h2>
+                <p class="admin-section-desc">Cria uma conta de acesso ao portal do cliente (login em cliente.html). A password temporária é gerada automaticamente.</p>
+
+                <form id="formNovoClientePortal" novalidate>
+                    <div class="form-grid form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="portalClienteNome">Nome</label>
+                            <input type="text" id="portalClienteNome" name="nome" class="form-control" required maxlength="120" placeholder="Nome completo">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="portalClienteEmail">Email</label>
+                            <input type="email" id="portalClienteEmail" name="email" class="form-control" required maxlength="120" placeholder="cliente@email.pt" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <p id="formPortalErro" class="hidden admin-msg admin-msg-erro"></p>
+                    <p id="formPortalSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+
+                    <button type="submit" id="btnCriarClientePortal" class="btn btn-primary">
+                        Criar conta de portal
+                    </button>
+                </form>
+            </section>
+
             <section class="card p-6">
                 <h2 class="admin-section-title">Lista de processos</h2>
                 <p class="admin-section-desc">Todos os processos registados no sistema, com respetivo cliente.</p>
@@ -227,8 +252,33 @@
         </div>
     </div>
 
-    <script src="api.js?v=5"></script>
+    <div id="modalCredenciaisPortal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalCredenciaisTitulo">
+        <div class="modal-content admin-modal">
+            <div class="admin-modal-header">
+                <div>
+                    <h3 id="modalCredenciaisTitulo" class="admin-modal-title">Credenciais do portal</h3>
+                    <p id="modalCredenciaisMeta" class="admin-modal-meta"></p>
+                </div>
+                <button type="button" id="btnFecharModalCredenciais" class="btn btn-secondary btn-sm" aria-label="Fechar">✕</button>
+            </div>
+            <div class="space-y-3 text-sm">
+                <p><span class="text-gray-500">Email:</span> <strong id="modalCredenciaisEmail"></strong>
+                    <button type="button" id="btnCopiarEmailPortal" class="btn btn-secondary btn-sm" style="margin-left:0.5rem;">Copiar</button>
+                </p>
+                <div id="modalCredenciaisPasswordWrap" class="hidden p-3 bg-gray-50 border border-gray-200 rounded">
+                    <p class="text-xs text-gray-500 mb-1">Password temporária</p>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <code id="modalCredenciaisPassword" class="text-sm font-mono font-semibold break-all"></code>
+                        <button type="button" id="btnCopiarPasswordPortal" class="btn btn-secondary btn-sm">Copiar</button>
+                    </div>
+                </div>
+                <p id="modalCredenciaisAviso" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="api.js?v=7"></script>
     <script src="auth-guard.js?v=2"></script>
-    <script src="admin.js?v=3"></script>
+    <script src="admin.js?v=4"></script>
 </body>
 </html>

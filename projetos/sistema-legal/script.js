@@ -738,7 +738,10 @@ function prepararClienteParaFirestore(item) {
         criadoPor: item.criadoPor ?? 'N/D',
         criadoPorTipo: (item.criadoPorTipo && String(item.criadoPorTipo).trim()) || 'admin',
         criadoPorNome: item.criadoPorNome ?? 'N/D',
-        tipoUsuario: item.tipoUsuario ?? 'N/D'
+        tipoUsuario: item.tipoUsuario ?? 'N/D',
+        apiUserId: item.apiUserId ?? null,
+        contaPortalAtiva: item.contaPortalAtiva === true,
+        contaPortalEmail: item.contaPortalEmail ?? ''
     };
     return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
@@ -934,7 +937,7 @@ async function apagarClienteCloud(id) {
 }
 
 // === CRUD Contratos (Firestore como fonte principal) ===
-// UI integrada: salvarContrato â†’ criarContratoCloud (setDoc) | excluirContrato â†’ apagarContratoCloud (updateDoc deleted: true)
+// UI integrada: salvarContrato → criarContratoCloud (setDoc) | excluirContrato → apagarContratoCloud (updateDoc deleted: true)
 // Leitura: ouvirContratos atualiza global contratos em tempo real; obterContratosAtual() prioriza essa fonte
 async function criarContratoCloud(contrato) {
     if (!isCloudReady()) throw new Error('Firestore não disponível');
@@ -2834,11 +2837,11 @@ async function verificarLogin() {
 
 function mostrarTelaLogin() {
     document.body.innerHTML = `
-        <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
-            <div class="mb-6">
+        <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+            <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
-            <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                     <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
@@ -2878,11 +2881,11 @@ function mostrarTelaLogin() {
 
 function mostrarLoginAdmin() {
     document.body.innerHTML = `
-        <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
-            <div class="mb-6">
+        <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+            <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
-            <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                     <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
@@ -2933,11 +2936,11 @@ function mostrarLoginAdmin() {
 
 function mostrarLoginCliente() {
     document.body.innerHTML = `
-        <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
-            <div class="mb-6">
+        <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+            <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
-            <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                     <p class="text-lg font-semibold text-indigo-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
@@ -2965,6 +2968,11 @@ function mostrarLoginCliente() {
                             Entrar
                         </button>
                     </div>
+                    <p class="text-center mt-3">
+                        <button type="button" onclick="mostrarRecuperarPasswordCliente()" class="text-sm text-indigo-600 hover:text-indigo-800 hover:underline">
+                            Esqueci a password
+                        </button>
+                    </p>
                 </form>
                 
                 <div class="mt-6 text-center text-sm text-gray-600">
@@ -2988,13 +2996,104 @@ function mostrarLoginCliente() {
     });
 }
 
-function mostrarLoginConvidado() {
+function mostrarRecuperarPasswordCliente() {
     document.body.innerHTML = `
-        <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center py-8">
-            <div class="mb-6">
+        <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+            <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
             </div>
-            <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
+                <div class="text-center mb-6">
+                    <h1 class="text-2xl font-bold text-gray-900">Recuperar password</h1>
+                    <p class="text-gray-600 mt-2 text-sm">Indique o email registado na solicitadoria. Será gerada uma password temporária.</p>
+                </div>
+                <form id="formRecuperarPassword" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="emailRecuperar" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="cliente@email.pt" required autocomplete="username">
+                    </div>
+                    <p id="erroRecuperarPassword" class="text-sm text-red-600 hidden" role="alert"></p>
+                    <p id="sucessoRecuperarPassword" class="text-sm text-green-700 hidden" role="status"></p>
+                    <div id="blocoPasswordRecuperada" class="hidden p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+                        <p class="text-gray-500 mb-1">Password temporária</p>
+                        <code id="passwordRecuperadaValor" class="font-mono font-semibold break-all text-gray-900"></code>
+                        <button type="button" id="btnCopiarPasswordRecuperada" class="mt-2 text-indigo-600 hover:underline text-xs">Copiar password</button>
+                    </div>
+                    <div class="flex space-x-4 pt-2">
+                        <button type="button" onclick="mostrarLoginCliente()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">Voltar ao login</button>
+                        <button type="submit" id="btnRecuperarPassword" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Gerar nova password</button>
+                    </div>
+                </form>
+                <p class="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">Após iniciar sessão, será obrigatório definir uma password pessoal.</p>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('formRecuperarPassword').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('emailRecuperar').value.trim();
+        const erroEl = document.getElementById('erroRecuperarPassword');
+        const sucessoEl = document.getElementById('sucessoRecuperarPassword');
+        const bloco = document.getElementById('blocoPasswordRecuperada');
+        const passEl = document.getElementById('passwordRecuperadaValor');
+        const btn = document.getElementById('btnRecuperarPassword');
+
+        if (erroEl) { erroEl.classList.add('hidden'); erroEl.textContent = ''; }
+        if (sucessoEl) { sucessoEl.classList.add('hidden'); sucessoEl.textContent = ''; }
+        if (bloco) bloco.classList.add('hidden');
+
+        if (!email) {
+            if (erroEl) { erroEl.textContent = 'Indique o email.'; erroEl.classList.remove('hidden'); }
+            return;
+        }
+
+        const api = typeof SistemaLegalAPI !== 'undefined' ? SistemaLegalAPI : null;
+        if (!api || !api.recoverPassword) {
+            if (erroEl) { erroEl.textContent = 'Módulo de API não disponível.'; erroEl.classList.remove('hidden'); }
+            return;
+        }
+
+        if (btn) { btn.disabled = true; btn.textContent = 'A gerar...'; }
+
+        try {
+            const data = await api.recoverPassword(email);
+            if (sucessoEl) {
+                sucessoEl.textContent = data.mensagem || 'Nova password gerada. Use-a para entrar.';
+                sucessoEl.classList.remove('hidden');
+            }
+            if (data.password_temporaria && passEl && bloco) {
+                passEl.textContent = data.password_temporaria;
+                bloco.classList.remove('hidden');
+            }
+            const btnCopiar = document.getElementById('btnCopiarPasswordRecuperada');
+            if (btnCopiar) {
+                btnCopiar.onclick = function () {
+                    if (typeof copiarTextoParaClipboard === 'function') {
+                        copiarTextoParaClipboard(data.password_temporaria, 'Password copiada');
+                    } else if (navigator.clipboard) {
+                        navigator.clipboard.writeText(data.password_temporaria);
+                    }
+                };
+            }
+        } catch (err) {
+            if (erroEl) {
+                erroEl.textContent = (err && err.message) ? err.message : 'Erro ao recuperar password.';
+                erroEl.classList.remove('hidden');
+            }
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Gerar nova password'; }
+        }
+    });
+}
+window.mostrarRecuperarPasswordCliente = mostrarRecuperarPasswordCliente;
+
+function mostrarLoginConvidado() {
+    document.body.innerHTML = `
+        <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+            <div class="login-page-logo mb-6">
+                ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
+            </div>
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                     <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
@@ -4020,6 +4119,11 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 
 // Verificar login após o DOM estar carregado
 document.addEventListener('DOMContentLoaded', async function() {
+    if (typeof initAppMobile === 'function') initAppMobile();
+    if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
+    window.addEventListener('load', function () {
+        if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
+    }, { once: true });
     if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
         && SistemaLegalAuth.redirectClienteFromFullSystem()) {
         return;
@@ -4049,8 +4153,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         configurarInterfaceUsuario();
         forcarLarguraSidebar();
-        setTimeout(forcarLarguraSidebar, 1000);
-        setTimeout(forcarLarguraSidebar, 2000);
         init();
     } catch (err) {
         console.error('Erro na inicialização:', err);
@@ -4069,34 +4171,24 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
-function forcarLarguraSidebar() {
-    // Tentar múltiplas formas de encontrar o sidebar
+function limparEstilosLayoutInline() {
     const sidebar = document.getElementById('sidebar');
-    const sidebarClass = document.querySelector('.sidebar');
-    
-    if (sidebar) {
-        sidebar.style.width = '300px';
-        sidebar.style.minWidth = '300px';
-        sidebar.style.maxWidth = '300px';
-        sidebar.style.setProperty('width', '300px', 'important');
-        sidebar.style.setProperty('min-width', '300px', 'important');
-        sidebar.style.setProperty('max-width', '300px', 'important');
-    }
-    
-    if (sidebarClass) {
-        sidebarClass.style.width = '300px';
-        sidebarClass.style.minWidth = '300px';
-        sidebarClass.style.maxWidth = '300px';
-        sidebarClass.style.setProperty('width', '300px', 'important');
-        sidebarClass.style.setProperty('min-width', '300px', 'important');
-        sidebarClass.style.setProperty('max-width', '300px', 'important');
-    }
-    
-    // Aplicar também no conteúdo principal
     const mainContent = document.querySelector('.main-content');
+    [sidebar, document.querySelector('.sidebar')].filter(Boolean).forEach((el) => {
+        el.style.removeProperty('width');
+        el.style.removeProperty('min-width');
+        el.style.removeProperty('max-width');
+    });
     if (mainContent) {
-        mainContent.style.marginLeft = '300px';
-        mainContent.style.setProperty('margin-left', '300px', 'important');
+        mainContent.style.removeProperty('margin-left');
+    }
+}
+
+/** Mantém layout responsivo: CSS gere dimensões; evita inline !important no mobile. */
+function forcarLarguraSidebar() {
+    limparEstilosLayoutInline();
+    if (typeof initAppMobile === 'function') {
+        initAppMobile();
     }
 }
 
@@ -4242,11 +4334,6 @@ window.calendarioFiltroTipo = calendarioFiltroTipo;
 window.calendarioFiltroPrioridade = calendarioFiltroPrioridade;
 window.prazosTabAtiva = prazosTabAtiva;
 window.relatorioAvancadoUltimosResultados = relatorioAvancadoUltimosResultados;
-
-// === FUNÇÃO DE TESTE ===
-function testarBotao() {
-    alert('BOTÃO FUNCIONANDO!');
-}
 
 // === FUNÇÕES DE EDIÇÃO DIRETA ===
 function editarContratoDireto(id) {
@@ -4408,7 +4495,7 @@ function init() {
                 <div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
                     <p class="font-semibold mb-2">A área de conteúdo não carregou.</p>
                     <p class="text-sm mb-2">Se publicou em GitHub Pages, verifique que <strong>index.html</strong>, <strong>script.js</strong> e <strong>styles.css</strong> estão na mesma pasta no repositório.</p>
-                    <p class="text-sm">Abra as ferramentas do programador (F12) â†’ separador Rede/Network e confirme que script.js é carregado sem erro 404.</p>
+                    <p class="text-sm">Abra as ferramentas do programador (F12) → separador Rede/Network e confirme que script.js é carregado sem erro 404.</p>
                 </div>
             `;
         }
@@ -4870,6 +4957,50 @@ function fecharModalRobusto() {
     }
 }
 
+/** Abre modal genérico (pagamentos, despesas, etc.) */
+function mostrarModalRobusto(conteudoHtml) {
+    const modalContainer = document.getElementById('modalContainer');
+    if (!modalContainer) {
+        console.error('modalContainer não encontrado');
+        mostrarNotificacao('Erro ao abrir janela. Recarregue a app.', 'error');
+        return;
+    }
+
+    fecharModalRobusto();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Formulário');
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) fecharModalRobusto();
+    });
+
+    const panel = document.createElement('div');
+    panel.className = 'modal-content w-full max-w-lg mx-auto';
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    panel.innerHTML = conteudoHtml;
+
+    modal.appendChild(panel);
+    modalContainer.innerHTML = '';
+    modalContainer.appendChild(modal);
+    modalContainer.classList.add('show');
+    modalContainer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    document.body.style.overflow = 'hidden';
+
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+        const firstField = panel.querySelector('input:not([type="hidden"]), select, textarea');
+        if (firstField && typeof firstField.focus === 'function') {
+            try { firstField.focus({ preventScroll: true }); } catch (err) { /* ignorar */ }
+        }
+    }, 60);
+}
+window.mostrarModalRobusto = mostrarModalRobusto;
+window.fecharModalRobusto = fecharModalRobusto;
+
 /** Restaura cliques e foco na página principal após gerar PDF / imprimir (evita rato encravado no Edge). */
 function restaurarInteracaoPagina() {
     try {
@@ -5146,7 +5277,7 @@ function enviarNotificacaoBrowserSafe(titulo, corpo, tag) {
         const notif = new Notification(titulo, {
             body: corpo,
             tag: tag || 'sistema-legal',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">âš–</text></svg>'
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖</text></svg>'
         });
         notif.onclick = () => { window.focus(); notif.close(); if (typeof carregarSecao === 'function') carregarSecao('dashboard'); };
     } catch (e) { console.warn('Notificação browser:', e); }
@@ -5373,7 +5504,7 @@ function sincronizarComCalendario_REMOVED() {
     herancas.forEach(heranca => {
         if (heranca.prazo) {
             eventos.push({
-                titulo: `âš–ï¸ Herança: ${heranca.descricao}`,
+                titulo: `Herança: ${heranca.descricao}`,
                 data: heranca.prazo,
                 tipo: 'heranca',
                 cliente: heranca.clienteNome,
@@ -6524,7 +6655,7 @@ function configurarEventos() {
         if (__initMobileTimer) clearTimeout(__initMobileTimer);
         __initMobileTimer = setTimeout(() => {
             __initMobileTimer = null;
-            initAppMobile();
+            forcarLarguraSidebar();
         }, 180);
     }, { passive: true });
 
@@ -6558,6 +6689,52 @@ function configurarEventos() {
         e.preventDefault();
         if (typeof abrirModal === 'function') abrirModal('cliente');
     });
+
+    // Delegation: botões Pagamentos (novo, editar, excluir)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-pagamento-acao]');
+        if (!btn || btn.disabled) return;
+        const acao = btn.getAttribute('data-pagamento-acao');
+        if (!acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'novo' && typeof abrirModalNovoPagamento === 'function') abrirModalNovoPagamento();
+            else if (acao === 'editar') {
+                const id = btn.getAttribute('data-pagamento-id');
+                if (id && typeof abrirModalEdicaoPagamento === 'function') abrirModalEdicaoPagamento(id);
+            } else if (acao === 'excluir') {
+                const id = btn.getAttribute('data-pagamento-id');
+                if (id && typeof excluirPagamentoUi === 'function') excluirPagamentoUi(id);
+            }
+        } catch (err) {
+            console.error('Erro acao pagamento:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao abrir pagamentos. Recarregue a app.', 'error');
+        }
+    }, true);
+
+    // Delegation: botões Despesas (nova, editar, anular)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-despesa-acao]');
+        if (!btn || btn.disabled) return;
+        const acao = btn.getAttribute('data-despesa-acao');
+        if (!acao) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (acao === 'nova' && typeof abrirModalNovaDespesa === 'function') abrirModalNovaDespesa();
+            else if (acao === 'editar') {
+                const id = btn.getAttribute('data-despesa-id');
+                if (id && typeof abrirModalEdicaoDespesa === 'function') abrirModalEdicaoDespesa(id);
+            } else if (acao === 'anular') {
+                const id = btn.getAttribute('data-despesa-id');
+                if (id && typeof anularDespesaUi === 'function') anularDespesaUi(id);
+            }
+        } catch (err) {
+            console.error('Erro acao despesa:', acao, err);
+            if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Erro ao abrir despesas. Recarregue a app.', 'error');
+        }
+    }, true);
 
     // Delegation: botões Editar/Concluir/Excluir de tarefas
     document.addEventListener('click', function(e) {
@@ -6686,6 +6863,8 @@ function configurarEventos() {
             if (acao === 'editar') editarClienteDireto(id);
             else if (acao === 'excluir') excluirItem('cliente', id);
             else if (acao === 'duplicar') duplicarCliente(id);
+            else if (acao === 'portal-ativar') ativarAcessoPortalCliente(id);
+            else if (acao === 'portal-reset') redefinirPasswordPortalCliente(id);
         } catch (err) {
             console.error('Erro ao executar acao cliente:', acao, err);
             mostrarNotificacao('Erro ao executar. Veja a consola (F12).', 'error');
@@ -6916,6 +7095,10 @@ function initAppMobile() {
     document.documentElement.classList.toggle('app-native', isCap);
     document.documentElement.classList.toggle('app-mobile', isCap || isNarrow);
     document.body.classList.toggle('cap-app', isCap || isNarrow);
+
+    if (isCap || isNarrow) {
+        limparEstilosLayoutInline();
+    }
     if (isNarrow) {
         const sidebar = document.getElementById('sidebar');
         if (sidebar && !sidebar.classList.contains('open')) {
@@ -9041,6 +9224,11 @@ async function abrirDocumentoEmNovaAba(doc) {
     try {
         const tipoArquivo = (doc.tipoArquivo || '').toLowerCase();
         const isImagem = tipoArquivo.startsWith('image/') || url.startsWith('data:image/');
+        if (isImagem && isMobileApp()) {
+            const htmlImg = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaparHtml(doc.nomeArquivo || 'Imagem')}</title><style>body{margin:0;background:#111827;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto}</style></head><body><img src="${url}" alt="Imagem"></body></html>`;
+            abrirHtmlDocumentoNoApp(htmlImg, doc.nomeArquivo || 'Imagem', 'ver');
+            return;
+        }
         if (isImagem) {
             const win = window.open('', '_blank');
             if (win) {
@@ -9054,6 +9242,16 @@ async function abrirDocumentoEmNovaAba(doc) {
             }
             baixarDocumentoUrl(url, doc.nomeArquivo);
             return;
+        }
+        if (url.startsWith('data:text/plain')) {
+            if (isMobileApp()) {
+                let texto = '';
+                try { texto = decodeURIComponent(url.split(',')[1] || ''); } catch (e) { texto = 'Conteúdo indisponível.'; }
+                const corpo = `<div class="minuta-doc">${formatarConteudoDocumentoHtml(texto)}</div>`;
+                const htmlDoc = await montarHtmlDocumentoProfissional(doc.nomeArquivo || 'Documento', corpo, ESTILOS_DOCUMENTO_PDF);
+                abrirHtmlDocumentoNoApp(htmlDoc, doc.nomeArquivo || 'Documento', 'ver');
+                return;
+            }
         }
         if (url.startsWith('data:')) {
             const blob = await fetch(url).then(res => res.blob());
@@ -9245,10 +9443,11 @@ function mapearClientesApiParaSpa(lista) {
         });
 }
 
-/** Cache de utilizadores cliente da API — apenas para formulários de processos (admin), não para a lista CRM. */
+/** Cache de utilizadores cliente da API — formulários de processos e estado do portal CRM. */
 async function sincronizarClientesApi() {
     if (!isApiJwtAtivo()) {
         window.apiClientesCache = null;
+        window.apiClientesPorEmail = null;
         return;
     }
     const api = SistemaLegalAPI;
@@ -9256,11 +9455,236 @@ async function sincronizarClientesApi() {
         const res = await api.apiFetch('/api/clientes');
         if (!res.ok) return;
         const data = await res.json();
-        window.apiClientesCache = mapearClientesApiParaSpa(data.clientes || []);
+        const lista = data.clientes || [];
+        window.apiClientesCache = mapearClientesApiParaSpa(lista);
+        window.apiClientesPorEmail = construirMapaClientesApiPorEmail(lista);
+        if (document.getElementById('listaClientes') && typeof aplicarFiltrosClientes === 'function') {
+            aplicarFiltrosClientes();
+        }
     } catch (e) {
         console.warn('sincronizarClientesApi:', e);
     }
 }
+
+function construirMapaClientesApiPorEmail(lista) {
+    const map = {};
+    if (!Array.isArray(lista)) return map;
+    lista.forEach(function (c) {
+        const email = String(c.email || '').trim().toLowerCase();
+        if (email) map[email] = c;
+    });
+    return map;
+}
+
+function emailTemContaPortal(email) {
+    const key = String(email || '').trim().toLowerCase();
+    if (!key) return false;
+    if (window.apiClientesPorEmail && window.apiClientesPorEmail[key]) return true;
+    const cliente = obterClientesAtual().find(function (c) {
+        return String(c.email || '').trim().toLowerCase() === key;
+    });
+    return !!(cliente && cliente.contaPortalAtiva);
+}
+
+function renderAcoesPortalCliente(cliente) {
+    if (!isApiJwtAtivo()) return '';
+    const email = String(cliente.email || '').trim();
+    if (!email) return '';
+    const idEsc = String(cliente.id).replace(/"/g, '&quot;');
+    if (emailTemContaPortal(email)) {
+        return '<button type="button" data-cliente-id="' + idEsc + '" data-cliente-acao="portal-reset" class="text-indigo-600 hover:text-indigo-800 mr-2" title="Gerar nova password temporária">' +
+            '<i data-lucide="key" class="w-4 h-4" style="pointer-events:none"></i></button>';
+    }
+    return '<button type="button" data-cliente-id="' + idEsc + '" data-cliente-acao="portal-ativar" class="text-indigo-600 hover:text-indigo-800 mr-2" title="Activar acesso ao portal">' +
+        '<i data-lucide="user-plus" class="w-4 h-4" style="pointer-events:none"></i></button>';
+}
+
+function renderBadgePortalCliente(cliente) {
+    if (!isApiJwtAtivo()) return '';
+    const email = String(cliente.email || '').trim();
+    if (!email) return '';
+    if (emailTemContaPortal(email)) {
+        return ' <span class="inline-flex items-center text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 ml-1" title="Portal activo">Portal ✓</span>';
+    }
+    return '';
+}
+
+function mostrarModalCredenciaisPortal(opts) {
+    opts = opts || {};
+    const email = escaparHtml(opts.email || '');
+    const nome = escaparHtml(opts.nome || '');
+    const password = opts.password ? escaparHtml(opts.password) : '';
+    const titulo = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
+    const aviso = escaparHtml(opts.mensagem || 'Envie estas credenciais ao cliente por canal seguro. Recomenda-se alterar a password no primeiro acesso.');
+    const blocoPassword = password
+        ? '<div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded">' +
+            '<p class="text-xs text-gray-500 mb-1">Password temporária</p>' +
+            '<div class="flex items-center gap-2">' +
+            '<code id="portalCredPassword" class="text-sm font-mono font-semibold text-gray-900 flex-1 break-all">' + password + '</code>' +
+            '<button type="button" class="btn btn-secondary btn-sm" onclick="copiarTextoParaClipboard(document.getElementById(\'portalCredPassword\').textContent, \'Password copiada\')">Copiar</button>' +
+            '</div></div>'
+        : '<p class="mt-3 text-sm text-gray-600">A conta já existia. Use «Gerar nova password» se precisar de credenciais.</p>';
+
+    const html = '<div class="p-1">' +
+        '<div class="flex justify-between items-start mb-4 gap-3">' +
+        '<div><h3 class="text-lg font-semibold text-gray-900">' + titulo + '</h3>' +
+        (nome ? '<p class="text-sm text-gray-600 mt-1">' + nome + '</p>' : '') + '</div>' +
+        '<button type="button" class="btn btn-secondary btn-sm shrink-0" onclick="fecharModalRobusto()" aria-label="Fechar">✕</button>' +
+        '</div>' +
+        '<div class="space-y-2 text-sm">' +
+        '<p><span class="text-gray-500">Email:</span> <strong id="portalCredEmail">' + email + '</strong> ' +
+        '<button type="button" class="text-blue-600 hover:underline text-xs ml-1" onclick="copiarTextoParaClipboard(document.getElementById(\'portalCredEmail\').textContent, \'Email copiado\')">Copiar</button></p>' +
+        '</div>' +
+        blocoPassword +
+        '<p class="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">' + aviso + '</p>' +
+        '<div class="mt-5 flex justify-end gap-2">' +
+        '<button type="button" class="btn btn-primary" onclick="fecharModalRobusto()">Fechar</button>' +
+        '</div></div>';
+
+    mostrarModalRobusto(html);
+}
+
+async function marcarClientePortalActivado(clienteId, apiCliente) {
+    const patch = {
+        contaPortalAtiva: true,
+        contaPortalEmail: apiCliente && apiCliente.email ? apiCliente.email : '',
+        apiUserId: apiCliente && apiCliente.id != null ? apiCliente.id : null
+    };
+    const idx = clientes.findIndex(function (c) { return String(c.id) === String(clienteId); });
+    if (idx >= 0) Object.assign(clientes[idx], patch);
+    if (isCloudReady()) {
+        try {
+            await atualizarClienteCloud(clienteId, patch);
+        } catch (e) {
+            console.warn('marcarClientePortalActivado:', e);
+        }
+    }
+    atualizarClientesEmMemoria(clientes);
+}
+
+async function ativarAcessoPortalCliente(clienteId) {
+    if (!isApiJwtAtivo()) {
+        mostrarNotificacao('Inicie sessão com a API (admin) para activar o portal.', 'warning');
+        return;
+    }
+    const cliente = obterClientesAtual().find(function (c) { return String(c.id) === String(clienteId); });
+    if (!cliente) {
+        mostrarNotificacao('Cliente não encontrado.', 'error');
+        return;
+    }
+    const email = String(cliente.email || '').trim();
+    const nome = String(cliente.nome || '').trim();
+    if (!email) {
+        mostrarNotificacao('O cliente precisa de email para activar o portal.', 'warning');
+        return;
+    }
+    if (!nome) {
+        mostrarNotificacao('O cliente precisa de nome.', 'warning');
+        return;
+    }
+    if (emailTemContaPortal(email)) {
+        mostrarModalCredenciaisPortal({
+            email: email,
+            nome: nome,
+            mensagem: 'Este email já tem conta no portal. Pode gerar uma nova password temporária.'
+        });
+        return;
+    }
+
+    try {
+        const res = await SistemaLegalAPI.createClienteAccount({
+            nome: nome,
+            email: email,
+            gerar_password: true
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (res.status === 409) {
+            await marcarClientePortalActivado(clienteId, data.cliente);
+            await sincronizarClientesApi();
+            mostrarModalCredenciaisPortal({
+                email: (data.cliente && data.cliente.email) || email,
+                nome: (data.cliente && data.cliente.nome) || nome,
+                mensagem: data.erro || 'Conta já existia para este email.'
+            });
+            return;
+        }
+        if (!res.ok) throw new Error(data.erro || 'Não foi possível criar a conta.');
+        await marcarClientePortalActivado(clienteId, data.cliente);
+        await sincronizarClientesApi();
+        mostrarModalCredenciaisPortal({
+            email: (data.cliente && data.cliente.email) || email,
+            nome: (data.cliente && data.cliente.nome) || nome,
+            password: data.password_temporaria,
+            criado: true
+        });
+        mostrarNotificacao('Acesso ao portal activado.', 'success');
+    } catch (e) {
+        mostrarNotificacao(e.message || 'Erro ao activar portal.', 'error');
+    }
+}
+
+async function redefinirPasswordPortalCliente(clienteId) {
+    if (!isApiJwtAtivo()) {
+        mostrarNotificacao('Inicie sessão com a API (admin) para gerar password.', 'warning');
+        return;
+    }
+    const cliente = obterClientesAtual().find(function (c) { return String(c.id) === String(clienteId); });
+    if (!cliente || !cliente.email) {
+        mostrarNotificacao('Cliente sem email.', 'warning');
+        return;
+    }
+    const email = String(cliente.email).trim();
+    const nome = String(cliente.nome || '').trim();
+    if (!window.confirm('Gerar nova password temporária para «' + nome + '» (' + email + ')?\n\nA password anterior deixa de funcionar.')) {
+        return;
+    }
+    try {
+        const res = await SistemaLegalAPI.resetClientePassword(email);
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.erro || 'Não foi possível gerar a password.');
+        await marcarClientePortalActivado(clienteId, data.cliente);
+        mostrarModalCredenciaisPortal({
+            email: (data.cliente && data.cliente.email) || email,
+            nome: (data.cliente && data.cliente.nome) || nome,
+            password: data.password_temporaria,
+            redefinida: true
+        });
+        mostrarNotificacao('Nova password gerada.', 'success');
+    } catch (e) {
+        mostrarNotificacao(e.message || 'Erro ao gerar password.', 'error');
+    }
+}
+
+window.ativarAcessoPortalCliente = ativarAcessoPortalCliente;
+window.redefinirPasswordPortalCliente = redefinirPasswordPortalCliente;
+
+function copiarTextoParaClipboard(texto, msgSucesso) {
+    const valor = String(texto || '');
+    if (!valor) return;
+    const notificar = function () {
+        if (typeof mostrarNotificacao === 'function') mostrarNotificacao(msgSucesso || 'Copiado.', 'success');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(valor).then(notificar).catch(function () {
+            mostrarNotificacao('Não foi possível copiar.', 'warning');
+        });
+        return;
+    }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = valor;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        notificar();
+    } catch (e) {
+        mostrarNotificacao('Não foi possível copiar.', 'warning');
+    }
+}
+window.copiarTextoParaClipboard = copiarTextoParaClipboard;
 
 function filtrarProcessosApiPorSecao(processos, secao) {
     if (!Array.isArray(processos)) return [];
@@ -9615,11 +10039,11 @@ function gerarDashboard() {
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     <button type="button" onclick="carregarSecao('clientes'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('cliente'); }, 400);" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">1</span>
-                        <div><span class="font-medium text-blue-900">Criar cliente</span><br><span class="text-xs text-blue-700">Clientes â†’ Novo Cliente</span></div>
+                        <div><span class="font-medium text-blue-900">Criar cliente</span><br><span class="text-xs text-blue-700">Clientes → Novo Cliente</span></div>
                     </button>
                     <button type="button" onclick="carregarSecao('honorarios'); setTimeout(() => { if (typeof abrirModal === 'function') abrirModal('honorario'); }, 400);" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">2</span>
-                        <div><span class="font-medium text-blue-900">Criar honorário</span><br><span class="text-xs text-blue-700">Honorários â†’ Novo Honorário</span></div>
+                        <div><span class="font-medium text-blue-900">Criar honorário</span><br><span class="text-xs text-blue-700">Honorários → Novo Honorário</span></div>
                     </button>
                     <button type="button" onclick="carregarSecao('relatorios');" class="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-left transition">
                         <span class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold">3</span>
@@ -10265,7 +10689,7 @@ function gerarClientes() {
                                             </button>
                                         </td>
                                         <td class="group/cell">
-                                            ${cliente.email}
+                                            ${cliente.email}${typeof renderBadgePortalCliente === 'function' ? renderBadgePortalCliente(cliente) : ''}
                                             ${cliente.email ? `<button type="button" data-copiar="${escaparHtml(cliente.email)}" class="copy-btn ml-1 opacity-0 group-hover/cell:opacity-100 inline-flex p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Copiar email"><i data-lucide="copy" class="w-3.5 h-3.5" style="pointer-events:none"></i></button>` : ''}
                                         </td>
                                         <td class="group/cell">
@@ -10276,6 +10700,7 @@ function gerarClientes() {
                                         <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
                                         <td>${typeof obterRotuloCriadorCliente === 'function' ? obterRotuloCriadorCliente(cliente) : (cliente.tipoUsuario === 'convidado' ? 'Convidado' : 'Admin')}</td>
                                         <td>
+                                            ${typeof renderAcoesPortalCliente === 'function' ? renderAcoesPortalCliente(cliente) : ''}
                                             <button type="button" data-cliente-id="${String(cliente.id).replace(/"/g, '&quot;')}" data-cliente-acao="editar" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
@@ -10452,7 +10877,7 @@ function gerarPagamentos() {
             </div>
             ` : ''}
             <div class="flex flex-wrap justify-between items-center gap-2">
-                <button onclick="abrirModalNovoPagamento()" class="btn btn-primary">
+                <button type="button" data-pagamento-acao="novo" onclick="abrirModalNovoPagamento()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Novo Pagamento
                 </button>
@@ -10669,7 +11094,7 @@ function gerarDespesas() {
             </div>
             ` : ''}
             <div class="flex flex-wrap justify-between items-center gap-2">
-                <button onclick="abrirModalNovaDespesa()" class="btn btn-primary">
+                <button type="button" data-despesa-acao="nova" onclick="abrirModalNovaDespesa()" class="btn btn-primary">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     Nova Despesa
                 </button>
@@ -10769,10 +11194,10 @@ function gerarDespesas() {
                                             <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
                                             <td class="py-2">${dataStr}</td>
                                             <td class="py-2">
-                                                <button type="button" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                                                <button type="button" data-despesa-acao="editar" data-despesa-id="${escaparHtml(String(d.id))}" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                                 </button>
-                                                <button type="button" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                                                <button type="button" data-despesa-acao="anular" data-despesa-id="${escaparHtml(String(d.id))}" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
                                                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                                                 </button>
                                             </td>
@@ -10793,7 +11218,7 @@ function gerarDespesas() {
 function abrirModalNovaDespesa() {
     const processosOpts = obterProcessosParaDespesa();
     if (processosOpts.length === 0) {
-        mostrarNotificacao('Crie primeiro um processo (herança, migração ou registo).', 'info');
+        mostrarNotificacao('Crie primeiro um processo em Heranças, Migrações ou Registos (menu lateral).', 'info');
         return;
     }
     const hoje = new Date().toISOString().split('T')[0];
@@ -10835,6 +11260,16 @@ function abrirModalNovaDespesa() {
     `;
     mostrarModalRobusto(html);
 }
+
+window.abrirModalNovaDespesa = abrirModalNovaDespesa;
+window.guardarNovaDespesa = guardarNovaDespesa;
+window.abrirModalEdicaoDespesa = abrirModalEdicaoDespesa;
+window.guardarEdicaoDespesa = guardarEdicaoDespesa;
+window.anularDespesaUi = anularDespesaUi;
+window.filtrarDespesas = filtrarDespesas;
+window.limparFiltrosDespesas = limparFiltrosDespesas;
+window.aplicarFiltrosDespesas = aplicarFiltrosDespesas;
+window.abrirProcessoDespesa = abrirProcessoDespesa;
 
 async function guardarNovaDespesa(event) {
     event.preventDefault();
@@ -10948,7 +11383,7 @@ function atualizarListaDespesas(despesasFiltradas) {
         const temFiltros = (document.getElementById('buscaDespesas')?.value?.trim() || document.getElementById('filtroTipoDespesa')?.value || document.getElementById('filtroPeriodoDespesa')?.value);
         const msg = totalAtivos > 0 && temFiltros
             ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhuma despesa corresponde aos filtros.</p><button type="button" onclick="limparFiltrosDespesas()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
-            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhuma despesa registada.</p><button type="button" onclick="abrirModalNovaDespesa()" class="btn btn-primary text-sm">Registar despesa</button></td></tr>';
+            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhuma despesa registada.</p><button type="button" data-despesa-acao="nova" onclick="abrirModalNovaDespesa()" class="btn btn-primary text-sm">Registar despesa</button></td></tr>';
         tbody.innerHTML = msg;
         setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
         return;
@@ -10972,10 +11407,10 @@ function atualizarListaDespesas(despesasFiltradas) {
             <td class="py-2 font-medium">${EURO_HTML}${(parseFloat(d.valor) || 0).toFixed(2)}</td>
             <td class="py-2">${dataStr}</td>
             <td class="py-2">
-                <button type="button" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
+                <button type="button" data-despesa-acao="editar" data-despesa-id="${escaparHtml(String(d.id))}" onclick="abrirModalEdicaoDespesa(${JSON.stringify(String(d.id))})" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
-                <button type="button" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
+                <button type="button" data-despesa-acao="anular" data-despesa-id="${escaparHtml(String(d.id))}" onclick="anularDespesaUi(${JSON.stringify(String(d.id))})" class="text-red-600 hover:text-red-800" title="Anular">
                     <i data-lucide="trash-2" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
             </td>
@@ -11131,6 +11566,11 @@ function abrirModalNovoPagamento() {
     mostrarModalRobusto(html);
 }
 
+window.abrirModalNovoPagamento = abrirModalNovoPagamento;
+window.guardarNovoPagamento = guardarNovoPagamento;
+window.abrirModalEdicaoPagamento = abrirModalEdicaoPagamento;
+window.guardarEdicaoPagamento = guardarEdicaoPagamento;
+
 async function guardarNovoPagamento(event) {
     event.preventDefault();
     const form = event.target;
@@ -11249,7 +11689,7 @@ function atualizarListaPagamentos(pagamentosFiltrados) {
         const temFiltros = (document.getElementById('buscaPagamentos')?.value?.trim() || document.getElementById('filtroMetodoPagamento')?.value || document.getElementById('filtroPeriodoPagamento')?.value);
         const msg = totalAtivos > 0 && temFiltros
             ? '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum pagamento corresponde aos filtros.</p><button type="button" onclick="limparFiltrosPagamentos()" class="btn btn-secondary text-sm">Limpar Filtros</button></td></tr>'
-            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum pagamento registado.</p><button type="button" onclick="abrirModalNovoPagamento()" class="btn btn-primary text-sm">Registar pagamento</button></td></tr>';
+            : '<tr><td colspan="7" class="text-center py-8 text-gray-500"><p class="mb-2">Nenhum pagamento registado.</p><button type="button" data-pagamento-acao="novo" onclick="abrirModalNovoPagamento()" class="btn btn-primary text-sm">Registar pagamento</button></td></tr>';
         tbody.innerHTML = msg;
         setTimeout(() => { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); }, 50);
         return;
@@ -11605,6 +12045,11 @@ function gerarContratos() {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const mostrarDicaContrato = tipoUsuario === 'admin' && contratos.length === 0 && clientes.length > 0 && !appStorage.getItem('guiaContratoVisto');
 
+    let ordContratos = window.__contratosOrdenar;
+    if (!ordContratos) try { ordContratos = JSON.parse(appStorage.getItem('ordenarContratos') || '{}'); } catch(e) {}
+    ordContratos = ordContratos && ordContratos.col ? ordContratos : { col: 'clienteNome', dir: 1 };
+    const setaContrato = (col) => ordContratos.col === col ? (ordContratos.dir === 1 ? '↑' : '↓') : '↕';
+
     return `
         <div class="space-y-6">
             ${mostrarDicaContrato ? `
@@ -11696,12 +12141,12 @@ function gerarContratos() {
                         <table>
                             <thead>
                                 <tr>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('clienteNome')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">â†•</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('clienteNome')" title="Ordenar por cliente">Cliente <span class="text-xs text-blue-500">${setaContrato('clienteNome')}</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('tipo')" title="Ordenar por tipo">Tipo <span class="text-xs text-blue-500">${setaContrato('tipo')}</span></th>
                                     <th class="font-bold">Descrição</th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">â†•</span></th>
-                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('dataInicio')" title="Ordenar por data">Data Início <span class="text-xs text-blue-500">â†•</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('valor')" title="Ordenar por valor">Valor <span class="text-xs text-blue-500">${setaContrato('valor')}</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('status')" title="Ordenar por status">Status <span class="text-xs text-blue-500">${setaContrato('status')}</span></th>
+                                    <th class="font-bold cursor-pointer hover:bg-gray-100 select-none" onclick="ordenarContratos('dataInicio')" title="Ordenar por data">Data Início <span class="text-xs text-blue-500">${setaContrato('dataInicio')}</span></th>
                                     <th class="font-bold">Ações</th>
                                 </tr>
                             </thead>
@@ -14336,6 +14781,75 @@ function montarElementoPdfMinuta(htmlCompleto) {
     return host;
 }
 
+function normalizarNomePdf(nome) {
+    let n = String(nome || 'documento.pdf').trim();
+    if (!n) n = 'documento.pdf';
+    if (!/\.pdf$/i.test(n)) n += '.pdf';
+    return n.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
+}
+
+async function partilharOuDescarregarPdf(blob, nomeArquivo) {
+    const nome = normalizarNomePdf(nomeArquivo);
+    const file = new File([blob], nome, { type: 'application/pdf' });
+
+    try {
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+            await navigator.share({ files: [file], title: nome.replace(/\.pdf$/i, '') });
+            mostrarNotificacao('Escolha «Ficheiros», «Drive» ou outra app para guardar o PDF.', 'success');
+            return true;
+        }
+    } catch (e) {
+        if (e && e.name === 'AbortError') return false;
+        console.warn('Partilha nativa falhou:', e);
+    }
+
+    const url = URL.createObjectURL(blob);
+    try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nome;
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        mostrarNotificacao('PDF transferido. Verifique Transferências ou Ficheiros.', 'success');
+        return true;
+    } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+}
+
+async function guardarHtmlComoPdfMobile(htmlCompleto, nomeArquivo) {
+    if (typeof html2pdf === 'undefined') {
+        mostrarNotificacao('Biblioteca PDF indisponível. Feche e reabra a app.', 'error');
+        return false;
+    }
+    const host = montarElementoPdfMinuta(htmlCompleto);
+    const alvo = host.querySelector('.doc-container') || host;
+    const nome = normalizarNomePdf(nomeArquivo);
+
+    try {
+        await new Promise(resolve => setTimeout(resolve, 120));
+        const blob = await html2pdf().set({
+            margin: [8, 8, 8, 8],
+            filename: nome,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        }).from(alvo).outputPdf('blob');
+        return await partilharOuDescarregarPdf(blob, nome);
+    } catch (e) {
+        console.error('Erro ao gerar PDF no telemóvel:', e);
+        mostrarNotificacao('Erro ao gerar PDF. Tente novamente.', 'error');
+        return false;
+    } finally {
+        if (host.parentNode) host.parentNode.removeChild(host);
+    }
+}
+
+window.guardarHtmlComoPdfMobile = guardarHtmlComoPdfMobile;
+
 const ESTILOS_IMPRESSAO_DOCUMENTO = [
     '@page{size:A4;margin:20mm}',
     'html,body{margin:0;padding:0;background:#fff}',
@@ -14349,7 +14863,7 @@ const ESTILOS_IMPRESSAO_DOCUMENTO = [
     '.minuta-linha-assinatura{margin-top:36pt;padding-top:10pt;border-top:1px solid #000;min-height:30pt}'
 ].join('\n');
 
-function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo) {
+function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo, opcoes) {
     let html = String(htmlCompleto || '').trim();
     if (!html) return '';
     const titulo = nomeArquivo ? String(nomeArquivo).replace(/\.pdf$/i, '').replace(/[<>"']/g, '') : 'Documento';
@@ -14364,14 +14878,105 @@ function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo) {
     } else {
         html = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${titulo}</title>${blocoEstilos}</head><body>${html}</body></html>`;
     }
-    const scriptPrint = '<script>(function(){function imprimir(){try{window.focus();window.print();}catch(e){}try{if(window.opener&&!window.opener.closed&&typeof window.opener.restaurarInteracaoPagina==="function")window.opener.restaurarInteracaoPagina();else if(window.opener&&!window.opener.closed)window.opener.focus();}catch(e2){}}if(document.readyState==="complete")setTimeout(imprimir,400);else window.addEventListener("load",function(){setTimeout(imprimir,400);},{once:true});})();<\/script>';
-    if (/<\/body>/i.test(html)) {
-        html = html.replace(/<\/body>/i, scriptPrint + '</body>');
-    } else {
-        html += scriptPrint;
+    const omitirAutoPrint = opcoes && opcoes.omitirAutoPrint;
+    if (!omitirAutoPrint) {
+        const scriptPrint = '<script>(function(){function imprimir(){try{window.focus();window.print();}catch(e){}try{if(window.opener&&!window.opener.closed&&typeof window.opener.restaurarInteracaoPagina==="function")window.opener.restaurarInteracaoPagina();else if(window.opener&&!window.opener.closed)window.opener.focus();}catch(e2){}}if(document.readyState==="complete")setTimeout(imprimir,400);else window.addEventListener("load",function(){setTimeout(imprimir,400);},{once:true});})();<\/script>';
+        if (/<\/body>/i.test(html)) {
+            html = html.replace(/<\/body>/i, scriptPrint + '</body>');
+        } else {
+            html += scriptPrint;
+        }
     }
     return html;
 }
+
+function fecharVisualizadorDocumentoApp() {
+    const overlay = document.getElementById('docViewerApp');
+    if (overlay) {
+        const iframe = document.getElementById('docViewerAppFrame');
+        if (iframe && iframe.dataset.blobUrl) {
+            try { URL.revokeObjectURL(iframe.dataset.blobUrl); } catch (e) { /* ignorar */ }
+        }
+        overlay.remove();
+    }
+    document.body.classList.remove('doc-viewer-open');
+    if (window.__docViewerBackHandler && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        try { window.Capacitor.Plugins.App.removeListener('backButton', window.__docViewerBackHandler); } catch (e) { /* ignorar */ }
+    }
+    window.__docViewerBackHandler = null;
+    window.__docViewerHtmlAtual = null;
+    window.__docViewerNomeArquivo = null;
+    restaurarInteracaoPagina();
+}
+
+function abrirHtmlDocumentoNoApp(htmlCompleto, titulo, acao, nomeArquivo) {
+    fecharVisualizadorDocumentoApp();
+
+    const html = prepararHtmlImpressaoDocumento(htmlCompleto, titulo || nomeArquivo, { omitirAutoPrint: true });
+    if (!html) {
+        mostrarNotificacao('Erro: documento vazio.', 'error');
+        return false;
+    }
+
+    window.__docViewerHtmlAtual = htmlCompleto;
+    window.__docViewerNomeArquivo = nomeArquivo || `${titulo || 'documento'}.pdf`;
+
+    const tituloSeguro = escaparHtml(titulo || 'Documento');
+    const overlay = document.createElement('div');
+    overlay.id = 'docViewerApp';
+    overlay.className = 'doc-viewer-app';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', titulo || 'Visualizador de documento');
+    overlay.innerHTML = `
+        <header class="doc-viewer-app-bar">
+            <button type="button" class="doc-viewer-btn-voltar" id="docViewerBtnVoltar" aria-label="Voltar às Minutas">
+                <span aria-hidden="true">←</span> Voltar
+            </button>
+            <span class="doc-viewer-title">${tituloSeguro}</span>
+            <button type="button" class="doc-viewer-btn-acao" id="docViewerBtnPdf" aria-label="Guardar PDF no telemóvel">Guardar PDF</button>
+        </header>
+        <iframe id="docViewerAppFrame" class="doc-viewer-app-frame" title="${tituloSeguro}"></iframe>
+    `;
+    document.body.appendChild(overlay);
+    document.body.classList.add('doc-viewer-open');
+
+    const iframe = document.getElementById('docViewerAppFrame');
+    const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    iframe.src = blobUrl;
+    iframe.dataset.blobUrl = blobUrl;
+
+    document.getElementById('docViewerBtnVoltar').addEventListener('click', fecharVisualizadorDocumentoApp);
+    document.getElementById('docViewerBtnPdf').addEventListener('click', async function () {
+        const btn = this;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const rotuloOriginal = btn.textContent;
+        btn.textContent = 'A gerar…';
+        try {
+            await guardarHtmlComoPdfMobile(window.__docViewerHtmlAtual, window.__docViewerNomeArquivo);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = rotuloOriginal;
+        }
+    });
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        window.__docViewerBackHandler = function () {
+            fecharVisualizadorDocumentoApp();
+        };
+        try {
+            window.Capacitor.Plugins.App.addListener('backButton', window.__docViewerBackHandler);
+        } catch (e) { /* ignorar */ }
+    }
+
+    restaurarInteracaoPagina();
+    mostrarNotificacao('Toque em «Guardar PDF» e escolha onde guardar no telemóvel.', 'info');
+    return true;
+}
+
+window.fecharVisualizadorDocumentoApp = fecharVisualizadorDocumentoApp;
+window.abrirHtmlDocumentoNoApp = abrirHtmlDocumentoNoApp;
 
 function aguardarJanelaDocumentoPronta(janela, timeoutMs) {
     return new Promise((resolve) => {
@@ -14398,6 +15003,12 @@ function aguardarJanelaDocumentoPronta(janela, timeoutMs) {
 }
 
 async function imprimirHtmlDocumentoProfissional(htmlCompleto, acao, nomeArquivo) {
+    const titulo = nomeArquivo ? String(nomeArquivo).replace(/\.pdf$/i, '') : 'Documento';
+
+    if (isMobileApp()) {
+        return abrirHtmlDocumentoNoApp(htmlCompleto, titulo, acao, nomeArquivo);
+    }
+
     const html = prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo);
     if (!html) {
         mostrarNotificacao('Erro: documento vazio. Recarregue a página (Ctrl+F5) e tente novamente.', 'error');
@@ -14525,6 +15136,9 @@ async function gerarTemplateDocumento(acao) {
                 nomeArquivo,
                 acao: acao === 'baixar' ? 'baixar' : 'imprimir'
             });
+            if (isMobileApp()) {
+                guardarMinutaGeradaNoArquivo(dados, conteudo, modelo, nomeArquivo);
+            }
             return;
         } catch (e) {
             console.error('Erro ao gerar PDF:', e);
@@ -14556,6 +15170,33 @@ async function gerarTemplateDocumento(acao) {
     registrarAuditoria('criar', 'documento', `Documento modelo criado: ${documento.nomeArquivo}`, null, documento);
     mostrarNotificacao('Modelo gerado e guardado com sucesso!', 'success');
     aplicarFiltrosDocumentos();
+}
+
+function guardarMinutaGeradaNoArquivo(dados, conteudo, modelo, nomeArquivo) {
+    if (!dados || !conteudo) return;
+    const dataUri = `data:text/plain;charset=utf-8,${encodeURIComponent(conteudo)}`;
+    const tamanho = new Blob([conteudo]).size;
+    const documento = {
+        id: gerarIdImutavel(),
+        clienteId: dados.clienteId,
+        clienteNome: dados.cliente?.nome || '',
+        processoTipo: dados.processoTipo,
+        descricao: `Modelo: ${modelo?.nome || 'Minuta'}`,
+        tags: ['template', modelo?.nome || 'minuta'],
+        nomeArquivo: nomeArquivo || 'minuta.pdf',
+        tipoArquivo: 'application/pdf',
+        tamanho,
+        conteudo: dataUri,
+        criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
+        tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
+        dataCriacao: new Date().toISOString()
+    };
+    const lista = obterDocumentosAtual();
+    lista.unshift(documento);
+    salvarDocumentosLocal(lista);
+    registrarAuditoria('criar', 'documento', `Minuta gerada no telemóvel: ${documento.nomeArquivo}`, null, documento);
+    aplicarFiltrosDocumentos();
+    mostrarNotificacao('Minuta guardada no Arquivo da app.', 'success');
 }
 
 function gerarIntegracoes() {
@@ -15194,6 +15835,10 @@ window.getFaturaReciboUrl = getFaturaReciboUrl;
 /** Abre o template fatura-recibo.html com os dados da fatura (fonte única do projeto). */
 function abrirFaturaReciboComTemplate(dados, autoPrint) {
     const invoiceData = buildINVOICE_DATA(dados);
+    if (isMobileApp()) {
+        mostrarFaturaOverlayComDados(invoiceData, { autoPrint: !!autoPrint });
+        return { closed: false, focus: function () {} };
+    }
     try {
         sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
     } catch (e) { console.warn('sessionStorage:', e); }
@@ -15267,6 +15912,121 @@ function obterHtmlFaturaParaDocumento(doc) {
     return typeof gerarHtmlFaturaBilling === 'function' ? gerarHtmlFaturaBilling(dados) : '';
 }
 
+/** Fecha o visualizador de fatura/recibo na app. */
+function fecharFaturaViewerApp() {
+    const overlay = document.getElementById('faturaViewerApp');
+    if (overlay) overlay.remove();
+    document.body.classList.remove('fatura-viewer-open');
+    if (window.__faturaViewerBackHandler && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        try { window.Capacitor.Plugins.App.removeListener('backButton', window.__faturaViewerBackHandler); } catch (e) { /* ignorar */ }
+    }
+    window.__faturaViewerBackHandler = null;
+    restaurarInteracaoPagina();
+}
+
+function pedirGuardarPdfFaturaIframe(iframe) {
+    try {
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'INVOICE_SAVE_PDF' }, window.location.origin);
+            return true;
+        }
+    } catch (e) { /* ignorar */ }
+    mostrarNotificacao('Aguarde a fatura carregar e tente novamente.', 'info');
+    return false;
+}
+
+/** Mostra fatura/recibo num overlay (ecrã inteiro no telemóvel). */
+function mostrarFaturaOverlayComDados(invoiceData, opcoes) {
+    opcoes = opcoes || {};
+    fecharFaturaViewerApp();
+    try {
+        sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
+    } catch (err) { /* ignorar */ }
+
+    const urlBase = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
+    const url = urlBase + (urlBase.indexOf('?') >= 0 ? '&' : '?') + 'embed=1&t=' + Date.now();
+    const mobile = isMobileApp();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'faturaViewerApp';
+    overlay.className = mobile ? 'fatura-viewer-app' : 'fatura-viewer-modal-backdrop';
+
+    if (mobile) {
+        overlay.innerHTML = `
+            <header class="fatura-viewer-app-bar">
+                <button type="button" class="fatura-viewer-btn-voltar" id="btnFecharFaturaOverlay" aria-label="Voltar">
+                    <span aria-hidden="true">←</span> Voltar
+                </button>
+                <span class="fatura-viewer-title">Fatura / Recibo</span>
+                <button type="button" class="fatura-viewer-btn-acao" id="btnImprimirFaturaOverlay">Guardar PDF</button>
+            </header>
+            <iframe id="iframeFaturaModal" class="fatura-viewer-app-frame" title="Fatura / Recibo"></iframe>
+        `;
+    } else {
+        overlay.innerHTML = `
+            <div class="fatura-viewer-modal-panel" role="dialog" aria-modal="true" aria-label="Fatura / Recibo">
+                <div class="fatura-viewer-modal-bar">
+                    <span style="font-weight:600;color:#1f2937;">Fatura / Recibo</span>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" class="fatura-viewer-btn-acao" id="btnImprimirFaturaOverlay">Guardar PDF</button>
+                        <button type="button" class="fatura-viewer-btn-voltar" id="btnFecharFaturaOverlay">Fechar</button>
+                    </div>
+                </div>
+                <iframe id="iframeFaturaModal" style="flex:1;width:100%;min-height:70vh;border:none;background:white;"></iframe>
+            </div>
+        `;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) fecharFaturaViewerApp();
+        });
+    }
+
+    document.body.appendChild(overlay);
+    if (mobile) document.body.classList.add('fatura-viewer-open');
+
+    const iframe = overlay.querySelector('#iframeFaturaModal');
+    const enviarDados = () => {
+        try {
+            iframe.contentWindow.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
+        } catch (e) { /* ignorar */ }
+        const logoUri = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : (invoiceData.issuer && invoiceData.issuer.logo ? invoiceData.issuer.logo : '');
+        if (logoUri) {
+            try { iframe.contentWindow.postMessage({ type: 'INVOICE_LOGO', logo: logoUri }, window.location.origin); } catch (e2) { /* ignorar */ }
+        }
+    };
+    iframe.addEventListener('load', enviarDados);
+    iframe.src = url;
+
+    overlay.querySelector('#btnFecharFaturaOverlay').addEventListener('click', fecharFaturaViewerApp);
+    overlay.querySelector('#btnImprimirFaturaOverlay').addEventListener('click', function () {
+        const btn = this;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const rotulo = btn.textContent;
+        btn.textContent = 'A gerar…';
+        pedirGuardarPdfFaturaIframe(iframe);
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = rotulo;
+        }, 3000);
+    });
+
+    if (mobile && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        window.__faturaViewerBackHandler = fecharFaturaViewerApp;
+        try {
+            window.Capacitor.Plugins.App.addListener('backButton', window.__faturaViewerBackHandler);
+        } catch (e) { /* ignorar */ }
+    }
+
+    if (opcoes.autoPrint) {
+        setTimeout(() => pedirGuardarPdfFaturaIframe(iframe), 2200);
+    }
+
+    restaurarInteracaoPagina();
+    if (mobile) {
+        mostrarNotificacao('Toque em «Guardar PDF» para guardar no telemóvel.', 'info');
+    }
+}
+
 /** Mostra a fatura num overlay com o template profissional (fatura-recibo.html). */
 function mostrarFaturaNoModal(faturaId) {
     const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
@@ -15298,46 +16058,7 @@ function mostrarFaturaNoModal(faturaId) {
         mostrarNotificacao('Erro ao preparar a fatura.', 'error');
         return;
     }
-    try {
-        sessionStorage.setItem('INVOICE_DATA_TEMP', JSON.stringify(invoiceData));
-    } catch (err) {}
-    const urlBase = typeof getFaturaReciboUrl === 'function' ? getFaturaReciboUrl() : 'fatura-recibo.html';
-    const url = urlBase + (urlBase.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
-    document.getElementById('overlayFaturaModal')?.remove();
-    const overlay = document.createElement('div');
-    overlay.id = 'overlayFaturaModal';
-    overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;background:rgba(0,0,0,0.85)!important;z-index:100000!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important;box-sizing:border-box!important';
-    overlay.innerHTML = `
-        <div style="background:white;border-radius:12px;max-width:800px;width:100%;max-height:95vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
-            <div style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;">
-                <span style="font-weight:600;color:#1f2937;">Fatura / Recibo</span>
-                <div style="display:flex;gap:8px;">
-                    <button type="button" id="btnImprimirFaturaOverlay" style="padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Imprimir / Guardar PDF</button>
-                    <button type="button" id="btnFecharFaturaOverlay" style="padding:6px 14px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Fechar</button>
-                </div>
-            </div>
-            <iframe id="iframeFaturaModal" style="flex:1;width:100%;min-height:70vh;border:none;background:white;"></iframe>
-        </div>
-    `;
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-    document.body.appendChild(overlay);
-    const iframe = overlay.querySelector('#iframeFaturaModal');
-    iframe.addEventListener('load', function enviarDadosFaturaIframe() {
-        try {
-            if (iframe.contentWindow) {
-                iframe.contentWindow.postMessage({ type: 'INVOICE_DATA', data: invoiceData }, window.location.origin);
-            }
-        } catch (e) {}
-        var logoUri = (typeof LOGO_DATA_URI !== 'undefined' && LOGO_DATA_URI) ? LOGO_DATA_URI : (invoiceData.issuer && invoiceData.issuer.logo ? invoiceData.issuer.logo : '');
-        if (logoUri) {
-            try {
-                iframe.contentWindow.postMessage({ type: 'INVOICE_LOGO', logo: logoUri }, window.location.origin);
-            } catch (e2) {}
-        }
-    });
-    iframe.src = url;
-    overlay.querySelector('#btnImprimirFaturaOverlay').onclick = () => { try { if (iframe.contentWindow) iframe.contentWindow.print(); } catch (e) { mostrarNotificacao('Use Imprimir / Guardar PDF quando a fatura terminar de carregar.', 'info'); } };
-    overlay.querySelector('#btnFecharFaturaOverlay').onclick = () => overlay.remove();
+    mostrarFaturaOverlayComDados(invoiceData, {});
 }
 window.mostrarFaturaNoModal = mostrarFaturaNoModal;
 
@@ -15346,6 +16067,16 @@ async function abrirFaturaGuardadaComoHtml(doc, autoPrint) {
     const faturas = typeof obterFaturas === 'function' ? obterFaturas() : [];
     const fatura = faturas.find(f => String(f.id) === String(doc.faturaId));
     if (!fatura) { mostrarNotificacao('Fatura não encontrada. Pode ter sido eliminada.', 'error'); return; }
+    if (isMobileApp() && typeof mostrarFaturaNoModal === 'function') {
+        mostrarFaturaNoModal(fatura.id);
+        if (autoPrint) {
+            setTimeout(() => {
+                const iframe = document.querySelector('#faturaViewerApp #iframeFaturaModal');
+                pedirGuardarPdfFaturaIframe(iframe);
+            }, 2200);
+        }
+        return;
+    }
     const cliente = (typeof obterClientePorIdOuNome === 'function' ? obterClientePorIdOuNome(fatura.clienteId, fatura.clienteNome) : null) || clientes.find(c => String(c.id) === String(fatura.clienteId));
     const pagamentosFatura = (Array.isArray(pagamentos) ? pagamentos : []).filter(p => String(p.faturaId) === String(fatura.id));
     let qrBase64 = '';
@@ -17327,7 +18058,7 @@ function atualizarListaClientes(clientesFiltrados) {
                 </button>
             </td>
             <td class="group/cell">
-                ${cliente.email || '-'}
+                ${cliente.email || '-'}${typeof renderBadgePortalCliente === 'function' ? renderBadgePortalCliente(cliente) : ''}
                 ${cliente.email ? `<button type="button" data-copiar="${escaparHtml(cliente.email)}" class="copy-btn ml-1 opacity-0 group-hover/cell:opacity-100 inline-flex p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Copiar email"><i data-lucide="copy" class="w-3.5 h-3.5" style="pointer-events:none"></i></button>` : ''}
             </td>
             <td class="group/cell">
@@ -17338,6 +18069,7 @@ function atualizarListaClientes(clientesFiltrados) {
             <td><span class="status-badge status-${cliente.status || 'ativo'}">${cliente.status || 'Ativo'}</span></td>
             <td>${obterRotuloCriadorCliente(cliente)}</td>
             <td>
+                ${typeof renderAcoesPortalCliente === 'function' ? renderAcoesPortalCliente(cliente) : ''}
                 <button type="button" data-cliente-id="${String(cliente.id).replace(/"/g, '&quot;')}" data-cliente-acao="editar" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                     <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                 </button>
@@ -18208,7 +18940,7 @@ function mostrarNotificacaoBrowser(titulo, corpo, tag, secaoAoClique) {
         const notif = new Notification(titulo, {
             body: corpo,
             tag: tag || 'sistema-legal',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">âš–</text></svg>'
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖</text></svg>'
         });
         const secao = secaoAoClique || 'dashboard';
         notif.onclick = () => { window.focus(); notif.close(); if (typeof carregarSecao === 'function') carregarSecao(secao); };
@@ -24154,7 +24886,7 @@ window.addEventListener('resize', function() {
     if (__resizeSidebarTimer) clearTimeout(__resizeSidebarTimer);
     __resizeSidebarTimer = setTimeout(function() {
         __resizeSidebarTimer = null;
-        if (typeof initAppMobile === 'function') initAppMobile();
+        if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
     }, 180);
 }, { passive: true });
 

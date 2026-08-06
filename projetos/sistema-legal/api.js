@@ -347,6 +347,79 @@
         }
     }
 
+    async function createClienteAccount(payload) {
+        return apiFetch('/api/clientes', {
+            method: 'POST',
+            body: JSON.stringify(payload || {})
+        });
+    }
+
+    async function resetClientePassword(email) {
+        return apiFetch('/api/clientes/gerar-password', {
+            method: 'POST',
+            body: JSON.stringify({ email: String(email || '').trim().toLowerCase() })
+        });
+    }
+
+    async function lookupClienteByEmail(email) {
+        const q = encodeURIComponent(String(email || '').trim().toLowerCase());
+        return apiFetch('/api/clientes/lookup?email=' + q);
+    }
+
+    function updateCurrentUser(patch) {
+        const current = getCurrentUser();
+        if (!current) return null;
+        const next = Object.assign({}, current, patch || {});
+        try {
+            localStorage.setItem(USER_KEY, JSON.stringify(next));
+        } catch (e) {
+            console.warn('Não foi possível actualizar sessão API:', e);
+        }
+        return next;
+    }
+
+    function userMustChangePassword() {
+        const user = getCurrentUser();
+        return !!(user && user.must_change_password);
+    }
+
+    async function changePassword(passwordAtual, passwordNova) {
+        return apiFetch('/api/password/alterar', {
+            method: 'POST',
+            body: JSON.stringify({
+                password_atual: passwordAtual,
+                password_nova: passwordNova
+            })
+        });
+    }
+
+    async function recoverPassword(email) {
+        const emailNorm = String(email || '').trim().toLowerCase();
+        if (!emailNorm) {
+            throw new Error('Email é obrigatório.');
+        }
+        let response;
+        try {
+            response = await fetch(API_BASE_URL + '/api/password/recuperar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailNorm })
+            });
+        } catch (e) {
+            throw new Error(describeFetchFailure(API_BASE_URL + '/api/password/recuperar', e));
+        }
+        let data = {};
+        try {
+            data = await response.json();
+        } catch (e) {
+            data = {};
+        }
+        if (!response.ok) {
+            throw new Error(data.erro || 'Não foi possível recuperar a password.');
+        }
+        return data;
+    }
+
     showGithubPagesBanner();
 
     const api = {
@@ -369,7 +442,14 @@
         mapPerfilToTipoUsuario: mapPerfilToTipoUsuario,
         apiFetch: apiFetch,
         uploadDocument: uploadDocument,
-        documentoUrl: documentoUrl
+        documentoUrl: documentoUrl,
+        createClienteAccount: createClienteAccount,
+        resetClientePassword: resetClientePassword,
+        lookupClienteByEmail: lookupClienteByEmail,
+        changePassword: changePassword,
+        recoverPassword: recoverPassword,
+        updateCurrentUser: updateCurrentUser,
+        userMustChangePassword: userMustChangePassword
     };
 
     global.SistemaLegalAPI = api;

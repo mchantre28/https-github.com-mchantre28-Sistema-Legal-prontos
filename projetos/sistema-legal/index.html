@@ -69,22 +69,54 @@
         document.write('<script src="' + base + 'logo-data.js"><\/script>');
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=21">
     <style>
       /* Mobile crítico — garante layout mesmo com cache antigo */
+      .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
+      .sidebar:not(.open) { transform: translateX(-100%) !important; }
+      @media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
+        .main-content { margin-left: 280px !important; width: auto !important; }
+        .sidebar { transform: translateX(0) !important; }
+      }
+      @media (hover: none), (pointer: coarse) {
+        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; }
+        .sidebar:not(.open) { transform: translateX(-100%) !important; }
+      }
       @media (max-width: 1024px) {
         html, body {
           overflow-x: hidden !important;
           overflow-y: auto !important;
-          max-width: 100vw !important;
+          max-width: 100% !important;
           -webkit-overflow-scrolling: touch;
           touch-action: pan-y;
         }
-        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100vw !important; overflow-x: hidden !important; }
-        .sidebar:not(.open) { transform: translateX(-100%) !important; }
         .app-header { position: sticky; top: 0; z-index: 50; }
       }
     </style>
+    <script>
+      /* Capacitor Android: marcar layout mobile antes do CSS/JS carregar */
+      (function () {
+        function aplicar() {
+          var cap = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+          var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          var estreito = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
+          if (cap || touch || estreito) {
+            document.documentElement.classList.add('app-mobile');
+            if (cap) document.documentElement.classList.add('app-native');
+            if (document.body) document.body.classList.add('cap-app');
+          }
+        }
+        aplicar();
+        document.addEventListener('DOMContentLoaded', aplicar);
+        var n = 0;
+        var timer = setInterval(function () {
+          aplicar();
+          if ((window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || ++n > 50) {
+            clearInterval(timer);
+          }
+        }, 100);
+      })();
+    </script>
 
 </head>
 <body class="bg-gray-100">
@@ -213,14 +245,14 @@
                             <div id="globalSearchResults" class="hidden absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg"></div>
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 sm:gap-3 header-actions">
+                    <div class="flex flex-nowrap items-center gap-1 sm:gap-2 header-actions">
                         <div id="syncStatusBadge" class="sync-status cursor-pointer" data-status="offline" title="Clique para forçar sincronização quando houver erro" role="button" aria-label="Estado da sincronização. Clique para tentar novamente em caso de erro." tabindex="0">
                             <span class="sync-dot"></span>
                             <span class="sync-text">Offline</span>
                         </div>
-                        <button onclick="abrirModalAtalhos()" class="btn btn-secondary" title="Atalhos de teclado (Ctrl+/)">
+                        <button onclick="abrirModalAtalhos()" class="btn btn-secondary header-btn-atalhos" title="Atalhos de teclado (Ctrl+/)" aria-label="Atalhos de teclado">
                             <i data-lucide="keyboard" class="w-4 h-4"></i>
-                            Atalhos
+                            <span class="header-btn-label">Atalhos</span>
                         </button>
                         <button onclick="carregarSecao('notificacoes')" class="btn btn-secondary relative" title="Notificações" aria-label="Notificações">
                             <i data-lucide="bell" class="w-4 h-4"></i>
@@ -263,10 +295,10 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- api.js: autenticação JWT com backend Node.js; app.js: login; script.js: aplicação principal -->
-    <script defer src="./api.js?v=6"></script>
+    <script defer src="./api.js?v=7"></script>
     <script defer src="./app.js?v=1"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=81" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=92" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){

@@ -523,6 +523,90 @@
       font-size: 11px;
     }
 
+    /* Pré-visualização em telemóvel / iframe da app */
+    body.embed-preview {
+      padding: 0;
+      min-height: 0;
+      align-items: stretch;
+      justify-content: flex-start;
+      background: #fff;
+    }
+
+    body.embed-preview .action-bar {
+      display: none !important;
+    }
+
+    body.embed-preview .doc-page {
+      width: 100%;
+      max-width: 100%;
+      padding: 14px 12px;
+      margin: 0;
+    }
+
+    @media screen and (max-width: 768px) {
+      body {
+        padding: 8px;
+        align-items: stretch;
+        justify-content: flex-start;
+      }
+
+      .doc-page {
+        width: 100%;
+        max-width: 100%;
+        padding: 14px 12px;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      .logo-wrap {
+        text-align: center;
+      }
+
+      .logo-wrap img {
+        max-width: 150px;
+        max-height: 68px;
+        margin: 0 auto;
+      }
+
+      .issuer-block {
+        flex: none;
+        width: 100%;
+        min-width: unset;
+        text-align: left;
+      }
+
+      .issuer-block p {
+        line-height: 1.45;
+        word-break: normal;
+        overflow-wrap: break-word;
+      }
+
+      .services-section,
+      .expenses-section {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .data-table {
+        min-width: 520px;
+      }
+
+      .action-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .action-bar .hint {
+        display: none;
+      }
+    }
+
     /* ============================================
        IMPRESSÃO — UMA ÚNICA FOLHA A4 (compacto, profissional)
        ============================================ */
@@ -1026,6 +1110,9 @@
         if (event.data && event.data.type === 'INVOICE_LOGO' && event.data.logo) {
           garantirLogoSempre(event.data.logo);
         }
+        if (event.data && event.data.type === 'INVOICE_SAVE_PDF') {
+          guardarPdfFaturaInvoice();
+        }
       });
     }
     /** URL absoluta da logo — compatível com GitHub Pages (mesmo diretório que fatura-recibo.html). */
@@ -1049,48 +1136,79 @@
       aplicarDadosQuandoPronto();
     }
 
-    /** Guardar PDF no computador */
+    /** Guardar PDF — partilha nativa no telemóvel, download no computador */
+    function guardarPdfFaturaInvoice(triggerBtn) {
+      var btn = triggerBtn || document.getElementById('btn-pdf');
+      var el = document.querySelector('.doc-page');
+      if (!el) el = document.body;
+      var titleEl = document.querySelector('[data-field="doc.title"]');
+      var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
+      var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.pdf';
+      if (!fileName || fileName === '.pdf') fileName = 'fatura-recibo.pdf';
+
+      if (typeof html2pdf === 'undefined') {
+        if (typeof window.print === 'function') window.print();
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'A gerar PDF…';
+      }
+      window.scrollTo(0, 0);
+      if (el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'instant' });
+      document.body.classList.add('pdf-export');
+
+      setTimeout(function() {
+        html2pdf().set({
+          margin: 6,
+          filename: fileName,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pageBreak: { mode: 'avoid-all', avoid: ['header', 'section', 'table', '.header', '.doc-page', '.footer-qr', '.qrcode-placeholder', '#qrcode-container'] }
+        }).from(el).outputPdf('blob').then(function(blob) {
+          document.body.classList.remove('pdf-export');
+          var file = new File([blob], fileName, { type: 'application/pdf' });
+          if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+            return navigator.share({ files: [file], title: fileName.replace(/\.pdf$/i, '') });
+          }
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+        }).catch(function() {
+          document.body.classList.remove('pdf-export');
+          if (typeof window.print === 'function') window.print();
+        }).finally(function() {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar PDF';
+          }
+        });
+      }, 100);
+    }
+
+    if (/[?&]embed=1(?:&|$)/.test(location.search)) {
+      document.documentElement.classList.add('embed-preview-root');
+      if (document.body) document.body.classList.add('embed-preview');
+      else document.addEventListener('DOMContentLoaded', function() {
+        document.body.classList.add('embed-preview');
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       var btnPdf = document.getElementById('btn-pdf');
       if (btnPdf) {
         btnPdf.addEventListener('click', function() {
-          var el = document.querySelector('.doc-page');
-          if (!el) el = document.body;
-          var titleEl = document.querySelector('[data-field="doc.title"]');
-          var baseName = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : 'Fatura-Recibo';
-          var fileName = baseName.replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^\w\-\.]/g, '') + '.pdf';
-          if (!fileName || fileName === '.pdf') fileName = 'fatura-recibo.pdf';
-          if (typeof html2pdf !== 'undefined') {
-            btnPdf.disabled = true;
-            btnPdf.textContent = 'A gerar PDF…';
-            window.scrollTo(0, 0);
-            if (el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'instant' });
-            document.body.classList.add('pdf-export');
-            setTimeout(function() {
-            html2pdf().set({
-              margin: 6,
-              filename: fileName,
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: { scale: 2, useCORS: true },
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-              pageBreak: { mode: 'avoid-all', avoid: ['header', 'section', 'table', '.header', '.doc-page', '.footer-qr', '.qrcode-placeholder', '#qrcode-container'] }
-            }).from(el).save().then(function() {
-              document.body.classList.remove('pdf-export');
-              btnPdf.disabled = false;
-              btnPdf.textContent = 'Guardar PDF';
-            }).catch(function() {
-              document.body.classList.remove('pdf-export');
-              btnPdf.disabled = false;
-              btnPdf.textContent = 'Guardar PDF';
-              if (typeof window.print === 'function') window.print();
-            });
-            }, 100);
-          } else {
-            window.print();
-          }
+          guardarPdfFaturaInvoice(btnPdf);
         });
       }
-
     });
   </script>
 </body>
