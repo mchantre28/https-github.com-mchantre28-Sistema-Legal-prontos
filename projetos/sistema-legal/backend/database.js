@@ -69,6 +69,18 @@ function initSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_tramites_processo ON tramites(processo_id);
     CREATE INDEX IF NOT EXISTS idx_documentos_processo ON documentos(processo_id);
   `);
+  migrateSchema(database);
+}
+
+function migrateSchema(database) {
+  const cols = database.prepare('PRAGMA table_info(utilizadores)').all();
+  const hasMustChange = cols.some(function (c) { return c.name === 'must_change_password'; });
+  if (!hasMustChange) {
+    database.exec(`
+      ALTER TABLE utilizadores
+      ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0
+    `);
+  }
 }
 
 function closeDb() {

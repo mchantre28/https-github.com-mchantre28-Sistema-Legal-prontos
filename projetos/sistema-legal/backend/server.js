@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getDb } = require('./database');
-const { seedIfEmpty } = require('./seed');
+const { seedIfEmpty, hashPassword } = require('./seed');
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'sistema-legal-dev-secret-alterar-em-producao';
@@ -101,7 +101,27 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 function sanitizeUser(row) {
   if (!row) return null;
   const { password_hash, ...user } = row;
+  if ('must_change_password' in user) {
+    user.must_change_password = user.must_change_password === 1;
+  }
   return user;
+}
+
+function userMustChangePassword(db, userId) {
+  const row = db.prepare('SELECT must_change_password FROM utilizadores WHERE id = ?').get(userId);
+  return !!(row && row.must_change_password === 1);
+}
+
+function blockIfMustChangePassword(req, res, next) {
+  if (req.user.perfil !== 'cliente') return next();
+  const db = getDb();
+  if (userMustChangePassword(db, req.user.id)) {
+    return res.status(403).json({
+      erro: 'Deve alterar a password antes de continuar.',
+      must_change_password: true,
+    });
+  }
+  next();
 }
 
 function authMiddleware(req, res, next) {
@@ -185,6 +205,7 @@ app.post('/api/login', (req, res) => {
     nome: user.nome,
     email: user.email,
     perfil: user.perfil,
+    must_change_password: user.must_change_password === 1,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -192,17 +213,139 @@ app.post('/api/login', (req, res) => {
   res.json({
     token,
     utilizador: payload,
+    must_change_password: payload.must_change_password,
   });
+});
+
+app.post('/api/password/recuperar', async (req, res) => {
+  const emailNorm = normalizeEmail(req.body?.email);
+  if (!emailNorm) {
+    return res.status(400).json({ erro: 'Email é obrigatório.' });
+  }
+
+  const db = getDb();
+  const user = db.prepare(`
+    SELECT id, nome, email, perfil, created_at, must_change_password
+    FROM utilizadores
+    WHERE email = ? AND perfil = 'cliente'
+  `).get(emailNorm);
+
+  if (!user) {
+    return res.status(404).json({
+      erro: 'Não encontrámos conta de cliente com este email. Contacte a solicitadoria.',
+    });
+  }
+
+  try {
+    const passwordTemporaria = generateTemporaryPassword(10);
+    const password_hash = await hashPassword(passwordTemporaria);
+    db.prepare(`
+      UPDATE utilizadores
+      SET password_hash = ?, must_change_password = 1
+      WHERE id = ?
+    `).run(password_hash, user.id);
+
+    res.json({
+      email: user.email,
+      nome: user.nome,
+      password_temporaria: passwordTemporaria,
+      mensagem: 'Nova password temporária gerada. Inicie sessão e altere-a de imediato.',
+    });
+  } catch (err) {
+    console.error('Erro ao recuperar password:', err);
+    res.status(500).json({ erro: 'Erro ao gerar nova password.' });
+  }
+});
+
+app.post('/api/password/alterar', authMiddleware, async (req, res) => {
+  const { password_atual: passwordAtual, password_nova: passwordNova } = req.body || {};
+  const atual = String(passwordAtual || '');
+  const nova = String(passwordNova || '');
+
+  if (!atual || !nova) {
+    return res.status(400).json({ erro: 'Password actual e nova são obrigatórias.' });
+  }
+  if (nova.length < 6) {
+    return res.status(400).json({ erro: 'A nova password deve ter pelo menos 6 caracteres.' });
+  }
+  if (nova === atual) {
+    return res.status(400).json({ erro: 'A nova password deve ser diferente da actual.' });
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM utilizadores WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(404).json({ erro: 'Utilizador não encontrado.' });
+  }
+
+  let passwordOk = false;
+  try {
+    passwordOk = bcrypt.compareSync(atual, user.password_hash);
+  } catch (err) {
+    console.error('Erro ao validar password actual:', err.message);
+    return res.status(500).json({ erro: 'Erro interno ao validar password.' });
+  }
+
+  if (!passwordOk) {
+    return res.status(401).json({ erro: 'Password actual incorrecta.' });
+  }
+
+  try {
+    const password_hash = await hashPassword(nova);
+    db.prepare(`
+      UPDATE utilizadores
+      SET password_hash = ?, must_change_password = 0
+      WHERE id = ?
+    `).run(password_hash, user.id);
+
+    const updated = db.prepare(`
+      SELECT id, nome, email, perfil, created_at, must_change_password
+      FROM utilizadores
+      WHERE id = ?
+    `).get(user.id);
+
+    res.json({
+      utilizador: sanitizeUser(updated),
+      alterada: true,
+    });
+  } catch (err) {
+    console.error('Erro ao alterar password:', err);
+    res.status(500).json({ erro: 'Erro ao alterar password.' });
+  }
 });
 
 app.get('/api/me', authMiddleware, (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, nome, email, perfil, created_at FROM utilizadores WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, nome, email, perfil, created_at, must_change_password FROM utilizadores WHERE id = ?').get(req.user.id);
   if (!user) {
     return res.status(404).json({ erro: 'Utilizador não encontrado.' });
   }
-  res.json({ utilizador: user });
+  res.json({ utilizador: sanitizeUser(user) });
 });
+
+function generateTemporaryPassword(length = 10) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(length);
+  let out = '';
+  for (let i = 0; i < length; i += 1) {
+    out += chars[bytes[i] % chars.length];
+  }
+  return out;
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function validateClienteAccountInput(nome, email) {
+  const nomeTrim = String(nome || '').trim();
+  const emailNorm = normalizeEmail(email);
+  if (!nomeTrim) return { erro: 'Nome é obrigatório.', status: 400 };
+  if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    return { erro: 'Email válido é obrigatório.', status: 400 };
+  }
+  return { nome: nomeTrim, email: emailNorm };
+}
 
 // --- Clientes (utilizadores com perfil cliente) ---
 
@@ -217,9 +360,118 @@ app.get('/api/clientes', authMiddleware, requireAdmin, (req, res) => {
   res.json({ clientes });
 });
 
+app.get('/api/clientes/lookup', authMiddleware, requireAdmin, (req, res) => {
+  const emailNorm = normalizeEmail(req.query.email);
+  if (!emailNorm) {
+    return res.status(400).json({ erro: 'Parâmetro email é obrigatório.' });
+  }
+  const db = getDb();
+  const cliente = db.prepare(`
+    SELECT id, nome, email, perfil, created_at
+    FROM utilizadores
+    WHERE email = ? AND perfil = 'cliente'
+  `).get(emailNorm);
+  res.json({ existe: !!cliente, cliente: cliente || null });
+});
+
+app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
+  const { nome, email, password, gerar_password: gerarPassword } = req.body || {};
+  const validado = validateClienteAccountInput(nome, email);
+  if (validado.erro) return res.status(validado.status).json({ erro: validado.erro });
+
+  const db = getDb();
+  const existing = db.prepare(`
+    SELECT id, nome, email, perfil, created_at
+    FROM utilizadores
+    WHERE email = ?
+  `).get(validado.email);
+
+  if (existing) {
+    return res.status(409).json({
+      erro: 'Já existe uma conta com este email.',
+      cliente: sanitizeUser(existing),
+    });
+  }
+
+  let plainPassword = password ? String(password) : '';
+  let passwordTemporaria = null;
+  if (!plainPassword || gerarPassword) {
+    plainPassword = generateTemporaryPassword(10);
+    passwordTemporaria = plainPassword;
+  }
+  if (plainPassword.length < 6) {
+    return res.status(400).json({ erro: 'Password deve ter pelo menos 6 caracteres.' });
+  }
+
+  try {
+    const password_hash = await hashPassword(plainPassword);
+    const mustChange = gerarPassword || !password ? 1 : 0;
+    const result = db.prepare(`
+      INSERT INTO utilizadores (nome, email, password_hash, perfil, must_change_password)
+      VALUES (?, ?, ?, 'cliente', ?)
+    `).run(validado.nome, validado.email, password_hash, mustChange);
+
+    const cliente = db.prepare(`
+      SELECT id, nome, email, perfil, created_at, must_change_password
+      FROM utilizadores
+      WHERE id = ?
+    `).get(result.lastInsertRowid);
+
+    res.status(201).json({
+      cliente: sanitizeUser(cliente),
+      password_temporaria: passwordTemporaria,
+      criado: true,
+    });
+  } catch (err) {
+    console.error('Erro ao criar conta cliente:', err);
+    res.status(500).json({ erro: 'Erro ao criar conta de cliente.' });
+  }
+});
+
+app.post('/api/clientes/gerar-password', authMiddleware, requireAdmin, async (req, res) => {
+  const emailNorm = normalizeEmail(req.body?.email);
+  if (!emailNorm) {
+    return res.status(400).json({ erro: 'Email é obrigatório.' });
+  }
+
+  const db = getDb();
+  const user = db.prepare(`
+    SELECT id, nome, email, perfil, created_at, password_hash
+    FROM utilizadores
+    WHERE email = ? AND perfil = 'cliente'
+  `).get(emailNorm);
+
+  if (!user) {
+    return res.status(404).json({ erro: 'Conta de cliente não encontrada com este email.' });
+  }
+
+  try {
+    const passwordTemporaria = generateTemporaryPassword(10);
+    const password_hash = await hashPassword(passwordTemporaria);
+    db.prepare(`
+      UPDATE utilizadores
+      SET password_hash = ?, must_change_password = 1
+      WHERE id = ?
+    `).run(password_hash, user.id);
+    const updated = db.prepare(`
+      SELECT id, nome, email, perfil, created_at, must_change_password
+      FROM utilizadores
+      WHERE id = ?
+    `).get(user.id);
+    res.json({
+      cliente: sanitizeUser(updated),
+      password_temporaria: passwordTemporaria,
+      redefinida: true,
+    });
+  } catch (err) {
+    console.error('Erro ao gerar nova password cliente:', err);
+    res.status(500).json({ erro: 'Erro ao gerar nova password.' });
+  }
+});
+
 // --- Processos ---
 
-app.get('/api/processos', authMiddleware, (req, res) => {
+app.get('/api/processos', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   let rows;
 
@@ -237,7 +489,7 @@ app.get('/api/processos', authMiddleware, (req, res) => {
   res.json({ processos: rows });
 });
 
-app.get('/api/processos/:id', authMiddleware, (req, res) => {
+app.get('/api/processos/:id', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   const { processo, erro, status } = getProcessoIfAllowed(db, Number(req.params.id), req.user);
   if (erro) return res.status(status).json({ erro });
@@ -351,7 +603,7 @@ app.delete('/api/processos/:id', authMiddleware, requireAdmin, (req, res) => {
 
 // --- Trâmites ---
 
-app.get('/api/tramites', authMiddleware, (req, res) => {
+app.get('/api/tramites', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   const processoId = req.query.processo_id ? Number(req.query.processo_id) : null;
 
@@ -378,7 +630,7 @@ app.get('/api/tramites', authMiddleware, (req, res) => {
   res.json({ tramites });
 });
 
-app.get('/api/tramites/:id', authMiddleware, (req, res) => {
+app.get('/api/tramites/:id', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   const tramite = db.prepare('SELECT * FROM tramites WHERE id = ?').get(Number(req.params.id));
   if (!tramite) {
@@ -457,7 +709,7 @@ app.delete('/api/tramites/:id', authMiddleware, requireAdmin, (req, res) => {
 
 // --- Documentos ---
 
-app.get('/api/documentos', authMiddleware, (req, res) => {
+app.get('/api/documentos', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   const processoId = req.query.processo_id ? Number(req.query.processo_id) : null;
 
@@ -489,7 +741,7 @@ app.get('/api/documentos', authMiddleware, (req, res) => {
   res.json({ documentos });
 });
 
-app.get('/api/documentos/:id', authMiddleware, (req, res) => {
+app.get('/api/documentos/:id', authMiddleware, blockIfMustChangePassword, (req, res) => {
   const db = getDb();
   const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(Number(req.params.id));
   if (!documento) {

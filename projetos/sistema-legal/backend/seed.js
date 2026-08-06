@@ -104,4 +104,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { seedIfEmpty, ensureSeedUsers };
+module.exports = { seedIfEmpty, ensureSeedUsers, hashPassword, SALT_ROUNDS };
