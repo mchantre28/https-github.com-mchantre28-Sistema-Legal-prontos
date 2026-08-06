@@ -69,18 +69,52 @@
         document.write('<script src="' + base + 'logo-data.js"><\/script>');
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=23">
     <style>
-      /* Mobile crítico — garante layout mesmo com cache antigo */
-      .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
-      .sidebar:not(.open) { transform: translateX(-100%) !important; }
-      @media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
-        .main-content { margin-left: 280px !important; width: auto !important; }
-        .sidebar { transform: translateX(0) !important; }
+      /* Layout crítico — sidebar + conteúdo centrado (cache antigo) */
+      html, body {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+        width: 100% !important;
       }
-      @media (hover: none), (pointer: coarse) {
-        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; }
-        .sidebar:not(.open) { transform: translateX(-100%) !important; }
+      .sidebar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 1000 !important;
+      }
+      .main-content {
+        position: relative !important;
+        left: 0 !important;
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+      }
+      /* Desktop — sidebar sempre visível à esquerda */
+      body.layout-desktop .sidebar {
+        transform: translateX(0) !important;
+      }
+      body.layout-desktop .main-content {
+        margin-left: 280px !important;
+        width: auto !important;
+      }
+      /* Mobile — sidebar drawer; conteúdo full width */
+      body.layout-mobile .sidebar:not(.open) {
+        transform: translateX(-100%) !important;
+      }
+      body.layout-mobile .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      #main {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        box-sizing: border-box !important;
       }
       @media (max-width: 1024px) {
         html, body {
@@ -100,10 +134,18 @@
           var cap = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
           var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
           var estreito = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
-          if (cap || touch || estreito) {
+          var mobile = cap || touch || estreito;
+          if (mobile) {
             document.documentElement.classList.add('app-mobile');
             if (cap) document.documentElement.classList.add('app-native');
-            if (document.body) document.body.classList.add('cap-app');
+          } else {
+            document.documentElement.classList.remove('app-mobile');
+            document.documentElement.classList.remove('app-native');
+          }
+          if (document.body) {
+            document.body.classList.toggle('cap-app', mobile);
+            document.body.classList.toggle('layout-mobile', mobile);
+            document.body.classList.toggle('layout-desktop', !mobile);
           }
         }
         aplicar();
@@ -119,7 +161,7 @@
     </script>
 
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 layout-desktop">
     <script>
       (function(){ function rm(){ var el=document.getElementById('sidebar-logo'); if(el&&el.parentNode){ el.parentNode.removeChild(el); } }
       if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',rm); } else { rm(); } setTimeout(rm,100);
@@ -298,7 +340,7 @@
     <script defer src="./api.js?v=7"></script>
     <script defer src="./app.js?v=1"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=92" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=94" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){

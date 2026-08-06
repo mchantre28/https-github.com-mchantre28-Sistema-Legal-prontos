@@ -236,6 +236,35 @@ svg.lucide-paperclip {
     transform: translateX(0);
 }
 
+/* Desktop — sidebar fixa à esquerda; conteúdo alinhado ao lado */
+body.layout-desktop .sidebar {
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+    transform: translateX(0) !important;
+}
+
+body.layout-desktop .main-content {
+    margin-left: 280px !important;
+    width: auto !important;
+    max-width: 100% !important;
+}
+
+body.layout-desktop .mobile-nav-toggle {
+    display: none !important;
+}
+
+/* Mobile — drawer; conteúdo centrado full width */
+body.layout-mobile .sidebar:not(.open) {
+    transform: translateX(-100%) !important;
+}
+
+body.layout-mobile .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
 body.sidebar-open {
     overflow: hidden;
     touch-action: none;
@@ -260,9 +289,9 @@ body.modal-open {
     pointer-events: auto;
 }
 
-/* FORÇAR LARGURA EM DESKTOP */
+/* FORÇAR LARGURA EM DESKTOP (apenas browser desktop, não app nativa) */
 @media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
-    .sidebar {
+    html:not(.app-mobile):not(.app-native) .sidebar {
         width: 280px !important;
         min-width: 280px !important;
         max-width: 280px !important;
@@ -355,19 +384,34 @@ body.modal-open {
 }
 
 .main-content {
+    position: relative;
+    left: 0;
     margin-left: 0;
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
     transition: margin-left 0.3s ease;
+    box-sizing: border-box;
 }
 
-/* Desktop com rato — sidebar fixa visível */
+#main {
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+
+/* Desktop com rato — sidebar fixa visível à esquerda */
 @media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
-    .main-content {
+    html:not(.app-mobile):not(.app-native) .main-content {
         margin-left: 280px;
         width: auto;
         max-width: 100%;
+    }
+
+    html:not(.app-mobile):not(.app-native) .sidebar {
+        transform: translateX(0);
     }
 
     .header-btn-atalhos {
@@ -1588,27 +1632,59 @@ body.cap-app:not(.sidebar-open) {
     touch-action: pan-y;
 }
 
-body.cap-app .main-content {
-    min-height: 0;
-    margin-left: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-/* App nativa / telemóvel: nunca reservar espaço da sidebar (evita conteúdo à direita) */
+/* App nativa / telemóvel: nunca reservar espaço da sidebar (evita conteúdo deslocado) */
 html.app-mobile .main-content,
 html.app-native .main-content,
 body.cap-app .main-content {
     margin-left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    left: 0 !important;
     overflow-x: hidden;
+}
+
+html.app-mobile #main,
+html.app-native #main,
+body.cap-app #main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+html.app-mobile .sidebar,
+html.app-native .sidebar,
+body.cap-app .sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
 }
 
 html.app-mobile .sidebar:not(.open),
 html.app-native .sidebar:not(.open),
 body.cap-app .sidebar:not(.open) {
     transform: translateX(-100%) !important;
+}
+
+html.app-mobile .sidebar.open,
+html.app-native .sidebar.open,
+body.cap-app .sidebar.open {
+    transform: translateX(0) !important;
+}
+
+/* Capacitor com viewport largo — nunca layout desktop */
+@media (min-width: 1025px) {
+    html.app-mobile .main-content,
+    html.app-native .main-content,
+    body.cap-app .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+    html.app-mobile .sidebar:not(.open),
+    html.app-native .sidebar:not(.open),
+    body.cap-app .sidebar:not(.open) {
+        transform: translateX(-100%) !important;
+    }
 }
 
 html.app-mobile .mobile-nav-toggle,

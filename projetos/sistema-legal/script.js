@@ -4174,14 +4174,27 @@ document.addEventListener('DOMContentLoaded', async function() {
 function limparEstilosLayoutInline() {
     const sidebar = document.getElementById('sidebar');
     const mainContent = document.querySelector('.main-content');
+    const main = document.getElementById('main');
     [sidebar, document.querySelector('.sidebar')].filter(Boolean).forEach((el) => {
         el.style.removeProperty('width');
         el.style.removeProperty('min-width');
         el.style.removeProperty('max-width');
+        el.style.removeProperty('transform');
+        el.style.removeProperty('left');
     });
     if (mainContent) {
-        mainContent.style.removeProperty('margin-left');
+        ['margin-left', 'width', 'max-width', 'left', 'transform', 'padding-left'].forEach(function (prop) {
+            mainContent.style.removeProperty(prop);
+        });
     }
+    if (main) {
+        main.style.removeProperty('margin-left');
+        main.style.removeProperty('width');
+        main.style.removeProperty('max-width');
+    }
+    document.body.style.removeProperty('margin-left');
+    document.body.style.removeProperty('padding-left');
+    document.documentElement.style.removeProperty('margin-left');
 }
 
 /** Mantém layout responsivo: CSS gere dimensões; evita inline !important no mobile. */
@@ -7091,41 +7104,57 @@ function adaptarTabelasMobile(root) {
 
 function initAppMobile() {
     const isCap = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    const isNarrow = window.matchMedia('(max-width: 1024px)').matches;
+    const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const isNarrow = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
+    const isMobileLayout = isCap || isCoarse || isNarrow;
     document.documentElement.classList.toggle('app-native', isCap);
-    document.documentElement.classList.toggle('app-mobile', isCap || isNarrow);
-    document.body.classList.toggle('cap-app', isCap || isNarrow);
+    document.documentElement.classList.toggle('app-mobile', isMobileLayout);
+    document.body.classList.toggle('cap-app', isMobileLayout);
+    document.body.classList.toggle('layout-mobile', isMobileLayout);
+    document.body.classList.toggle('layout-desktop', !isMobileLayout);
 
-    if (isCap || isNarrow) {
-        limparEstilosLayoutInline();
-    }
-    if (isNarrow) {
-        const sidebar = document.getElementById('sidebar');
+    limparEstilosLayoutInline();
+
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (isMobileLayout) {
         if (sidebar && !sidebar.classList.contains('open')) {
             sidebar.classList.remove('open');
             document.body.classList.remove('sidebar-open');
-            const overlay = document.getElementById('sidebarOverlay');
             if (overlay) {
                 overlay.classList.remove('active');
                 overlay.setAttribute('aria-hidden', 'true');
             }
         }
-    } else {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) sidebar.classList.remove('open');
+    } else if (sidebar) {
+        sidebar.classList.remove('open');
         document.body.classList.remove('sidebar-open');
-        const overlay = document.getElementById('sidebarOverlay');
         if (overlay) {
             overlay.classList.remove('active');
             overlay.setAttribute('aria-hidden', 'true');
         }
     }
+
     if (!document.body.classList.contains('sidebar-open')) {
         document.body.style.overflow = '';
         document.documentElement.style.overflow = '';
         document.body.style.pointerEvents = '';
         document.documentElement.style.pointerEvents = '';
     }
+}
+
+if (!window.__layoutMobileListeners) {
+    window.__layoutMobileListeners = true;
+    var _layoutResizeTimer;
+    function onLayoutViewportChange() {
+        clearTimeout(_layoutResizeTimer);
+        _layoutResizeTimer = setTimeout(function () {
+            if (typeof initAppMobile === 'function') initAppMobile();
+        }, 120);
+    }
+    window.addEventListener('resize', onLayoutViewportChange, { passive: true });
+    window.addEventListener('orientationchange', onLayoutViewportChange, { passive: true });
 }
 window.fecharSidebarSeMobile = fecharSidebarSeMobile;
 window.adaptarTabelasMobile = adaptarTabelasMobile;
