@@ -137,10 +137,12 @@
 
         const built = buildWhatsAppLink(opts);
         if (!built) {
+            const clienteLabel = [opts.clienteNome, opts.clienteEmail].filter(Boolean).join(' · ') || 'deste processo';
             el.innerHTML =
                 '<div class="admin-whatsapp-banner admin-whatsapp-banner-aviso">' +
                 '<p class="admin-whatsapp-banner-titulo">WhatsApp indisponível</p>' +
-                '<p class="admin-whatsapp-banner-texto">Registe o telefone do cliente na secção «Clientes — Portal» (com indicativo, ex.: 447475602282).</p>' +
+                '<p class="admin-whatsapp-banner-texto">O cliente <strong>' + clienteLabel + '</strong> não tem telefone WhatsApp registado.</p>' +
+                '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-alerta">Registe o número na secção «Clientes — Portal» (com indicativo, ex.: 447475602282) e volte a registar o trâmite, ou crie o processo associado ao cliente correcto.</p>' +
                 '</div>';
             el.classList.remove('hidden');
             return;
@@ -175,19 +177,16 @@
     }
 
     function getDadosClienteProcesso(processo) {
-        if (!processo) return { telefone: '', nome: '' };
-        if (processo.cliente_telefone || processo.cliente_nome) {
-            return {
-                telefone: processo.cliente_telefone || '',
-                nome: processo.cliente_nome || '',
-            };
-        }
+        if (!processo) return { telefone: '', nome: '', email: '' };
+
         const cliente = clientesPortal.find(function (c) {
             return c.email === processo.cliente_email || c.id === processo.cliente_id;
         });
+
         return {
-            telefone: (cliente && cliente.telefone) || '',
-            nome: (cliente && cliente.nome) || processo.cliente_nome || '',
+            telefone: (cliente && cliente.telefone) || processo.cliente_telefone || '',
+            nome: processo.cliente_nome || (cliente && cliente.nome) || '',
+            email: processo.cliente_email || (cliente && cliente.email) || '',
         };
     }
 
@@ -268,7 +267,11 @@
             tdEstado.appendChild(badge);
 
             const tdEmail = document.createElement('td');
-            tdEmail.textContent = p.cliente_email || '—';
+            const clienteLinha = [p.cliente_nome, p.cliente_email].filter(Boolean).join(' · ');
+            tdEmail.textContent = clienteLinha || '—';
+            if (p.cliente_telefone) {
+                tdEmail.title = 'WhatsApp: ' + p.cliente_telefone;
+            }
 
             const tdAcoes = document.createElement('td');
             const acoes = document.createElement('div');
@@ -342,10 +345,13 @@
         const form = $('formNovoTramite');
 
         if (info) {
+            const cliente = getDadosClienteProcesso(processo);
             info.textContent =
                 (processo.numero_processo || '—') + ' · ' +
                 (processo.titulo || 'Processo') + ' · ' +
-                labelEstado(processo.estado);
+                labelEstado(processo.estado) +
+                ' · Cliente: ' + (cliente.nome || cliente.email || '—') +
+                (cliente.telefone ? ' · WhatsApp: ' + cliente.telefone : ' · sem WhatsApp');
         }
 
         limparMsgs(['formTramiteErro', 'formTramiteSucesso', 'formDocErro', 'formDocSucesso']);
@@ -528,6 +534,7 @@
                 tipo: 'tramite',
                 telefone: cliente.telefone,
                 clienteNome: cliente.nome,
+                clienteEmail: cliente.email,
                 numeroProcesso: processoModalDados && processoModalDados.numero_processo,
                 tituloProcesso: processoModalDados && processoModalDados.titulo,
                 detalheTitulo: titulo,
@@ -628,6 +635,7 @@
                     tipo: 'documento',
                     telefone: cliente.telefone,
                     clienteNome: cliente.nome,
+                    clienteEmail: cliente.email,
                     numeroProcesso: processoModalDados && processoModalDados.numero_processo,
                     tituloProcesso: processoModalDados && processoModalDados.titulo,
                     detalheTitulo: doc.nome_ficheiro || nomeFicheiro || 'Novo documento',
