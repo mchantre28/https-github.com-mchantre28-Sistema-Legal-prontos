@@ -9544,7 +9544,8 @@ function blocoEstadoEmailPortal(opts) {
     if (opts.email_enviado === true) {
         return '<div class="mt-4 p-3 rounded-lg border-2 border-green-300 bg-green-50">' +
             '<p class="text-sm font-semibold text-green-900">📧 Email enviado</p>' +
-            '<p class="text-xs text-green-800 mt-1">As credenciais foram enviadas para o email do cliente.</p></div>';
+            '<p class="text-xs text-green-800 mt-1">As credenciais foram enviadas para o email do cliente.</p>' +
+            '<p class="text-xs text-green-800 mt-2">Se não aparecer na caixa de entrada (Outlook/Hotmail), peça para verificar <strong>Spam / Lixo / Other</strong> e pesquisar por «Sistema Legal» ou «Ana Paula Medina».</p></div>';
     }
     if (opts.email_enviado === false) {
         const erro = opts.email_erro || 'Não foi possível enviar o email.';

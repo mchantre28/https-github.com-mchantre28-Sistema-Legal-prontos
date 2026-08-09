@@ -348,8 +348,76 @@ function validateClienteAccountInput(nome, email) {
   return { nome: nomeTrim, email: emailNorm };
 }
 
+function normalizeTelefoneOptional(telefone) {
+  if (telefone == null || String(telefone).trim() === '') return null;
+  const digits = String(telefone).replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length === 9 && /^9/.test(digits)) return '351' + digits;
+  return digits;
+}
+
+const CLIENTE_PUBLIC_FIELDS = 'id, nome, email, telefone, perfil, created_at, must_change_password';
+
 function shouldSendPortalEmail(body) {
   return body?.enviar_email !== false && body?.enviarEmail !== false;
+}
+
+function shouldSendProcessNotification(body) {
+  if (process.env.EMAIL_NOTIFICACOES === 'false') return false;
+  return body?.enviar_notificacao !== false && body?.enviarNotificacao !== false;
+}
+
+function getProcessoComCliente(db, processoId) {
+  return db.prepare(`
+    SELECT p.id, p.numero_processo, p.titulo, p.cliente_id,
+           u.email AS cliente_email, u.nome AS cliente_nome, u.telefone AS cliente_telefone
+    FROM processos p
+    INNER JOIN utilizadores u ON u.id = p.cliente_id
+    WHERE p.id = ?
+  `).get(processoId);
+}
+
+async function maybeNotifyProcessUpdate({
+  enviarNotificacao,
+  tipo,
+  processoId,
+  detalheTitulo,
+  detalheDescricao,
+}) {
+  if (!enviarNotificacao) {
+    return { notificacao_enviada: false, notificacao_erro: null };
+  }
+  if (!emailService.isConfigured()) {
+    return {
+      notificacao_enviada: false,
+      notificacao_erro: 'Email não configurado (defina BREVO_API_KEY no Render).',
+    };
+  }
+
+  const db = getDb();
+  const processo = getProcessoComCliente(db, processoId);
+  if (!processo || !processo.cliente_email) {
+    return { notificacao_enviada: false, notificacao_erro: 'Cliente do processo não encontrado.' };
+  }
+
+  try {
+    await emailService.sendProcessUpdateNotification({
+      nome: processo.cliente_nome,
+      email: processo.cliente_email,
+      tipo,
+      processoNumero: processo.numero_processo,
+      processoTitulo: processo.titulo,
+      detalheTitulo,
+      detalheDescricao,
+    });
+    return { notificacao_enviada: true, notificacao_erro: null };
+  } catch (err) {
+    console.error('Erro ao enviar notificação de processo:', err);
+    return {
+      notificacao_enviada: false,
+      notificacao_erro: err.message || 'Falha ao enviar notificação.',
+    };
+  }
 }
 
 async function maybeSendPortalCredentials({ enviarEmail, nome, email, password, tipo }) {
@@ -382,11 +450,11 @@ async function maybeSendPortalCredentials({ enviarEmail, nome, email, password, 
 app.get('/api/clientes', authMiddleware, requireAdmin, (req, res) => {
   const db = getDb();
   const clientes = db.prepare(`
-    SELECT id, nome, email, perfil, created_at
+    SELECT ${CLIENTE_PUBLIC_FIELDS}
     FROM utilizadores
     WHERE perfil = 'cliente'
     ORDER BY nome ASC
-  `).all();
+  `).all().map(sanitizeUser);
   res.json({ clientes });
 });
 
@@ -397,21 +465,71 @@ app.get('/api/clientes/lookup', authMiddleware, requireAdmin, (req, res) => {
   }
   const db = getDb();
   const cliente = db.prepare(`
-    SELECT id, nome, email, perfil, created_at
+    SELECT ${CLIENTE_PUBLIC_FIELDS}
     FROM utilizadores
     WHERE email = ? AND perfil = 'cliente'
   `).get(emailNorm);
-  res.json({ existe: !!cliente, cliente: cliente || null });
+  res.json({ existe: !!cliente, cliente: sanitizeUser(cliente) });
 });
 
-app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
-  const { nome, email, password, gerar_password: gerarPassword } = req.body || {};
-  const validado = validateClienteAccountInput(nome, email);
-  if (validado.erro) return res.status(validado.status).json({ erro: validado.erro });
+app.put('/api/clientes/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ erro: 'ID de cliente inválido.' });
+  }
 
   const db = getDb();
   const existing = db.prepare(`
-    SELECT id, nome, email, perfil, created_at
+    SELECT id, perfil FROM utilizadores WHERE id = ?
+  `).get(id);
+
+  if (!existing || existing.perfil !== 'cliente') {
+    return res.status(404).json({ erro: 'Cliente não encontrado.' });
+  }
+
+  const { nome, telefone } = req.body || {};
+  const updates = [];
+  const params = { id };
+
+  if (nome != null) {
+    const nomeTrim = String(nome).trim();
+    if (!nomeTrim) {
+      return res.status(400).json({ erro: 'Nome não pode estar vazio.' });
+    }
+    updates.push('nome = @nome');
+    params.nome = nomeTrim;
+  }
+
+  if (telefone !== undefined) {
+    params.telefone = normalizeTelefoneOptional(telefone);
+    updates.push('telefone = @telefone');
+  }
+
+  if (!updates.length) {
+    return res.status(400).json({ erro: 'Nenhum campo para actualizar (nome ou telefone).' });
+  }
+
+  db.prepare(`UPDATE utilizadores SET ${updates.join(', ')} WHERE id = @id`).run(params);
+
+  const cliente = db.prepare(`
+    SELECT ${CLIENTE_PUBLIC_FIELDS}
+    FROM utilizadores
+    WHERE id = ?
+  `).get(id);
+
+  res.json({ cliente: sanitizeUser(cliente) });
+});
+
+app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
+  const { nome, email, password, gerar_password: gerarPassword, telefone } = req.body || {};
+  const validado = validateClienteAccountInput(nome, email);
+  if (validado.erro) return res.status(validado.status).json({ erro: validado.erro });
+
+  const telefoneNorm = normalizeTelefoneOptional(telefone);
+
+  const db = getDb();
+  const existing = db.prepare(`
+    SELECT ${CLIENTE_PUBLIC_FIELDS}
     FROM utilizadores
     WHERE email = ?
   `).get(validado.email);
@@ -437,12 +555,12 @@ app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
     const password_hash = await hashPassword(plainPassword);
     const mustChange = gerarPassword || !password ? 1 : 0;
     const result = db.prepare(`
-      INSERT INTO utilizadores (nome, email, password_hash, perfil, must_change_password)
-      VALUES (?, ?, ?, 'cliente', ?)
-    `).run(validado.nome, validado.email, password_hash, mustChange);
+      INSERT INTO utilizadores (nome, email, password_hash, perfil, must_change_password, telefone)
+      VALUES (?, ?, ?, 'cliente', ?, ?)
+    `).run(validado.nome, validado.email, password_hash, mustChange, telefoneNorm);
 
     const cliente = db.prepare(`
-      SELECT id, nome, email, perfil, created_at, must_change_password
+      SELECT ${CLIENTE_PUBLIC_FIELDS}
       FROM utilizadores
       WHERE id = ?
     `).get(result.lastInsertRowid);
@@ -561,7 +679,7 @@ app.get('/api/processos', authMiddleware, blockIfMustChangePassword, (req, res) 
 
   if (req.user.perfil === 'admin') {
     rows = db.prepare(`
-      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome
+      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome, u.telefone AS cliente_telefone
       FROM processos p
       INNER JOIN utilizadores u ON u.id = p.cliente_id
       ORDER BY p.updated_at DESC
@@ -622,7 +740,7 @@ app.post('/api/processos', authMiddleware, requireAdmin, (req, res) => {
     });
 
     const processo = db.prepare(`
-      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome
+      SELECT p.*, u.email AS cliente_email, u.nome AS cliente_nome, u.telefone AS cliente_telefone
       FROM processos p
       INNER JOIN utilizadores u ON u.id = p.cliente_id
       WHERE p.id = ?
@@ -727,7 +845,7 @@ app.get('/api/tramites/:id', authMiddleware, blockIfMustChangePassword, (req, re
   res.json({ tramite });
 });
 
-app.post('/api/tramites', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/tramites', authMiddleware, requireAdmin, async (req, res) => {
   const { processo_id, data_tramite, titulo, descricao } = req.body || {};
 
   if (!processo_id || !data_tramite || !titulo) {
@@ -751,7 +869,15 @@ app.post('/api/tramites', authMiddleware, requireAdmin, (req, res) => {
   });
 
   const tramite = db.prepare('SELECT * FROM tramites WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ tramite });
+  const notificacao = await maybeNotifyProcessUpdate({
+    enviarNotificacao: shouldSendProcessNotification(req.body),
+    tipo: 'tramite',
+    processoId: processo_id,
+    detalheTitulo: tramite.titulo,
+    detalheDescricao: tramite.descricao,
+  });
+
+  res.status(201).json({ tramite, ...notificacao });
 });
 
 app.put('/api/tramites/:id', authMiddleware, requireAdmin, (req, res) => {
@@ -842,7 +968,7 @@ app.get('/api/documentos/:id', authMiddleware, blockIfMustChangePassword, (req, 
   res.json({ documento });
 });
 
-app.post('/api/documentos', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/documentos', authMiddleware, requireAdmin, async (req, res) => {
   const { processo_id, nome_ficheiro, url_ficheiro, visivel_cliente } = req.body || {};
 
   if (!processo_id || !nome_ficheiro || !url_ficheiro) {
@@ -855,6 +981,7 @@ app.post('/api/documentos', authMiddleware, requireAdmin, (req, res) => {
     return res.status(400).json({ erro: 'processo_id inválido.' });
   }
 
+  const visivel = visivel_cliente ? 1 : 0;
   const result = db.prepare(`
     INSERT INTO documentos (processo_id, nome_ficheiro, url_ficheiro, visivel_cliente)
     VALUES (@processo_id, @nome_ficheiro, @url_ficheiro, @visivel_cliente)
@@ -862,15 +989,25 @@ app.post('/api/documentos', authMiddleware, requireAdmin, (req, res) => {
     processo_id,
     nome_ficheiro: String(nome_ficheiro).trim(),
     url_ficheiro: String(url_ficheiro).trim(),
-    visivel_cliente: visivel_cliente ? 1 : 0,
+    visivel_cliente: visivel,
   });
 
   const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ documento });
+  const notificacao = visivel
+    ? await maybeNotifyProcessUpdate({
+        enviarNotificacao: shouldSendProcessNotification(req.body),
+        tipo: 'documento',
+        processoId: processo_id,
+        detalheTitulo: documento.nome_ficheiro,
+        detalheDescricao: null,
+      })
+    : { notificacao_enviada: false, notificacao_erro: null };
+
+  res.status(201).json({ documento, ...notificacao });
 });
 
 app.post('/api/documentos/upload', authMiddleware, requireAdmin, (req, res) => {
-  upload.single('file')(req, res, function (err) {
+  upload.single('file')(req, res, async function (err) {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ erro: 'Ficheiro demasiado grande. O limite é 10 MB.' });
@@ -915,15 +1052,26 @@ app.post('/api/documentos/upload', authMiddleware, requireAdmin, (req, res) => {
       });
 
       const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(result.lastInsertRowid);
-      res.status(201).json({ documento });
+      const notificacao = visivelCliente
+        ? await maybeNotifyProcessUpdate({
+            enviarNotificacao: shouldSendProcessNotification(req.body),
+            tipo: 'documento',
+            processoId,
+            detalheTitulo: documento.nome_ficheiro,
+            detalheDescricao: null,
+          })
+        : { notificacao_enviada: false, notificacao_erro: null };
+
+      res.status(201).json({ documento, ...notificacao });
     } catch (insertErr) {
       fs.unlink(req.file.path, () => {});
-      throw insertErr;
+      console.error('Erro ao guardar documento:', insertErr);
+      res.status(500).json({ erro: 'Erro ao guardar documento.' });
     }
   });
 });
 
-app.put('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
+app.put('/api/documentos/:id', authMiddleware, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const db = getDb();
   const existing = db.prepare('SELECT * FROM documentos WHERE id = ?').get(id);
@@ -932,6 +1080,8 @@ app.put('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
   }
 
   const { nome_ficheiro, url_ficheiro, visivel_cliente } = req.body || {};
+  const novoVisivel = visivel_cliente != null ? (visivel_cliente ? 1 : 0) : null;
+  const tornouVisivel = novoVisivel === 1 && existing.visivel_cliente !== 1;
 
   db.prepare(`
     UPDATE documentos SET
@@ -943,11 +1093,21 @@ app.put('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {
     id,
     nome_ficheiro: nome_ficheiro != null ? String(nome_ficheiro).trim() : null,
     url_ficheiro: url_ficheiro != null ? String(url_ficheiro).trim() : null,
-    visivel_cliente: visivel_cliente != null ? (visivel_cliente ? 1 : 0) : null,
+    visivel_cliente: novoVisivel,
   });
 
   const documento = db.prepare('SELECT * FROM documentos WHERE id = ?').get(id);
-  res.json({ documento });
+  const notificacao = tornouVisivel
+    ? await maybeNotifyProcessUpdate({
+        enviarNotificacao: shouldSendProcessNotification(req.body),
+        tipo: 'documento',
+        processoId: documento.processo_id,
+        detalheTitulo: documento.nome_ficheiro,
+        detalheDescricao: null,
+      })
+    : { notificacao_enviada: false, notificacao_erro: null };
+
+  res.json({ documento, ...notificacao });
 });
 
 app.delete('/api/documentos/:id', authMiddleware, requireAdmin, (req, res) => {

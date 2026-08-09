@@ -73,12 +73,20 @@ function initSchema(database) {
 }
 
 function migrateSchema(database) {
-  const cols = database.prepare('PRAGMA table_info(utilizadores)').all();
+  let cols = database.prepare('PRAGMA table_info(utilizadores)').all();
   const hasMustChange = cols.some(function (c) { return c.name === 'must_change_password'; });
   if (!hasMustChange) {
     database.exec(`
       ALTER TABLE utilizadores
       ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0
+    `);
+    cols = database.prepare('PRAGMA table_info(utilizadores)').all();
+  }
+  const hasTelefone = cols.some(function (c) { return c.name === 'telefone'; });
+  if (!hasTelefone) {
+    database.exec(`
+      ALTER TABLE utilizadores
+      ADD COLUMN telefone TEXT
     `);
   }
 }

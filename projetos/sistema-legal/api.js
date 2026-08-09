@@ -372,6 +372,13 @@
         });
     }
 
+    async function updateClientePortal(id, payload) {
+        return apiFetch('/api/clientes/' + id, {
+            method: 'PUT',
+            body: JSON.stringify(payload || {})
+        });
+    }
+
     async function getEmailStatus() {
         return apiFetch('/api/email/status');
     }
@@ -459,6 +466,7 @@
         uploadDocument: uploadDocument,
         documentoUrl: documentoUrl,
         createClienteAccount: createClienteAccount,
+        updateClientePortal: updateClientePortal,
         resetClientePassword: resetClientePassword,
         sendPortalCredentials: sendPortalCredentials,
         getEmailStatus: getEmailStatus,

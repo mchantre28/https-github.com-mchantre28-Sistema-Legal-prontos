@@ -15,6 +15,7 @@
     let processos = [];
     let processoModalId = null;
     let processoModalDados = null;
+    let clientesPortal = [];
 
     function $(id) {
         return document.getElementById(id);
@@ -46,6 +47,111 @@
             return;
         }
         el.classList.add(tipo === 'sucesso' ? 'admin-msg-sucesso' : 'admin-msg-erro');
+    }
+
+    function sufixoNotificacaoEmail(data) {
+        if (!data) return '';
+        if (data.notificacao_enviada) {
+            return ' O cliente foi notificado por email.';
+        }
+        if (data.notificacao_erro) {
+            return ' Aviso: não foi possível notificar o cliente por email (' + data.notificacao_erro + ').';
+        }
+        return '';
+    }
+
+    function normalizarTelefoneWhatsApp(telefone) {
+        const digits = String(telefone || '').replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.length === 9 && /^9/.test(digits)) return '351' + digits;
+        return digits;
+    }
+
+    function getPortalClienteUrl() {
+        const path = window.location.pathname.replace(/[^/]*$/, '');
+        return window.location.origin + path + 'cliente.html';
+    }
+
+    function construirMensagemWhatsApp(opts) {
+        const portalUrl = getPortalClienteUrl();
+        const nome = opts.clienteNome || 'Cliente';
+        const numero = opts.numeroProcesso || '—';
+        const tituloProcesso = opts.tituloProcesso || 'Processo';
+        const linhas = [
+            'Exmo(a) Sr(a). ' + nome + ',',
+            '',
+        ];
+
+        if (opts.tipo === 'documento') {
+            linhas.push(
+                'Informamos que foi disponibilizado um novo documento no seu processo ' + numero + ' — ' + tituloProcesso + '.',
+                '',
+                'Documento: ' + (opts.detalheTitulo || 'Novo documento') + '.'
+            );
+        } else {
+            linhas.push(
+                'Informamos que foi registado um novo trâmite no seu processo ' + numero + ' — ' + tituloProcesso + '.',
+                '',
+                'Trâmite: ' + (opts.detalheTitulo || 'Nova actualização') + '.'
+            );
+            if (opts.detalheDescricao) {
+                linhas.push('', String(opts.detalheDescricao));
+            }
+        }
+
+        linhas.push('', 'Consulte o portal: ' + portalUrl, '', 'Ana Paula Medina — Solicitadora');
+        return linhas.join('\n');
+    }
+
+    function esconderWhatsAppAcoes() {
+        ['formTramiteWhatsApp', 'formDocWhatsApp'].forEach(function (id) {
+            const el = $(id);
+            if (el) {
+                el.innerHTML = '';
+                el.classList.add('hidden');
+            }
+        });
+    }
+
+    function mostrarWhatsAppAcao(containerId, opts) {
+        const el = $(containerId);
+        if (!el) return;
+
+        const telefone = normalizarTelefoneWhatsApp(opts.telefone);
+        if (!telefone) {
+            el.innerHTML = '<p class="admin-section-desc" style="margin:0;">WhatsApp indisponível — registe o telefone do cliente na secção «Clientes — Portal».</p>';
+            el.classList.remove('hidden');
+            return;
+        }
+
+        const msg = construirMensagemWhatsApp(opts);
+        const link = 'https://wa.me/' + encodeURIComponent(telefone) + '?text=' + encodeURIComponent(msg);
+        const anchor = document.createElement('a');
+        anchor.href = link;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.className = 'btn btn-whatsapp btn-sm';
+        anchor.textContent = 'Notificar cliente por WhatsApp';
+        el.innerHTML = '';
+        el.appendChild(anchor);
+        el.classList.remove('hidden');
+    }
+
+    function getDadosClienteProcesso(processo) {
+        if (!processo) return { telefone: '', nome: '' };
+        if (processo.cliente_telefone || processo.cliente_nome) {
+            return {
+                telefone: processo.cliente_telefone || '',
+                nome: processo.cliente_nome || '',
+            };
+        }
+        const cliente = clientesPortal.find(function (c) {
+            return c.email === processo.cliente_email || c.id === processo.cliente_id;
+        });
+        return {
+            telefone: (cliente && cliente.telefone) || '',
+            nome: (cliente && cliente.nome) || processo.cliente_nome || '',
+        };
     }
 
     function limparMsgs(ids) {
@@ -206,6 +312,7 @@
         }
 
         limparMsgs(['formTramiteErro', 'formTramiteSucesso', 'formDocErro', 'formDocSucesso']);
+        esconderWhatsAppAcoes();
 
         if (form) form.reset();
         const hoje = new Date().toISOString().slice(0, 10);
@@ -341,6 +448,7 @@
     async function criarTramite(ev) {
         ev.preventDefault();
         limparMsgs(['formTramiteErro', 'formTramiteSucesso']);
+        esconderWhatsAppAcoes();
 
         if (!processoModalId) {
             mostrarMsg($('formTramiteErro'), 'Nenhum processo selecionado.', 'erro');
@@ -376,7 +484,19 @@
                 throw new Error(data.erro || 'Não foi possível registar o trâmite.');
             }
 
-            mostrarMsg($('formTramiteSucesso'), 'Trâmite registado com sucesso.', 'sucesso');
+            mostrarMsg($('formTramiteSucesso'), 'Trâmite registado com sucesso.' + sufixoNotificacaoEmail(data), 'sucesso');
+
+            const cliente = getDadosClienteProcesso(processoModalDados);
+            mostrarWhatsAppAcao('formTramiteWhatsApp', {
+                tipo: 'tramite',
+                telefone: cliente.telefone,
+                clienteNome: cliente.nome,
+                numeroProcesso: processoModalDados && processoModalDados.numero_processo,
+                tituloProcesso: processoModalDados && processoModalDados.titulo,
+                detalheTitulo: titulo,
+                detalheDescricao: descricao || null,
+            });
+
             $('tituloTramite').value = '';
             $('descricaoTramite').value = '';
         } catch (e) {
@@ -389,6 +509,7 @@
     async function criarDocumento(ev) {
         ev.preventDefault();
         limparMsgs(['formDocErro', 'formDocSucesso']);
+        esconderWhatsAppAcoes();
 
         if (!processoModalId) {
             mostrarMsg($('formDocErro'), 'Nenhum processo selecionado.', 'erro');
@@ -459,7 +580,23 @@
                 throw new Error(data.erro || 'Não foi possível adicionar o documento.');
             }
 
-            mostrarMsg($('formDocSucesso'), ficheiro ? 'Ficheiro carregado com sucesso.' : 'Documento adicionado com sucesso.', 'sucesso');
+            const msgBase = ficheiro ? 'Ficheiro carregado com sucesso.' : 'Documento adicionado com sucesso.';
+            const msgNotif = visivelCliente ? sufixoNotificacaoEmail(data) : '';
+            mostrarMsg($('formDocSucesso'), msgBase + msgNotif, 'sucesso');
+
+            if (visivelCliente) {
+                const doc = data.documento || {};
+                const cliente = getDadosClienteProcesso(processoModalDados);
+                mostrarWhatsAppAcao('formDocWhatsApp', {
+                    tipo: 'documento',
+                    telefone: cliente.telefone,
+                    clienteNome: cliente.nome,
+                    numeroProcesso: processoModalDados && processoModalDados.numero_processo,
+                    tituloProcesso: processoModalDados && processoModalDados.titulo,
+                    detalheTitulo: doc.nome_ficheiro || nomeFicheiro || 'Novo documento',
+                });
+            }
+
             $('formNovoDocumento').reset();
             $('visivelCliente').checked = true;
             await carregarDocumentos(processoModalId);
@@ -472,24 +609,129 @@
 
     async function carregarClientes() {
         const datalist = $('listaClientesApi');
-        if (!datalist) return;
+        const loading = $('clientesPortalLoading');
+        const wrap = $('clientesPortalWrap');
+        const vazio = $('clientesPortalVazio');
+        const erroEl = $('clientesPortalErro');
+        const tbody = $('clientesPortalBody');
+
+        if (loading) loading.classList.remove('hidden');
+        if (wrap) wrap.classList.add('hidden');
+        if (vazio) vazio.classList.add('hidden');
+        mostrarMsg(erroEl, '', 'erro');
 
         try {
             const res = await SistemaLegalAPI.apiFetch('/api/clientes');
-            if (!res.ok) return;
+            if (!res.ok) {
+                const err = await res.json().catch(function () { return {}; });
+                throw new Error(err.erro || 'Não foi possível carregar os clientes.');
+            }
 
             const data = await res.json();
-            const clientes = data.clientes || [];
-            datalist.innerHTML = '';
+            clientesPortal = data.clientes || [];
 
-            clientes.forEach(function (c) {
-                const opt = document.createElement('option');
-                opt.value = c.email || '';
-                opt.label = (c.nome || c.email) + (c.email ? ' (' + c.email + ')' : '');
-                datalist.appendChild(opt);
-            });
+            if (datalist) {
+                datalist.innerHTML = '';
+                clientesPortal.forEach(function (c) {
+                    const opt = document.createElement('option');
+                    opt.value = c.email || '';
+                    opt.label = (c.nome || c.email) + (c.email ? ' (' + c.email + ')' : '');
+                    datalist.appendChild(opt);
+                });
+            }
+
+            if (tbody) {
+                tbody.innerHTML = '';
+                clientesPortal.forEach(function (c) {
+                    tbody.appendChild(criarLinhaClientePortal(c));
+                });
+            }
+
+            if (loading) loading.classList.add('hidden');
+            if (clientesPortal.length) {
+                if (wrap) wrap.classList.remove('hidden');
+            } else if (vazio) {
+                vazio.classList.remove('hidden');
+            }
         } catch (e) {
+            if (loading) loading.classList.add('hidden');
+            mostrarMsg(erroEl, e.message || 'Erro ao carregar clientes.', 'erro');
             console.warn('Não foi possível carregar lista de clientes:', e);
+        }
+    }
+
+    function sincronizarTelefoneProcessos(clienteId, telefone) {
+        processos.forEach(function (p) {
+            if (p.cliente_id === clienteId) {
+                p.cliente_telefone = telefone || null;
+            }
+        });
+        if (processoModalDados && processoModalDados.cliente_id === clienteId) {
+            processoModalDados.cliente_telefone = telefone || null;
+        }
+    }
+
+    function criarLinhaClientePortal(cliente) {
+        const tr = document.createElement('tr');
+
+        const tdNome = document.createElement('td');
+        tdNome.textContent = cliente.nome || '—';
+
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = cliente.email || '—';
+
+        const tdTel = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'tel';
+        input.className = 'form-control';
+        input.maxLength = 20;
+        input.placeholder = '351912345678';
+        input.value = cliente.telefone || '';
+        input.dataset.clienteId = String(cliente.id);
+        input.addEventListener('input', function () {
+            input.value = input.value.replace(/\D/g, '');
+        });
+        tdTel.appendChild(input);
+
+        const tdAcao = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.textContent = 'Guardar';
+        btn.addEventListener('click', function () {
+            guardarTelefoneCliente(cliente.id, input.value.trim(), btn);
+        });
+        tdAcao.appendChild(btn);
+
+        tr.appendChild(tdNome);
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdTel);
+        tr.appendChild(tdAcao);
+        return tr;
+    }
+
+    async function guardarTelefoneCliente(clienteId, telefone, btn) {
+        if (btn) btn.disabled = true;
+        try {
+            const res = await SistemaLegalAPI.updateClientePortal(clienteId, { telefone: telefone });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                throw new Error(data.erro || 'Não foi possível guardar o telefone.');
+            }
+
+            const actualizado = data.cliente || {};
+            clientesPortal = clientesPortal.map(function (c) {
+                return c.id === clienteId ? actualizado : c;
+            });
+            sincronizarTelefoneProcessos(clienteId, actualizado.telefone);
+            if (btn) {
+                btn.textContent = 'Guardado';
+                setTimeout(function () { btn.textContent = 'Guardar'; }, 1500);
+            }
+        } catch (e) {
+            window.alert(e.message || 'Erro ao guardar telefone.');
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -674,6 +916,7 @@
 
         const nome = $('portalClienteNome').value.trim();
         const email = $('portalClienteEmail').value.trim().toLowerCase();
+        const telefone = ($('portalClienteTelefone') && $('portalClienteTelefone').value.trim()) || '';
 
         if (!nome || !email) {
             mostrarMsg($('formPortalErro'), 'Nome e email são obrigatórios.', 'erro');
@@ -687,6 +930,7 @@
             const res = await SistemaLegalAPI.createClienteAccount({
                 nome: nome,
                 email: email,
+                telefone: telefone || undefined,
                 gerar_password: true,
                 enviar_email: true
             });

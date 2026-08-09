@@ -47,6 +47,12 @@
                             <label class="form-label" for="portalClienteEmail">Email</label>
                             <input type="email" id="portalClienteEmail" name="email" class="form-control" required maxlength="120" placeholder="cliente@email.pt" autocomplete="off">
                         </div>
+                        <div class="form-group">
+                            <label class="form-label" for="portalClienteTelefone">WhatsApp <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+                            <input type="tel" id="portalClienteTelefone" name="telefone" class="form-control" maxlength="20"
+                                placeholder="351912345678" inputmode="numeric" autocomplete="tel">
+                            <p class="admin-section-desc" style="margin:0.375rem 0 0;">Com indicativo do país, só números. Usado para notificações manuais.</p>
+                        </div>
                     </div>
 
                     <p id="formPortalErro" class="hidden admin-msg admin-msg-erro"></p>
@@ -56,6 +62,33 @@
                         Criar conta de portal
                     </button>
                 </form>
+            </section>
+
+            <section class="card p-6">
+                <h2 class="admin-section-title">Clientes — Portal</h2>
+                <p class="admin-section-desc">Telefone WhatsApp de cada cliente. Necessário para o botão de notificação manual após trâmites e documentos.</p>
+
+                <div id="clientesPortalLoading" class="admin-loading">
+                    <span class="admin-spinner"></span>
+                    A carregar clientes...
+                </div>
+
+                <div id="clientesPortalWrap" class="table-responsive hidden">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Email</th>
+                                <th>WhatsApp</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientesPortalBody"></tbody>
+                    </table>
+                </div>
+
+                <p id="clientesPortalVazio" class="hidden admin-section-desc">Ainda não existem clientes de portal.</p>
+                <p id="clientesPortalErro" class="hidden admin-msg admin-msg-erro"></p>
             </section>
 
             <section class="card p-6">
@@ -164,6 +197,7 @@
 
                 <p id="formTramiteErro" class="hidden admin-msg admin-msg-erro"></p>
                 <p id="formTramiteSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+                <div id="formTramiteWhatsApp" class="hidden admin-whatsapp-acao"></div>
 
                 <button type="submit" id="btnCriarTramite" class="btn btn-primary">Registar trâmite</button>
             </form>
@@ -200,6 +234,7 @@
 
                     <p id="formDocErro" class="hidden admin-msg admin-msg-erro"></p>
                     <p id="formDocSucesso" class="hidden admin-msg admin-msg-sucesso"></p>
+                    <div id="formDocWhatsApp" class="hidden admin-whatsapp-acao"></div>
 
                     <button type="submit" id="btnCriarDocumento" class="btn btn-info btn-sm">Adicionar documento</button>
                 </form>

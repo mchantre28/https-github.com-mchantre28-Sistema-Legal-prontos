@@ -234,13 +234,13 @@ async function sendViaSmtp({ to, subject, html, text, fromHeader }) {
   });
 }
 
-async function sendPortalCredentials({ nome, email, password, tipo }) {
+async function sendEmail({ to, subject, html, text }) {
   const provider = resolveProvider();
   if (!provider) {
     throw new Error('Email não configurado (defina RESEND_API_KEY, BREVO_API_KEY ou SMTP_*).');
   }
-  if (!email || !password) {
-    throw new Error('Email e password são obrigatórios para envio.');
+  if (!to) {
+    throw new Error('Destinatário em falta.');
   }
 
   const shared = getSharedConfig();
@@ -249,6 +249,88 @@ async function sendPortalCredentials({ nome, email, password, tipo }) {
     throw new Error('EMAIL_FROM em falta (ex.: Ana Paula Medina <email@dominio.pt>).');
   }
 
+  const fromHeader = formatFromHeader(from);
+  if (provider === 'resend') {
+    await sendViaResend({ to, subject, html, text, fromHeader });
+    return;
+  }
+  if (provider === 'brevo') {
+    await sendViaBrevo({ to, subject, html, text, from });
+    return;
+  }
+  await sendViaSmtp({ to, subject, html, text, fromHeader });
+}
+
+function buildProcessUpdateEmail({
+  nome,
+  tipo,
+  processoNumero,
+  processoTitulo,
+  detalheTitulo,
+  detalheDescricao,
+  portalUrl,
+  escritorio,
+}) {
+  const isDocumento = tipo === 'documento';
+  const titulo = isDocumento ? 'Novo documento no seu processo' : 'Nova actualização no seu processo';
+  const intro = isDocumento
+    ? 'Foi disponibilizado um novo documento no portal de acompanhamento do seu processo.'
+    : 'Foi registada uma nova actualização (trâmite) no seu processo.';
+
+  const saudacao = nome ? `Exmo(a). Sr(a). ${escapeHtml(nome)},` : 'Exmo(a) Sr(a). Cliente,';
+  const descricaoHtml = detalheDescricao
+    ? `<p style="margin:12px 0 0;font-size:14px;color:#374151;">${escapeHtml(detalheDescricao)}</p>`
+    : '';
+
+  const linkHtml = portalUrl
+    ? `<p style="margin:20px 0 0;"><a href="${escapeHtml(portalUrl)}" style="color:#111827;font-weight:600;">Aceder ao portal</a></p>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="pt">
+<head><meta charset="UTF-8"><title>${escapeHtml(titulo)}</title></head>
+<body style="font-family:Georgia,'Times New Roman',serif;color:#111827;line-height:1.6;margin:0;padding:24px;background:#f3f4f6;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:32px;">
+    <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280;">${escapeHtml(escritorio)}</p>
+    <h1 style="margin:0 0 24px;font-size:20px;font-weight:600;">${escapeHtml(titulo)}</h1>
+    <p style="margin:0 0 16px;">${saudacao}</p>
+    <p style="margin:0 0 16px;">${intro}</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:15px;">
+      <tr><td style="padding:8px 0;color:#6b7280;width:130px;">Processo</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(processoNumero)} — ${escapeHtml(processoTitulo)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;">${isDocumento ? 'Documento' : 'Trâmite'}</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(detalheTitulo)}</td></tr>
+    </table>
+    ${descricaoHtml}
+    ${linkHtml}
+    <p style="margin:20px 0 0;font-size:13px;color:#6b7280;">Se não encontrar o email na caixa de entrada (Outlook/Hotmail), verifique a pasta Spam ou Other.</p>
+    <p style="margin:24px 0 0;font-size:14px;color:#6b7280;">Com os melhores cumprimentos,<br><strong>${escapeHtml(escritorio)}</strong></p>
+  </div>
+</body>
+</html>`;
+
+  const text = [
+    titulo,
+    '',
+    nome ? `Exmo(a). Sr(a). ${nome},` : 'Exmo(a) Sr(a). Cliente,',
+    '',
+    intro,
+    '',
+    `Processo: ${processoNumero} — ${processoTitulo}`,
+    `${isDocumento ? 'Documento' : 'Trâmite'}: ${detalheTitulo}`,
+    detalheDescricao ? detalheDescricao : '',
+    portalUrl ? `Portal: ${portalUrl}` : '',
+    '',
+    escritorio,
+  ].filter(Boolean).join('\n');
+
+  return { titulo, html, text };
+}
+
+async function sendPortalCredentials({ nome, email, password, tipo }) {
+  if (!email || !password) {
+    throw new Error('Email e password são obrigatórios para envio.');
+  }
+
+  const shared = getSharedConfig();
   const { titulo, html, text } = buildPortalCredentialsEmail({
     nome,
     email,
@@ -258,23 +340,47 @@ async function sendPortalCredentials({ nome, email, password, tipo }) {
     escritorio: shared.escritorio,
   });
 
-  const subject = `${titulo} — ${shared.escritorio}`;
-  const fromHeader = formatFromHeader(from);
+  await sendEmail({
+    to: email,
+    subject: `${titulo} — ${shared.escritorio}`,
+    html,
+    text,
+  });
+}
 
-  if (provider === 'resend') {
-    await sendViaResend({ to: email, subject, html, text, fromHeader });
-    return;
-  }
-  if (provider === 'brevo') {
-    await sendViaBrevo({ to: email, subject, html, text, from });
-    return;
-  }
-  await sendViaSmtp({ to: email, subject, html, text, fromHeader });
+async function sendProcessUpdateNotification({
+  nome,
+  email,
+  tipo,
+  processoNumero,
+  processoTitulo,
+  detalheTitulo,
+  detalheDescricao,
+}) {
+  const shared = getSharedConfig();
+  const { titulo, html, text } = buildProcessUpdateEmail({
+    nome,
+    tipo,
+    processoNumero,
+    processoTitulo,
+    detalheTitulo,
+    detalheDescricao,
+    portalUrl: shared.portalUrl,
+    escritorio: shared.escritorio,
+  });
+
+  await sendEmail({
+    to: email,
+    subject: `${titulo} — ${processoNumero}`,
+    html,
+    text,
+  });
 }
 
 module.exports = {
   isConfigured,
   getPublicStatus,
   sendPortalCredentials,
+  sendProcessUpdateNotification,
   resolveProvider,
 };

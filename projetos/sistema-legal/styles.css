@@ -1225,6 +1225,22 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     background: #064e3b;
 }
 
+.admin-whatsapp-acao {
+    margin: 0.75rem 0 0;
+}
+
+.btn-whatsapp {
+    background: #25d366;
+    border-color: #25d366;
+    color: #fff;
+}
+
+.btn-whatsapp:hover {
+    background: #1da851;
+    border-color: #1da851;
+    color: #fff;
+}
+
 .admin-loading {
     display: flex;
     align-items: center;

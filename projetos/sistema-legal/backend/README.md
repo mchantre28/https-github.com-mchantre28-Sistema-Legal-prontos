@@ -43,7 +43,9 @@ Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e reinicie
 | `RESEND_API_KEY` | API key [Resend](https://resend.com) (HTTPS, funciona no Render Free) | — |
 | `BREVO_API_KEY` | API key [Brevo](https://www.brevo.com) (HTTPS, funciona no Render Free) | — |
 | `EMAIL_FROM` | Remetente: `Ana Paula Medina <email@...>` | — |
+| `BREVO_SENDER_EMAIL` | Remetente Brevo quando `EMAIL_FROM` aponta para `@resend.dev` | — |
 | `PORTAL_URL` | URL do portal cliente no email     | — |
+| `EMAIL_NOTIFICACOES` | Notificar cliente por email em novo trâmite/documento visível (`false` desactiva) | activo |
 | `EMAIL_ESCRITORIO` | Nome do escritório no email   | `Ana Paula Medina — Solicitadora`     |
 | `SMTP_HOST`  | Servidor SMTP (só plano pago Render ou local) | — |
 | `SMTP_PORT`  | Porta SMTP                         | `587`                                 |
@@ -124,11 +126,28 @@ O **Render Free bloqueia SMTP** (portas 587/465). Use **Resend** ou **Brevo** (H
 
 Com `EMAIL_PROVIDER=auto` (predefinição), usa Resend se existir key, senão Brevo, senão SMTP.
 
+### Notificações de processo (trâmite / documento)
+
+Quando a solicitadora regista um **trâmite** ou um **documento visível ao cliente**, o backend envia automaticamente um email ao cliente com link para o portal (`PORTAL_URL`).
+
+- Activas por defeito; desactivar globalmente: `EMAIL_NOTIFICACOES=false`
+- Por pedido: `"enviar_notificacao": false` no body do POST/PUT
+- Resposta inclui `notificacao_enviada` e, em falha, `notificacao_erro`
+- Documentos **internos** (`visivel_cliente=0`) não disparam email; ao tornar visível via `PUT /api/documentos/:id`, envia notificação
+
+### WhatsApp manual (admin)
+
+O painel `admin.html` permite registar o **telefone WhatsApp** de cada cliente (`telefone` na API). Após registar trâmite ou documento visível, aparece o botão **Notificar cliente por WhatsApp**, que abre o WhatsApp com mensagem pré-preenchida (envio manual pela solicitadora).
+
+- `PUT /api/clientes/:id` — actualizar `telefone` ou `nome`
+- Formato: indicativo + número, só dígitos (ex.: `351912345678`); números PT de 9 dígitos são normalizados automaticamente
+
 ### Clientes (portal)
 
 - `GET /api/clientes` — lista contas cliente (admin)
 - `GET /api/clientes/lookup?email=` — verificar se email já tem conta (admin)
-- `POST /api/clientes` — criar conta (`gerar_password`, `enviar_email`)
+- `POST /api/clientes` — criar conta (`gerar_password`, `enviar_email`, `telefone`)
+- `PUT /api/clientes/:id` — actualizar `nome` e/ou `telefone` (admin)
 - `POST /api/clientes/gerar-password` — nova password temporária (`enviar_email`)
 - `POST /api/clientes/enviar-credenciais` — reenviar credenciais por email (admin)
 - `GET /api/email/status` — estado da configuração SMTP (admin)
@@ -139,7 +158,7 @@ Com `EMAIL_PROVIDER=auto` (predefinição), usa Resend se existir key, senão Br
 
 ## Estrutura da base de dados
 
-- `utilizadores` — id, nome, email, password_hash, perfil (`admin` | `cliente`)
+- `utilizadores` — id, nome, email, telefone (WhatsApp), password_hash, perfil (`admin` | `cliente`)
 - `processos` — id, numero_processo, titulo, descricao, estado, cliente_id
 - `tramites` — id, processo_id, data_tramite, titulo, descricao
 - `documentos` — id, processo_id, nome_ficheiro, url_ficheiro, visivel_cliente
