@@ -362,7 +362,7 @@ async function maybeSendPortalCredentials({ enviarEmail, nome, email, password, 
   if (!emailService.isConfigured()) {
     return {
       email_enviado: false,
-      email_erro: 'SMTP não configurado no servidor (defina SMTP_HOST, SMTP_USER e SMTP_PASS).',
+      email_erro: 'Email não configurado (defina RESEND_API_KEY ou BREVO_API_KEY no Render).',
     };
   }
   try {

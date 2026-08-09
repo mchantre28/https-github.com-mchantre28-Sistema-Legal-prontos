@@ -39,14 +39,17 @@ Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e reinicie
 |--------------|------------------------------------|---------------------------------------|
 | `PORT`       | Porta do servidor                  | `3001`                                |
 | `JWT_SECRET` | Segredo para tokens JWT            | valor de desenvolvimento (alterar!)   |
-| `SMTP_HOST`  | Servidor SMTP (ex.: `smtp.gmail.com`) | — (opcional; necessário para email) |
+| `EMAIL_PROVIDER` | `auto`, `resend`, `brevo` ou `smtp` | `auto` (Resend → Brevo → SMTP) |
+| `RESEND_API_KEY` | API key [Resend](https://resend.com) (HTTPS, funciona no Render Free) | — |
+| `BREVO_API_KEY` | API key [Brevo](https://www.brevo.com) (HTTPS, funciona no Render Free) | — |
+| `EMAIL_FROM` | Remetente: `Ana Paula Medina <email@...>` | — |
+| `PORTAL_URL` | URL do portal cliente no email     | — |
+| `EMAIL_ESCRITORIO` | Nome do escritório no email   | `Ana Paula Medina — Solicitadora`     |
+| `SMTP_HOST`  | Servidor SMTP (só plano pago Render ou local) | — |
 | `SMTP_PORT`  | Porta SMTP                         | `587`                                 |
-| `SMTP_SECURE`| `true` para TLS na porta 465       | `false`                               |
 | `SMTP_USER`  | Utilizador SMTP                    | —                                     |
-| `SMTP_PASS`  | Password ou app password SMTP      | —                                     |
-| `SMTP_FROM`  | Remetente (ex.: `escritorio@dominio.pt`) | `SMTP_USER`                      |
-| `PORTAL_URL` | URL do portal cliente no email     | —                                     |
-| `SMTP_ESCRITORIO` | Nome do escritório no email   | `Ana Paula Medina — Solicitadora`     |
+| `SMTP_PASS`  | Password SMTP                      | —                                     |
+| `SMTP_FROM`  | Alias de `EMAIL_FROM` para SMTP    | `SMTP_USER`                      |
 
 ## Frontend (login JWT)
 
@@ -102,6 +105,24 @@ Authorization: Bearer <token>
 - `POST /api/documentos` — admin
 - `PUT /api/documentos/:id` — admin
 - `DELETE /api/documentos/:id` — admin
+
+### Email (credenciais do portal)
+
+O **Render Free bloqueia SMTP** (portas 587/465). Use **Resend** ou **Brevo** (HTTPS):
+
+**Resend (recomendado, ~3000 emails/mês grátis):**
+1. Criar conta em [resend.com](https://resend.com)
+2. **API Keys** → criar key → copiar
+3. **Domains** → verificar domínio OU usar email de teste
+4. No Render: `RESEND_API_KEY`, `EMAIL_FROM`, `PORTAL_URL`
+
+**Brevo (alternativa, ~300 emails/dia grátis):**
+1. Criar conta em [brevo.com](https://www.brevo.com)
+2. **SMTP & API** → **API Keys** → criar
+3. **Senders** → verificar email remetente
+4. No Render: `BREVO_API_KEY`, `EMAIL_FROM`, `PORTAL_URL`
+
+Com `EMAIL_PROVIDER=auto` (predefinição), usa Resend se existir key, senão Brevo, senão SMTP.
 
 ### Clientes (portal)
 
