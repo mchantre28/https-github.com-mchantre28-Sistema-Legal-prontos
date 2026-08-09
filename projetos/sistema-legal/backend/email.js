@@ -11,13 +11,21 @@ const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 
 function getSharedConfig() {
+  const providerPref = String(process.env.EMAIL_PROVIDER || 'auto').trim().toLowerCase();
+  const brevoSender = String(process.env.BREVO_SENDER_EMAIL || '').trim();
+  const emailFrom = String(process.env.EMAIL_FROM || '').trim();
+  let fromRaw = emailFrom
+    || String(process.env.SMTP_FROM || process.env.RESEND_FROM || brevoSender || process.env.SMTP_USER || '').trim();
+  if ((providerPref === 'brevo' || providerPref === 'auto') && brevoSender) {
+    if (!fromRaw || /@resend\.dev$/i.test(fromRaw)) {
+      fromRaw = brevoSender.includes('<') ? brevoSender : `Ana Paula Medina <${brevoSender}>`;
+    }
+  }
   return {
     portalUrl: String(process.env.PORTAL_URL || '').trim(),
     escritorio: String(process.env.EMAIL_ESCRITORIO || process.env.SMTP_ESCRITORIO || 'Ana Paula Medina — Solicitadora').trim(),
-    fromRaw: String(
-      process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.RESEND_FROM || process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || ''
-    ).trim(),
-    providerPref: String(process.env.EMAIL_PROVIDER || 'auto').trim().toLowerCase(),
+    fromRaw,
+    providerPref,
   };
 }
 
