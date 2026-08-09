@@ -1298,6 +1298,22 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     color: #fcd34d;
 }
 
+.admin-whatsapp-passos {
+    margin: 0.625rem 0 0;
+    padding-left: 1.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #047857;
+}
+
+[data-theme="dark"] .admin-whatsapp-passos {
+    color: #d1fae5;
+}
+
+.admin-whatsapp-passos li {
+    margin: 0.25rem 0;
+}
+
 .btn-whatsapp {
     background: #25d366;
     border-color: #25d366;

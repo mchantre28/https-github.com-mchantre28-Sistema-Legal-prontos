@@ -61,10 +61,18 @@
     }
 
     function normalizarTelefoneWhatsApp(telefone) {
-        const digits = String(telefone || '').replace(/\D/g, '');
+        let digits = String(telefone || '').replace(/\D/g, '');
         if (!digits) return '';
+        if (digits.startsWith('00')) digits = digits.slice(2);
+        if (digits.startsWith('440') && digits.length > 12) digits = '44' + digits.slice(3);
         if (digits.length === 9 && /^9/.test(digits)) return '351' + digits;
         return digits;
+    }
+
+    function formatarTelefoneWhatsApp(telefone) {
+        const digits = normalizarTelefoneWhatsApp(telefone);
+        if (!digits) return '';
+        return '+' + digits;
     }
 
     function getPortalClienteUrl() {
@@ -111,14 +119,32 @@
         return { link: link, telefone: telefone, msg: msg };
     }
 
-    function abrirWhatsAppLink(link) {
+    function abrirWhatsAppLink(link, permitirMesmaAba) {
         if (!link) return false;
         try {
             const win = window.open(link, '_blank', 'noopener,noreferrer');
-            return !!win;
-        } catch (e) {
-            return false;
+            if (win) return true;
+        } catch (e) { /* fallback opcional */ }
+        if (permitirMesmaAba) {
+            try {
+                window.location.assign(link);
+                return true;
+            } catch (e2) {
+                return false;
+            }
         }
+        return false;
+    }
+
+    function criarBotaoWhatsApp(built, label) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-whatsapp btn-sm';
+        btn.textContent = label || 'Abrir WhatsApp e enviar ao cliente';
+        btn.addEventListener('click', function () {
+            abrirWhatsAppLink(built.link, true);
+        });
+        return btn;
     }
 
     function esconderWhatsAppAcoes() {
@@ -148,31 +174,22 @@
             return;
         }
 
-        let statusHtml;
-        let abriu = false;
-        if (autoOpen) {
-            abriu = abrirWhatsAppLink(built.link);
-            statusHtml = abriu
-                ? '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-ok">✓ WhatsApp aberto num novo separador. <strong>Carregue em Enviar</strong> no WhatsApp para o cliente receber a mensagem.</p>'
-                : '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-alerta">O navegador bloqueou a abertura automática. Clique no botão verde abaixo para abrir o WhatsApp.</p>';
-        } else {
-            statusHtml = '<p class="admin-whatsapp-banner-texto">Clique no botão para abrir o WhatsApp com a mensagem pronta. Depois carregue em <strong>Enviar</strong>.</p>';
-        }
+        let statusHtml =
+            '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-alerta">Clique no botão verde → confirme o chat → carregue em <strong>Enviar</strong> no WhatsApp.</p>';
 
         el.innerHTML =
             '<div class="admin-whatsapp-banner">' +
-            '<p class="admin-whatsapp-banner-titulo">WhatsApp — confirme o envio</p>' +
-            '<p class="admin-whatsapp-banner-texto">O email é automático; o WhatsApp abre aqui mas <strong>só chega ao cliente quando enviar manualmente</strong>.</p>' +
+            '<p class="admin-whatsapp-banner-titulo">WhatsApp — passo final manual</p>' +
+            '<p class="admin-whatsapp-banner-texto">Email já enviado automaticamente. WhatsApp usa o número <strong>' + formatarTelefoneWhatsApp(built.telefone) + '</strong>.</p>' +
             statusHtml +
+            '<ol class="admin-whatsapp-passos">' +
+            '<li>Clique em «Abrir WhatsApp e enviar ao cliente»</li>' +
+            '<li>Confirme que abriu o chat correcto</li>' +
+            '<li>Carregue em <strong>Enviar</strong> no WhatsApp</li>' +
+            '</ol>' +
             '</div>';
 
-        const anchor = document.createElement('a');
-        anchor.href = built.link;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.className = 'btn btn-whatsapp btn-sm';
-        anchor.textContent = abriu ? 'Abrir WhatsApp novamente' : 'Abrir WhatsApp e enviar ao cliente';
-        el.appendChild(anchor);
+        el.appendChild(criarBotaoWhatsApp(built, 'Abrir WhatsApp e enviar ao cliente'));
         el.classList.remove('hidden');
     }
 
@@ -730,7 +747,7 @@
         input.type = 'tel';
         input.className = 'form-control';
         input.maxLength = 20;
-        input.placeholder = '351912345678';
+        input.placeholder = '447404139780';
         input.value = cliente.telefone || '';
         input.dataset.clienteId = String(cliente.id);
         input.addEventListener('input', function () {
@@ -758,7 +775,9 @@
     async function guardarTelefoneCliente(clienteId, telefone, btn) {
         if (btn) btn.disabled = true;
         try {
-            const res = await SistemaLegalAPI.updateClientePortal(clienteId, { telefone: telefone });
+            const res = await SistemaLegalAPI.updateClientePortal(clienteId, {
+                telefone: normalizarTelefoneWhatsApp(telefone) || telefone
+            });
             const data = await res.json().catch(function () { return {}; });
             if (!res.ok) {
                 throw new Error(data.erro || 'Não foi possível guardar o telefone.');
@@ -975,7 +994,7 @@
             const res = await SistemaLegalAPI.createClienteAccount({
                 nome: nome,
                 email: email,
-                telefone: telefone || undefined,
+                telefone: normalizarTelefoneWhatsApp(telefone) || undefined,
                 gerar_password: true,
                 enviar_email: true
             });

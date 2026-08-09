@@ -350,8 +350,10 @@ function validateClienteAccountInput(nome, email) {
 
 function normalizeTelefoneOptional(telefone) {
   if (telefone == null || String(telefone).trim() === '') return null;
-  const digits = String(telefone).replace(/\D/g, '');
+  let digits = String(telefone).replace(/\D/g, '');
   if (!digits) return null;
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('440') && digits.length > 12) digits = '44' + digits.slice(3);
   if (digits.length === 9 && /^9/.test(digits)) return '351' + digits;
   return digits;
 }
