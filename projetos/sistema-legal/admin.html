@@ -6,7 +6,7 @@
     <title>Sistema Legal — Área Administrativa</title>
     <meta name="theme-color" content="#111827">
     <meta name="api-base-url" content="https://sistema-legal-api.onrender.com">
-    <link rel="stylesheet" href="styles.css?v=13">
+    <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body class="admin-page">
     <div id="loading" class="admin-loading" style="min-height:100vh;justify-content:center;">
@@ -66,7 +66,7 @@
 
             <section class="card p-6">
                 <h2 class="admin-section-title">Clientes — Portal</h2>
-                <p class="admin-section-desc">Telefone WhatsApp de cada cliente. Necessário para o botão de notificação manual após trâmites e documentos.</p>
+                <p class="admin-section-desc">Telefone WhatsApp de cada cliente. Após trâmite/documento, o WhatsApp abre sozinho — a solicitadora só precisa carregar em <strong>Enviar</strong> no WhatsApp.</p>
 
                 <div id="clientesPortalLoading" class="admin-loading">
                     <span class="admin-spinner"></span>
@@ -175,6 +175,7 @@
                 <div>
                     <h3 id="modalTramiteTitulo" class="admin-modal-title">Novo trâmite</h3>
                     <p id="modalProcessoInfo" class="admin-modal-meta"></p>
+                    <p class="admin-whatsapp-hint">Após registar trâmite ou documento visível, o WhatsApp abre automaticamente — confirme o envio manualmente no telemóvel ou WhatsApp Web.</p>
                 </div>
                 <button type="button" id="btnFecharModal" class="btn btn-secondary btn-sm" aria-label="Fechar">✕</button>
             </div>
@@ -318,6 +319,6 @@
 
     <script src="api.js?v=8"></script>
     <script src="auth-guard.js?v=2"></script>
-    <script src="admin.js?v=6"></script>
+    <script src="admin.js?v=7"></script>
 </body>
 </html>

@@ -137,7 +137,7 @@ Quando a solicitadora regista um **trâmite** ou um **documento visível ao clie
 
 ### WhatsApp manual (admin)
 
-O painel `admin.html` permite registar o **telefone WhatsApp** de cada cliente (`telefone` na API). Após registar trâmite ou documento visível, aparece o botão **Notificar cliente por WhatsApp**, que abre o WhatsApp com mensagem pré-preenchida (envio manual pela solicitadora).
+O painel `admin.html` permite registar o **telefone WhatsApp** de cada cliente (`telefone` na API). Após registar trâmite ou documento visível, o **WhatsApp abre automaticamente** num novo separador com mensagem pré-preenchida; a solicitadora deve carregar em **Enviar** no WhatsApp (envio manual).
 
 - `PUT /api/clientes/:id` — actualizar `telefone` ou `nome`
 - Formato: indicativo + número, só dígitos (ex.: `351912345678`); números PT de 9 dígitos são normalizados automaticamente

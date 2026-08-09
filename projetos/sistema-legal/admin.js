@@ -103,6 +103,24 @@
         return linhas.join('\n');
     }
 
+    function buildWhatsAppLink(opts) {
+        const telefone = normalizarTelefoneWhatsApp(opts.telefone);
+        if (!telefone) return null;
+        const msg = construirMensagemWhatsApp(opts);
+        const link = 'https://wa.me/' + encodeURIComponent(telefone) + '?text=' + encodeURIComponent(msg);
+        return { link: link, telefone: telefone, msg: msg };
+    }
+
+    function abrirWhatsAppLink(link) {
+        if (!link) return false;
+        try {
+            const win = window.open(link, '_blank', 'noopener,noreferrer');
+            return !!win;
+        } catch (e) {
+            return false;
+        }
+    }
+
     function esconderWhatsAppAcoes() {
         ['formTramiteWhatsApp', 'formDocWhatsApp'].forEach(function (id) {
             const el = $(id);
@@ -113,26 +131,45 @@
         });
     }
 
-    function mostrarWhatsAppAcao(containerId, opts) {
+    function mostrarWhatsAppAcao(containerId, opts, autoOpen) {
         const el = $(containerId);
         if (!el) return;
 
-        const telefone = normalizarTelefoneWhatsApp(opts.telefone);
-        if (!telefone) {
-            el.innerHTML = '<p class="admin-section-desc" style="margin:0;">WhatsApp indisponível — registe o telefone do cliente na secção «Clientes — Portal».</p>';
+        const built = buildWhatsAppLink(opts);
+        if (!built) {
+            el.innerHTML =
+                '<div class="admin-whatsapp-banner admin-whatsapp-banner-aviso">' +
+                '<p class="admin-whatsapp-banner-titulo">WhatsApp indisponível</p>' +
+                '<p class="admin-whatsapp-banner-texto">Registe o telefone do cliente na secção «Clientes — Portal» (com indicativo, ex.: 447475602282).</p>' +
+                '</div>';
             el.classList.remove('hidden');
             return;
         }
 
-        const msg = construirMensagemWhatsApp(opts);
-        const link = 'https://wa.me/' + encodeURIComponent(telefone) + '?text=' + encodeURIComponent(msg);
+        let statusHtml;
+        let abriu = false;
+        if (autoOpen) {
+            abriu = abrirWhatsAppLink(built.link);
+            statusHtml = abriu
+                ? '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-ok">✓ WhatsApp aberto num novo separador. <strong>Carregue em Enviar</strong> no WhatsApp para o cliente receber a mensagem.</p>'
+                : '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-alerta">O navegador bloqueou a abertura automática. Clique no botão verde abaixo para abrir o WhatsApp.</p>';
+        } else {
+            statusHtml = '<p class="admin-whatsapp-banner-texto">Clique no botão para abrir o WhatsApp com a mensagem pronta. Depois carregue em <strong>Enviar</strong>.</p>';
+        }
+
+        el.innerHTML =
+            '<div class="admin-whatsapp-banner">' +
+            '<p class="admin-whatsapp-banner-titulo">WhatsApp — confirme o envio</p>' +
+            '<p class="admin-whatsapp-banner-texto">O email é automático; o WhatsApp abre aqui mas <strong>só chega ao cliente quando enviar manualmente</strong>.</p>' +
+            statusHtml +
+            '</div>';
+
         const anchor = document.createElement('a');
-        anchor.href = link;
+        anchor.href = built.link;
         anchor.target = '_blank';
         anchor.rel = 'noopener noreferrer';
         anchor.className = 'btn btn-whatsapp btn-sm';
-        anchor.textContent = 'Notificar cliente por WhatsApp';
-        el.innerHTML = '';
+        anchor.textContent = abriu ? 'Abrir WhatsApp novamente' : 'Abrir WhatsApp e enviar ao cliente';
         el.appendChild(anchor);
         el.classList.remove('hidden');
     }
@@ -495,7 +532,7 @@
                 tituloProcesso: processoModalDados && processoModalDados.titulo,
                 detalheTitulo: titulo,
                 detalheDescricao: descricao || null,
-            });
+            }, true);
 
             $('tituloTramite').value = '';
             $('descricaoTramite').value = '';
@@ -594,7 +631,7 @@
                     numeroProcesso: processoModalDados && processoModalDados.numero_processo,
                     tituloProcesso: processoModalDados && processoModalDados.titulo,
                     detalheTitulo: doc.nome_ficheiro || nomeFicheiro || 'Novo documento',
-                });
+                }, true);
             }
 
             $('formNovoDocumento').reset();
