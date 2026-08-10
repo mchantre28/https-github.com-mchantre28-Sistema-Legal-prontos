@@ -2,10 +2,29 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = process.env.DATA_DIR
-  ? path.resolve(process.env.DATA_DIR)
-  : path.join(__dirname, 'data');
+function resolveDataDir() {
+  if (process.env.DATA_DIR) {
+    return path.resolve(process.env.DATA_DIR);
+  }
+  // Render: preferir /var/data (ver render.yaml) ou caminho legado do Blueprint
+  const candidates = [
+    '/var/data',
+    '/opt/render/project/src/projetos/sistema-legal/backend/data',
+  ];
+  if (process.env.RENDER === 'true' || process.env.RENDER_SERVICE_ID) {
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate)) return candidate;
+      } catch (e) { /* tenta seguinte */ }
+    }
+  }
+  return path.join(__dirname, 'data');
+}
+
+const DATA_DIR = resolveDataDir();
 const DB_PATH = path.join(DATA_DIR, 'sistema-legal.db');
+/** Sem DATA_DIR explícito, no Render Free o disco é efémero (perde dados em restart/deploy). */
+const IS_EPHEMERAL = !process.env.DATA_DIR;
 
 let db = null;
 
@@ -16,10 +35,24 @@ function getDb() {
     }
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = FULL');
     db.pragma('foreign_keys = ON');
     initSchema(db);
+    if (IS_EPHEMERAL && process.env.NODE_ENV === 'production') {
+      console.warn('[AVISO] DATA_DIR não definido — a base SQLite pode ser apagada em cada restart do Render. Defina DATA_DIR e um Persistent Disk.');
+    }
+    console.log('[DB] ficheiro:', DB_PATH);
   }
   return db;
+}
+
+function persistDb() {
+  const database = getDb();
+  try {
+    database.pragma('wal_checkpoint(FULL)');
+  } catch (e) {
+    console.warn('wal_checkpoint falhou:', e.message);
+  }
 }
 
 function initSchema(database) {
@@ -102,5 +135,8 @@ module.exports = {
   getDb,
   initSchema,
   closeDb,
+  persistDb,
   DB_PATH,
+  DATA_DIR,
+  IS_EPHEMERAL,
 };

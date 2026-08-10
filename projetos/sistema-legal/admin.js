@@ -16,6 +16,66 @@
     let processoModalId = null;
     let processoModalDados = null;
     let clientesPortal = [];
+    const WA_CACHE_KEY = 'sl_portal_whatsapp_telefones';
+
+    function loadTelefoneCache() {
+        try {
+            const raw = localStorage.getItem(WA_CACHE_KEY);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveTelefoneNoCache(clienteId, telefone) {
+        const cache = loadTelefoneCache();
+        const key = String(clienteId);
+        const digits = normalizarTelefoneWhatsApp(telefone);
+        if (digits) cache[key] = digits;
+        else delete cache[key];
+        try {
+            localStorage.setItem(WA_CACHE_KEY, JSON.stringify(cache));
+        } catch (e) { /* ignore */ }
+    }
+
+    function aplicarCacheTelefones(lista) {
+        const cache = loadTelefoneCache();
+        return (lista || []).map(function (c) {
+            const cached = cache[String(c.id)];
+            if ((!c.telefone || !String(c.telefone).trim()) && cached) {
+                return Object.assign({}, c, { telefone: cached });
+            }
+            if (c.telefone) saveTelefoneNoCache(c.id, c.telefone);
+            return c;
+        });
+    }
+
+    async function rehidratarTelefonesNoServidor(lista) {
+        const cache = loadTelefoneCache();
+        const tarefas = (lista || []).filter(function (c) {
+            const cached = cache[String(c.id)];
+            return cached && (!c.telefone || !String(c.telefone).trim());
+        }).map(function (c) {
+            return SistemaLegalAPI.updateClientePortal(c.id, {
+                telefone: cache[String(c.id)]
+            }).then(function (res) {
+                return res.json().catch(function () { return {}; }).then(function (data) {
+                    if (res.ok && data.cliente) return data.cliente;
+                    return null;
+                });
+            }).catch(function () { return null; });
+        });
+        if (!tarefas.length) return lista;
+        const results = await Promise.all(tarefas);
+        const byId = {};
+        results.forEach(function (cli) {
+            if (cli && cli.id) byId[cli.id] = cli;
+        });
+        return lista.map(function (c) {
+            return byId[c.id] ? byId[c.id] : c;
+        });
+    }
 
     function $(id) {
         return document.getElementById(id);
@@ -705,7 +765,9 @@
             }
 
             const data = await res.json();
-            clientesPortal = data.clientes || [];
+            clientesPortal = aplicarCacheTelefones(data.clientes || []);
+            clientesPortal = await rehidratarTelefonesNoServidor(clientesPortal);
+            clientesPortal = aplicarCacheTelefones(clientesPortal);
 
             if (datalist) {
                 datalist.innerHTML = '';
@@ -799,6 +861,7 @@
             }
 
             const actualizado = data.cliente || {};
+            saveTelefoneNoCache(clienteId, actualizado.telefone || telefone);
             clientesPortal = clientesPortal.map(function (c) {
                 return c.id === clienteId ? actualizado : c;
             });
@@ -1108,6 +1171,9 @@
                 mostrarMsg($('formPortalSucesso'), 'Conta criada com sucesso.', 'sucesso');
             }
             $('formNovoClientePortal').reset();
+            if (data.cliente && data.cliente.id) {
+                saveTelefoneNoCache(data.cliente.id, (data.cliente && data.cliente.telefone) || telefone);
+            }
             await carregarClientes();
             abrirModalCredenciaisPortal({
                 email: (data.cliente && data.cliente.email) || email,

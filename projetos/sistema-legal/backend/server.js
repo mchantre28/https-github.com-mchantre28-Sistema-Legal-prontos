@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { getDb } = require('./database');
+const { getDb, persistDb, DB_PATH, DATA_DIR, IS_EPHEMERAL } = require('./database');
 const { seedIfEmpty, hashPassword } = require('./seed');
 const emailService = require('./email');
 
@@ -516,6 +516,7 @@ app.put('/api/clientes/:id', authMiddleware, requireAdmin, (req, res) => {
   }
 
   db.prepare(`UPDATE utilizadores SET ${updates.join(', ')} WHERE id = @id`).run(params);
+  persistDb();
 
   const cliente = db.prepare(`
     SELECT ${CLIENTE_PUBLIC_FIELDS}
@@ -564,6 +565,7 @@ app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
       INSERT INTO utilizadores (nome, email, password_hash, perfil, must_change_password, telefone)
       VALUES (?, ?, ?, 'cliente', ?, ?)
     `).run(validado.nome, validado.email, password_hash, mustChange, telefoneNorm);
+    persistDb();
 
     const cliente = db.prepare(`
       SELECT ${CLIENTE_PUBLIC_FIELDS}
@@ -1132,6 +1134,9 @@ app.get('/api/health', (_req, res) => {
   try {
     const db = getDb();
     const stats = db.prepare('SELECT COUNT(*) AS utilizadores FROM utilizadores').get();
+    const comTelefone = db.prepare(
+      "SELECT COUNT(*) AS n FROM utilizadores WHERE perfil = 'cliente' AND telefone IS NOT NULL AND telefone != ''"
+    ).get();
     const admin = db.prepare(
       "SELECT id FROM utilizadores WHERE email = 'solicitadora@sistema-legal.pt' LIMIT 1"
     ).get();
@@ -1139,8 +1144,15 @@ app.get('/api/health', (_req, res) => {
       status: 'ok',
       servico: 'sistema-legal-api',
       utilizadores: stats.utilizadores,
+      clientes_com_whatsapp: comTelefone ? comTelefone.n : 0,
       admin_seed: !!admin,
-      data_dir: process.env.DATA_DIR || 'default',
+      data_dir: DATA_DIR,
+      db_path: DB_PATH,
+      data_dir_env: process.env.DATA_DIR || null,
+      persistente: !IS_EPHEMERAL || !!process.env.DATA_DIR,
+      aviso: (!process.env.DATA_DIR && process.env.NODE_ENV === 'production')
+        ? 'Defina DATA_DIR no Render + Persistent Disk para não perder telefones/dados entre restarts.'
+        : null,
     });
   } catch (err) {
     console.error('Health check falhou:', err);
