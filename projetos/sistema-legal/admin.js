@@ -972,7 +972,13 @@
         if (estadoEmail) {
             estadoEmail.classList.remove('hidden');
             if (opts.email_enviado === true) {
-                estadoEmail.innerHTML = '<strong>📧 Email enviado</strong><br><span class="text-green-800">Credenciais enviadas para o email do cliente.</span>';
+                let htmlOk = '<strong>📧 Email enviado</strong><br><span class="text-green-800">Credenciais enviadas para o email do cliente.</span>';
+                if (opts.email_dica) {
+                    htmlOk += '<br><span class="text-amber-800" style="display:block;margin-top:0.5rem;">' + opts.email_dica + '</span>';
+                } else if (/@(outlook|hotmail|live|msn)\./i.test(String(opts.email || ''))) {
+                    htmlOk += '<br><span class="text-amber-800" style="display:block;margin-top:0.5rem;">Outlook/Hotmail: peça ao cliente para verificar Lixo/Spam e a pasta Outros.</span>';
+                }
+                estadoEmail.innerHTML = htmlOk;
                 estadoEmail.className = 'text-sm text-green-900 bg-green-50 border-2 border-green-300 rounded-lg p-3';
             } else if (opts.email_enviado === false) {
                 estadoEmail.innerHTML = '<strong>📧 Email não enviado</strong><br><span>' + (opts.email_erro || 'Falha no envio.') + '</span>';
@@ -1111,6 +1117,7 @@
                 criado: true,
                 email_enviado: data.email_enviado,
                 email_erro: data.email_erro,
+                email_dica: data.email_dica,
                 autoAbrirWhatsApp: true
             });
         } catch (e) {

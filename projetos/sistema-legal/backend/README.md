@@ -45,6 +45,7 @@ Para repovoar a base de dados, apague `backend/data/sistema-legal.db` e reinicie
 | `EMAIL_FROM` | Remetente: `Ana Paula Medina <email@...>` | — |
 | `BREVO_SENDER_EMAIL` | Remetente Brevo quando `EMAIL_FROM` aponta para `@resend.dev` | — |
 | `PORTAL_URL` | URL do portal cliente no email     | — |
+| `REPLY_TO_EMAIL` | Endereço de resposta (melhor entrega no Outlook) | — |
 | `EMAIL_NOTIFICACOES` | Notificar cliente por email em novo trâmite/documento visível (`false` desactiva) | activo |
 | `EMAIL_ESCRITORIO` | Nome do escritório no email   | `Ana Paula Medina — Solicitadora`     |
 | `SMTP_HOST`  | Servidor SMTP (só plano pago Render ou local) | — |

@@ -437,12 +437,16 @@ async function maybeSendPortalCredentials({ enviarEmail, nome, email, password, 
   }
   try {
     await emailService.sendPortalCredentials({ nome, email, password, tipo });
-    return { email_enviado: true, email_erro: null };
+    const tipOutlook = emailService.isOutlookLikeAddress(email)
+      ? 'Destinatário Outlook/Hotmail: peça ao cliente para verificar Lixo/Spam e a pasta Outros.'
+      : null;
+    return { email_enviado: true, email_erro: null, email_dica: tipOutlook };
   } catch (err) {
     console.error('Erro ao enviar email portal:', err);
     return {
       email_enviado: false,
       email_erro: err.message || 'Falha ao enviar email.',
+      email_dica: null,
     };
   }
 }

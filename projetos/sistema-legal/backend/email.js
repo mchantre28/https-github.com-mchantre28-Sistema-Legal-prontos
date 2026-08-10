@@ -123,6 +123,19 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+function isOutlookLikeAddress(email) {
+  const domain = String(email || '').split('@')[1] || '';
+  return /^(outlook|hotmail|live|msn)\./i.test(domain)
+    || /@(outlook|hotmail|live|msn)\.[a-z.]+$/i.test(String(email || ''));
+}
+
+function getReplyToAddress() {
+  const raw = String(process.env.REPLY_TO_EMAIL || process.env.EMAIL_REPLY_TO || '').trim();
+  if (!raw) return null;
+  const parsed = parseFromAddress(raw, '');
+  return parsed.email || null;
+}
+
 function buildPortalCredentialsEmail({ nome, email, password, tipo, portalUrl, escritorio }) {
   const titulo = tipo === 'reset' ? 'Nova password de acesso ao portal' : 'Acesso ao portal — credenciais';
   const saudacao = nome ? `Exmo(a). Sr(a). ${escapeHtml(nome)},` : 'Exmo(a) Sr(a). Cliente,';
@@ -134,23 +147,30 @@ function buildPortalCredentialsEmail({ nome, email, password, tipo, portalUrl, e
     ? `<p style="margin:16px 0;"><a href="${escapeHtml(portalUrl)}" style="color:#111827;font-weight:600;">${escapeHtml(portalUrl)}</a></p>`
     : '<p style="margin:16px 0;color:#4b5563;">Utilize o endereço fornecido pela solicitadoria para aceder ao portal.</p>';
 
+  const outlookTip = isOutlookLikeAddress(email)
+    ? `<p style="margin:16px 0 0;font-size:13px;color:#1e3a5f;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
+        Se utiliza Outlook/Hotmail e não encontrar este email na caixa de entrada, verifique as pastas <strong>Lixo / Spam</strong> e <strong>Outros</strong> (Outlook.com).
+      </p>`
+    : `<p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Se não encontrar este email na caixa de entrada, verifique a pasta Spam / Lixo.</p>`;
+
   const html = `<!DOCTYPE html>
 <html lang="pt">
-<head><meta charset="UTF-8"><title>${escapeHtml(titulo)}</title></head>
-<body style="font-family:Georgia,'Times New Roman',serif;color:#111827;line-height:1.6;margin:0;padding:24px;background:#f3f4f6;">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(titulo)}</title></head>
+<body style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6;margin:0;padding:24px;background:#f3f4f6;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:32px;">
     <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280;">${escapeHtml(escritorio)}</p>
     <h1 style="margin:0 0 24px;font-size:20px;font-weight:600;">${escapeHtml(titulo)}</h1>
     <p style="margin:0 0 16px;">${saudacao}</p>
     <p style="margin:0 0 16px;">${intro}</p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:15px;">
-      <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Email</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(email)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280;">Password temporária</td><td style="padding:8px 0;font-family:Consolas,monospace;font-weight:600;">${escapeHtml(password)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;width:140px;">Email de acesso</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(email)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;">Password temporária</td><td style="padding:8px 0;font-family:Consolas,monospace;font-weight:600;letter-spacing:0.02em;">${escapeHtml(password)}</td></tr>
     </table>
     ${linkHtml}
     <p style="margin:16px 0 0;font-size:14px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:12px;">
       Por razões de segurança, altere a password no primeiro acesso.
     </p>
+    ${outlookTip}
     <p style="margin:24px 0 0;font-size:14px;color:#6b7280;">Com os melhores cumprimentos,<br><strong>${escapeHtml(escritorio)}</strong></p>
   </div>
 </body>
@@ -163,11 +183,14 @@ function buildPortalCredentialsEmail({ nome, email, password, tipo, portalUrl, e
     '',
     intro,
     '',
-    `Email: ${email}`,
+    `Email de acesso: ${email}`,
     `Password temporária: ${password}`,
     portalUrl ? `Portal: ${portalUrl}` : '',
     '',
     'Altere a password no primeiro acesso.',
+    isOutlookLikeAddress(email)
+      ? 'Se usa Outlook/Hotmail: verifique as pastas Lixo/Spam e Outros.'
+      : 'Se não encontrar o email, verifique a pasta Spam/Lixo.',
     '',
     escritorio,
   ].filter(Boolean).join('\n');
@@ -175,23 +198,33 @@ function buildPortalCredentialsEmail({ nome, email, password, tipo, portalUrl, e
   return { titulo, html, text };
 }
 
-async function sendViaResend({ to, subject, html, text, fromHeader }) {
+async function sendViaResend({ to, subject, html, text, fromHeader, replyTo }) {
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   const resend = new Resend(apiKey);
-  const result = await resend.emails.send({
+  const payload = {
     from: fromHeader,
     to: [to],
     subject,
     html,
     text,
-  });
+  };
+  if (replyTo) payload.reply_to = replyTo;
+  const result = await resend.emails.send(payload);
   if (result.error) {
     throw new Error(result.error.message || 'Falha ao enviar via Resend.');
   }
 }
 
-async function sendViaBrevo({ to, subject, html, text, from }) {
+async function sendViaBrevo({ to, subject, html, text, from, replyTo }) {
   const apiKey = String(process.env.BREVO_API_KEY || '').trim();
+  const body = {
+    sender: { name: from.name, email: from.email },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    textContent: text,
+  };
+  if (replyTo) body.replyTo = { email: replyTo };
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -199,13 +232,7 @@ async function sendViaBrevo({ to, subject, html, text, from }) {
       'api-key': apiKey,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      sender: { name: from.name, email: from.email },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-      textContent: text,
-    }),
+    body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -214,7 +241,7 @@ async function sendViaBrevo({ to, subject, html, text, from }) {
   }
 }
 
-async function sendViaSmtp({ to, subject, html, text, fromHeader }) {
+async function sendViaSmtp({ to, subject, html, text, fromHeader, replyTo }) {
   const smtp = getSmtpConfig();
   const transport = nodemailer.createTransport({
     host: smtp.host,
@@ -225,13 +252,19 @@ async function sendViaSmtp({ to, subject, html, text, fromHeader }) {
     greetingTimeout: 10000,
     socketTimeout: 15000,
   });
-  await transport.sendMail({
+  const mail = {
     from: fromHeader,
     to,
     subject,
     text,
     html,
-  });
+    headers: {
+      'X-Mailer': 'Sistema Legal',
+      'X-Priority': '3',
+    },
+  };
+  if (replyTo) mail.replyTo = replyTo;
+  await transport.sendMail(mail);
 }
 
 async function sendEmail({ to, subject, html, text }) {
@@ -250,15 +283,16 @@ async function sendEmail({ to, subject, html, text }) {
   }
 
   const fromHeader = formatFromHeader(from);
+  const replyTo = getReplyToAddress();
   if (provider === 'resend') {
-    await sendViaResend({ to, subject, html, text, fromHeader });
+    await sendViaResend({ to, subject, html, text, fromHeader, replyTo });
     return;
   }
   if (provider === 'brevo') {
-    await sendViaBrevo({ to, subject, html, text, from });
+    await sendViaBrevo({ to, subject, html, text, from, replyTo });
     return;
   }
-  await sendViaSmtp({ to, subject, html, text, fromHeader });
+  await sendViaSmtp({ to, subject, html, text, fromHeader, replyTo });
 }
 
 function buildProcessUpdateEmail({
@@ -342,7 +376,9 @@ async function sendPortalCredentials({ nome, email, password, tipo }) {
 
   await sendEmail({
     to: email,
-    subject: `${titulo} — ${shared.escritorio}`,
+    subject: tipo === 'reset'
+      ? `Actualização de acesso ao portal — ${shared.escritorio}`
+      : `Bem-vindo(a) ao portal do cliente — ${shared.escritorio}`,
     html,
     text,
   });
@@ -383,4 +419,5 @@ module.exports = {
   sendPortalCredentials,
   sendProcessUpdateNotification,
   resolveProvider,
+  isOutlookLikeAddress,
 };
