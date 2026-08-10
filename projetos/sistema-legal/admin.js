@@ -90,6 +90,21 @@
             '',
         ];
 
+        if (opts.tipo === 'credenciais') {
+            linhas.push(
+                'Seguem as credenciais de acesso ao portal do cliente.',
+                '',
+                'Email: ' + (opts.email || '—'),
+                'Password temporária: ' + (opts.password || '—'),
+                '',
+                'Portal: ' + portalUrl,
+                '',
+                'Recomenda-se alterar a password no primeiro acesso.'
+            );
+            linhas.push('', 'Ana Paula Medina — Solicitadora');
+            return linhas.join('\n');
+        }
+
         if (opts.tipo === 'documento') {
             linhas.push(
                 'Informamos que foi disponibilizado um novo documento no seu processo ' + numero + ' — ' + tituloProcesso + '.',
@@ -921,7 +936,10 @@
         const passEl = $('modalCredenciaisPassword');
         const aviso = $('modalCredenciaisAviso');
         const estadoEmail = $('modalCredenciaisEstadoEmail');
+        const whatsappBox = $('modalCredenciaisWhatsApp');
         const btnReenviar = $('btnReenviarEmailPortal');
+        const btnWhatsApp = $('btnAbrirWhatsAppCredenciais');
+        const telefoneNorm = normalizarTelefoneWhatsApp(opts.telefone || '');
 
         if (titulo) {
             titulo.textContent = opts.criado ? 'Conta de portal criada' : (opts.redefinida ? 'Nova password gerada' : 'Conta de portal');
@@ -936,12 +954,19 @@
                     email: String(opts.email || ''),
                     nome: String(opts.nome || ''),
                     password: String(opts.password || ''),
+                    telefone: telefoneNorm,
                     tipo: opts.redefinida ? 'reset' : 'criacao'
                 };
             } else {
                 passWrap.classList.add('hidden');
                 passEl.textContent = '';
-                portalCredCache = null;
+                portalCredCache = telefoneNorm ? {
+                    email: String(opts.email || ''),
+                    nome: String(opts.nome || ''),
+                    password: '',
+                    telefone: telefoneNorm,
+                    tipo: 'criacao'
+                } : null;
             }
         }
         if (estadoEmail) {
@@ -957,16 +982,71 @@
                 estadoEmail.classList.add('hidden');
             }
         }
+
+        const builtWa = (telefoneNorm && opts.password)
+            ? buildWhatsAppLink({
+                tipo: 'credenciais',
+                telefone: telefoneNorm,
+                clienteNome: opts.nome,
+                email: opts.email,
+                password: opts.password
+            })
+            : null;
+
+        if (whatsappBox) {
+            whatsappBox.innerHTML = '';
+            if (builtWa) {
+                whatsappBox.classList.remove('hidden');
+                whatsappBox.innerHTML =
+                    '<div class="admin-whatsapp-banner">' +
+                    '<p class="admin-whatsapp-banner-titulo">WhatsApp — enviar credenciais ao cliente</p>' +
+                    '<p class="admin-whatsapp-banner-texto">Número: <strong>' + formatarTelefoneWhatsApp(builtWa.telefone) + '</strong></p>' +
+                    '<p class="admin-whatsapp-banner-texto admin-whatsapp-banner-alerta">O WhatsApp <strong>não envia sozinho</strong>. Abra o chat e carregue em <strong>Enviar</strong>.</p>' +
+                    '<ol class="admin-whatsapp-passos">' +
+                    '<li>Clique em «Abrir WhatsApp com credenciais»</li>' +
+                    '<li>Confirme o contacto no WhatsApp</li>' +
+                    '<li>Carregue em <strong>Enviar</strong></li>' +
+                    '</ol></div>';
+            } else if (opts.criado && !telefoneNorm) {
+                whatsappBox.classList.remove('hidden');
+                whatsappBox.innerHTML =
+                    '<div class="admin-whatsapp-banner admin-whatsapp-banner-aviso">' +
+                    '<p class="admin-whatsapp-banner-titulo">WhatsApp não configurado</p>' +
+                    '<p class="admin-whatsapp-banner-texto">Não foi indicado número WhatsApp. Pode adicioná-lo na lista «Clientes — Portal».</p>' +
+                    '</div>';
+            } else {
+                whatsappBox.classList.add('hidden');
+            }
+        }
+
+        if (btnWhatsApp) {
+            if (builtWa) {
+                btnWhatsApp.classList.remove('hidden');
+                btnWhatsApp.onclick = function () {
+                    abrirWhatsAppLink(builtWa.link, true);
+                };
+            } else {
+                btnWhatsApp.classList.add('hidden');
+                btnWhatsApp.onclick = null;
+            }
+        }
+
         if (btnReenviar) {
             if (opts.password) btnReenviar.classList.remove('hidden');
             else btnReenviar.classList.add('hidden');
         }
         if (aviso) {
             aviso.textContent = opts.password
-                ? 'Recomenda-se alterar a password no primeiro acesso. Pode copiar ou reenviar as credenciais abaixo.'
+                ? 'Recomenda-se alterar a password no primeiro acesso. Email é automático; WhatsApp exige carregar em Enviar.'
                 : (opts.mensagem || 'Use «Gerar nova password» na área CRM se precisar de credenciais.');
         }
         if (modal) modal.classList.add('show');
+
+        if (builtWa && opts.autoAbrirWhatsApp !== false) {
+            setTimeout(function () {
+                abrirWhatsAppLink(builtWa.link, true);
+            }, 450);
+        }
     }
 
     function fecharModalCredenciaisPortal() {
@@ -1027,9 +1107,11 @@
                 email: (data.cliente && data.cliente.email) || email,
                 nome: (data.cliente && data.cliente.nome) || nome,
                 password: data.password_temporaria,
+                telefone: (data.cliente && data.cliente.telefone) || telefone,
                 criado: true,
                 email_enviado: data.email_enviado,
-                email_erro: data.email_erro
+                email_erro: data.email_erro,
+                autoAbrirWhatsApp: true
             });
         } catch (e) {
             mostrarMsg($('formPortalErro'), e.message || 'Erro ao criar conta.', 'erro');

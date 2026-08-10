@@ -48,10 +48,13 @@
                             <input type="email" id="portalClienteEmail" name="email" class="form-control" required maxlength="120" placeholder="cliente@email.pt" autocomplete="off">
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="portalClienteTelefone">WhatsApp <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+                            <label class="form-label" for="portalClienteTelefone">WhatsApp <span style="font-weight:400;color:#9ca3af;">(recomendado)</span></label>
                             <input type="tel" id="portalClienteTelefone" name="telefone" class="form-control" maxlength="20"
-                                placeholder="447404139780" inputmode="numeric" autocomplete="tel">
-                            <p class="admin-section-desc" style="margin:0.375rem 0 0;">Indicativo + número, só dígitos (sem + ou 00). Ex.: UK <code>447404139780</code>, PT <code>351912345678</code>.</p>
+                                placeholder="351912345678" inputmode="numeric" autocomplete="tel">
+                            <p class="admin-section-desc" style="margin:0.375rem 0 0;">
+                                Indicativo + número, só dígitos (sem + ou 00). Ex.: PT <code>351912345678</code>, UK <code>447404139780</code>.
+                                Após criar a conta, o WhatsApp abre com a mensagem pronta — carregue em <strong>Enviar</strong> no WhatsApp (o envio não é automático).
+                            </p>
                         </div>
                     </div>
 
@@ -309,8 +312,10 @@
                     </div>
                 </div>
                 <p id="modalCredenciaisEstadoEmail" class="hidden text-xs rounded p-2"></p>
+                <div id="modalCredenciaisWhatsApp" class="hidden admin-whatsapp-acao"></div>
                 <p id="modalCredenciaisAviso" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2"></p>
                 <div class="flex justify-end gap-2 flex-wrap mt-2">
+                    <button type="button" id="btnAbrirWhatsAppCredenciais" class="btn btn-whatsapp btn-sm hidden">Abrir WhatsApp com credenciais</button>
                     <button type="button" id="btnReenviarEmailPortal" class="btn btn-secondary btn-sm hidden">Reenviar email</button>
                 </div>
             </div>
@@ -319,6 +324,6 @@
 
     <script src="api.js?v=8"></script>
     <script src="auth-guard.js?v=2"></script>
-    <script src="admin.js?v=9"></script>
+    <script src="admin.js?v=10"></script>
 </body>
 </html>
