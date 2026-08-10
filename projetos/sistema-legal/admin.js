@@ -833,6 +833,8 @@
         tdTel.appendChild(input);
 
         const tdAcao = document.createElement('td');
+        tdAcao.style.whiteSpace = 'nowrap';
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-secondary btn-sm';
@@ -840,13 +842,72 @@
         btn.addEventListener('click', function () {
             guardarTelefoneCliente(cliente.id, input.value.trim(), btn);
         });
+
+        const btnApagar = document.createElement('button');
+        btnApagar.type = 'button';
+        btnApagar.className = 'btn btn-error btn-sm';
+        btnApagar.style.marginLeft = '0.35rem';
+        btnApagar.textContent = 'Apagar';
+        btnApagar.title = 'Apagar conta de portal deste cliente';
+        btnApagar.addEventListener('click', function () {
+            apagarClientePortal(cliente, btnApagar);
+        });
+
         tdAcao.appendChild(btn);
+        tdAcao.appendChild(btnApagar);
 
         tr.appendChild(tdNome);
         tr.appendChild(tdEmail);
         tr.appendChild(tdTel);
         tr.appendChild(tdAcao);
         return tr;
+    }
+
+    async function apagarClientePortal(cliente, btn) {
+        if (!cliente || !cliente.id) return;
+        const nome = cliente.nome || cliente.email || ('#' + cliente.id);
+        const ok = window.confirm(
+            'Apagar o cliente «' + nome + '»?\n\n' +
+            'A conta de portal deixa de poder iniciar sessão.\n' +
+            'Se existir processos associados, serão também apagados (trâmites e documentos).'
+        );
+        if (!ok) return;
+
+        if (btn) btn.disabled = true;
+        try {
+            let res = await SistemaLegalAPI.deleteClientePortal(cliente.id, { force: false });
+            let data = await res.json().catch(function () { return {}; });
+
+            if (res.status === 409 && data.requer_confirmacao) {
+                const okForce = window.confirm(
+                    (data.erro || 'Este cliente tem processos associados.') +
+                    '\n\nConfirma apagar o cliente e os ' + (data.processos || '') + ' processo(s)?'
+                );
+                if (!okForce) return;
+                res = await SistemaLegalAPI.deleteClientePortal(cliente.id, { force: true });
+                data = await res.json().catch(function () { return {}; });
+            }
+
+            if (!res.ok) {
+                throw new Error(data.erro || 'Não foi possível apagar o cliente.');
+            }
+
+            saveTelefoneNoCache(cliente.id, '');
+            clientesPortal = clientesPortal.filter(function (c) { return c.id !== cliente.id; });
+            processos = processos.filter(function (p) { return p.cliente_id !== cliente.id; });
+            await carregarClientes();
+            if (typeof carregarProcessos === 'function') {
+                try { await carregarProcessos(); } catch (e2) { /* ignore */ }
+            }
+            window.alert(
+                'Cliente apagado.' +
+                (data.processos_apagados ? (' Processos removidos: ' + data.processos_apagados + '.') : '')
+            );
+        } catch (e) {
+            window.alert(e.message || 'Erro ao apagar cliente.');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     }
 
     async function guardarTelefoneCliente(clienteId, telefone, btn) {

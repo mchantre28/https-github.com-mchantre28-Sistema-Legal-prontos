@@ -379,6 +379,14 @@
         });
     }
 
+    async function deleteClientePortal(id, options) {
+        const opts = options || {};
+        const force = opts.force ? '?force=1' : '';
+        return apiFetch('/api/clientes/' + encodeURIComponent(id) + force, {
+            method: 'DELETE'
+        });
+    }
+
     async function getEmailStatus() {
         return apiFetch('/api/email/status');
     }
@@ -467,6 +475,7 @@
         documentoUrl: documentoUrl,
         createClienteAccount: createClienteAccount,
         updateClientePortal: updateClientePortal,
+        deleteClientePortal: deleteClientePortal,
         resetClientePassword: resetClientePassword,
         sendPortalCredentials: sendPortalCredentials,
         getEmailStatus: getEmailStatus,

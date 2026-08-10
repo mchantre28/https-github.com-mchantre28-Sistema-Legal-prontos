@@ -527,6 +527,57 @@ app.put('/api/clientes/:id', authMiddleware, requireAdmin, (req, res) => {
   res.json({ cliente: sanitizeUser(cliente) });
 });
 
+app.delete('/api/clientes/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ erro: 'ID de cliente inválido.' });
+  }
+
+  const db = getDb();
+  const existing = db.prepare(`
+    SELECT ${CLIENTE_PUBLIC_FIELDS}
+    FROM utilizadores
+    WHERE id = ?
+  `).get(id);
+
+  if (!existing || existing.perfil !== 'cliente') {
+    return res.status(404).json({ erro: 'Cliente não encontrado.' });
+  }
+
+  const processos = db.prepare(`
+    SELECT id FROM processos WHERE cliente_id = ?
+  `).all(id);
+  const processoIds = processos.map((p) => p.id);
+  const forcar = req.query.force === '1' || req.body?.force === true || req.body?.force === '1';
+
+  if (processoIds.length > 0 && !forcar) {
+    return res.status(409).json({
+      erro: 'Este cliente tem ' + processoIds.length + ' processo(s). Confirme a eliminação para apagar também os processos associados.',
+      processos: processoIds.length,
+      requer_confirmacao: true,
+    });
+  }
+
+  const apagar = db.transaction(function () {
+    if (processoIds.length) {
+      const placeholders = processoIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM documentos WHERE processo_id IN (${placeholders})`).run(...processoIds);
+      db.prepare(`DELETE FROM tramites WHERE processo_id IN (${placeholders})`).run(...processoIds);
+      db.prepare(`DELETE FROM processos WHERE cliente_id = ?`).run(id);
+    }
+    db.prepare(`DELETE FROM utilizadores WHERE id = ? AND perfil = 'cliente'`).run(id);
+  });
+
+  apagar();
+  persistDb();
+
+  res.json({
+    sucesso: true,
+    cliente: sanitizeUser(existing),
+    processos_apagados: processoIds.length,
+  });
+});
+
 app.post('/api/clientes', authMiddleware, requireAdmin, async (req, res) => {
   const { nome, email, password, gerar_password: gerarPassword, telefone } = req.body || {};
   const validado = validateClienteAccountInput(nome, email);
