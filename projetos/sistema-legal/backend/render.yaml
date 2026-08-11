@@ -34,6 +34,8 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data
+      - key: SEED_TEST_CLIENTES
+        value: "false"
     disk:
       name: sistema-legal-data
       mountPath: /var/data
