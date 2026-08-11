@@ -1345,8 +1345,24 @@
         }
 
         bindEventos();
+        await verificarPersistenciaDados();
         await carregarClientes();
         await carregarProcessos();
+    }
+
+    async function verificarPersistenciaDados() {
+        const el = $('avisoPersistencia');
+        if (!el || !SistemaLegalAPI.getEmailStatus) return;
+        try {
+            const res = await SistemaLegalAPI.apiFetch('/api/health');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.persistente === false || data.aviso) {
+                el.classList.remove('hidden');
+                el.textContent = data.aviso
+                    || 'Atenção: a base de dados no Render Free pode apagar clientes após restart. É necessário Persistent Disk (plano pago) ou base externa.';
+            }
+        } catch (e) { /* ignore */ }
     }
 
     init();

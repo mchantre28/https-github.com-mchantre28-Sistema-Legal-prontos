@@ -23,8 +23,15 @@ function resolveDataDir() {
 
 const DATA_DIR = resolveDataDir();
 const DB_PATH = path.join(DATA_DIR, 'sistema-legal.db');
-/** Sem DATA_DIR explícito, no Render Free o disco é efémero (perde dados em restart/deploy). */
-const IS_EPHEMERAL = !process.env.DATA_DIR;
+/**
+ * Persistente só com Persistent Disk no Render (mount tipicamente /var/data)
+ * ou HAS_PERSISTENT_DISK=true. Só definir DATA_DIR no Free NÃO evita perda de dados.
+ */
+const IS_EPHEMERAL = !(
+  process.env.RENDER_DISK_MOUNT_PATH
+  || String(process.env.HAS_PERSISTENT_DISK || '').toLowerCase() === 'true'
+  || (process.env.DATA_DIR && String(process.env.DATA_DIR).startsWith('/var/data'))
+);
 
 let db = null;
 
@@ -38,8 +45,8 @@ function getDb() {
     db.pragma('synchronous = FULL');
     db.pragma('foreign_keys = ON');
     initSchema(db);
-    if (IS_EPHEMERAL && process.env.NODE_ENV === 'production') {
-      console.warn('[AVISO] DATA_DIR não definido — a base SQLite pode ser apagada em cada restart do Render. Defina DATA_DIR e um Persistent Disk.');
+    if (IS_EPHEMERAL && (process.env.NODE_ENV === 'production' || process.env.RENDER)) {
+      console.warn('[AVISO] Disco efémero — a base SQLite pode ser apagada em cada restart/deploy. No Render Free: ative Persistent Disk (plano pago) ou use base externa (ex. Neon).');
     }
     console.log('[DB] ficheiro:', DB_PATH);
   }

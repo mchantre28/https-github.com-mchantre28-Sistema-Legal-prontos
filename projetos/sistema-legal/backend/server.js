@@ -1200,9 +1200,9 @@ app.get('/api/health', (_req, res) => {
       data_dir: DATA_DIR,
       db_path: DB_PATH,
       data_dir_env: process.env.DATA_DIR || null,
-      persistente: !IS_EPHEMERAL || !!process.env.DATA_DIR,
-      aviso: (!process.env.DATA_DIR && process.env.NODE_ENV === 'production')
-        ? 'Defina DATA_DIR no Render + Persistent Disk para não perder telefones/dados entre restarts.'
+      persistente: !IS_EPHEMERAL,
+      aviso: IS_EPHEMERAL
+        ? 'Atenção: no Render Free a base SQLite é apagada em restart/deploy. Clientes criados no portal podem desaparecer. Solução: Persistent Disk (upgrade) ou base externa (Neon/Turso).'
         : null,
     });
   } catch (err) {
