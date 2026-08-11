@@ -10,22 +10,37 @@
 const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 
+function isResendDevAddress(value) {
+  return /@resend\.dev\b/i.test(String(value || ''));
+}
+
 function getSharedConfig() {
   const providerPref = String(process.env.EMAIL_PROVIDER || 'auto').trim().toLowerCase();
   const brevoSender = String(process.env.BREVO_SENDER_EMAIL || '').trim();
+  const smtpUser = String(process.env.SMTP_USER || '').trim();
   const emailFrom = String(process.env.EMAIL_FROM || '').trim();
   let fromRaw = emailFrom
-    || String(process.env.SMTP_FROM || process.env.RESEND_FROM || brevoSender || process.env.SMTP_USER || '').trim();
-  if ((providerPref === 'brevo' || providerPref === 'auto') && brevoSender) {
-    if (!fromRaw || /@resend\.dev$/i.test(fromRaw)) {
+    || String(process.env.SMTP_FROM || process.env.RESEND_FROM || brevoSender || smtpUser || '').trim();
+
+  // @resend.dev só serve testes no Resend — não é remetente válido no Brevo/SMTP.
+  if (isResendDevAddress(fromRaw)) {
+    if (brevoSender) {
+      fromRaw = brevoSender.includes('<') ? brevoSender : `Ana Paula Medina <${brevoSender}>`;
+    } else if (smtpUser) {
+      fromRaw = `Ana Paula Medina <${smtpUser}>`;
+    }
+  } else if ((providerPref === 'brevo' || providerPref === 'auto') && brevoSender) {
+    if (!fromRaw) {
       fromRaw = brevoSender.includes('<') ? brevoSender : `Ana Paula Medina <${brevoSender}>`;
     }
   }
+
   return {
     portalUrl: String(process.env.PORTAL_URL || '').trim(),
     escritorio: String(process.env.EMAIL_ESCRITORIO || process.env.SMTP_ESCRITORIO || 'Ana Paula Medina — Solicitadora').trim(),
     fromRaw,
     providerPref,
+    fromWasResendDev: isResendDevAddress(emailFrom),
   };
 }
 
@@ -61,16 +76,23 @@ function hasBrevo() {
 
 function hasSmtp() {
   const smtp = getSmtpConfig();
-  const shared = getSharedConfig();
-  const from = parseFromAddress(shared.fromRaw, shared.escritorio);
-  return !!(smtp.host && smtp.user && smtp.pass && from.email);
+  return !!(smtp.host && smtp.user && smtp.pass);
 }
 
 function resolveProvider() {
-  const pref = getSharedConfig().providerPref;
+  const shared = getSharedConfig();
+  const pref = shared.providerPref;
+  const from = parseFromAddress(shared.fromRaw, shared.escritorio);
+  const fromOkBrevo = from.email && !isResendDevAddress(from.email);
+
   if (pref === 'resend') return hasResend() ? 'resend' : null;
-  if (pref === 'brevo') return hasBrevo() ? 'brevo' : null;
+  if (pref === 'brevo') return hasBrevo() && fromOkBrevo ? 'brevo' : null;
   if (pref === 'smtp') return hasSmtp() ? 'smtp' : null;
+
+  // auto: Brevo só se o remetente for válido (não @resend.dev)
+  if (hasBrevo() && fromOkBrevo) return 'brevo';
+  // SMTP Gmail (pode falhar no Render Free se a porta estiver bloqueada)
+  if (hasSmtp() && from.email && !isResendDevAddress(from.email)) return 'smtp';
   if (hasResend()) return 'resend';
   if (hasBrevo()) return 'brevo';
   if (hasSmtp()) return 'smtp';
@@ -100,6 +122,16 @@ function getPublicStatus() {
   const provider = resolveProvider();
   const from = parseFromAddress(shared.fromRaw, shared.escritorio);
   const smtp = getSmtpConfig();
+  let nota = null;
+  if (shared.fromWasResendDev) {
+    nota = 'EMAIL_FROM estava @resend.dev (inválido para clientes). Use EMAIL_FROM ou BREVO_SENDER_EMAIL com um email verificado no Brevo (ex.: o Gmail do escritório).';
+  } else if (provider === 'smtp') {
+    nota = 'A usar SMTP. No Render Free as portas 587/465 podem estar bloqueadas — prefira Brevo com remetente verificado.';
+  } else if (provider === 'brevo' && !from.email) {
+    nota = 'Brevo activo mas EMAIL_FROM/BREVO_SENDER_EMAIL em falta.';
+  } else if (!provider) {
+    nota = 'Email não configurado correctamente.';
+  }
   return {
     configurado: !!provider,
     provider: provider,
@@ -109,9 +141,7 @@ function getPublicStatus() {
     brevo: hasBrevo(),
     smtp: hasSmtp(),
     smtp_host: smtp.host || null,
-    nota: provider === 'smtp'
-      ? 'SMTP pode falhar no Render Free (portas 587/465 bloqueadas). Use RESEND_API_KEY ou BREVO_API_KEY.'
-      : null,
+    nota,
   };
 }
 
@@ -279,7 +309,13 @@ async function sendEmail({ to, subject, html, text }) {
   const shared = getSharedConfig();
   const from = parseFromAddress(shared.fromRaw, shared.escritorio);
   if (!from.email) {
-    throw new Error('EMAIL_FROM em falta (ex.: Ana Paula Medina <email@dominio.pt>).');
+    throw new Error('EMAIL_FROM em falta (ex.: Ana Paula Medina <seu-gmail@gmail.com>).');
+  }
+  if (provider === 'brevo' && isResendDevAddress(from.email)) {
+    throw new Error(
+      'Remetente @resend.dev inválido no Brevo. No Render defina EMAIL_FROM ou BREVO_SENDER_EMAIL '
+      + 'com um email verificado no Brevo (ex.: o Gmail do escritório).'
+    );
   }
 
   const fromHeader = formatFromHeader(from);
