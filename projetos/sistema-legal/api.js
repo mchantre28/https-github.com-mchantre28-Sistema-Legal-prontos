@@ -5,6 +5,7 @@
  *   1. Arrancar o backend: cd backend && npm install && npm run seed && npm start
  *   2. API_BASE_URL: predefinição http://localhost:3001; em produção use
  *      <meta name="api-base-url" content="https://..."> ou window.API_BASE_URL
+ *      (em localhost a meta de produção é ignorada — usa sempre :3001)
  *   3. Login admin: solicitadora@sistema-legal.pt / admin123 (perfil admin → admin.html)
  *   4. Login cliente: cliente@sistema-legal.pt / cliente123 (perfil cliente → cliente.html)
  *
@@ -43,15 +44,15 @@
         const fromWindow = normalizeBaseUrl(global.API_BASE_URL);
         if (fromWindow) return fromWindow;
 
+        // Em localhost no browser do PC, priorizar backend local (:3001) mesmo com meta de produção.
+        if (isLocalPageHost() && !isCapacitorNative()) {
+            return 'http://localhost:3001';
+        }
+
         if (typeof document !== 'undefined') {
             const meta = document.querySelector('meta[name="api-base-url"]');
             const fromMeta = normalizeBaseUrl(meta && meta.content);
             if (fromMeta) return fromMeta;
-        }
-
-        // Em localhost no browser do PC, priorizar backend local (:3001).
-        if (isLocalPageHost() && !isCapacitorNative()) {
-            return 'http://localhost:3001';
         }
 
         if (isCapacitorNative()) {

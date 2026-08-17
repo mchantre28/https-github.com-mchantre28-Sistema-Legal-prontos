@@ -46,6 +46,8 @@ jobs:
       - name: Popular base de dados (seed)
         run: npm run seed
         working-directory: projetos/sistema-legal/backend
+        env:
+          SEED_TEST_CLIENTES: 'true'
 
       - run: npx playwright install --with-deps chromium
 
@@ -53,6 +55,7 @@ jobs:
         run: npx playwright test --reporter=html --reporter=github
         env:
           CI: true
+          SEED_TEST_CLIENTES: 'true'
 
       - uses: actions/upload-artifact@v4
         if: failure()
