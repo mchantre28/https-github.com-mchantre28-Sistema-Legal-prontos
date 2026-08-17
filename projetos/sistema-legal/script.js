@@ -363,7 +363,7 @@ const ENTIDADES_PORTUGAL = [
     { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
     { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
 ];
-const CLOUD_DEBOUNCE_MS = 100; // Firestore = fonte principal; sync rápido para enviar dados à nuvem
+const CLOUD_DEBOUNCE_MS = 800;
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
 
 // Gestor de listeners Firestore — pausa e retoma para evitar conflitos durante backup/importação
@@ -690,6 +690,7 @@ function normalizarParaComparacao(item) {
     delete clone.updatedAt;
     delete clone.createdAt;
     delete clone.lastModifiedBy;
+    delete clone.conteudo;
     return JSON.stringify(clone);
 }
 
@@ -2021,21 +2022,27 @@ async function lerPartesDocumentoCloud(id, numPartes) {
 
 async function persistirConteudoDocumentoNaNuvem(documento) {
     if (!documento || !isCloudReady()) return false;
+    if (documentoJaNaNuvem(documento)) return false;
     if (!documentoTemConteudoUtil(documento)) {
         const local = await idbLerFicheiroDoc(documento.id);
         if (local) documento.conteudo = local;
     }
+    if (documentoJaNaNuvem(documento)) return false;
     const c = documento.conteudo;
-    if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) {
-        await salvarEntidadeCloud('documentos', documento);
-        return true;
-    }
     if (typeof c !== 'string' || c.indexOf('data:') !== 0) return false;
     if (c.length > LIMITE_CONTEUDO_FIRESTORE) {
-        const n = await guardarPartesDocumentoCloud(documento.id, c);
-        if (!n) return false;
+        let n = 0;
+        try {
+            const first = await firestoreDb.collection('documentos').doc(String(documento.id) + '_p0').get();
+            if (first.exists) n = (first.data() && first.data().total) || 1;
+        } catch (e) { n = 0; }
+        if (!n) {
+            n = await guardarPartesDocumentoCloud(documento.id, c);
+            if (!n) return false;
+        }
         documento.numPartes = n;
         documento.armazenamento = 'partes';
+        documento.conteudo = '';
     } else {
         documento.armazenamento = 'embutido';
     }
@@ -2065,6 +2072,15 @@ function lerDocumentoDoFirestore(data) {
     return { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
 }
 
+function documentoJaNaNuvem(doc) {
+    if (!doc) return false;
+    if (doc.numPartes > 0) return true;
+    if (doc.storagePath) return true;
+    const c = doc.conteudo;
+    if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) return true;
+    return false;
+}
+
 function documentoTemConteudoUtil(doc) {
     const c = doc && doc.conteudo;
     return typeof c === 'string' && c.length > 20;
@@ -2083,6 +2099,12 @@ function mesclarDocumentosLocalENuvem(cloudLista) {
         const existente = porId.get(id);
         if (!existente) {
             porId.set(id, d);
+            return;
+        }
+        if (existente.numPartes || documentoJaNaNuvem(existente)) {
+            existente.storagePath = existente.storagePath || d.storagePath;
+            existente.numPartes = existente.numPartes || d.numPartes;
+            existente.armazenamento = existente.armazenamento || d.armazenamento;
             return;
         }
         if (documentoTemConteudoUtil(d) && !documentoTemConteudoUtil(existente)) {
@@ -2147,10 +2169,7 @@ async function idbLerFicheiroDoc(id) {
 
 async function obterConteudoDocumento(doc) {
     if (!doc) return '';
-    if (documentoTemConteudoUtil(doc)) {
-        persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
-        return doc.conteudo;
-    }
+    if (documentoTemConteudoUtil(doc)) return doc.conteudo;
     const partes = await lerPartesDocumentoCloud(doc.id, doc.numPartes);
     if (partes) {
         doc.conteudo = partes;
@@ -2165,7 +2184,9 @@ async function obterConteudoDocumento(doc) {
     const local = await idbLerFicheiroDoc(doc.id);
     if (local) {
         doc.conteudo = local;
-        persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
+        if (!documentoJaNaNuvem(doc)) {
+            persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
+        }
         return local;
     }
     return '';
@@ -14222,9 +14243,6 @@ function salvarDocumentosLocal(novos) {
     documentos = novos;
     window.documentos = documentos;
     salvarDados('documentos', documentos);
-    if (typeof agendarReenvioDocumentosLocaisParaNuvem === 'function') {
-        agendarReenvioDocumentosLocaisParaNuvem();
-    }
 }
 
 function dataUrlParaFicheiro(dataUrl, nomeArquivo, tipoArquivo) {
@@ -14256,9 +14274,7 @@ async function reenviarDocumentosLocaisParaNuvem() {
     let enviados = 0;
     for (let i = 0; i < lista.length; i++) {
         const doc = lista[i];
-        if (!doc) continue;
-        if (doc.numPartes) continue;
-        if (typeof doc.conteudo === 'string' && (doc.conteudo.indexOf('http://') === 0 || doc.conteudo.indexOf('https://') === 0)) continue;
+        if (!doc || documentoJaNaNuvem(doc)) continue;
         try {
             const ok = await persistirConteudoDocumentoNaNuvem(doc);
             if (ok) enviados++;
