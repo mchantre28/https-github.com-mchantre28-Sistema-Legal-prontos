@@ -1,0 +1,10 @@
+﻿# Sistema Legal - excluir pastas com muitos ficheiros
+node_modules/
+backup/
+_docs/
+_deploy_github/
+_arquivados/
+Sistema-Legal-completo/
+_outros-projetos/
+*.zip
+*.log

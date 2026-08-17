@@ -1,0 +1,32 @@
+{
+  "name": "sistema-legal",
+  "version": "1.0.0",
+  "description": "Sistema Legal - Gestão Jurídica",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve -l 8000 -c serve.json .",
+    "start:full": "cmd /c START-SISTEMA.bat",
+    "build:cap": "node scripts/copy-www.mjs",
+    "cap:sync": "npm run build:cap && npx cap sync",
+    "cap:android": "npm run cap:sync && npx cap open android",
+    "cap:ios": "npm run cap:sync && npx cap open ios",
+    "icons:android": "npx capacitor-assets generate --android --assetPath resources && node scripts/sync-android-icon-foreground.mjs",
+    "reset-firestore": "node resetFirestore.js",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:install": "npx playwright install chromium"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@playwright/test": "^1.40.0",
+    "firebase-tools": "^15.7.0",
+    "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "firebase": "^11.0.0"
+  }
+}

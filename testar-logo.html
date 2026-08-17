@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste Logo</title>
+</head>
+<body>
+    <h1>Teste da logo</h1>
+    <div id="resultado">A carregar...</div>
+    <script src="branding/injectBranding.js"></script>
+    <script>
+        const div = document.getElementById('resultado');
+        setTimeout(function() {
+            if (typeof LOGO_DATA_URI === 'undefined') {
+                div.innerHTML = '<p style="color:red">LOGO_DATA_URI não definido.</p>';
+            } else if (!LOGO_DATA_URI) {
+                div.innerHTML = '<p style="color:orange">Sem logo. Coloque o ficheiro em <code>assets/logo-solicitadora.png</code> (ou .svg).</p>' +
+                    (typeof getBrandedLogoHTML === 'function' ? getBrandedLogoHTML() : '');
+            } else {
+                div.innerHTML = '<p style="color:green">Logo carregada (' + LOGO_DATA_URI.length + ' caracteres)</p>' +
+                    '<img src="' + LOGO_DATA_URI.replace(/"/g, '&quot;') + '" alt="Logo" style="max-width:200px; border:1px solid #ccc">';
+            }
+        }, 300);
+    </script>
+</body>
+</html>
