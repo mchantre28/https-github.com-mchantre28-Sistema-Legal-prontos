@@ -27,31 +27,23 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # A ramificação gh-pages tem só o site (~4 MB). A main ainda é pesada
+      # e o GitHub falha ao descarregar o repositório inteiro.
       - uses: actions/checkout@v4
         with:
+          ref: gh-pages
           fetch-depth: 1
-          sparse-checkout: |
-            projetos/sistema-legal
-          sparse-checkout-cone-mode: true
 
       - name: Preparar artefacto do site
         run: |
           set -e
-          SRC="projetos/sistema-legal"
           OUT="_site"
           mkdir -p "$OUT"
           rsync -a \
-            --exclude 'backend/' \
-            --exclude 'tests/' \
-            --exclude 'test-results/' \
-            --exclude 'node_modules/' \
-            --exclude 'playwright-report/' \
-            --exclude '.env' \
-            --exclude '.env.*' \
-            --exclude '*.db' \
-            --exclude '*.db-shm' \
-            --exclude '*.db-wal' \
-            "$SRC/" "$OUT/"
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '_site/' \
+            ./ "$OUT/"
           touch "$OUT/.nojekyll"
           if [ ! -f "$OUT/404.html" ]; then
             cp "$OUT/index.html" "$OUT/404.html"
