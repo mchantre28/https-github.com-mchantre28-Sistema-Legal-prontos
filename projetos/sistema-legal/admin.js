@@ -676,7 +676,7 @@
                 return;
             }
             if (ficheiro.size > 10 * 1024 * 1024) {
-                mostrarMsg($('formDocErro'), 'Ficheiro demasiado grande. O limite é 10 MB.', 'erro');
+                mostrarMsg($('formDocErro'), 'Ficheiro demasiado grande. O limite é 500 MB.', 'erro');
                 return;
             }
         }

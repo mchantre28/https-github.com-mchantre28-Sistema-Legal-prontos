@@ -22,10 +22,18 @@
         return trimmed.replace(/\/$/, '');
     }
 
-    function isLocalPageHost() {
+    function isLanPageHost() {
         if (typeof location === 'undefined') return false;
         const host = (location.hostname || '').toLowerCase();
-        return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+        if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return true;
+        if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+        if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+        if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+        return false;
+    }
+
+    function isLocalPageHost() {
+        return isLanPageHost();
     }
 
     /** App Capacitor no telemóvel — localhost do WebView não é o PC. */
@@ -44,9 +52,13 @@
         const fromWindow = normalizeBaseUrl(global.API_BASE_URL);
         if (fromWindow) return fromWindow;
 
-        // Em localhost no browser do PC, priorizar backend local (:3001) mesmo com meta de produção.
-        if (isLocalPageHost() && !isCapacitorNative()) {
-            return 'http://localhost:3001';
+        // Neste PC ou na rede Wi-Fi (192.168.x.x), usar o backend deste computador.
+        if (isLanPageHost() && !isCapacitorNative()) {
+            const host = (location.hostname || 'localhost');
+            if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
+                return 'http://localhost:3001';
+            }
+            return 'http://' + host + ':3001';
         }
 
         if (typeof document !== 'undefined') {

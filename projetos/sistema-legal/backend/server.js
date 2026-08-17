@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
@@ -15,7 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'sistema-legal-dev-secret-alterar-e
 const JWT_EXPIRES_IN = '8h';
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']);
 const ALLOWED_MIMES = new Set([
   'application/pdf',
@@ -74,6 +74,10 @@ const CORS_ORIGINS = [
   /^https:\/\/[\w-]+\.github\.io$/,
   /^http:\/\/localhost(:\d+)?$/,
   /^https:\/\/localhost(:\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
   /^capacitor:\/\//,
   /^ionic:\/\//,
 ];
@@ -671,6 +675,7 @@ app.post('/api/clientes/gerar-password', authMiddleware, requireAdmin, async (re
       SET password_hash = ?, must_change_password = 1
       WHERE id = ?
     `).run(password_hash, user.id);
+    persistDb();
     const updated = db.prepare(`
       SELECT id, nome, email, perfil, created_at, must_change_password
       FROM utilizadores
@@ -1069,7 +1074,7 @@ app.post('/api/documentos/upload', authMiddleware, requireAdmin, (req, res) => {
   upload.single('file')(req, res, async function (err) {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ erro: 'Ficheiro demasiado grande. O limite é 10 MB.' });
+        return res.status(400).json({ erro: 'Ficheiro demasiado grande. O limite é 500 MB.' });
       }
       return res.status(400).json({ erro: 'Erro no envio do ficheiro: ' + err.message });
     }

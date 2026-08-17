@@ -259,6 +259,7 @@ const firebaseConfig = {
 const APP_CHECK_SITE_KEY = '';
 
 let firestoreDb = null;
+let firebaseStorage = null;
 
 function initFirebase() {
     try {
@@ -267,6 +268,19 @@ function initFirebase() {
             firebase.initializeApp(firebaseConfig);
         }
         firestoreDb = firebase.firestore();
+        if (typeof firebase.storage === 'function') {
+            try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
+        }
+        if (typeof firebase.auth === 'function') {
+            try {
+                const auth = firebase.auth();
+                if (!auth.currentUser) {
+                    auth.signInAnonymously().catch(function (e) {
+                        console.warn('Login anónimo Firebase:', e && e.message);
+                    });
+                }
+            } catch (e) { /* Storage pode falhar sem auth; o ficheiro vai pelo Firestore */ }
+        }
         // App Check (opcional): ativa em background para não bloquear init; se falhar, Firestore pode ainda funcionar se "Enforce" estiver desativado no Console
         if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
             setTimeout(() => {
@@ -511,8 +525,13 @@ function iniciarListenersFirestore() {
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirNotificacoesUnsubscribe);
     window.__ouvirDocumentosUnsubscribe = ouvirDocumentos((lista) => {
-        documentos = lista; window.documentos = documentos;
+        documentos = mesclarDocumentosLocalENuvem(lista);
+        window.documentos = documentos;
         agendarRefreshListener('documentos');
+        if (!window.__reenvioDocsInicialFeito) {
+            window.__reenvioDocsInicialFeito = true;
+            agendarReenvioDocumentosLocaisParaNuvem();
+        }
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDocumentosUnsubscribe);
     window.__ouvirConvidadosUnsubscribe = ouvirConvidados((lista) => {
@@ -722,6 +741,7 @@ function prepararClienteParaFirestore(item) {
         nome: item.nome ?? '',
         razaoSocial: item.razaoSocial ?? '',
         nif: item.nif ?? '',
+        passaporteNumero: item.passaporteNumero ?? '',
         email: item.email ?? '',
         telefone: item.telefone ?? '',
         contactos: item.contactos ?? { emailAlternativo: '', telefoneAlternativo: '' },
@@ -751,7 +771,8 @@ function lerClienteDoFirestore(data) {
     return {
         ...data,
         endereco: data.endereco ?? data.morada ?? '',
-        dataCriacao: data.dataCriacao ?? data.createdAt
+        dataCriacao: data.dataCriacao ?? data.createdAt,
+        passaporteNumero: data.passaporteNumero ?? ''
     };
 }
 
@@ -1530,13 +1551,20 @@ async function criarDocumentoCloud(documento) {
 
 async function apagarDocumentoCloud(id) {
     if (!isCloudReady() || !id) return;
+    try {
+        const snap = await firestoreDb.collection('documentos').doc(String(id)).get();
+        const path = snap.exists ? snap.data().storagePath : '';
+        if (path && firebaseStorage) {
+            try { await firebaseStorage.ref(path).delete(); } catch (e) {}
+        }
+    } catch (e) {}
     await firestoreDb.collection('documentos').doc(String(id)).delete();
 }
 
 function ouvirDocumentos(callback) {
     if (!isCloudReady()) return () => {};
     return firestoreDb.collection('documentos').onSnapshot((snapshot) => {
-        const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(d => !d.deleted).map(lerDocumentoDoFirestore);
+        const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(d => !d.deleted && !d.parteDe).map(lerDocumentoDoFirestore);
         if (typeof callback === 'function') callback(lista);
     }, (err) => console.warn('Erro na escuta de documentos:', err));
 }
@@ -1923,20 +1951,224 @@ function lerNotificacaoDoFirestore(data) {
 function prepararDocumentoParaFirestore(item) {
     if (!item) return item;
     const agora = new Date().toISOString();
-    return {
-        ...item,
+    const payload = {
+        id: item.id,
         clienteId: item.clienteId ?? null,
+        clienteNome: item.clienteNome ?? '',
         faturaId: item.faturaId ?? null,
         nomeArquivo: item.nomeArquivo ?? '',
+        tipoArquivo: item.tipoArquivo ?? '',
+        tamanho: item.tamanho ?? 0,
+        descricao: item.descricao ?? '',
+        processoTipo: item.processoTipo ?? 'outro',
+        tags: item.tags ?? [],
+        storagePath: item.storagePath ?? '',
+        armazenamento: item.armazenamento ?? '',
+        numPartes: item.numPartes ?? 0,
+        criadoPor: item.criadoPor ?? 'N/D',
+        tipoUsuario: item.tipoUsuario ?? 'N/D',
+        dataCriacao: item.dataCriacao ?? agora,
         createdAt: item.createdAt ?? item.dataCriacao ?? agora,
         updatedAt: item.updatedAt ?? agora,
         deleted: item.deleted === true
     };
+    const c = item.conteudo;
+    if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) {
+        payload.conteudo = c;
+    } else if (typeof c === 'string' && c.indexOf('data:') === 0 && c.length <= LIMITE_CONTEUDO_FIRESTORE) {
+        payload.conteudo = c;
+    }
+    return payload;
+}
+
+const LIMITE_CONTEUDO_FIRESTORE = 800000;
+const LIMITE_PARTE_FIRESTORE = 700000;
+
+async function guardarPartesDocumentoCloud(id, dataUrl) {
+    if (!isCloudReady() || !id || !dataUrl) return 0;
+    const total = Math.ceil(dataUrl.length / LIMITE_PARTE_FIRESTORE) || 1;
+    for (let i = 0; i < total; i++) {
+        const dados = dataUrl.slice(i * LIMITE_PARTE_FIRESTORE, (i + 1) * LIMITE_PARTE_FIRESTORE);
+        await firestoreDb.collection('documentos').doc(String(id) + '_p' + i).set({
+            id: String(id) + '_p' + i,
+            parteDe: String(id),
+            i: i,
+            total: total,
+            dados: dados,
+            deleted: true,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    }
+    return total;
+}
+
+async function lerPartesDocumentoCloud(id, numPartes) {
+    if (!isCloudReady() || !firestoreDb || !id) return '';
+    let total = parseInt(numPartes, 10) || 0;
+    if (!total) {
+        const first = await firestoreDb.collection('documentos').doc(String(id) + '_p0').get();
+        if (!first.exists) return '';
+        total = (first.data() && first.data().total) || 1;
+    }
+    const partes = [];
+    for (let i = 0; i < total; i++) {
+        const snap = await firestoreDb.collection('documentos').doc(String(id) + '_p' + i).get();
+        if (!snap.exists) return '';
+        partes.push((snap.data() && snap.data().dados) || '');
+    }
+    return partes.join('');
+}
+
+async function persistirConteudoDocumentoNaNuvem(documento) {
+    if (!documento || !isCloudReady()) return false;
+    if (!documentoTemConteudoUtil(documento)) {
+        const local = await idbLerFicheiroDoc(documento.id);
+        if (local) documento.conteudo = local;
+    }
+    const c = documento.conteudo;
+    if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) {
+        await salvarEntidadeCloud('documentos', documento);
+        return true;
+    }
+    if (typeof c !== 'string' || c.indexOf('data:') !== 0) return false;
+    if (c.length > LIMITE_CONTEUDO_FIRESTORE) {
+        const n = await guardarPartesDocumentoCloud(documento.id, c);
+        if (!n) return false;
+        documento.numPartes = n;
+        documento.armazenamento = 'partes';
+    } else {
+        documento.armazenamento = 'embutido';
+    }
+    const payload = prepararDocumentoParaFirestore(documento);
+    await firestoreDb.collection('documentos').doc(String(documento.id)).set(payload, { merge: true });
+    return true;
+}
+
+async function obterUrlStorageDocumento(doc) {
+    if (!doc) return '';
+    const c = doc.conteudo;
+    if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) {
+        return c;
+    }
+    const path = doc.storagePath;
+    if (!path || !firebaseStorage) return '';
+    try {
+        return await firebaseStorage.ref(path).getDownloadURL();
+    } catch (e) {
+        console.warn('Não foi possível obter o ficheiro da nuvem:', e && e.message);
+        return '';
+    }
 }
 
 function lerDocumentoDoFirestore(data) {
     if (!data) return data;
     return { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
+}
+
+function documentoTemConteudoUtil(doc) {
+    const c = doc && doc.conteudo;
+    return typeof c === 'string' && c.length > 20;
+}
+
+function mesclarDocumentosLocalENuvem(cloudLista) {
+    const local = Array.isArray(documentos) ? documentos : [];
+    const cloud = Array.isArray(cloudLista) ? cloudLista : [];
+    const porId = new Map();
+    cloud.forEach(function (d) {
+        if (d && d.id != null) porId.set(String(d.id), Object.assign({}, d));
+    });
+    local.forEach(function (d) {
+        if (!d || d.id == null) return;
+        const id = String(d.id);
+        const existente = porId.get(id);
+        if (!existente) {
+            porId.set(id, d);
+            return;
+        }
+        if (documentoTemConteudoUtil(d) && !documentoTemConteudoUtil(existente)) {
+            existente.conteudo = d.conteudo;
+            existente.storagePath = existente.storagePath || d.storagePath;
+            existente.armazenamento = existente.armazenamento || d.armazenamento;
+            existente.numPartes = existente.numPartes || d.numPartes;
+        } else {
+            existente.storagePath = existente.storagePath || d.storagePath;
+            existente.numPartes = existente.numPartes || d.numPartes;
+            existente.armazenamento = existente.armazenamento || d.armazenamento;
+        }
+    });
+    return Array.from(porId.values());
+}
+
+function abrirIdbDocumentos() {
+    return new Promise(function (resolve, reject) {
+        if (typeof indexedDB === 'undefined') {
+            reject(new Error('IndexedDB indisponível'));
+            return;
+        }
+        const req = indexedDB.open('sistema-legal-documentos', 1);
+        req.onupgradeneeded = function () {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('ficheiros')) db.createObjectStore('ficheiros');
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+    });
+}
+
+async function idbGuardarFicheiroDoc(id, conteudo) {
+    if (!id || !conteudo) return;
+    try {
+        const db = await abrirIdbDocumentos();
+        await new Promise(function (resolve, reject) {
+            const tx = db.transaction('ficheiros', 'readwrite');
+            tx.objectStore('ficheiros').put(conteudo, String(id));
+            tx.oncomplete = resolve;
+            tx.onerror = function () { reject(tx.error); };
+        });
+    } catch (e) {
+        console.warn('Não foi possível guardar o ficheiro em IndexedDB:', e);
+    }
+}
+
+async function idbLerFicheiroDoc(id) {
+    if (!id) return '';
+    try {
+        const db = await abrirIdbDocumentos();
+        return await new Promise(function (resolve, reject) {
+            const tx = db.transaction('ficheiros', 'readonly');
+            const q = tx.objectStore('ficheiros').get(String(id));
+            q.onsuccess = function () { resolve(q.result || ''); };
+            q.onerror = function () { reject(q.error); };
+        });
+    } catch (e) {
+        return '';
+    }
+}
+
+async function obterConteudoDocumento(doc) {
+    if (!doc) return '';
+    if (documentoTemConteudoUtil(doc)) {
+        persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
+        return doc.conteudo;
+    }
+    const partes = await lerPartesDocumentoCloud(doc.id, doc.numPartes);
+    if (partes) {
+        doc.conteudo = partes;
+        idbGuardarFicheiroDoc(doc.id, partes);
+        return partes;
+    }
+    const daNuvem = await obterUrlStorageDocumento(doc);
+    if (daNuvem) {
+        doc.conteudo = daNuvem;
+        return daNuvem;
+    }
+    const local = await idbLerFicheiroDoc(doc.id);
+    if (local) {
+        doc.conteudo = local;
+        persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
+        return local;
+    }
+    return '';
 }
 
 function prepararConvidadoParaFirestore(item) {
@@ -3241,7 +3473,7 @@ async function purgarDocumentosEliminadosFirestore() {
             while (true) {
                 const col = firestoreDb.collection(nome);
                 const snapshot = await col.get();
-                const aApagar = snapshot.docs.filter(d => d.data().deleted === true);
+                const aApagar = snapshot.docs.filter(d => d.data().deleted === true && !d.data().parteDe);
                 if (aApagar.length === 0) break;
                 const batch = firestoreDb.batch();
                 aApagar.slice(0, 500).forEach(d => batch.delete(d.ref));
@@ -4750,7 +4982,8 @@ function executarPesquisaGlobal(termo) {
             cliente.nome,
             cliente.email,
             cliente.telefone,
-            cliente.nif
+            cliente.nif,
+            cliente.passaporteNumero
         ].filter(Boolean).join(' ').toLowerCase();
         if (haystack.includes(termoLower)) {
             resultados.push({
@@ -4943,6 +5176,7 @@ function executarPesquisaGlobal(termo) {
 // Função robusta para fechar modais
 function fecharModalRobusto() {
     try {
+        if (typeof fecharCameraInstantanea === 'function') fecharCameraInstantanea();
         const toRemove = [];
         document.querySelectorAll('body > .fixed.inset-0, body > .modal, #modalContainer .modal, #modalContainer .fixed.inset-0, #modalContainer > *').forEach(el => {
             if (el.id !== 'sidebar' && el.id !== 'sidebarOverlay' && !el.classList.contains('sidebar')) toRemove.push(el);
@@ -6654,6 +6888,15 @@ function validarNIF(nif) {
     return digitoControle === parseInt(limpo[8], 10);
 }
 
+function normalizarPassaporte(passaporte) {
+    return (passaporte || '').replace(/\s+/g, '').toUpperCase();
+}
+
+function validarPassaporte(passaporte) {
+    const limpo = normalizarPassaporte(passaporte);
+    return /^[A-Z0-9]{5,20}$/.test(limpo);
+}
+
 function configurarEventos() {
     if (window.__sistemaLegalEventosConfigurados) return;
     window.__sistemaLegalEventosConfigurados = true;
@@ -6876,6 +7119,7 @@ function configurarEventos() {
             if (acao === 'editar') editarClienteDireto(id);
             else if (acao === 'excluir') excluirItem('cliente', id);
             else if (acao === 'duplicar') duplicarCliente(id);
+            else if (acao === 'documentos') abrirAnexosCliente(id);
             else if (acao === 'portal-ativar') ativarAcessoPortalCliente(id);
             else if (acao === 'portal-reset') redefinirPasswordPortalCliente(id);
         } catch (err) {
@@ -8722,6 +8966,9 @@ function gerarRelatorioGeralClienteSelecionado(exportarComoPdf) {
             relatorio += `Email: ${cliente.email}\n`;
             relatorio += `Telefone: ${cliente.telefone}\n`;
             relatorio += `NIF: ${cliente.nif}\n`;
+            if (cliente.passaporteNumero) {
+                relatorio += `Passaporte: ${cliente.passaporteNumero}\n`;
+            }
             relatorio += `Data de Registo: ${cliente.data}\n`;
             if (cliente.endereco) {
                 relatorio += `Endereço: ${cliente.endereco}\n`;
@@ -8975,6 +9222,9 @@ function mostrarInformacoesCompletasCliente(cliente) {
                         <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 13px;">
                             <strong>NIF:</strong> ${esc(cliente.nif || '—')}
                         </div>
+                        <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #0ea5e9; font-size: 13px;">
+                            <strong>Passaporte:</strong> ${esc(cliente.passaporteNumero || '—')}
+                        </div>
                         <div style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 4px solid #06b6d4; font-size: 13px;">
                             <strong>Status:</strong> ${esc(cliente.status || '—')}
                         </div>
@@ -9025,6 +9275,15 @@ function mostrarInformacoesCompletasCliente(cliente) {
                             text-decoration: underline;
                             white-space: nowrap;
                         ">Ver documentos</button>
+                        <button type="button" class="js-ficha-anexar-documentos" style="
+                            font-size: 13px;
+                            color: #0f766e;
+                            background: transparent;
+                            border: none;
+                            cursor: pointer;
+                            text-decoration: underline;
+                            white-space: nowrap;
+                        ">Anexar mais</button>
                     </div>
                 </div>
             </div>
@@ -9073,7 +9332,13 @@ function mostrarInformacoesCompletasCliente(cliente) {
     const btnVerDocs = modal.querySelector('.js-ficha-ver-documentos');
     if (btnVerDocs) {
         btnVerDocs.addEventListener('click', () => {
-            navegarSecaoClienteFicha('documentos', clienteId, cliente.nome);
+            abrirAnexosCliente(clienteId);
+        });
+    }
+    const btnAnexarDocs = modal.querySelector('.js-ficha-anexar-documentos');
+    if (btnAnexarDocs) {
+        btnAnexarDocs.addEventListener('click', () => {
+            abrirAnexosCliente(clienteId);
         });
     }
     const btnEditar = modal.querySelector('.js-ficha-editar-cliente');
@@ -9246,9 +9511,9 @@ async function abrirDocumentoEmNovaAba(doc) {
         abrirFaturaGuardadaComoHtml(doc, false);
         return;
     }
-    const url = doc.conteudo || '';
+    const url = await obterConteudoDocumento(doc);
     if (!url) {
-        mostrarNotificacao('Documento sem conteúdo.', 'warning');
+        mostrarNotificacao('Documento sem conteúdo neste telemóvel. No computador, abra o Sistema Legal, volte a guardar o ficheiro e depois abra de novo aqui.', 'warning');
         return;
     }
     try {
@@ -9282,6 +9547,10 @@ async function abrirDocumentoEmNovaAba(doc) {
                 abrirHtmlDocumentoNoApp(htmlDoc, doc.nomeArquivo || 'Documento', 'ver');
                 return;
             }
+        }
+        if (isMobileApp()) {
+            await abrirFicheiroDocumentoNoApp(doc, url);
+            return;
         }
         if (url.startsWith('data:')) {
             const blob = await fetch(url).then(res => res.blob());
@@ -9365,39 +9634,45 @@ function adicionarDocumentoModal(clienteId, clienteNome) {
         return;
     }
     const arquivo = arquivoInput.files[0];
-    if (arquivo.size > 5 * 1024 * 1024) {
-        mostrarNotificacao('Ficheiro acima de 5 MB. Tente um ficheiro menor.', 'error');
+    if (arquivo.size > LIMITE_FICHEIRO_BYTES) {
+        mostrarNotificacao('Ficheiro acima de 500 MB. Divida o PDF ou grave com menor qualidade e tente de novo.', 'error');
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
+    const idDoc = gerarIdImutavel();
+    prepararFicheiroDocumento(arquivo, idDoc).then(function (prep) {
         const documento = {
-            id: gerarIdImutavel(),
+            id: idDoc,
             clienteId,
             clienteNome: clienteNome || '',
             processoTipo,
             entidade,
             descricao,
             tags,
-            nomeArquivo: arquivo.name,
-            tipoArquivo: arquivo.type,
-            tamanho: arquivo.size,
-            conteudo: reader.result,
+            nomeArquivo: prep.nomeArquivo || arquivo.name,
+            tipoArquivo: prep.tipoArquivo,
+            tamanho: prep.tamanho,
+            conteudo: prep.conteudo,
+            storagePath: prep.storagePath || '',
+            armazenamento: prep.armazenamento || 'embutido',
             criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
             tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
             dataCriacao: new Date().toISOString()
         };
-        const lista = obterDocumentosAtual();
-        lista.unshift(documento);
-        salvarDocumentosLocal(lista);
-        registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
-        mostrarNotificacao('Documento adicionado com sucesso!', 'success');
-
-        window.__docsClienteModal = lista.filter(doc => String(doc.clienteId || '') === String(clienteId));
-        renderDocumentosClienteModal(window.__docsClienteModal || [], document.getElementById('filtroDocumentosClienteModal')?.value || '');
-    };
-    reader.readAsDataURL(arquivo);
+        persistirConteudoDocumentoNaNuvem(documento).then(function () {
+            const lista = obterDocumentosAtual();
+            lista.unshift(documento);
+            salvarDocumentosLocal(lista);
+            idbGuardarFicheiroDoc(documento.id, documento.conteudo);
+            registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, { ...documento, conteudo: '[ficheiro]' });
+            mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+            window.__docsClienteModal = lista.filter(doc => String(doc.clienteId || '') === String(clienteId));
+            renderDocumentosClienteModal(window.__docsClienteModal || [], document.getElementById('filtroDocumentosClienteModal')?.value || '');
+        });
+    }).catch(function (err) {
+        console.error('Erro ao adicionar documento:', err);
+        mostrarNotificacao(err.message || 'Não foi possível guardar o documento.', 'error');
+    });
 }
 
 function adicionarDocumentoModalHandler(elemento) {
@@ -10815,6 +11090,9 @@ function gerarClientes() {
                                         <td>${typeof obterRotuloCriadorCliente === 'function' ? obterRotuloCriadorCliente(cliente) : (cliente.tipoUsuario === 'convidado' ? 'Convidado' : 'Admin')}</td>
                                         <td>
                                             ${typeof renderAcoesPortalCliente === 'function' ? renderAcoesPortalCliente(cliente) : ''}
+                                            <button type="button" data-cliente-id="${String(cliente.id).replace(/"/g, '&quot;')}" data-cliente-acao="documentos" class="text-teal-600 hover:text-teal-800 mr-2" title="Documentos">
+                                                <i data-lucide="paperclip" class="w-4 h-4" style="pointer-events:none"></i>
+                                            </button>
                                             <button type="button" data-cliente-id="${String(cliente.id).replace(/"/g, '&quot;')}" data-cliente-acao="editar" class="text-blue-600 hover:text-blue-800 mr-2" title="Editar">
                                                 <i data-lucide="edit" class="w-4 h-4" style="pointer-events:none"></i>
                                             </button>
@@ -13944,6 +14222,53 @@ function salvarDocumentosLocal(novos) {
     documentos = novos;
     window.documentos = documentos;
     salvarDados('documentos', documentos);
+    if (typeof agendarReenvioDocumentosLocaisParaNuvem === 'function') {
+        agendarReenvioDocumentosLocaisParaNuvem();
+    }
+}
+
+function dataUrlParaFicheiro(dataUrl, nomeArquivo, tipoArquivo) {
+    try {
+        const partes = String(dataUrl).split(',');
+        const meta = partes[0] || '';
+        const b64 = partes[1];
+        if (!b64) return null;
+        const mime = (meta.match(/data:([^;]+)/) || [])[1] || tipoArquivo || 'application/octet-stream';
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new File([bytes], nomeArquivo || 'documento', { type: mime });
+    } catch (e) {
+        return null;
+    }
+}
+
+let __reenvioDocsTimer = null;
+function agendarReenvioDocumentosLocaisParaNuvem() {
+    if (__reenvioDocsTimer) clearTimeout(__reenvioDocsTimer);
+    __reenvioDocsTimer = setTimeout(reenviarDocumentosLocaisParaNuvem, 1500);
+}
+
+async function reenviarDocumentosLocaisParaNuvem() {
+    if (!isCloudReady()) return;
+    const lista = typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos;
+    if (!Array.isArray(lista) || !lista.length) return;
+    let enviados = 0;
+    for (let i = 0; i < lista.length; i++) {
+        const doc = lista[i];
+        if (!doc) continue;
+        if (doc.numPartes) continue;
+        if (typeof doc.conteudo === 'string' && (doc.conteudo.indexOf('http://') === 0 || doc.conteudo.indexOf('https://') === 0)) continue;
+        try {
+            const ok = await persistirConteudoDocumentoNaNuvem(doc);
+            if (ok) enviados++;
+        } catch (e) {
+            console.warn('Reenvio do documento para a nuvem falhou:', doc.nomeArquivo, e && e.message);
+        }
+    }
+    if (enviados && typeof mostrarNotificacao === 'function') {
+        mostrarNotificacao(enviados === 1 ? 'Documento enviado para o telemóvel.' : enviados + ' documentos enviados para o telemóvel.', 'success');
+    }
 }
 
 /** Logo para PDFs — apenas via módulo de branding (branding/injectBranding.js). Não usar logos embutidas em templates. */
@@ -15020,7 +15345,82 @@ function fecharVisualizadorDocumentoApp() {
     window.__docViewerBackHandler = null;
     window.__docViewerHtmlAtual = null;
     window.__docViewerNomeArquivo = null;
+    window.__docViewerUrlAtual = null;
+    if (window.__docViewerBlobRevoke) {
+        try { URL.revokeObjectURL(window.__docViewerBlobRevoke); } catch (e) { /* ignorar */ }
+        window.__docViewerBlobRevoke = null;
+    }
     restaurarInteracaoPagina();
+}
+
+async function abrirFicheiroDocumentoNoApp(doc, url) {
+    fecharVisualizadorDocumentoApp();
+    if (!url) return false;
+
+    let viewUrl = url;
+    let blobRevoke = null;
+    if (url.startsWith('data:')) {
+        try {
+            const blob = await fetch(url).then(function (r) { return r.blob(); });
+            viewUrl = URL.createObjectURL(blob);
+            blobRevoke = viewUrl;
+        } catch (err) {
+            console.warn('Falha a preparar documento para visualização:', err);
+            mostrarNotificacao('Não foi possível abrir o documento.', 'error');
+            return false;
+        }
+    }
+
+    const titulo = doc.nomeArquivo || 'Documento';
+    const tituloSeguro = escaparHtml(titulo);
+    const isPdf = documentoEhPdf(doc);
+
+    window.__docViewerUrlAtual = viewUrl;
+    window.__docViewerBlobRevoke = blobRevoke;
+    window.__docViewerNomeArquivo = titulo;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'docViewerApp';
+    overlay.className = 'doc-viewer-app';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', titulo);
+    overlay.innerHTML = `
+        <header class="doc-viewer-app-bar">
+            <button type="button" class="doc-viewer-btn-voltar" id="docViewerBtnVoltar" aria-label="Voltar">
+                <span aria-hidden="true">←</span> Voltar
+            </button>
+            <span class="doc-viewer-title">${tituloSeguro}</span>
+            <button type="button" class="doc-viewer-btn-acao" id="docViewerBtnGuardar" aria-label="Guardar ficheiro">${isPdf ? 'Guardar PDF' : 'Guardar'}</button>
+        </header>
+        ${isPdf
+            ? `<object id="docViewerAppObject" data="${viewUrl}" type="application/pdf" class="doc-viewer-app-frame"><p style="padding:16px;text-align:center">Não foi possível mostrar o PDF neste telemóvel. Toque em «Guardar PDF».</p></object>`
+            : `<iframe id="docViewerAppFrame" class="doc-viewer-app-frame" title="${tituloSeguro}"></iframe>`}
+    `;
+    document.body.appendChild(overlay);
+    document.body.classList.add('doc-viewer-open');
+
+    if (!isPdf) {
+        const iframe = document.getElementById('docViewerAppFrame');
+        if (iframe) iframe.src = viewUrl;
+    }
+
+    document.getElementById('docViewerBtnVoltar').addEventListener('click', fecharVisualizadorDocumentoApp);
+    document.getElementById('docViewerBtnGuardar').addEventListener('click', function () {
+        baixarDocumentoUrl(window.__docViewerUrlAtual, window.__docViewerNomeArquivo);
+    });
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        window.__docViewerBackHandler = function () {
+            fecharVisualizadorDocumentoApp();
+        };
+        try {
+            window.Capacitor.Plugins.App.addListener('backButton', window.__docViewerBackHandler);
+        } catch (e) { /* ignorar */ }
+    }
+
+    restaurarInteracaoPagina();
+    return true;
 }
 
 function abrirHtmlDocumentoNoApp(htmlCompleto, titulo, acao, nomeArquivo) {
@@ -15646,14 +16046,17 @@ function gerarDocumentos() {
                             </div>
                             <div class="md:col-span-2 lg:col-span-3">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Ficheiro *</label>
-                                <input id="docArquivo" type="file" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                <p class="text-xs text-gray-500 mt-1">Recomendado até 5 MB.</p>
+                                ${htmlSeletorFicheiroComFoto('docArquivo', 'accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"')}
                             </div>
                         </div>
-                        <div class="mt-4">
+                        <div class="mt-4 flex flex-wrap gap-2">
                             <button type="button" onclick="uploadDocumento()" class="btn btn-primary">
                                 <i data-lucide="save" class="w-4 h-4"></i>
                                 Guardar documento
+                            </button>
+                            <button type="button" onclick="guardarDigitalizacoesClienteComoPdf()" class="btn btn-secondary" title="Gera um PDF com as fotos e digitalizações já guardadas neste cliente">
+                                <i data-lucide="file-down" class="w-4 h-4"></i>
+                                Guardar digitalizações como PDF
                             </button>
                         </div>
                     </div>
@@ -15798,7 +16201,349 @@ function renderizarListaDocumentos(lista) {
     lucide.createIcons();
 }
 
-function uploadDocumento() {
+let __cameraInstantaneaStream = null;
+let __cameraInstantaneaInputId = null;
+
+function htmlSeletorFicheiroComFoto(inputId, extraAttrs) {
+    const attrs = extraAttrs || 'accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"';
+    const temMultiple = /\bmultiple\b/i.test(attrs);
+    const attrsFinais = temMultiple ? attrs : (attrs + ' multiple');
+    return `
+        <div class="flex flex-col sm:flex-row gap-2">
+            <input type="file" id="${inputId}" ${attrsFinais} onchange="atualizarListaFicheirosSelecionados('${inputId}')" class="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+            <button type="button" onclick="abrirCameraInstantanea('${inputId}')" class="btn btn-secondary whitespace-nowrap inline-flex items-center justify-center gap-2">
+                <i data-lucide="camera" class="w-4 h-4"></i>
+                Tirar foto
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Pode escolher vários ficheiros (Ctrl + clique) ou tirar várias fotos. Fotos grandes são comprimidas automaticamente. Máximo: 500 MB por ficheiro.</p>
+        <div id="${inputId}Lista" class="hidden mt-2 text-xs text-gray-700"></div>
+        <img id="${inputId}Preview" alt="Pré-visualização da foto" class="hidden mt-2 max-h-40 rounded border border-gray-200 object-contain">
+        <input type="file" id="${inputId}CameraFallback" accept="image/*" capture="environment" class="hidden" aria-hidden="true">
+    `;
+}
+
+function atualizarListaFicheirosSelecionados(inputId) {
+    const input = document.getElementById(inputId);
+    const listaEl = document.getElementById(inputId + 'Lista');
+    if (!listaEl) return;
+    const ficheiros = input && input.files ? Array.from(input.files) : [];
+    if (!ficheiros.length) {
+        listaEl.innerHTML = '';
+        listaEl.classList.add('hidden');
+        return;
+    }
+    const esc = typeof escaparHtml === 'function' ? escaparHtml : function (t) {
+        return String(t || '').replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    };
+    listaEl.classList.remove('hidden');
+    listaEl.innerHTML = '<p class="font-medium mb-1">' + ficheiros.length + ' ficheiro' + (ficheiros.length === 1 ? '' : 's') + ' para este cliente:</p>' +
+        '<ul class="list-disc pl-5 space-y-0.5">' + ficheiros.map(function (f) { return '<li>' + esc(f.name) + '</li>'; }).join('') + '</ul>';
+}
+
+function fecharCameraInstantanea() {
+    if (__cameraInstantaneaStream) {
+        __cameraInstantaneaStream.getTracks().forEach(function (track) {
+            try { track.stop(); } catch (e) {}
+        });
+        __cameraInstantaneaStream = null;
+    }
+    __cameraInstantaneaInputId = null;
+    const overlay = document.getElementById('cameraInstantaneaOverlay');
+    if (overlay) overlay.remove();
+}
+
+function atribuirFicheiroAoInput(inputId, ficheiro) {
+    const input = document.getElementById(inputId);
+    if (!input || !ficheiro) return;
+    try {
+        const dt = new DataTransfer();
+        if (input.files && input.files.length) {
+            Array.from(input.files).forEach(function (existente) { dt.items.add(existente); });
+        }
+        dt.items.add(ficheiro);
+        input.files = dt.files;
+    } catch (err) {
+        console.warn('Não foi possível atribuir o ficheiro ao seletor:', err);
+        mostrarNotificacao('Foto capturada, mas não foi possível associá-la ao campo. Tente novamente.', 'error');
+        return;
+    }
+    atualizarListaFicheirosSelecionados(inputId);
+    const preview = document.getElementById(inputId + 'Preview');
+    if (preview && ficheiro.type && ficheiro.type.indexOf('image/') === 0) {
+        preview.src = URL.createObjectURL(ficheiro);
+        preview.classList.remove('hidden');
+    }
+    const nomeDoc = document.getElementById('nomeDocumento');
+    if (nomeDoc && !nomeDoc.value.trim()) {
+        nomeDoc.value = 'Foto ' + new Date().toLocaleString('pt-PT');
+    }
+    const desc = document.getElementById('docDescricao');
+    if (desc && !desc.value.trim()) {
+        desc.value = 'Foto instantânea';
+    }
+    mostrarNotificacao('Foto capturada. Pode guardar o documento.', 'success');
+}
+
+function usarCameraFallback(inputId) {
+    const fallback = document.getElementById(inputId + 'CameraFallback');
+    if (!fallback) {
+        mostrarNotificacao('Câmara não disponível neste dispositivo.', 'error');
+        return;
+    }
+    fallback.value = '';
+    fallback.onchange = function () {
+        const ficheiro = fallback.files && fallback.files[0];
+        if (ficheiro) atribuirFicheiroAoInput(inputId, ficheiro);
+    };
+    fallback.click();
+}
+
+async function abrirCameraInstantanea(inputId) {
+    if (!inputId) return;
+    fecharCameraInstantanea();
+    __cameraInstantaneaInputId = inputId;
+
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+        usarCameraFallback(inputId);
+        return;
+    }
+
+    try {
+        __cameraInstantaneaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        });
+    } catch (err) {
+        console.warn('getUserMedia falhou:', err && err.message);
+        usarCameraFallback(inputId);
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cameraInstantaneaOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.onclick = function (e) {
+        if (e.target === overlay) fecharCameraInstantanea();
+    };
+    overlay.innerHTML = `
+        <div onclick="event.stopPropagation()" style="background:#111;color:#fff;border-radius:12px;padding:16px;max-width:min(92vw,560px);width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;">Tirar foto do documento</h3>
+                <button type="button" onclick="fecharCameraInstantanea()" class="text-gray-300 hover:text-white" title="Fechar">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <video id="cameraInstantaneaVideo" autoplay playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:8px;object-fit:cover;"></video>
+            <p style="font-size:12px;color:#d1d5db;margin:10px 0 0;">Aponte a câmara ao documento e clique em Capturar.</p>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button type="button" onclick="fecharCameraInstantanea()" class="btn btn-secondary">Cancelar</button>
+                <button type="button" onclick="capturarFotoInstantanea()" class="btn btn-primary inline-flex items-center gap-2">
+                    <i data-lucide="camera" class="w-4 h-4"></i>
+                    Capturar
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const video = document.getElementById('cameraInstantaneaVideo');
+    if (video) {
+        video.srcObject = __cameraInstantaneaStream;
+        try { await video.play(); } catch (e) {}
+    }
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+function capturarFotoInstantanea() {
+    const inputId = __cameraInstantaneaInputId;
+    const video = document.getElementById('cameraInstantaneaVideo');
+    if (!inputId || !video) {
+        mostrarNotificacao('Câmara não está pronta. Tente novamente.', 'error');
+        return;
+    }
+    const largura = video.videoWidth || 1280;
+    const altura = video.videoHeight || 720;
+    const canvas = document.createElement('canvas');
+    canvas.width = largura > 1920 || altura > 1920
+        ? (largura >= altura ? 1920 : Math.round(1920 * largura / altura))
+        : largura;
+    canvas.height = largura > 1920 || altura > 1920
+        ? (altura >= largura ? 1920 : Math.round(1920 * altura / largura))
+        : altura;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(function (blob) {
+        if (!blob) {
+            mostrarNotificacao('Não foi possível capturar a foto.', 'error');
+            return;
+        }
+        const nome = 'foto-' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg';
+        const ficheiro = new File([blob], nome, { type: 'image/jpeg' });
+        atribuirFicheiroAoInput(inputId, ficheiro);
+        fecharCameraInstantanea();
+    }, 'image/jpeg', 0.72);
+}
+
+function lerFicheiroComoDataURL(arquivo) {
+    return new Promise(function (resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function () { resolve(reader.result); };
+        reader.onerror = function () { reject(reader.error || new Error('Falha a ler o ficheiro')); };
+        reader.readAsDataURL(arquivo);
+    });
+}
+
+const LIMITE_FICHEIRO_BYTES = 500 * 1024 * 1024;
+const LIMITE_CONTEUDO_EMBUTIDO_BYTES = 500 * 1024;
+
+function ficheiroEhImagem(arquivo) {
+    if (!arquivo) return false;
+    const tipo = String(arquivo.type || '').toLowerCase();
+    const nome = String(arquivo.name || '').toLowerCase();
+    return tipo.indexOf('image/') === 0 || /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(nome);
+}
+
+function comprimirImagemParaFicheiro(arquivo, maxLado, qualidade) {
+    return new Promise(function (resolve) {
+        const url = URL.createObjectURL(arquivo);
+        const img = new Image();
+        img.onload = function () {
+            URL.revokeObjectURL(url);
+            let w = img.naturalWidth || img.width || 1;
+            let h = img.naturalHeight || img.height || 1;
+            if (w > maxLado || h > maxLado) {
+                const r = maxLado / Math.max(w, h);
+                w = Math.max(1, Math.round(w * r));
+                h = Math.max(1, Math.round(h * r));
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(function (blob) {
+                if (!blob) {
+                    resolve(arquivo);
+                    return;
+                }
+                const nome = String(arquivo.name || 'foto.jpg').replace(/\.[^.]+$/, '') + '.jpg';
+                resolve(new File([blob], nome, { type: 'image/jpeg' }));
+            }, 'image/jpeg', qualidade);
+        };
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            resolve(arquivo);
+        };
+        img.src = url;
+    });
+}
+
+async function reduzirImagemAteLimite(arquivo, maxBytes) {
+    if (!ficheiroEhImagem(arquivo)) return arquivo;
+    let melhor = arquivo;
+    const passos = [[2000, 0.75], [1600, 0.65], [1280, 0.55], [1024, 0.45], [800, 0.4]];
+    for (let i = 0; i < passos.length; i++) {
+        if (melhor.size <= maxBytes) return melhor;
+        const comprimido = await comprimirImagemParaFicheiro(arquivo, passos[i][0], passos[i][1]);
+        if (comprimido.size < melhor.size) melhor = comprimido;
+    }
+    return melhor;
+}
+
+async function enviarFicheiroParaStorage(id, ficheiro) {
+    if (!firebaseStorage || !ficheiro) return null;
+    const nome = String(ficheiro.name || 'ficheiro').replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'ficheiro';
+    const path = 'documentos/' + id + '/' + nome;
+    const ref = firebaseStorage.ref(path);
+    return executarComTimeout((async function () {
+        await ref.put(ficheiro, { contentType: ficheiro.type || 'application/octet-stream' });
+        const url = await ref.getDownloadURL();
+        return { url: url, path: path };
+    })(), 8000, null);
+}
+
+async function prepararFicheiroDocumento(arquivo, idDocumento) {
+    if (!arquivo) throw new Error('Ficheiro em falta.');
+    if (arquivo.size > LIMITE_FICHEIRO_BYTES) {
+        throw new Error('Ficheiro acima de 500 MB: ' + (arquivo.name || '') + '. Divida o PDF ou grave com menor qualidade.');
+    }
+    let processado = arquivo;
+    if (ficheiroEhImagem(arquivo)) {
+        processado = await reduzirImagemAteLimite(arquivo, LIMITE_CONTEUDO_EMBUTIDO_BYTES);
+    }
+    try {
+        const enviado = await enviarFicheiroParaStorage(idDocumento, processado);
+        if (enviado && enviado.url) {
+            return {
+                conteudo: enviado.url,
+                storagePath: enviado.path,
+                tamanho: processado.size,
+                tipoArquivo: processado.type || arquivo.type,
+                nomeArquivo: arquivo.name,
+                armazenamento: 'storage'
+            };
+        }
+        mostrarNotificacao('A enviar o documento para a nuvem falhou. Guarde de novo para o telemóvel o poder abrir.', 'warning');
+    } catch (err) {
+        console.warn('Upload Storage falhou:', err && err.message);
+        mostrarNotificacao('A enviar o documento para a nuvem falhou. Guarde de novo para o telemóvel o poder abrir.', 'warning');
+    }
+    const conteudo = await lerFicheiroComoDataURL(processado);
+    return {
+        conteudo: conteudo,
+        tamanho: processado.size,
+        tipoArquivo: processado.type || arquivo.type,
+        nomeArquivo: arquivo.name,
+        armazenamento: 'local'
+    };
+}
+
+async function guardarFicheirosComoDocumentosCliente(clienteId, clienteNome, ficheiros, descricaoBase) {
+    const listaFicheiros = Array.from(ficheiros || []).filter(Boolean);
+    if (!clienteId || !listaFicheiros.length) return 0;
+    const lista = obterDocumentosAtual();
+    let guardados = 0;
+    for (let i = 0; i < listaFicheiros.length; i++) {
+        const arquivo = listaFicheiros[i];
+        const idDoc = gerarIdImutavel();
+        const prep = await prepararFicheiroDocumento(arquivo, idDoc);
+        const descricaoItem = listaFicheiros.length === 1
+            ? (descricaoBase || arquivo.name)
+            : ((descricaoBase ? descricaoBase + ' — ' : '') + arquivo.name);
+        const documento = {
+            id: idDoc,
+            clienteId: clienteId,
+            clienteNome: clienteNome || '',
+            processoTipo: 'outro',
+            descricao: descricaoItem,
+            nomeArquivo: prep.nomeArquivo || arquivo.name,
+            tipoArquivo: prep.tipoArquivo,
+            tamanho: prep.tamanho,
+            conteudo: prep.conteudo,
+            storagePath: prep.storagePath || '',
+            armazenamento: prep.armazenamento || 'local',
+            criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
+            tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
+            dataCriacao: new Date().toISOString()
+        };
+        await persistirConteudoDocumentoNaNuvem(documento);
+        lista.unshift(documento);
+        idbGuardarFicheiroDoc(documento.id, documento.conteudo);
+        registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, {
+            ...documento,
+            conteudo: documento.conteudo && String(documento.conteudo).indexOf('data:') === 0 ? '[ficheiro local]' : documento.conteudo
+        });
+        guardados++;
+    }
+    salvarDocumentosLocal(lista);
+    return guardados;
+}
+
+async function uploadDocumento() {
     if (!exigirPermissaoAcao('criar', 'documento')) {
         return;
     }
@@ -15812,43 +16557,84 @@ function uploadDocumento() {
         return;
     }
     if (!arquivoInput || !arquivoInput.files || arquivoInput.files.length === 0) {
-        mostrarNotificacao('Selecione um ficheiro.', 'warning');
+        mostrarNotificacao('Selecione um ou mais ficheiros.', 'warning');
         return;
     }
-    const arquivo = arquivoInput.files[0];
-    if (arquivo.size > 5 * 1024 * 1024) {
-        mostrarNotificacao('Ficheiro acima de 5 MB. Tente um ficheiro menor.', 'error');
+    const ficheiros = Array.from(arquivoInput.files);
+    const grandes = ficheiros.filter(function (f) { return f.size > LIMITE_FICHEIRO_BYTES; });
+    if (grandes.length) {
+        mostrarNotificacao('Estes ficheiros excedem 500 MB: ' + grandes.map(function (f) { return f.name; }).join(', ') + '. Divida o PDF ou grave com menor qualidade.', 'error');
         return;
     }
     
     const cliente = clientes.find(c => c.id === clienteId);
-    const reader = new FileReader();
-    reader.onload = () => {
-        const documento = {
-            id: gerarIdImutavel(),
-            clienteId,
-            clienteNome: cliente ? cliente.nome : '',
-            processoTipo,
-            descricao,
-            nomeArquivo: arquivo.name,
-            tipoArquivo: arquivo.type,
-            tamanho: arquivo.size,
-            conteudo: reader.result,
-            criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
-            tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
-            dataCriacao: new Date().toISOString()
-        };
-        const lista = obterDocumentosAtual();
-        lista.unshift(documento);
+    const lista = obterDocumentosAtual();
+    let guardados = 0;
+    const botaoGuardar = document.querySelector('button[onclick="uploadDocumento()"]');
+    if (botaoGuardar) {
+        botaoGuardar.disabled = true;
+        botaoGuardar.dataset.textoOriginal = botaoGuardar.innerHTML;
+        botaoGuardar.innerHTML = 'A guardar…';
+    }
+    try {
+        mostrarNotificacao('A guardar documento…', 'info');
+        for (let i = 0; i < ficheiros.length; i++) {
+            const arquivo = ficheiros[i];
+            const idDoc = gerarIdImutavel();
+            const prep = await prepararFicheiroDocumento(arquivo, idDoc);
+            const descricaoItem = ficheiros.length === 1
+                ? descricao
+                : (descricao ? descricao + ' — ' + arquivo.name : arquivo.name);
+            const documento = {
+                id: idDoc,
+                clienteId,
+                clienteNome: cliente ? cliente.nome : '',
+                processoTipo,
+                descricao: descricaoItem,
+                nomeArquivo: prep.nomeArquivo || arquivo.name,
+                tipoArquivo: prep.tipoArquivo,
+                tamanho: prep.tamanho,
+                conteudo: prep.conteudo,
+                storagePath: prep.storagePath || '',
+                armazenamento: prep.armazenamento || 'embutido',
+                criadoPor: appStorage.getItem('usuarioLogado') || 'N/D',
+                tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
+                dataCriacao: new Date().toISOString()
+            };
+            await persistirConteudoDocumentoNaNuvem(documento);
+            lista.unshift(documento);
+            idbGuardarFicheiroDoc(documento.id, documento.conteudo);
+            registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, { ...documento, conteudo: documento.conteudo && documento.conteudo.indexOf('data:') === 0 ? '[ficheiro local]' : documento.conteudo });
+            guardados++;
+        }
         salvarDocumentosLocal(lista);
-        registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, documento);
-        mostrarNotificacao('Documento adicionado com sucesso!', 'success');
+        mostrarNotificacao(
+            guardados === 1
+                ? 'Documento adicionado com sucesso!'
+                : guardados + ' documentos adicionados ao cliente.',
+            'success'
+        );
         arquivoInput.value = '';
+        atualizarListaFicheirosSelecionados('docArquivo');
+        const preview = document.getElementById('docArquivoPreview');
+        if (preview) {
+            preview.src = '';
+            preview.classList.add('hidden');
+        }
         const descInput = document.getElementById('docDescricao');
         if (descInput) descInput.value = '';
         aplicarFiltrosDocumentos();
-    };
-    reader.readAsDataURL(arquivo);
+    } catch (err) {
+        console.error('Erro ao guardar documentos:', err);
+        mostrarNotificacao(err.message || 'Não foi possível guardar os documentos.', 'error');
+    } finally {
+        if (botaoGuardar) {
+            botaoGuardar.disabled = false;
+            if (botaoGuardar.dataset.textoOriginal) {
+                botaoGuardar.innerHTML = botaoGuardar.dataset.textoOriginal;
+            }
+        }
+    }
 }
 
 /** Converte dados da fatura para INVOICE_DATA do template fatura-recibo.html.
@@ -16226,16 +17012,18 @@ function baixarDocumento(id) {
         mostrarNotificacao('Fatura aberta numa nova janela. Use Ctrl+P para imprimir ou guardar como PDF.', 'success');
         return;
     }
-    if (!doc.conteudo) {
-        mostrarNotificacao('Conteúdo do documento não disponível.', 'error');
-        return;
-    }
-    const link = document.createElement('a');
-    link.href = doc.conteudo;
-    link.download = doc.nomeArquivo || 'documento';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    obterConteudoDocumento(doc).then(function (url) {
+        if (!url) {
+            mostrarNotificacao('Conteúdo não disponível neste telemóvel. Volte a guardar o ficheiro no computador para o enviar para a nuvem.', 'error');
+            return;
+        }
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = doc.nomeArquivo || 'documento';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
 }
 
 /** Abre o documento numa nova janela (ver conteúdo). Admin e convidado têm o mesmo acesso. */
@@ -16248,6 +17036,67 @@ function abrirDocumento(id) {
     abrirDocumentoEmNovaAba(doc);
 }
 
+function documentoEhImagem(doc) {
+    if (!doc) return false;
+    const tipo = String(doc.tipoArquivo || '').toLowerCase();
+    const url = String(doc.conteudo || '');
+    const nome = String(doc.nomeArquivo || '').toLowerCase();
+    return tipo.indexOf('image/') === 0 || url.indexOf('data:image/') === 0 || /\.(jpe?g|png|webp|gif|bmp)$/i.test(nome);
+}
+
+function documentoEhPdf(doc) {
+    if (!doc) return false;
+    const tipo = String(doc.tipoArquivo || '').toLowerCase();
+    const url = String(doc.conteudo || '');
+    const nome = String(doc.nomeArquivo || '').toLowerCase();
+    return tipo.indexOf('pdf') !== -1 || url.indexOf('data:application/pdf') === 0 || nome.endsWith('.pdf');
+}
+
+function htmlPaginasImagensDocumentos(docs) {
+    return (docs || []).map(function (doc) {
+        const src = doc.conteudo || '';
+        const nome = typeof escaparHtml === 'function' ? escaparHtml(doc.nomeArquivo || 'Documento digitalizado') : (doc.nomeArquivo || 'Documento digitalizado');
+        const desc = doc.descricao && typeof escaparHtml === 'function' ? escaparHtml(doc.descricao) : (doc.descricao || '');
+        return `
+            <div class="pagina-scan" style="page-break-after:always;break-after:page;text-align:center;min-height:240mm;">
+                <p style="font-size:11px;color:#4b5563;margin:0 0 8px;text-align:left;">${nome}${desc ? ' — ' + desc : ''}</p>
+                <img src="${src}" alt="${nome}" style="max-width:100%;max-height:250mm;object-fit:contain;">
+            </div>
+        `;
+    }).join('');
+}
+
+async function imprimirImagensComoPdf(docs, titulo, nomeArquivo) {
+    const imagens = (docs || []).filter(function (d) { return documentoEhImagem(d) && d.conteudo; });
+    if (!imagens.length) {
+        mostrarNotificacao('Não há digitalizações (fotos) para gerar PDF.', 'warning');
+        return false;
+    }
+    const corpo = htmlPaginasImagensDocumentos(imagens);
+    const html = await montarHtmlDocumentoProfissional(titulo || 'Documentos digitalizados', corpo, ESTILOS_DOCUMENTO_PDF);
+    return imprimirHtmlDocumentoProfissional(html, 'imprimir', nomeArquivo || 'digitalizacoes.pdf');
+}
+
+async function guardarDigitalizacoesClienteComoPdf() {
+    const clienteId = parseIdSafe(document.getElementById('docCliente')?.value || '');
+    if (!clienteId) {
+        mostrarNotificacao('Selecione o cliente para gerar o PDF das digitalizações.', 'warning');
+        return;
+    }
+    const docs = obterDocumentosAtual()
+        .filter(function (d) { return String(d.clienteId) === String(clienteId) && documentoEhImagem(d) && d.conteudo; })
+        .sort(function (a, b) { return new Date(a.dataCriacao || 0) - new Date(b.dataCriacao || 0); });
+    if (!docs.length) {
+        mostrarNotificacao('Este cliente ainda não tem fotos digitalizadas no sistema. Guarde primeiro as fotos (câmara ou ficheiro) e depois gere o PDF.', 'warning');
+        return;
+    }
+    const cliente = (typeof clientes !== 'undefined' ? clientes : []).find(function (c) { return String(c.id) === String(clienteId); });
+    const nomeCliente = cliente && cliente.nome ? cliente.nome : 'Cliente';
+    const titulo = 'Documentos digitalizados — ' + nomeCliente;
+    const nomePdf = 'digitalizacoes_' + nomeCliente.replace(/\s+/g, '_') + '.pdf';
+    await imprimirImagensComoPdf(docs, titulo, nomePdf);
+}
+
 function imprimirDocumento(id) {
     const doc = obterDocumentosAtual().find(d => String(d.id) === String(id));
     if (!doc) {
@@ -16258,6 +17107,20 @@ function imprimirDocumento(id) {
         abrirFaturaGuardadaComoHtml(doc, true);
         return;
     }
+    if (documentoEhImagem(doc)) {
+        const nomePdf = String(doc.nomeArquivo || 'documento-digitalizado').replace(/\.[^.]+$/, '') + '.pdf';
+        imprimirImagensComoPdf([doc], doc.nomeArquivo || 'Documento digitalizado', nomePdf)
+            .catch(function (err) {
+                console.error('Erro ao gerar PDF da digitalização:', err);
+                mostrarNotificacao('Erro ao gerar PDF da digitalização.', 'error');
+            });
+        return;
+    }
+    if (documentoEhPdf(doc)) {
+        abrirDocumentoEmNovaAba(doc);
+        mostrarNotificacao('PDF aberto. Use Ctrl+P se quiser imprimir.', 'info');
+        return;
+    }
     let conteudo = '';
     if (doc.conteudo && doc.conteudo.startsWith('data:text/plain')) {
         try {
@@ -16265,6 +17128,9 @@ function imprimirDocumento(id) {
         } catch (e) {
             conteudo = 'Conteúdo não disponível para impressão.';
         }
+    } else if (doc.conteudo && doc.conteudo.indexOf('data:image/') === 0) {
+        imprimirImagensComoPdf([doc], doc.nomeArquivo || 'Documento digitalizado', 'digitalizacao.pdf');
+        return;
     } else {
         conteudo = doc.descricao || 'Conteúdo do documento.';
     }
@@ -16987,23 +17853,33 @@ function criarModalEdicaoCliente(cliente) {
                 <form id="formEditarCliente_${String(cliente.id).replace(/"/g, '&quot;')}" onsubmit="return atualizarCliente(event, ${JSON.stringify(cliente.id)});">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Nome *</label>
-                            <input type="text" id="editarClienteNome" value="${cliente.nome}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nome</label>
+                            <input type="text" id="editarClienteNome" value="${cliente.nome || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                            <input type="email" id="editarClienteEmail" value="${cliente.email}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                            <input type="email" id="editarClienteEmail" value="${cliente.email || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Telefone *</label>
-                            <input type="tel" id="editarClienteTelefone" value="${cliente.telefone}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
+                            <input type="tel" id="editarClienteTelefone" value="${cliente.telefone || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">NIF *</label>
-                            <input type="text" id="editarClienteNIF" value="${cliente.nif || ''}" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="123456789">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">NIF</label>
+                            <input type="text" id="editarClienteNIF" value="${cliente.nif || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="123456789">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">N.º de passaporte</label>
+                            <input type="text" id="editarClientePassaporte" value="${cliente.passaporteNumero || ''}" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="AA123456">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Adicionar documentos (foto ou PDF)</label>
+                            ${htmlSeletorFicheiroComFoto('editarClienteDocumentos', 'accept=".pdf,.jpg,.jpeg,.png,.webp"')}
                         </div>
                         
                         <div>
@@ -17058,23 +17934,33 @@ function criarModalCliente() {
                 <form id="formCliente" onsubmit="salvarCliente(event)">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Nome *</label>
-                            <input type="text" id="clienteNome" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nome</label>
+                            <input type="text" id="clienteNome" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                            <input type="email" id="clienteEmail" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                            <input type="email" id="clienteEmail" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Telefone *</label>
-                            <input type="tel" id="clienteTelefone" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
+                            <input type="tel" id="clienteTelefone" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">NIF *</label>
-                            <input type="text" id="clienteNIF" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="123456789">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">NIF</label>
+                            <input type="text" id="clienteNIF" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="123456789">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">N.º de passaporte</label>
+                            <input type="text" id="clientePassaporte" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="AA123456">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Documentos (foto ou PDF)</label>
+                            ${htmlSeletorFicheiroComFoto('clienteDocumentos', 'accept=".pdf,.jpg,.jpeg,.png,.webp"')}
                         </div>
                         
                         <div>
@@ -17277,26 +18163,28 @@ async function salvarCliente(event) {
     const tipoUsuario = appStorage.getItem('tipoUsuario');
     const convidadoId = appStorage.getItem('convidadoId');
     
-    // Validar dados únicos
-    const nome = document.getElementById('clienteNome').value.trim();
+    const nomePreenchido = document.getElementById('clienteNome').value.trim();
     const email = document.getElementById('clienteEmail').value.trim();
     const telefone = document.getElementById('clienteTelefone').value.trim();
     const nif = document.getElementById('clienteNIF').value.trim();
+    const passaporteCampo = document.getElementById('clientePassaporte');
+    const passaporte = passaporteCampo ? normalizarPassaporte(passaporteCampo.value) : '';
+    const nome = nomePreenchido || 'Cliente sem nome';
 
-    if (!nome || !email || !telefone || !nif) {
-        mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'warning');
-        return;
-    }
-    if (!validarEmail(email)) {
+    if (email && !validarEmail(email)) {
         mostrarNotificacao('Email inválido. Verifique o formato.', 'error');
         return;
     }
-    if (!validarTelefone(telefone)) {
+    if (telefone && !validarTelefone(telefone)) {
         mostrarNotificacao('Telefone inválido. Use apenas números (9 a 15 dígitos).', 'error');
         return;
     }
-    if (!validarNIF(nif)) {
+    if (nif && !validarNIF(nif)) {
         mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
+        return;
+    }
+    if (passaporte && !validarPassaporte(passaporte)) {
+        mostrarNotificacao('Passaporte inválido. Use 5 a 20 letras ou números.', 'error');
         return;
     }
     if (isNomeDemoBloqueado(nome)) {
@@ -17304,12 +18192,13 @@ async function salvarCliente(event) {
         return;
     }
     
-    // Verificar se já existe cliente com os mesmos dados
+    // Verificar duplicados só nos campos que foram preenchidos (vários "Cliente sem nome" são permitidos)
     const clienteExistente = clientes.find(c => 
-        c.nome.toLowerCase() === nome.toLowerCase() ||
+        (nomePreenchido && (c.nome || '').toLowerCase() === nomePreenchido.toLowerCase()) ||
         (email && c.email && c.email.toLowerCase() === email.toLowerCase()) ||
         (telefone && c.telefone && c.telefone === telefone) ||
-        (nif && c.nif && c.nif === nif)
+        (nif && c.nif && c.nif === nif) ||
+        (passaporte && normalizarPassaporte(c.passaporteNumero) === passaporte)
     );
     
     if (clienteExistente) {
@@ -17326,6 +18215,9 @@ async function salvarCliente(event) {
         if (nif && clienteExistente.nif && clienteExistente.nif === nif) {
             mensagemErro += ' • NIF igual';
         }
+        if (passaporte && normalizarPassaporte(clienteExistente.passaporteNumero) === passaporte) {
+            mensagemErro += ' • Passaporte igual';
+        }
         
         mostrarNotificacao(mensagemErro, 'error');
         return;
@@ -17337,6 +18229,7 @@ async function salvarCliente(event) {
         email: email,
         telefone: telefone,
         nif: nif,
+        passaporteNumero: passaporte,
         endereco: document.getElementById('clienteEndereco').value,
         status: document.getElementById('clienteStatus').value,
         dataCriacao: new Date().toISOString(),
@@ -17346,28 +18239,36 @@ async function salvarCliente(event) {
         criadoPorNome: appStorage.getItem('usuarioNome') || (tipoUsuario === 'convidado' ? 'Convidado' : 'Admin'),
         tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D'
     };
-    
-    clientes.push(cliente);
-    
-    if (isCloudReady()) {
-        try {
-            await criarClienteCloud(cliente);
-            atualizarClientesEmMemoria(clientes);
-        } catch (err) {
-            console.warn('Erro ao criar cliente na nuvem, a guardar localmente:', err);
-            atualizarClientesEmMemoria(clientes);
-        }
-    } else {
-        atualizarClientesEmMemoria(clientes);
+
+    const ficheirosInput = document.getElementById('clienteDocumentos');
+    const ficheirosCliente = ficheirosInput && ficheirosInput.files ? Array.from(ficheirosInput.files) : [];
+
+    if (!isCloudReady()) {
+        mostrarNotificacao('Ligação à base de dados indisponível. Verifique a internet e recarregue a página.', 'error');
+        return;
     }
-    registrarAuditoria('criar', 'cliente', `Cliente criado: ${cliente.nome}`, null, cliente);
-    
-    mostrarNotificacao('Cliente salvo com sucesso!', 'success');
-    
-    fecharModal();
-    setTimeout(() => {
-        carregarSecao('clientes');
-    }, 100);
+
+    try {
+        const criado = await criarClienteCloud(cliente);
+        const clienteFinal = criado || cliente;
+        if (ficheirosCliente.length) {
+            const n = await guardarFicheirosComoDocumentosCliente(clienteFinal.id, clienteFinal.nome, ficheirosCliente, 'Anexo no registo');
+            mostrarNotificacao(n === 1 ? 'Cliente e 1 documento guardados.' : 'Cliente e ' + n + ' documentos guardados.', 'success');
+        } else {
+            mostrarNotificacao('Cliente salvo com sucesso!', 'success');
+        }
+        registrarAuditoria('criar', 'cliente', `Cliente criado: ${cliente.nome}`, null, clienteFinal);
+        fecharModal();
+        setTimeout(function () {
+            carregarSecao('clientes');
+            setTimeout(function () {
+                mostrarInformacoesCompletasCliente(clienteFinal);
+            }, 250);
+        }, 100);
+    } catch (err) {
+        console.error('Erro ao criar cliente:', err);
+        mostrarNotificacao(err.message || 'Não foi possível guardar o cliente. Tente novamente.', 'error');
+    }
 }
 
 async function salvarHonorario(event) {
@@ -17564,6 +18465,7 @@ async function atualizarCliente(event, id) {
         const emailInput = document.getElementById('editarClienteEmail');
         const telefoneInput = document.getElementById('editarClienteTelefone');
         const nifInput = document.getElementById('editarClienteNIF');
+        const passaporteInput = document.getElementById('editarClientePassaporte');
         const enderecoInput = document.getElementById('editarClienteEndereco');
         const statusInput = document.getElementById('editarClienteStatus');
         
@@ -17573,30 +18475,29 @@ async function atualizarCliente(event, id) {
             return false;
         }
         
-        const nome = nomeInput.value.trim();
+        const nomePreenchido = nomeInput.value.trim();
         const email = emailInput.value.trim();
         const telefone = telefoneInput.value.trim();
         const nif = nifInput.value.trim();
+        const passaporte = passaporteInput ? normalizarPassaporte(passaporteInput.value) : '';
         const endereco = enderecoInput ? enderecoInput.value.trim() : '';
         const status = statusInput ? statusInput.value : 'ativo';
+        const nome = nomePreenchido || 'Cliente sem nome';
         
-        
-        // Validar campos obrigatórios
-        if (!nome || !email || !telefone || !nif) {
-            console.error('âŒ Campos obrigatórios não preenchidos');
-            mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!', 'error');
-            return false;
-        }
-        if (!validarEmail(email)) {
+        if (email && !validarEmail(email)) {
             mostrarNotificacao('Email inválido. Verifique o formato.', 'error');
             return false;
         }
-        if (!validarTelefone(telefone)) {
+        if (telefone && !validarTelefone(telefone)) {
             mostrarNotificacao('Telefone inválido. Use apenas números (9 a 15 dígitos).', 'error');
             return false;
         }
-        if (!validarNIF(nif)) {
+        if (nif && !validarNIF(nif)) {
             mostrarNotificacao('NIF inválido. Verifique o número.', 'error');
+            return false;
+        }
+        if (passaporte && !validarPassaporte(passaporte)) {
+            mostrarNotificacao('Passaporte inválido. Use 5 a 20 letras ou números.', 'error');
             return false;
         }
         if (isNomeDemoBloqueado(nome)) {
@@ -17604,13 +18505,14 @@ async function atualizarCliente(event, id) {
             return false;
         }
         
-        // Verificar se já existe outro cliente com os mesmos dados (excluindo o cliente atual)
+        // Verificar duplicados só nos campos preenchidos (excluindo o cliente atual)
         const clienteExistente = clientes.find(c => 
             String(c.id) !== String(clienteId) && (
-                c.nome.toLowerCase() === nome.toLowerCase() ||
+                (nomePreenchido && (c.nome || '').toLowerCase() === nomePreenchido.toLowerCase()) ||
                 (email && c.email && c.email.toLowerCase() === email.toLowerCase()) ||
                 (telefone && c.telefone && c.telefone === telefone) ||
-                (nif && c.nif && c.nif === nif)
+                (nif && c.nif && c.nif === nif) ||
+                (passaporte && normalizarPassaporte(c.passaporteNumero) === passaporte)
             )
         );
         
@@ -17628,6 +18530,9 @@ async function atualizarCliente(event, id) {
             if (nif && clienteExistente.nif && clienteExistente.nif === nif) {
                 mensagemErro += ' • NIF igual';
             }
+            if (passaporte && normalizarPassaporte(clienteExistente.passaporteNumero) === passaporte) {
+                mensagemErro += ' • Passaporte igual';
+            }
             
             console.warn('âš ï¸ Cliente duplicado encontrado:', clienteExistente);
             mostrarNotificacao(mensagemErro, 'error');
@@ -17642,12 +18547,15 @@ async function atualizarCliente(event, id) {
             email: email,
             telefone: telefone,
             nif: nif,
+            passaporteNumero: passaporte,
             endereco: endereco,
             status: status,
             dataAtualizacao: new Date().toISOString()
         };
         
         clientes[clienteIndex] = clienteAtualizado;
+        const ficheirosEdit = document.getElementById('editarClienteDocumentos');
+        const ficheirosParaAnexar = ficheirosEdit && ficheirosEdit.files ? Array.from(ficheirosEdit.files) : [];
         
         try {
             if (isCloudReady()) {
@@ -17657,14 +18565,17 @@ async function atualizarCliente(event, id) {
                 atualizarClientesEmMemoria(clientes);
             }
             registrarAuditoria('atualizar', 'cliente', `Cliente atualizado: ${clienteAtualizado.nome}`, clienteAntes, clienteAtualizado);
+            if (ficheirosParaAnexar.length) {
+                const n = await guardarFicheirosComoDocumentosCliente(clienteId, clienteAtualizado.nome, ficheirosParaAnexar, 'Anexo na ficha');
+                mostrarNotificacao(n === 1 ? 'Cliente atualizado e 1 documento anexado.' : 'Cliente atualizado e ' + n + ' documentos anexados.', 'success');
+            } else {
+                mostrarNotificacao('Cliente atualizado com sucesso!', 'success');
+            }
         } catch (saveError) {
             console.error('âŒ Erro ao salvar:', saveError);
             mostrarNotificacao('Erro ao salvar dados: ' + saveError.message, 'error');
             return false;
         }
-        
-        // Mostrar notificação
-        mostrarNotificacao('Cliente atualizado com sucesso!', 'success');
         
         // Fechar modal usando fecharModalRobusto para garantir que funciona
         fecharModalRobusto();
@@ -17874,7 +18785,8 @@ function aplicarFiltrosClientes() {
         const matchBusca = !busca || 
             (cliente.nome || '').toLowerCase().includes(busca) || 
             (cliente.email || '').toLowerCase().includes(busca) ||
-            (cliente.telefone || '').toLowerCase().includes(busca);
+            (cliente.telefone || '').toLowerCase().includes(busca) ||
+            (cliente.passaporteNumero || '').toLowerCase().includes(busca);
         
         // Filtro por NIF
         const matchNif = !buscaNif || 
@@ -18305,6 +19217,12 @@ function atualizarListaContratos(contratosFiltrados) {
 }
 
 function mostrarNotificacao(mensagem, tipo = 'info') {
+    const agora = Date.now();
+    if (window.__ultimaNotificacaoMsg === mensagem && (agora - (window.__ultimaNotificacaoTs || 0)) < 8000) {
+        return;
+    }
+    window.__ultimaNotificacaoMsg = mensagem;
+    window.__ultimaNotificacaoTs = agora;
     const container = document.getElementById('notificationsContainer');
     if (!container) {
         // Se não há container, criar notificação temporária
@@ -18332,6 +19250,7 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
         return;
     }
     
+    container.innerHTML = '';
     const notification = document.createElement('div');
     notification.className = `notification ${tipo}`;
     notification.textContent = mensagem;
@@ -18728,6 +19647,8 @@ ${clientes.map((cliente, index) => `
 ${index + 1}. ${cliente.nome}
    Email: ${cliente.email}
    Telefone: ${cliente.telefone}
+   NIF: ${cliente.nif || '-'}
+   Passaporte: ${cliente.passaporteNumero || '-'}
    Status: ${cliente.status}
    Data: ${new Date(cliente.dataCriacao).toLocaleDateString('pt-PT')}
 `).join('')}
@@ -19628,7 +20549,7 @@ function abrirAnexosRegisto(registoId) {
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo</label>
-                                <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                ${htmlSeletorFicheiroComFoto('arquivoDocumento', 'required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"')}
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
@@ -19792,7 +20713,7 @@ function abrirAnexosPrazo(prazoId) {
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo</label>
-                                <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                ${htmlSeletorFicheiroComFoto('arquivoDocumento', 'required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"')}
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
@@ -23182,176 +24103,81 @@ function excluirRegisto(id) {
 // === SISTEMA DE ANEXOS DE DOCUMENTOS ===
 
 function removerBotoesAnexos() {
-    const seletores = [
-        'button[onclick*="abrirAnexos"]',
-        'button[title="Documentos"]',
-        'button[title*="Anexo"]',
-        'button[title*="Documento"]'
-    ];
-    document.querySelectorAll(seletores.join(',')).forEach(btn => btn.remove());
-    document.querySelectorAll('i[data-lucide="paperclip"]').forEach(icon => {
-        const btn = icon.closest('button');
-        if (btn) btn.remove();
-    });
-    document.querySelectorAll('svg.lucide-paperclip').forEach(icon => {
-        const btn = icon.closest('button');
-        if (btn) btn.remove();
-    });
+    return;
 }
 
 function abrirAnexosCliente(clienteId) {
-    mostrarNotificacao('Anexos foram removidos do sistema.', 'info');
-    return;
-    const cliente = clientes.find(c => c.id === clienteId);
-    if (!cliente) return;
-    
-    // Inicializar array de anexos se não existir
-    if (!cliente.anexos) {
-        cliente.anexos = [];
+    const cliente = (typeof obterClientesAtual === 'function' ? obterClientesAtual() : clientes).find(c => String(c.id) === String(clienteId));
+    if (!cliente) {
+        mostrarNotificacao('Cliente não encontrado.', 'error');
+        return;
     }
-    
+    const docs = (typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos).filter(function (d) {
+        return String(d.clienteId) === String(clienteId);
+    });
+    const listaHtml = docs.length === 0
+        ? '<p class="text-sm text-gray-500">Ainda não há documentos neste cliente. Anexe fotos ou PDF abaixo.</p>'
+        : docs.map(function (doc) {
+            const idEsc = String(doc.id).replace(/"/g, '&quot;');
+            return '<div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg">' +
+                '<div><div class="font-medium text-sm">' + (typeof escaparHtml === 'function' ? escaparHtml(doc.nomeArquivo || 'Documento') : (doc.nomeArquivo || 'Documento')) + '</div>' +
+                '<div class="text-xs text-gray-500">' + (doc.descricao || '') + (doc.tamanho ? ' • ' + formatarTamanhoArquivo(doc.tamanho) : '') + '</div></div>' +
+                '<div class="flex gap-2">' +
+                '<button type="button" data-documento-acao="abrir" data-documento-id="' + idEsc + '" class="text-blue-600" title="Abrir"><i data-lucide="eye" class="w-4 h-4" style="pointer-events:none"></i></button>' +
+                '<button type="button" data-documento-acao="baixar" data-documento-id="' + idEsc + '" class="text-green-600" title="Guardar"><i data-lucide="download" class="w-4 h-4" style="pointer-events:none"></i></button>' +
+                '</div></div>';
+        }).join('');
     const modal = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
+            <div class="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-900">Documentos de ${cliente.nome}</h3>
-                        <button onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">Documentos de ${typeof escaparHtml === 'function' ? escaparHtml(cliente.nome) : cliente.nome}</h3>
+                        <button type="button" onclick="fecharModalRobusto()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    </div>
+                    <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Anexar foto ou PDF</label>
+                        ${htmlSeletorFicheiroComFoto('anexoClienteArquivo', 'accept=".pdf,.jpg,.jpeg,.png,.webp"')}
+                        <button type="button" onclick="guardarAnexosClienteAgora(${JSON.stringify(String(clienteId))})" class="btn btn-primary mt-3">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            Guardar documentos
                         </button>
                     </div>
-                    
-                    <!-- Upload de novos documentos -->
-                    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h4 class="text-lg font-semibold mb-4">Adicionar Novo Documento</h4>
-                        <form onsubmit="adicionarAnexo(event, ${clienteId})" enctype="multipart/form-data">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Nome do Documento</label>
-                                    <input type="text" id="nomeDocumento" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento</label>
-                                    <select id="tipoDocumento" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" onchange="toggleTipoPersonalizado('cliente')">
-                                        <option value="">Selecione o tipo</option>
-                                        <option value="identificacao">Identificação</option>
-                                        <option value="contrato">Contrato</option>
-                                        <option value="certificado">Certificado</option>
-                                        <option value="comprovativo">Comprovativo</option>
-                                        <option value="outro">Outro</option>
-                                    </select>
-                                    <div id="tipoPersonalizadoCliente" class="mt-2 hidden">
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Especificar tipo</label>
-                                        <input type="text" id="tipoPersonalizadoInput" placeholder="Digite o tipo de documento..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo</label>
-                                <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
-                            </div>
-                            <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
-                                <textarea id="descricaoDocumento" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black" placeholder="Descrição do documento..."></textarea>
-                            </div>
-                            <div class="flex justify-end space-x-3 mt-4">
-                                <button type="button" onclick="fecharModalRobusto()" class="btn btn-secondary">Cancelar</button>
-                                <button type="submit" class="btn btn-primary">Adicionar Documento</button>
-                            </div>
-                        </form>
-                    </div>
-                    
-                    <!-- Lista de documentos existentes -->
-                    <div>
-                        <h4 class="text-lg font-semibold mb-4">Documentos Anexados (${cliente.anexos.length})</h4>
-                        ${cliente.anexos.length === 0 ? `
-                            <div class="text-center py-8 text-gray-500">
-                                <i data-lucide="file-text" class="w-12 h-12 mx-auto mb-2 text-gray-400"></i>
-                                <p>Nenhum documento anexado ainda</p>
-                            </div>
-                        ` : `
-                            <div class="space-y-3">
-                                ${cliente.anexos.map(anexo => `
-                                    <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="p-2 bg-blue-100 rounded-lg">
-                                                <i data-lucide="file" class="w-5 h-5 text-blue-600"></i>
-                                            </div>
-                                            <div>
-                                                <h5 class="font-medium text-gray-900">${anexo.nome}</h5>
-                                                <p class="text-sm text-gray-500">${anexo.tipo} • ${anexo.tamanho} • ${new Date(anexo.dataUpload).toLocaleDateString('pt-PT')}</p>
-                                                ${anexo.descricao ? `<p class="text-sm text-gray-600 mt-1">${anexo.descricao}</p>` : ''}
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <button onclick="visualizarAnexo('${anexo.id}')" class="text-blue-600 hover:text-blue-800" title="Visualizar">
-                                                <i data-lucide="eye" class="w-4 h-4"></i>
-                                            </button>
-                                            <button onclick="baixarAnexo('${anexo.id}')" class="text-green-600 hover:text-green-800" title="Baixar">
-                                                <i data-lucide="download" class="w-4 h-4"></i>
-                                            </button>
-                                            <button onclick="removerAnexo(${clienteId}, '${anexo.id}')" class="text-red-600 hover:text-red-800" title="Remover">
-                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `}
-                    </div>
+                    <div class="space-y-2">${listaHtml}</div>
                 </div>
             </div>
         </div>
     `;
-    document.getElementById('modalContainer').innerHTML = modal;
-    lucide.createIcons();
+    const box = document.getElementById('modalContainer');
+    if (box) {
+        box.innerHTML = modal;
+        box.classList.add('show');
+    }
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+async function guardarAnexosClienteAgora(clienteId) {
+    const cliente = (typeof obterClientesAtual === 'function' ? obterClientesAtual() : clientes).find(c => String(c.id) === String(clienteId));
+    if (!cliente) return;
+    const input = document.getElementById('anexoClienteArquivo');
+    const ficheiros = input && input.files ? Array.from(input.files) : [];
+    if (!ficheiros.length) {
+        mostrarNotificacao('Escolha um ficheiro ou tire uma foto.', 'warning');
+        return;
+    }
+    try {
+        const n = await guardarFicheirosComoDocumentosCliente(cliente.id, cliente.nome, ficheiros, 'Anexo do cliente');
+        mostrarNotificacao(n === 1 ? 'Documento guardado neste cliente.' : n + ' documentos guardados neste cliente.', 'success');
+        abrirAnexosCliente(clienteId);
+    } catch (err) {
+        console.error(err);
+        mostrarNotificacao(err.message || 'Não foi possível guardar os documentos.', 'error');
+    }
 }
 
 function adicionarAnexo(event, clienteId) {
-    event.preventDefault();
-    
-    const nome = document.getElementById('nomeDocumento').value;
-    const tipoSelecionado = document.getElementById('tipoDocumento').value;
-    const tipoPersonalizado = document.getElementById('tipoPersonalizadoInput').value;
-    const arquivo = document.getElementById('arquivoDocumento').files[0];
-    const descricao = document.getElementById('descricaoDocumento').value;
-    
-    if (!arquivo) {
-        mostrarNotificacao('Por favor, selecione um arquivo', 'error');
-        return;
-    }
-    
-    // Usar tipo personalizado se "outro" foi selecionado
-    const tipo = tipoSelecionado === 'outro' ? tipoPersonalizado : tipoSelecionado;
-    
-    if (tipoSelecionado === 'outro' && !tipoPersonalizado.trim()) {
-        mostrarNotificacao('Por favor, especifique o tipo de documento', 'error');
-        return;
-    }
-    
-    // Converter arquivo para Base64
-    converterArquivoParaBase64(arquivo, function(base64Content) {
-        const anexo = {
-            id: gerarIdImutavel(),
-            nome: nome,
-            tipo: tipo,
-            descricao: descricao,
-            nomeArquivo: arquivo.name,
-            tamanho: formatarTamanho(arquivo.size),
-            dataUpload: new Date().toISOString(),
-            tipoArquivo: arquivo.type,
-            conteudo: base64Content
-        };
-        
-        const cliente = clientes.find(c => c.id === clienteId);
-        if (cliente) {
-            if (!cliente.anexos) cliente.anexos = [];
-            cliente.anexos.push(anexo);
-            atualizarClientesEmMemoria(clientes);
-            mostrarNotificacao('Documento adicionado com sucesso!', 'success');
-            abrirAnexosCliente(clienteId); // Recarregar modal
-        }
-    });
+    if (event && event.preventDefault) event.preventDefault();
+    return guardarAnexosClienteAgora(clienteId);
 }
 
 function formatarTamanho(bytes) {
@@ -23789,7 +24615,7 @@ function abrirAnexosContrato(contratoId) {
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo</label>
-                                <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                ${htmlSeletorFicheiroComFoto('arquivoDocumento', 'required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"')}
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
@@ -25142,7 +25968,7 @@ function abrirModalAnexos(tipo, id, nome) {
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo</label>
-                                <input type="file" id="arquivoDocumento" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-black">
+                                ${htmlSeletorFicheiroComFoto('arquivoDocumento', 'required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"')}
                             </div>
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Descrição (opcional)</label>
