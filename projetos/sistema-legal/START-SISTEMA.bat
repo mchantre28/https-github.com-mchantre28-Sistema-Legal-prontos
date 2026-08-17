@@ -17,25 +17,29 @@ echo.
 set "BACKEND_UP=0"
 for /f "tokens=*" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do set "BACKEND_UP=1"
 
-if "!BACKEND_UP!"=="1" (
-    echo [OK] Backend ja a correr na porta 3001.
-) else (
-    echo [..] A iniciar backend na porta 3001...
-    start "Sistema Legal - Backend" cmd /k "cd /d "%~dp0backend" && (call npm ci 2>nul || call npm install) && call npm run seed && call npm start"
-    echo [..] A aguardar backend (ate 15s)...
-    set /a WAIT=0
-    :wait_backend
-    timeout /t 1 /nobreak >nul
-    set /a WAIT+=1
-    set "BACKEND_UP=0"
-    for /f "tokens=*" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do set "BACKEND_UP=1"
-    if "!BACKEND_UP!"=="1" goto backend_ready
-    if !WAIT! LSS 15 goto wait_backend
-    echo [AVISO] Backend ainda nao responde na porta 3001. Verifique a janela "Sistema Legal - Backend".
-    goto start_frontend
-    :backend_ready
-    echo [OK] Backend disponivel em http://localhost:3001
-)
+if "!BACKEND_UP!"=="1" goto backend_already_up
+
+echo [..] A iniciar backend na porta 3001...
+start "Sistema Legal - Backend" "%~dp0scripts\iniciar-backend.bat"
+echo [..] A aguardar backend (ate 15s)...
+set /a WAIT=0
+
+:wait_backend
+timeout /t 1 /nobreak >nul
+set /a WAIT+=1
+set "BACKEND_UP=0"
+for /f "tokens=*" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do set "BACKEND_UP=1"
+if "!BACKEND_UP!"=="1" goto backend_ready
+if !WAIT! LSS 15 goto wait_backend
+echo [AVISO] Backend ainda nao responde na porta 3001. Verifique a janela "Sistema Legal - Backend".
+goto start_frontend
+
+:backend_ready
+echo [OK] Backend disponivel em http://localhost:3001
+goto start_frontend
+
+:backend_already_up
+echo [OK] Backend ja a correr na porta 3001.
 
 :start_frontend
 echo.

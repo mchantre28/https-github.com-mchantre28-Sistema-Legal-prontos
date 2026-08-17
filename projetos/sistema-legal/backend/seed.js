@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { getDb, closeDb, persistDb } = require('./database');
 
 const SALT_ROUNDS = 10;
