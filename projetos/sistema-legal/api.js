@@ -68,7 +68,7 @@
         }
 
         if (isCapacitorNative()) {
-            return 'https://sistema-legal-api.onrender.com';
+            return 'https://sistema-legal-api-eu.onrender.com';
         }
 
         return 'http://localhost:3001';

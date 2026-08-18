@@ -18,7 +18,7 @@
     
     <!-- Meta Tags Básicas -->
     <meta name="description" content="Sistema completo de gestão jurídica para Solicitadores">
-    <meta name="api-base-url" content="https://sistema-legal-api.onrender.com">
+    <meta name="api-base-url" content="https://sistema-legal-api-eu.onrender.com">
     <!-- Bloquear perfil cliente antes de Firebase/script.js (sessão JWT em localStorage) -->
     <script>
       (function(){
@@ -270,7 +270,7 @@
         <!-- Header -->
         <header class="bg-white shadow-sm border-b app-header">
             <div id="offlineBanner" class="offline-banner">
-                Está offline. As alterações ficam guardadas localmente. Verifique a internet — quando voltar, clique no indicador de sincronização (canto superior) para atualizar.
+                Está offline. As alterações ficam guardadas neste computador. Quando a internet voltar, a sincronização retoma automaticamente.
             </div>
             <div class="px-6 py-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -288,7 +288,7 @@
                         </div>
                     </div>
                     <div class="flex flex-nowrap items-center gap-1 sm:gap-2 header-actions">
-                        <div id="syncStatusBadge" class="sync-status cursor-pointer" data-status="offline" title="Clique para forçar sincronização quando houver erro" role="button" aria-label="Estado da sincronização. Clique para tentar novamente em caso de erro." tabindex="0">
+                        <div id="syncStatusBadge" class="sync-status" data-status="offline" title="Sincronização automática com a nuvem" role="status" aria-label="Estado da sincronização automática">
                             <span class="sync-dot"></span>
                             <span class="sync-text">Offline</span>
                         </div>
@@ -337,10 +337,10 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- api.js: autenticação JWT com backend Node.js; app.js: login; script.js: aplicação principal -->
-    <script defer src="./api.js?v=10"></script>
+    <script defer src="./api.js?v=11"></script>
     <script defer src="./app.js?v=1"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=113" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=120" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
         setTimeout(function(){
