@@ -268,6 +268,9 @@ function initFirebase() {
             firebase.initializeApp(firebaseConfig);
         }
         firestoreDb = firebase.firestore();
+        try {
+            firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+        } catch (e) {}
         if (typeof firebase.storage === 'function') {
             try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
         }
@@ -275,11 +278,11 @@ function initFirebase() {
             try {
                 const auth = firebase.auth();
                 if (!auth.currentUser) {
-                    auth.signInAnonymously().catch(function (e) {
+                    window.__firebaseAuthPromise = auth.signInAnonymously().catch(function (e) {
                         console.warn('Login anónimo Firebase:', e && e.message);
                     });
                 }
-            } catch (e) { /* Storage pode falhar sem auth; o ficheiro vai pelo Firestore */ }
+            } catch (e) { /* Storage precisa de auth; o upload falha cedo se não houver sessão */ }
         }
         // App Check (opcional): ativa em background para não bloquear init; se falhar, Firestore pode ainda funcionar se "Enforce" estiver desativado no Console
         if (APP_CHECK_SITE_KEY && typeof firebase.appCheck !== 'undefined') {
@@ -363,8 +366,60 @@ const ENTIDADES_PORTUGAL = [
     { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
     { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
 ];
-const CLOUD_DEBOUNCE_MS = 800;
+const CLOUD_DEBOUNCE_MS = 400;
+const SYNC_LOTE_TAMANHO = 12;
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
+window.__cloudSyncSnapshot = window.__cloudSyncSnapshot || {};
+
+function obterSnapshotEntidade(entidade) {
+    if (!window.__cloudSyncSnapshot[entidade]) {
+        window.__cloudSyncSnapshot[entidade] = new Map();
+    }
+    return window.__cloudSyncSnapshot[entidade];
+}
+
+function registarSnapshotEntidade(entidade, lista) {
+    const snap = obterSnapshotEntidade(entidade);
+    (lista || []).forEach(function (item) {
+        const id = obterIdEntidade(entidade, item);
+        if (id !== null && id !== undefined) {
+            snap.set(String(id), normalizarParaComparacao(item));
+        }
+    });
+}
+
+function marcarSnapshotItem(entidade, item) {
+    const id = obterIdEntidade(entidade, item);
+    if (id === null || id === undefined) return;
+    obterSnapshotEntidade(entidade).set(String(id), normalizarParaComparacao(item));
+}
+
+function removerSnapshotItem(entidade, id) {
+    if (id === null || id === undefined) return;
+    obterSnapshotEntidade(entidade).delete(String(id));
+}
+
+function filtrarItensAlteradosParaSync(entidade, lista, idsPermitidos) {
+    const snap = obterSnapshotEntidade(entidade);
+    const idsSet = Array.isArray(idsPermitidos) && idsPermitidos.length
+        ? new Set(idsPermitidos.map(String))
+        : null;
+    return (lista || []).filter(function (item) {
+        if (!item || typeof item !== 'object') return false;
+        const id = obterIdEntidade(entidade, item);
+        if (id === null || id === undefined) return false;
+        const key = String(id);
+        if (idsSet && !idsSet.has(key)) return false;
+        return snap.get(key) !== normalizarParaComparacao(item);
+    });
+}
+
+async function executarPromessasEmLotes(promessas, tamanhoLote) {
+    const lote = tamanhoLote || SYNC_LOTE_TAMANHO;
+    for (let i = 0; i < promessas.length; i += lote) {
+        await Promise.all(promessas.slice(i, i + lote));
+    }
+}
 
 // Gestor de listeners Firestore — pausa e retoma para evitar conflitos durante backup/importação
 const listenerManager = {
@@ -390,8 +445,15 @@ window.startAllListeners = startAllListeners;
 
 /** Debounce para refresh dos listeners: evita que múltiplos callbacks sobrescrevam a navegação do utilizador (ex.: Central de Notificações) */
 let __listenerRefreshTimer = null;
+const __entidadesPendentesRefresh = new Set();
+window.__snapshotsRecebidos = window.__snapshotsRecebidos || new Set();
 const LISTENER_REFRESH_DEBOUNCE_MS = 150;
-const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 450;
+const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 150;
+const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
+
+function dadosEssenciaisSincronizados() {
+    return window.__snapshotsRecebidos.has('clientes');
+}
 
 function isMobileApp() {
     if (document.documentElement.classList.contains('app-mobile') || document.documentElement.classList.contains('app-native')) return true;
@@ -437,42 +499,51 @@ function tentarRefreshLeveSecao(entidadeOrigem) {
 }
 
 function agendarRefreshListener(entidadeOrigem) {
+    if (entidadeOrigem) {
+        __entidadesPendentesRefresh.add(entidadeOrigem);
+        window.__snapshotsRecebidos.add(entidadeOrigem);
+    }
     if (__listenerRefreshTimer) clearTimeout(__listenerRefreshTimer);
-    const debounceMs = isMobileApp() ? LISTENER_REFRESH_DEBOUNCE_MOBILE_MS : LISTENER_REFRESH_DEBOUNCE_MS;
+    const debounceMs = dadosEssenciaisSincronizados()
+        ? (isMobileApp() ? LISTENER_REFRESH_DEBOUNCE_MOBILE_MS : LISTENER_REFRESH_DEBOUNCE_MS)
+        : 0;
     __listenerRefreshTimer = setTimeout(() => {
         __listenerRefreshTimer = null;
+        const pendentes = Array.from(__entidadesPendentesRefresh);
+        __entidadesPendentesRefresh.clear();
+        marcarSyncNuvemOk();
         if (document.hidden) return;
-        // Não re-renderizar se o utilizador estiver a escrever num input (evita perder foco e cursor)
         const ativo = document.activeElement;
         const conteudo = document.getElementById('conteudoDinamico');
         if (ativo && conteudo && conteudo.contains(ativo) && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName)) {
+            atualizarContadoresInterfaceLeve();
             return;
         }
         const secao = typeof secaoAtiva === 'string' ? secaoAtiva : 'dashboard';
-        const secaoEntidade = secaoAfetadaPorEntidade(entidadeOrigem);
-
-        if (secaoEntidade && secaoEntidade === secao && tentarRefreshLeveSecao(entidadeOrigem)) {
+        const afectaDashboard = pendentes.some(function (e) { return DASHBOARD_ENTIDADES_REFRESH.indexOf(e) !== -1; });
+        if (secao === 'dashboard' && afectaDashboard) {
+            window.__ultimoHashSecao = obterHashDadosSecao(secao);
+            carregarSecao('dashboard');
+            if (typeof atualizarInterface === 'function') atualizarInterface();
             return;
         }
-        if (secaoEntidade && secaoEntidade !== secao) {
-            atualizarContadoresInterfaceLeve();
+        const secaoAtualizada = pendentes.some(function (e) { return secaoAfetadaPorEntidade(e) === secao; });
+        if (secaoAtualizada && tentarRefreshLeveSecao(secao)) {
             return;
         }
-
-        const hashAntes = window.__ultimoHashSecao || obterHashDadosSecao(secao);
-        const hashDepois = obterHashDadosSecao(secao);
-        if (hashDepois !== hashAntes) {
-            window.__ultimoHashSecao = hashDepois;
+        if (secaoAtualizada) {
+            window.__ultimoHashSecao = obterHashDadosSecao(secao);
             carregarSecao(secao);
             if (typeof atualizarInterface === 'function') atualizarInterface();
-        } else {
-            atualizarContadoresInterfaceLeve();
+            return;
         }
+        atualizarContadoresInterfaceLeve();
     }, debounceMs);
 }
 
 /** Cancela refresh pendente quando o utilizador navega explicitamente (evita race condition) */
 function cancelarRefreshListener() {
+    if (!dadosEssenciaisSincronizados()) return;
     if (__listenerRefreshTimer) {
         clearTimeout(__listenerRefreshTimer);
         __listenerRefreshTimer = null;
@@ -490,11 +561,13 @@ function iniciarListenersFirestore() {
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
+        registarSnapshotEntidade('contratos', lista);
         contratos = lista; window.contratos = contratos;
         agendarRefreshListener('contratos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirContratosUnsubscribe);
     window.__ouvirHonorariosUnsubscribe = ouvirHonorarios((lista) => {
+        registarSnapshotEntidade('honorarios', lista);
         honorarios = lista; window.honorarios = honorarios;
         agendarRefreshListener('honorarios');
     });
@@ -502,6 +575,7 @@ function iniciarListenersFirestore() {
     for (const entidade of PROCESSO_ENTIDADES) {
         const key = '__ouvir' + entidade.charAt(0).toUpperCase() + entidade.slice(1).replace(/s$/, '') + 'sUnsubscribe';
         window[key] = ouvirProcessos(entidade, (lista) => {
+            registarSnapshotEntidade(entidade, lista);
             if (entidade === 'herancas') { herancas = lista; window.herancas = herancas; }
             else if (entidade === 'migracoes') { migracoes = lista; window.migracoes = migracoes; }
             else if (entidade === 'registos') { registos = lista; window.registos = registos; }
@@ -510,21 +584,25 @@ function iniciarListenersFirestore() {
     }
     PROCESSO_ENTIDADES.forEach(ent => { const k = '__ouvir' + ent.charAt(0).toUpperCase() + ent.slice(1).replace(/s$/, '') + 'sUnsubscribe'; if (window[k]) (window.addListener || listenerManager.add.bind(listenerManager))(window[k]); });
     window.__ouvirTarefasUnsubscribe = ouvirTarefas((lista) => {
+        registarSnapshotEntidade('tarefas', lista);
         tarefas = lista; window.tarefas = tarefas;
         agendarRefreshListener('tarefas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirTarefasUnsubscribe);
     window.__ouvirPrazosUnsubscribe = ouvirPrazos((lista) => {
+        registarSnapshotEntidade('prazos', lista);
         prazos = lista; window.prazos = prazos;
         agendarRefreshListener('prazos');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirPrazosUnsubscribe);
     window.__ouvirNotificacoesUnsubscribe = ouvirNotificacoes((lista) => {
+        registarSnapshotEntidade('notificacoes', lista);
         notificacoes = lista; window.notificacoes = notificacoes;
         agendarRefreshListener('notificacoes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirNotificacoesUnsubscribe);
     window.__ouvirDocumentosUnsubscribe = ouvirDocumentos((lista) => {
+        registarSnapshotEntidade('documentos', lista);
         documentos = mesclarDocumentosLocalENuvem(lista);
         window.documentos = documentos;
         agendarRefreshListener('documentos');
@@ -535,11 +613,13 @@ function iniciarListenersFirestore() {
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirDocumentosUnsubscribe);
     window.__ouvirConvidadosUnsubscribe = ouvirConvidados((lista) => {
+        registarSnapshotEntidade('convidados', lista);
         convidados = lista; window.convidados = convidados;
         agendarRefreshListener('convidados');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirConvidadosUnsubscribe);
     window.__ouvirEntidadesUnsubscribe = ouvirEntidades((lista) => {
+        registarSnapshotEntidade('entidades', lista);
         entidades = lista; window.entidades = entidades;
         if (lista.length === 0 && isCloudReady() && !window.__entidadesSeedTentado) {
             window.__entidadesSeedTentado = true;
@@ -549,11 +629,13 @@ function iniciarListenersFirestore() {
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirEntidadesUnsubscribe);
     window.__ouvirIntegracoesExternasUnsubscribe = ouvirIntegracoesExternas((lista) => {
+        registarSnapshotEntidade('integracoes_externas', lista);
         integracoesExternas = lista; window.integracoesExternas = integracoesExternas;
         agendarRefreshListener('integracoes_externas');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirIntegracoesExternasUnsubscribe);
     window.__ouvirRepresentantesUnsubscribe = ouvirRepresentantes((lista) => {
+        registarSnapshotEntidade('representantes', lista);
         representantes = lista; window.representantes = representantes;
         agendarRefreshListener('representantes');
     });
@@ -618,7 +700,7 @@ function atualizarIndicadorSync(status, mensagem) {
         ok: mensagem || obterTextoUltimaSincronizacao(),
         syncing: mensagem || 'A sincronizar...',
         offline: mensagem || 'Offline — dados locais, sincroniza ao reconectar',
-        error: mensagem || 'Erro — alterações por sincronizar, clique para tentar'
+        error: mensagem || 'A retomar a sincronização automática...'
     };
     const colors = {
         ok: '#10b981',
@@ -629,17 +711,52 @@ function atualizarIndicadorSync(status, mensagem) {
     if (text) text.textContent = labels[status] || labels.ok;
     if (dot) dot.style.background = colors[status] || colors.ok;
     badge.setAttribute('data-status', status);
-    if (status === 'ok') badge.title = `Última sincronização: ${formatarTempoRelativo(appStorage.getItem('cloudSyncUltimoSucesso') || '')}`;
-    else if (status === 'error') badge.title = 'Há alterações por sincronizar. Clique para tentar novamente.';
-    else if (status === 'offline') badge.title = 'Sem ligação. Os dados estão guardados localmente e serão sincronizados quando reconectar.';
+    if (status === 'ok') badge.title = 'Sincronização automática activa';
+    else if (status === 'error') badge.title = 'A retomar a sincronização automática...';
+    else if (status === 'offline') badge.title = 'Sem internet. A sincronização retoma automaticamente quando voltar a ligação.';
     else if (status === 'syncing') badge.title = 'A sincronizar com a nuvem...';
-    else badge.title = '';
-    badge.style.cursor = (status === 'error' || status === 'offline') ? 'pointer' : '';
+    else badge.title = 'Sincronização automática com a nuvem';
+    badge.style.cursor = 'pointer';
     // Mostrar o banner amarelo "Está offline" só quando o browser está realmente sem internet
     if (banner) {
         const semInternet = typeof navigator !== 'undefined' && navigator.onLine === false;
         banner.classList.toggle('show', status === 'offline' && semInternet);
     }
+}
+
+function marcarSyncNuvemOk() {
+    if (!isCloudReady()) return;
+    if (!dadosEssenciaisSincronizados()) {
+        atualizarIndicadorSync('syncing', 'A sincronizar...');
+        return;
+    }
+    window.__cloudSyncError = null;
+    try {
+        appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString());
+        appStorage.removeItem('cloudSyncUltimoErro');
+    } catch (e) {}
+    if ((window.__cloudSyncPending || 0) === 0) atualizarIndicadorSync('ok');
+}
+
+function garantirSincronizacaoAutomatica() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        atualizarIndicadorSync('offline');
+        return;
+    }
+    if (!isCloudReady()) {
+        try { if (typeof initFirebase === 'function') initFirebase(); } catch (e) {}
+        if (!isCloudReady()) {
+            atualizarIndicadorSync('offline');
+            return;
+        }
+    }
+    const ativos = (typeof listenerManager !== 'undefined' && Array.isArray(listenerManager.activeListeners))
+        ? listenerManager.activeListeners.length
+        : 0;
+    if (!ativos && typeof iniciarListenersFirestore === 'function') {
+        iniciarListenersFirestore();
+    }
+    marcarSyncNuvemOk();
 }
 
 function iniciarSync() {
@@ -654,10 +771,10 @@ function finalizarSync(erro) {
     }
     if (window.__cloudSyncPending === 0) {
         if (window.__cloudSyncError) {
-            atualizarIndicadorSync('error', 'Erro — clique para tentar');
+            atualizarIndicadorSync('error', 'A retomar a sincronização automática...');
             const msg = navigator.onLine
-                ? 'Erro de sincronização. 1) Verifique a internet. 2) Clique no indicador vermelho (canto superior direito) para tentar novamente. Os dados locais estão guardados.'
-                : 'Sem ligação à internet. Verifique a Wi-Fi ou dados móveis. Clique no indicador vermelho para sincronizar quando voltar a ter conexão.';
+                ? 'A sincronização teve um problema. A app vai tentar outra vez automaticamente. Os dados locais estão guardados.'
+                : 'Sem internet. Os dados ficam neste computador e sincronizam sozinhos quando a ligação voltar.';
             mostrarNotificacao(msg, 'error');
             try {
                 appStorage.setItem('cloudSyncUltimoErro', new Date().toISOString());
@@ -691,10 +808,11 @@ function normalizarParaComparacao(item) {
     delete clone.createdAt;
     delete clone.lastModifiedBy;
     delete clone.conteudo;
+    delete clone.uploadStorageFalhou;
     return JSON.stringify(clone);
 }
 
-function prepararListaParaSync(entidade, lista) {
+function prepararListaParaSync(entidade, lista, syncIds) {
     if (!Array.isArray(lista)) return lista;
     const agoraIso = new Date().toISOString();
     const anteriores = Array.isArray(obterListaGlobal(entidade)) ? obterListaGlobal(entidade) : [];
@@ -705,10 +823,16 @@ function prepararListaParaSync(entidade, lista) {
             prevMap.set(String(id), item);
         }
     });
+    const idsSet = Array.isArray(syncIds) && syncIds.length
+        ? new Set(syncIds.map(String))
+        : null;
     const tipoUsuario = (window.__tipoUsuario || window.__sessionTipoUsuario || 'N/D').toString();
     const usuarioNome = (window.__usuarioNome || window.__sessionUsuarioNome || 'Sistema').toString();
     return lista.map(item => {
         const id = obterIdEntidade(entidade, item);
+        if (idsSet && (id === null || id === undefined || !idsSet.has(String(id)))) {
+            return item;
+        }
         const prev = id !== null && id !== undefined ? prevMap.get(String(id)) : null;
         const mudou = normalizarParaComparacao(item) !== normalizarParaComparacao(prev);
         const novo = { ...item };
@@ -1976,8 +2100,6 @@ function prepararDocumentoParaFirestore(item) {
     const c = item.conteudo;
     if (typeof c === 'string' && (c.indexOf('http://') === 0 || c.indexOf('https://') === 0)) {
         payload.conteudo = c;
-    } else if (typeof c === 'string' && c.indexOf('data:') === 0 && c.length <= LIMITE_CONTEUDO_FIRESTORE) {
-        payload.conteudo = c;
     }
     return payload;
 }
@@ -2030,22 +2152,13 @@ async function persistirConteudoDocumentoNaNuvem(documento) {
     if (documentoJaNaNuvem(documento)) return false;
     const c = documento.conteudo;
     if (typeof c !== 'string' || c.indexOf('data:') !== 0) return false;
-    if (c.length > LIMITE_CONTEUDO_FIRESTORE) {
-        let n = 0;
-        try {
-            const first = await firestoreDb.collection('documentos').doc(String(documento.id) + '_p0').get();
-            if (first.exists) n = (first.data() && first.data().total) || 1;
-        } catch (e) { n = 0; }
-        if (!n) {
-            n = await guardarPartesDocumentoCloud(documento.id, c);
-            if (!n) return false;
-        }
-        documento.numPartes = n;
-        documento.armazenamento = 'partes';
-        documento.conteudo = '';
-    } else {
-        documento.armazenamento = 'embutido';
-    }
+    const ficheiro = dataUrlParaFicheiro(c, documento.nomeArquivo, documento.tipoArquivo);
+    if (!ficheiro) return false;
+    const enviado = await enviarFicheiroParaStorage(documento.id, ficheiro);
+    if (!enviado || !enviado.url) return false;
+    documento.conteudo = enviado.url;
+    documento.storagePath = enviado.path;
+    documento.armazenamento = 'storage';
     const payload = prepararDocumentoParaFirestore(documento);
     await firestoreDb.collection('documentos').doc(String(documento.id)).set(payload, { merge: true });
     return true;
@@ -2069,7 +2182,11 @@ async function obterUrlStorageDocumento(doc) {
 
 function lerDocumentoDoFirestore(data) {
     if (!data) return data;
-    return { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
+    const doc = { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
+    if (typeof doc.conteudo === 'string' && doc.conteudo.indexOf('data:') === 0) {
+        doc.conteudo = '';
+    }
+    return doc;
 }
 
 function documentoJaNaNuvem(doc) {
@@ -2184,9 +2301,6 @@ async function obterConteudoDocumento(doc) {
     const local = await idbLerFicheiroDoc(doc.id);
     if (local) {
         doc.conteudo = local;
-        if (!documentoJaNaNuvem(doc)) {
-            persistirConteudoDocumentoNaNuvem(doc).catch(function () {});
-        }
         return local;
     }
     return '';
@@ -2291,7 +2405,7 @@ function excluirEntidadeCloud(entidade, id) {
         });
 }
 
-function agendarSyncEntidade(entidade, lista, removidos = []) {
+function agendarSyncEntidade(entidade, lista, removidos = [], syncIds = null) {
     if (!CLOUD_ENTIDADES.includes(entidade)) return;
     if (window.__cloudSyncTimers[entidade]) {
         clearTimeout(window.__cloudSyncTimers[entidade]);
@@ -2301,12 +2415,16 @@ function agendarSyncEntidade(entidade, lista, removidos = []) {
             atualizarIndicadorSync('offline');
             return;
         }
+        const alterados = filtrarItensAlteradosParaSync(entidade, lista, syncIds);
+        const idsRemovidos = (removidos || []).filter(id => id != null && String(id).trim() !== '');
+        if (!alterados.length && !idsRemovidos.length) return;
         iniciarSync();
         try {
-            const promises = [];
-            (lista || []).forEach(item => { if (item && typeof item === 'object') promises.push(salvarEntidadeCloud(entidade, item)); });
-            (removidos || []).filter(id => id != null && String(id).trim() !== '').forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
-            await Promise.all(promises);
+            const promises = alterados.map(item => salvarEntidadeCloud(entidade, item));
+            idsRemovidos.forEach(id => promises.push(excluirEntidadeCloud(entidade, id)));
+            await executarPromessasEmLotes(promises);
+            alterados.forEach(item => marcarSnapshotItem(entidade, item));
+            idsRemovidos.forEach(id => removerSnapshotItem(entidade, id));
             try {
                 appStorage.setItem('cloudSyncUltimaEntidade', entidade);
                 appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
@@ -2377,6 +2495,7 @@ async function sincronizarEntidadeNuvem(entidade) {
             merged = mesclarListasPorId(entidade, local, cloud);
         }
         salvarDados(entidade, merged, { skipCloudSync: true });
+        registarSnapshotEntidade(entidade, merged);
         try {
             appStorage.setItem('cloudSyncUltimaEntidade', entidade);
             appStorage.setItem('cloudSyncUltimaEntidadeEm', new Date().toISOString());
@@ -2387,8 +2506,65 @@ async function sincronizarEntidadeNuvem(entidade) {
         console.warn(`Erro ao sincronizar ${entidade}:`, error);
         window.__cloudSyncError = error;
     } finally {
-        finalizarSync(window.__cloudSyncError);
     }
+}
+
+function lerListaDeSnapshotNuvem(entidade, snap) {
+    const docs = (snap && snap.docs) ? snap.docs : [];
+    if (entidade === 'clientes') {
+        return docs.map(function (doc) { return { id: doc.id, ...doc.data() }; }).filter(function (c) { return !c.deleted; }).map(lerClienteDoFirestore);
+    }
+    if (entidade === 'pagamentos') {
+        return docs.map(function (doc) { return { id: doc.id, ...doc.data() }; }).filter(function (p) { return !p.deleted && !p.anulado && p.id !== 'seed-inicial'; }).map(lerPagamentoDoFirestore);
+    }
+    if (entidade === 'despesas') {
+        return docs.map(function (doc) { return { id: doc.id, ...doc.data() }; }).filter(function (d) { return !d.deleted && !d.anulado && d.id !== 'seed-inicial'; }).map(lerDespesaDoFirestore);
+    }
+    if (entidade === 'faturas') {
+        return docs.map(function (doc) { return { id: doc.id, ...doc.data() }; }).filter(function (f) { return !f.deleted && f.id !== 'seed-inicial'; });
+    }
+    const raw = docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); });
+    if (PROCESSO_ENTIDADES.includes(entidade)) return raw.map(lerProcessoDoFirestore).filter(function (p) { return !p.deleted; });
+    if (entidade === 'tarefas') return raw.map(lerTarefaDoFirestore).filter(function (t) { return !t.deleted; });
+    if (entidade === 'honorarios') return raw.map(lerHonorarioDoFirestore).filter(function (h) { return !h.deleted; });
+    if (entidade === 'contratos') return raw.map(lerContratoDoFirestore).filter(function (c) { return !c.deleted; });
+    if (entidade === 'prazos') return raw.map(lerPrazoDoFirestore).filter(function (p) { return !p.deleted; });
+    if (entidade === 'notificacoes') return raw.map(lerNotificacaoDoFirestore).filter(function (n) { return !n.deleted; });
+    if (entidade === 'documentos') return raw.filter(function (d) { return !d.deleted && !d.parteDe; }).map(lerDocumentoDoFirestore);
+    return raw.filter(function (item) { return !item.deleted; });
+}
+
+function aplicarListaDaNuvem(entidade, lista) {
+    const merged = Array.isArray(lista) ? lista : [];
+    if (entidade === 'clientes') {
+        atualizarClientesEmMemoria(merged);
+    } else if (entidade === 'pagamentos') {
+        pagamentos = merged;
+        window.pagamentos = pagamentos;
+    } else if (entidade === 'despesas') {
+        despesas = merged;
+        window.despesas = despesas;
+    } else if (entidade === 'faturas') {
+        window.faturas = merged;
+    } else {
+        salvarDados(entidade, merged, { skipCloudSync: true });
+        if (typeof registarSnapshotEntidade === 'function') registarSnapshotEntidade(entidade, merged);
+    }
+    window.__snapshotsRecebidos.add(entidade);
+}
+
+async function carregarImediatoNuvem() {
+    if (!isCloudReady()) return;
+    if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
+    const essenciais = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
+    await Promise.all(essenciais.map(async function (entidade) {
+        try {
+            const snap = await firestoreDb.collection(entidade).get();
+            aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
+        } catch (e) {
+            console.warn('Carga imediata da nuvem:', entidade, e && e.message);
+        }
+    }));
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -2715,11 +2891,8 @@ async function migrarPrazosLocalParaFirestore() {
     }
 }
 
-async function sincronizarTodasEntidadesNuvem() {
-    if (!isCloudReady()) {
-        atualizarIndicadorSync('offline');
-        return;
-    }
+async function executarMigracoesPendentes() {
+    if (!isCloudReady()) return;
     await migrarLocalStorageParaFirestore();
     await migrarClientesLocalParaFirestore();
     await migrarContratosLocalParaFirestore();
@@ -2733,6 +2906,14 @@ async function sincronizarTodasEntidadesNuvem() {
     await migrarDocumentosLocalParaFirestore();
     await migrarConvidadosLocalParaFirestore();
     await migrarFaturasLocalParaFirestore();
+}
+
+async function sincronizarTodasEntidadesNuvem() {
+    if (!isCloudReady()) {
+        atualizarIndicadorSync('offline');
+        return;
+    }
+    await executarMigracoesPendentes();
     for (const entidade of CLOUD_ENTIDADES) {
         await sincronizarEntidadeNuvem(entidade);
     }
@@ -2765,10 +2946,10 @@ function forcarSincronizacaoNuvem() {
         atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
     }).catch((err) => {
         console.warn('Erro ao forçar sincronização:', err);
-        atualizarIndicadorSync('error', 'Erro — clique para tentar');
+        atualizarIndicadorSync('error', 'A retomar a sincronização automática...');
         const msg = !navigator.onLine
-            ? 'Sem internet. Verifique a Wi‑Fi ou dados móveis e tente novamente.'
-            : 'A sincronização falhou. Verifique a internet e clique no indicador vermelho para tentar novamente. Se persistir, faça Ctrl+Shift+R.';
+            ? 'Sem internet. A sincronização retoma automaticamente quando voltar a ligação.'
+            : 'A sincronização falhou. A app vai tentar outra vez automaticamente.';
         mostrarNotificacao(msg, 'error');
     });
 }
@@ -4717,46 +4898,62 @@ function init() {
     // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
     filtrarDemoDoStorageLocal();
     carregarDados();
-    // Indicador de sync: mostrar último estado conhecido (erro se último evento foi erro)
-    const ultimoErro = appStorage.getItem('cloudSyncUltimoErro');
-    const ultimoOk = appStorage.getItem('cloudSyncUltimoSucesso');
-    if (ultimoErro && (!ultimoOk || new Date(ultimoErro).getTime() > new Date(ultimoOk).getTime())) {
-        atualizarIndicadorSync('error', 'Erro — clique para tentar novamente');
+    if (isCloudReady()) {
+        atualizarIndicadorSync('syncing', 'A sincronizar...');
     } else {
-        atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+        atualizarIndicadorSync('offline');
     }
-    window.addEventListener('online', () => atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline'));
+    window.addEventListener('online', () => garantirSincronizacaoAutomatica());
     window.addEventListener('offline', () => atualizarIndicadorSync('offline'));
 
-    // Sincronizar sempre ao carregar (após zero absoluto o Firestore está vazio; cache é limpo)
-    // Listeners iniciam APÓS a sync para evitar race e tremor na primeira carga
-    sincronizarTodasEntidadesNuvem().then(async () => {
-        if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
-        appStorage.removeItem('naoRestaurarDaNuvem');
-        try { await migracaoAutomaticaRemoverDemo(); } catch (e) { console.warn('migracaoAutomaticaRemoverDemo:', e); }
-        carregarDados();
-        carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-        atualizarInterface();
-        atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
-        if (isCloudReady()) iniciarListenersFirestore();
-    });
-
-    // Sincronizar sessão para window (para listeners/prepararLista)
     try {
         window.__tipoUsuario = appStorage.getItem('tipoUsuario') || '';
         window.__usuarioNome = appStorage.getItem('usuarioNome') || 'Sistema';
     } catch (e) {}
     const tipoUsuario = window.__tipoUsuario || '';
-    if (tipoUsuario === 'convidado') {
-        carregarSecao('clientes');
+
+    const abrirInterfaceComDados = function () {
+        if (tipoUsuario === 'convidado') {
+            carregarSecao('clientes');
+        } else {
+            carregarSecao('dashboard');
+        }
+        if (typeof atualizarInterface === 'function') atualizarInterface();
+        marcarSyncNuvemOk();
+    };
+
+    if (isCloudReady()) {
+        carregarImediatoNuvem().then(function () {
+            abrirInterfaceComDados();
+            iniciarListenersFirestore();
+        }).catch(function (err) {
+            console.warn('Carga imediata da nuvem:', err);
+            iniciarListenersFirestore();
+            abrirInterfaceComDados();
+        });
+        executarMigracoesPendentes().then(async () => {
+            appStorage.removeItem('naoRestaurarDaNuvem');
+            try { await migracaoAutomaticaRemoverDemo(); } catch (e) { console.warn('migracaoAutomaticaRemoverDemo:', e); }
+            marcarSyncNuvemOk();
+        }).catch((err) => {
+            console.warn('Migração inicial:', err);
+            garantirSincronizacaoAutomatica();
+        });
     } else {
-        carregarSecao('dashboard');
+        abrirInterfaceComDados();
     }
 
-    // Se a área de conteúdo continuar vazia (ex.: script.js não carregou no GitHub Pages), mostrar aviso
+    if (!window.__syncAutomaticoTimer) {
+        window.__syncAutomaticoTimer = setInterval(function () {
+            if (document.hidden) return;
+            garantirSincronizacaoAutomatica();
+        }, 30000);
+    }
+
     setTimeout(() => {
         const el = document.getElementById('conteudoDinamico');
-        if (el && el.textContent.trim().length < 50) {
+        const aSincronizar = document.getElementById('syncStatusBadge')?.getAttribute('data-status') === 'syncing';
+        if (el && el.textContent.trim().length < 50 && !aSincronizar) {
             el.innerHTML = `
                 <div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
                     <p class="font-semibold mb-2">A área de conteúdo não carregou.</p>
@@ -4765,53 +4962,11 @@ function init() {
                 </div>
             `;
         }
-    }, 500);
+    }, 8000);
 
-    // Sincronização periódica em background (5 min desktop; 10 min mobile; pausa com separador oculto)
-    const SYNC_PERIODICO_MS = isMobileApp() ? 10 * 60 * 1000 : 5 * 60 * 1000;
-    if (isCloudReady()) {
-        window.__syncPeriodico = setInterval(() => {
-            if (document.hidden || !isCloudReady()) return;
-            sincronizarTodasEntidadesNuvem().then(() => {
-                if (document.hidden) return;
-                if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
-                carregarDados();
-                const secao = typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard';
-                const hashDepois = obterHashDadosSecao(secao);
-                if (hashDepois !== window.__ultimoHashSecao) {
-                    window.__ultimoHashSecao = hashDepois;
-                    carregarSecao(secao);
-                }
-                atualizarInterface();
-                atualizarIndicadorSync('ok');
-            });
-        }, SYNC_PERIODICO_MS);
-    }
-
-    // Ao voltar ao separador: reiniciar listeners e sincronizar — só re-renderizar se os dados mudaram (diff)
-    let __visibilityHashAntes = '';
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            __visibilityHashAntes = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-            if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
-        } else if (document.visibilityState === 'visible' && isCloudReady()) {
-            if (typeof listenerManager !== 'undefined' && listenerManager.pause && listenerManager.resume) {
-                listenerManager.pause();
-                listenerManager.resume(iniciarListenersFirestore);
-            }
-            sincronizarTodasEntidadesNuvem().then(() => {
-                if (isCloudReady()) try { appStorage.setItem('cloudSyncUltimoSucesso', new Date().toISOString()); } catch (e) {}
-                carregarDados();
-                const hashDepois = obterHashDadosSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                if (hashDepois !== __visibilityHashAntes) {
-                    window.__ultimoHashSecao = hashDepois;
-                    carregarSecao(typeof secaoAtiva !== 'undefined' ? secaoAtiva : 'dashboard');
-                    atualizarInterface();
-                } else {
-                    window.__ultimoHashSecao = hashDepois;
-                }
-                atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
-            });
+        if (document.visibilityState === 'visible') {
+            garantirSincronizacaoAutomatica();
         }
     });
     
@@ -6312,9 +6467,9 @@ function salvarDados(chave, dados, opcoes = {}) {
             mostrarNotificacao('Erro: Dados inválidos', 'error');
             return;
         }
-        const { skipCloudSync } = opcoes || {};
+        const { skipCloudSync, syncIds } = opcoes || {};
         const isSyncavel = CLOUD_ENTIDADES.includes(chave);
-        const dadosParaSalvar = isSyncavel && !skipCloudSync ? prepararListaParaSync(chave, dados) : dados;
+        const dadosParaSalvar = isSyncavel && !skipCloudSync ? prepararListaParaSync(chave, dados, syncIds) : dados;
         let removidos = [];
         if (isSyncavel && !skipCloudSync) {
             try {
@@ -6415,7 +6570,7 @@ function salvarDados(chave, dados, opcoes = {}) {
         }
         
         if (!skipCloudSync && isSyncavel) {
-            agendarSyncEntidade(chave, dadosParaSalvar, removidos);
+            agendarSyncEntidade(chave, dadosParaSalvar, removidos, syncIds || null);
         }
         
     } catch (error) {
@@ -7209,17 +7364,9 @@ function configurarEventos() {
 
     const syncBadge = document.getElementById('syncStatusBadge');
     if (syncBadge) {
+        // O clique no indicador é opcional; a sincronização é automática.
         syncBadge.addEventListener('click', () => {
-            const status = syncBadge.getAttribute('data-status');
-            if (status === 'error' || status === 'offline') {
-                if (typeof forcarSincronizacaoNuvem === 'function') forcarSincronizacaoNuvem();
-            }
-        });
-        syncBadge.addEventListener('keydown', (e) => {
-            if ((e.key === 'Enter' || e.key === ' ') && (syncBadge.getAttribute('data-status') === 'error' || syncBadge.getAttribute('data-status') === 'offline')) {
-                e.preventDefault();
-                if (typeof forcarSincronizacaoNuvem === 'function') forcarSincronizacaoNuvem();
-            }
+            garantirSincronizacaoAutomatica();
         });
         // Atualizar "há X min" no badge a cada minuto
         setInterval(() => {
@@ -9285,7 +9432,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
                         <div>
                             <div style="font-size: 13px; font-weight: 600; color: #1f2937;">Documentos</div>
-                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${contadores.documentos} documento${contadores.documentos === 1 ? '' : 's'} associado${contadores.documentos === 1 ? '' : 's'}</div>
+                            <div data-ficha-documentos-resumo="${esc(clienteId)}" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${contadores.documentos} documento${contadores.documentos === 1 ? '' : 's'} associado${contadores.documentos === 1 ? '' : 's'}</div>
                         </div>
                         <button type="button" class="js-ficha-ver-documentos" style="
                             font-size: 13px;
@@ -9680,10 +9827,15 @@ function adicionarDocumentoModal(clienteId, clienteNome) {
             tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
             dataCriacao: new Date().toISOString()
         };
-        persistirConteudoDocumentoNaNuvem(documento).then(function () {
+        persistirConteudoDocumentoNaNuvem(documento).then(async function () {
+            garantirDocumentoDisponivelNaNuvem(documento, prep);
+            if (isCloudReady() && typeof criarDocumentoCloud === 'function') {
+                await criarDocumentoCloud(documento);
+                marcarSnapshotItem('documentos', documento);
+            }
             const lista = obterDocumentosAtual();
             lista.unshift(documento);
-            salvarDocumentosLocal(lista);
+            salvarDocumentosLocal(lista, { skipCloudSync: true });
             idbGuardarFicheiroDoc(documento.id, documento.conteudo);
             registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, { ...documento, conteudo: '[ficheiro]' });
             mostrarNotificacao('Documento adicionado com sucesso!', 'success');
@@ -14239,10 +14391,10 @@ function formatarTamanhoArquivo(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function salvarDocumentosLocal(novos) {
+function salvarDocumentosLocal(novos, opcoes) {
     documentos = novos;
     window.documentos = documentos;
-    salvarDados('documentos', documentos);
+    salvarDados('documentos', documentos, opcoes || {});
 }
 
 function dataUrlParaFicheiro(dataUrl, nomeArquivo, tipoArquivo) {
@@ -14272,12 +14424,19 @@ async function reenviarDocumentosLocaisParaNuvem() {
     const lista = typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos;
     if (!Array.isArray(lista) || !lista.length) return;
     let enviados = 0;
+    const maxPorVez = 2;
     for (let i = 0; i < lista.length; i++) {
+        if (enviados >= maxPorVez) break;
         const doc = lista[i];
         if (!doc || documentoJaNaNuvem(doc)) continue;
+        const c = doc.conteudo;
+        if (typeof c === 'string' && c.indexOf('data:') === 0 && c.length > LIMITE_CONTEUDO_FIRESTORE) continue;
         try {
             const ok = await persistirConteudoDocumentoNaNuvem(doc);
-            if (ok) enviados++;
+            if (ok) {
+                enviados++;
+                marcarSnapshotItem('documentos', doc);
+            }
         } catch (e) {
             console.warn('Reenvio do documento para a nuvem falhou:', doc.nomeArquivo, e && e.message);
         }
@@ -16470,16 +16629,51 @@ async function reduzirImagemAteLimite(arquivo, maxBytes) {
     return melhor;
 }
 
+function aguardarAuthFirebase(ms) {
+    return new Promise(function (resolve) {
+        try {
+            if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') {
+                resolve(null);
+                return;
+            }
+            const auth = firebase.auth();
+            if (auth.currentUser) {
+                resolve(auth.currentUser);
+                return;
+            }
+            const limite = setTimeout(function () {
+                if (typeof unsub === 'function') unsub();
+                resolve(auth.currentUser || null);
+            }, ms || 8000);
+            const unsub = auth.onAuthStateChanged(function (user) {
+                if (!user) return;
+                clearTimeout(limite);
+                unsub();
+                resolve(user);
+            });
+            const pendente = window.__firebaseAuthPromise || auth.signInAnonymously();
+            window.__firebaseAuthPromise = pendente;
+            pendente.catch(function () {
+                clearTimeout(limite);
+                if (typeof unsub === 'function') unsub();
+                resolve(auth.currentUser || null);
+            });
+        } catch (e) {
+            resolve(null);
+        }
+    });
+}
+
 async function enviarFicheiroParaStorage(id, ficheiro) {
     if (!firebaseStorage || !ficheiro) return null;
+    const user = await aguardarAuthFirebase(8000);
+    if (!user) return null;
     const nome = String(ficheiro.name || 'ficheiro').replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'ficheiro';
     const path = 'documentos/' + id + '/' + nome;
     const ref = firebaseStorage.ref(path);
-    return executarComTimeout((async function () {
-        await ref.put(ficheiro, { contentType: ficheiro.type || 'application/octet-stream' });
-        const url = await ref.getDownloadURL();
-        return { url: url, path: path };
-    })(), 8000, null);
+    await ref.put(ficheiro, { contentType: ficheiro.type || 'application/octet-stream' });
+    const url = await ref.getDownloadURL();
+    return { url: url, path: path };
 }
 
 async function prepararFicheiroDocumento(arquivo, idDocumento) {
@@ -16491,31 +16685,26 @@ async function prepararFicheiroDocumento(arquivo, idDocumento) {
     if (ficheiroEhImagem(arquivo)) {
         processado = await reduzirImagemAteLimite(arquivo, LIMITE_CONTEUDO_EMBUTIDO_BYTES);
     }
-    try {
-        const enviado = await enviarFicheiroParaStorage(idDocumento, processado);
-        if (enviado && enviado.url) {
-            return {
-                conteudo: enviado.url,
-                storagePath: enviado.path,
-                tamanho: processado.size,
-                tipoArquivo: processado.type || arquivo.type,
-                nomeArquivo: arquivo.name,
-                armazenamento: 'storage'
-            };
-        }
-        mostrarNotificacao('A enviar o documento para a nuvem falhou. Guarde de novo para o telemóvel o poder abrir.', 'warning');
-    } catch (err) {
-        console.warn('Upload Storage falhou:', err && err.message);
-        mostrarNotificacao('A enviar o documento para a nuvem falhou. Guarde de novo para o telemóvel o poder abrir.', 'warning');
+    const enviado = await enviarFicheiroParaStorage(idDocumento, processado);
+    if (enviado && enviado.url) {
+        return {
+            conteudo: enviado.url,
+            storagePath: enviado.path,
+            tamanho: processado.size,
+            tipoArquivo: processado.type || arquivo.type,
+            nomeArquivo: arquivo.name,
+            armazenamento: 'storage'
+        };
     }
-    const conteudo = await lerFicheiroComoDataURL(processado);
-    return {
-        conteudo: conteudo,
-        tamanho: processado.size,
-        tipoArquivo: processado.type || arquivo.type,
-        nomeArquivo: arquivo.name,
-        armazenamento: 'local'
-    };
+    throw new Error('Falhou o envio do documento para a nuvem. Verifique a internet e tente novamente.');
+}
+
+function garantirDocumentoDisponivelNaNuvem(documento, prep) {
+    if (documentoJaNaNuvem(documento)) return true;
+    if (prep && prep.uploadStorageFalhou) {
+        throw new Error('Falhou o envio do documento para a nuvem. O documento não foi guardado. Verifique a ligação e tente novamente.');
+    }
+    throw new Error('O documento ainda não ficou disponível na nuvem. Tente novamente.');
 }
 
 async function guardarFicheirosComoDocumentosCliente(clienteId, clienteNome, ficheiros, descricaoBase) {
@@ -16523,6 +16712,7 @@ async function guardarFicheirosComoDocumentosCliente(clienteId, clienteNome, fic
     if (!clienteId || !listaFicheiros.length) return 0;
     const lista = obterDocumentosAtual();
     let guardados = 0;
+    const idsGuardados = [];
     for (let i = 0; i < listaFicheiros.length; i++) {
         const arquivo = listaFicheiros[i];
         const idDoc = gerarIdImutavel();
@@ -16546,16 +16736,24 @@ async function guardarFicheirosComoDocumentosCliente(clienteId, clienteNome, fic
             tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
             dataCriacao: new Date().toISOString()
         };
-        await persistirConteudoDocumentoNaNuvem(documento);
+        if (!documentoJaNaNuvem(documento)) {
+            await persistirConteudoDocumentoNaNuvem(documento);
+        }
+        garantirDocumentoDisponivelNaNuvem(documento, prep);
+        if (isCloudReady() && typeof criarDocumentoCloud === 'function') {
+            await criarDocumentoCloud(documento);
+            marcarSnapshotItem('documentos', documento);
+        }
         lista.unshift(documento);
         idbGuardarFicheiroDoc(documento.id, documento.conteudo);
         registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, {
             ...documento,
             conteudo: documento.conteudo && String(documento.conteudo).indexOf('data:') === 0 ? '[ficheiro local]' : documento.conteudo
         });
+        idsGuardados.push(idDoc);
         guardados++;
     }
-    salvarDocumentosLocal(lista);
+    salvarDocumentosLocal(lista, { skipCloudSync: true });
     return guardados;
 }
 
@@ -16586,6 +16784,7 @@ async function uploadDocumento() {
     const cliente = clientes.find(c => c.id === clienteId);
     const lista = obterDocumentosAtual();
     let guardados = 0;
+    const idsGuardados = [];
     const botaoGuardar = document.querySelector('button[onclick="uploadDocumento()"]');
     if (botaoGuardar) {
         botaoGuardar.disabled = true;
@@ -16617,13 +16816,21 @@ async function uploadDocumento() {
                 tipoUsuario: appStorage.getItem('tipoUsuario') || 'N/D',
                 dataCriacao: new Date().toISOString()
             };
-            await persistirConteudoDocumentoNaNuvem(documento);
+            if (!documentoJaNaNuvem(documento)) {
+                await persistirConteudoDocumentoNaNuvem(documento);
+            }
+            garantirDocumentoDisponivelNaNuvem(documento, prep);
+            if (isCloudReady() && typeof criarDocumentoCloud === 'function') {
+                await criarDocumentoCloud(documento);
+                marcarSnapshotItem('documentos', documento);
+            }
             lista.unshift(documento);
             idbGuardarFicheiroDoc(documento.id, documento.conteudo);
             registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, { ...documento, conteudo: documento.conteudo && documento.conteudo.indexOf('data:') === 0 ? '[ficheiro local]' : documento.conteudo });
+            idsGuardados.push(idDoc);
             guardados++;
         }
-        salvarDocumentosLocal(lista);
+        salvarDocumentosLocal(lista, { skipCloudSync: true });
         mostrarNotificacao(
             guardados === 1
                 ? 'Documento adicionado com sucesso!'
@@ -24154,7 +24361,7 @@ function abrirAnexosCliente(clienteId) {
                     <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Anexar foto ou PDF</label>
                         ${htmlSeletorFicheiroComFoto('anexoClienteArquivo', 'accept=".pdf,.jpg,.jpeg,.png,.webp"')}
-                        <button type="button" onclick="guardarAnexosClienteAgora(${JSON.stringify(String(clienteId))})" class="btn btn-primary mt-3">
+                        <button type="button" class="btn btn-primary mt-3 js-guardar-anexos-cliente" data-cliente-id="${esc(clienteId)}">
                             <i data-lucide="save" class="w-4 h-4"></i>
                             Guardar documentos
                         </button>
@@ -24168,8 +24375,24 @@ function abrirAnexosCliente(clienteId) {
     if (box) {
         box.innerHTML = modal;
         box.classList.add('show');
+        const btnGuardar = box.querySelector('.js-guardar-anexos-cliente');
+        if (btnGuardar) {
+            btnGuardar.addEventListener('click', function () {
+                guardarAnexosClienteAgora(clienteId);
+            });
+        }
     }
     if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+function atualizarResumoDocumentosClienteNoModal(clienteId) {
+    const listaAtual = (typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos) || [];
+    const total = listaAtual.filter(function (doc) {
+        return String(doc && doc.clienteId) === String(clienteId);
+    }).length;
+    const alvo = document.querySelector('[data-ficha-documentos-resumo="' + String(clienteId).replace(/"/g, '&quot;') + '"]');
+    if (!alvo) return;
+    alvo.textContent = total + ' documento' + (total === 1 ? '' : 's') + ' associado' + (total === 1 ? '' : 's');
 }
 
 async function guardarAnexosClienteAgora(clienteId) {
@@ -24177,17 +24400,40 @@ async function guardarAnexosClienteAgora(clienteId) {
     if (!cliente) return;
     const input = document.getElementById('anexoClienteArquivo');
     const ficheiros = input && input.files ? Array.from(input.files) : [];
+    const botaoGuardar = document.querySelector('.js-guardar-anexos-cliente');
     if (!ficheiros.length) {
         mostrarNotificacao('Escolha um ficheiro ou tire uma foto.', 'warning');
         return;
     }
     try {
+        if (botaoGuardar) {
+            botaoGuardar.disabled = true;
+            botaoGuardar.dataset.textoOriginal = botaoGuardar.innerHTML;
+            botaoGuardar.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>A guardar...';
+            if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+        }
+        mostrarNotificacao('A guardar documentos do cliente...', 'info');
         const n = await guardarFicheirosComoDocumentosCliente(cliente.id, cliente.nome, ficheiros, 'Anexo do cliente');
+        if (input) input.value = '';
+        atualizarListaFicheirosSelecionados('anexoClienteArquivo');
+        const preview = document.getElementById('anexoClienteArquivoPreview');
+        if (preview) {
+            preview.src = '';
+            preview.classList.add('hidden');
+        }
+        atualizarResumoDocumentosClienteNoModal(clienteId);
         mostrarNotificacao(n === 1 ? 'Documento guardado neste cliente.' : n + ' documentos guardados neste cliente.', 'success');
         abrirAnexosCliente(clienteId);
     } catch (err) {
         console.error(err);
         mostrarNotificacao(err.message || 'Não foi possível guardar os documentos.', 'error');
+    } finally {
+        if (botaoGuardar) {
+            botaoGuardar.disabled = false;
+            if (botaoGuardar.dataset.textoOriginal) {
+                botaoGuardar.innerHTML = botaoGuardar.dataset.textoOriginal;
+            }
+        }
     }
 }
 
