@@ -1353,6 +1353,8 @@
     async function verificarPersistenciaDados() {
         const el = $('avisoPersistencia');
         if (!el || !SistemaLegalAPI.getEmailStatus) return;
+        el.classList.add('hidden');
+        el.textContent = '';
         try {
             const res = await SistemaLegalAPI.apiFetch('/api/health');
             if (!res.ok) return;
@@ -1361,6 +1363,9 @@
                 el.classList.remove('hidden');
                 el.textContent = data.aviso
                     || 'Atenção: a base de dados no Render Free pode apagar clientes após restart. É necessário Persistent Disk (plano pago) ou base externa.';
+            } else {
+                el.classList.add('hidden');
+                el.textContent = '';
             }
         } catch (e) { /* ignore */ }
     }

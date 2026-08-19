@@ -19,7 +19,11 @@
     function normalizeBaseUrl(raw) {
         const trimmed = String(raw || '').trim();
         if (!trimmed) return '';
-        return trimmed.replace(/\/$/, '');
+        const normalized = trimmed.replace(/\/$/, '');
+        if (/^https:\/\/sistema-legal-api-eu\.onrender\.com$/i.test(normalized)) {
+            return 'https://sistema-legal-api.onrender.com';
+        }
+        return normalized;
     }
 
     function isLanPageHost() {
