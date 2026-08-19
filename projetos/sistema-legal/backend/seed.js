@@ -10,8 +10,27 @@ const SEED_ADMIN = {
   perfil: 'admin',
 };
 
+const SEED_TEST_CLIENTES = [
+  {
+    nome: 'João Silva (Cliente Teste)',
+    email: 'cliente@sistema-legal.pt',
+    password: 'cliente123',
+    perfil: 'cliente',
+  },
+  {
+    nome: 'Maria Costa (Cliente Teste 2)',
+    email: 'cliente2@sistema-legal.pt',
+    password: 'cliente123',
+    perfil: 'cliente',
+  },
+];
+
 async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
+}
+
+function shouldSeedTestClientes() {
+  return String(process.env.SEED_TEST_CLIENTES || '').trim().toLowerCase() === 'true';
 }
 
 async function insertUserIfMissing(user) {
@@ -29,15 +48,26 @@ async function insertUserIfMissing(user) {
 
 async function seedIfEmpty({ closeAfter = false } = {}) {
   const total = Number((await query('SELECT COUNT(*) AS total FROM utilizadores')).rows[0].total);
-  const criado = await insertUserIfMissing(SEED_ADMIN);
+  let criados = 0;
+  if (await insertUserIfMissing(SEED_ADMIN)) criados += 1;
+  if (shouldSeedTestClientes()) {
+    for (const user of SEED_TEST_CLIENTES) {
+      if (await insertUserIfMissing(user)) criados += 1;
+    }
+  }
   if (total === 0) {
     console.log('\n--- Credenciais ---');
     console.log('Admin: solicitadora@sistema-legal.pt / admin123');
     console.log('-------------------\n');
+    if (shouldSeedTestClientes()) {
+      console.log('Cliente: cliente@sistema-legal.pt / cliente123');
+      console.log('Cliente: cliente2@sistema-legal.pt / cliente123');
+      console.log('-------------------\n');
+    }
     return { seeded: true };
   }
-  if (criado) {
-    console.log('Seed parcial: admin em falta foi criado.');
+  if (criados > 0) {
+    console.log(`Seed parcial: ${criados} utilizador(es) em falta foram criados.`);
     return { seeded: true, partial: true };
   }
   console.log('Base de dados já contém utilizadores. Seed de admin verificado.');
