@@ -3,9 +3,11 @@ services:
     name: sistema-legal-api
     runtime: node
     rootDir: projetos/sistema-legal/backend
-    buildCommand: npm install && npm run seed
+    buildCommand: npm install
     startCommand: npm start
     envVars:
+      - key: DATABASE_URL
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: RESEND_API_KEY
@@ -28,15 +30,7 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
-      - key: PORTAL_URL
-        sync: false
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /var/data
       - key: SEED_TEST_CLIENTES
         value: "false"
-    disk:
-      name: sistema-legal-data
-      mountPath: /var/data
-      sizeGB: 1
