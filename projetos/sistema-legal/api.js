@@ -20,8 +20,9 @@
         const trimmed = String(raw || '').trim();
         if (!trimmed) return '';
         const normalized = trimmed.replace(/\/$/, '');
-        if (/^https:\/\/sistema-legal-api-eu\.onrender\.com$/i.test(normalized)) {
-            return 'https://sistema-legal-api.onrender.com';
+        // Oregon (legado Free) → Frankfurt Starter + Neon
+        if (/^https:\/\/sistema-legal-api\.onrender\.com$/i.test(normalized)) {
+            return 'https://sistema-legal-api-eu.onrender.com';
         }
         return normalized;
     }
@@ -72,7 +73,7 @@
         }
 
         if (isCapacitorNative()) {
-            return 'https://sistema-legal-api.onrender.com';
+            return 'https://sistema-legal-api-eu.onrender.com';
         }
 
         return 'http://localhost:3001';
