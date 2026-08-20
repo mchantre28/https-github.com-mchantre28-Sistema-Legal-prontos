@@ -399,8 +399,8 @@ const ENTIDADES_PORTUGAL = [
     { id: 'ctt', nome: 'CTT' },
     { id: 'osae', nome: 'OSAE (Ordem dos Solicitadores)' }
 ];
-const CLOUD_DEBOUNCE_MS = 400;
-const SYNC_LOTE_TAMANHO = 12;
+const CLOUD_DEBOUNCE_MS = 120;
+const SYNC_LOTE_TAMANHO = 20;
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
 window.__cloudSyncSnapshot = window.__cloudSyncSnapshot || {};
 
@@ -480,8 +480,10 @@ window.startAllListeners = startAllListeners;
 let __listenerRefreshTimer = null;
 const __entidadesPendentesRefresh = new Set();
 window.__snapshotsRecebidos = window.__snapshotsRecebidos || new Set();
-const LISTENER_REFRESH_DEBOUNCE_MS = 150;
-const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 150;
+const LISTENER_REFRESH_DEBOUNCE_MS = 40;
+const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 60;
+const SYNC_INDICADOR_ATRASO_MS = 350;
+const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
 
 function dadosEssenciaisSincronizados() {
@@ -759,8 +761,15 @@ function atualizarIndicadorSync(status, mensagem) {
 
 function marcarSyncNuvemOk() {
     if (!isCloudReady()) return;
+    if (window.__syncIndicadorTimer) {
+        clearTimeout(window.__syncIndicadorTimer);
+        window.__syncIndicadorTimer = null;
+    }
     if (!dadosEssenciaisSincronizados()) {
-        atualizarIndicadorSync('syncing', 'A sincronizar...');
+        // Não bloquear a UI: dados locais já estão disponíveis; a nuvem continua em fundo.
+        if ((window.__cloudSyncPending || 0) === 0) {
+            atualizarIndicadorSync('ok');
+        }
         return;
     }
     window.__cloudSyncError = null;
@@ -794,7 +803,22 @@ function garantirSincronizacaoAutomatica() {
 
 function iniciarSync() {
     window.__cloudSyncPending = (window.__cloudSyncPending || 0) + 1;
-    atualizarIndicadorSync('syncing');
+    // Só mostrar "A sincronizar..." se demorar — syncs rápidos não piscam laranja.
+    if (window.__syncIndicadorTimer) clearTimeout(window.__syncIndicadorTimer);
+    window.__syncIndicadorTimer = setTimeout(function () {
+        window.__syncIndicadorTimer = null;
+        if ((window.__cloudSyncPending || 0) > 0) {
+            atualizarIndicadorSync('syncing');
+        }
+    }, SYNC_INDICADOR_ATRASO_MS);
+    if (window.__syncMaxTimer) clearTimeout(window.__syncMaxTimer);
+    window.__syncMaxTimer = setTimeout(function () {
+        window.__syncMaxTimer = null;
+        if ((window.__cloudSyncPending || 0) > 0) {
+            window.__cloudSyncPending = 0;
+            atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+        }
+    }, SYNC_INDICADOR_MAX_MS);
 }
 
 function finalizarSync(erro) {
@@ -803,6 +827,14 @@ function finalizarSync(erro) {
         window.__cloudSyncError = erro;
     }
     if (window.__cloudSyncPending === 0) {
+        if (window.__syncIndicadorTimer) {
+            clearTimeout(window.__syncIndicadorTimer);
+            window.__syncIndicadorTimer = null;
+        }
+        if (window.__syncMaxTimer) {
+            clearTimeout(window.__syncMaxTimer);
+            window.__syncMaxTimer = null;
+        }
         if (window.__cloudSyncError) {
             atualizarIndicadorSync('error', 'A retomar a sincronização automática...');
             const msg = navigator.onLine
@@ -2677,15 +2709,22 @@ function aplicarListaDaNuvem(entidade, lista) {
 async function carregarImediatoNuvem() {
     if (!isCloudReady()) return;
     if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
-    const essenciais = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
-    await Promise.all(essenciais.map(async function (entidade) {
+
+    async function carregarUma(entidade) {
         try {
             const snap = await firestoreDb.collection(entidade).get();
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
         } catch (e) {
             console.warn('Carga imediata da nuvem:', entidade, e && e.message);
         }
-    }));
+    }
+
+    // Clientes primeiro — desbloqueia a UI o mais depressa possível
+    await carregarUma('clientes');
+    marcarSyncNuvemOk();
+
+    const restantes = ['honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
+    await Promise.all(restantes.map(carregarUma));
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -5016,11 +5055,11 @@ function init() {
         };
     }
     
-    // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
+    // Firestore em fundo: abrir a interface já com dados locais (sem esperar a nuvem).
     filtrarDemoDoStorageLocal();
     carregarDados();
     if (isCloudReady()) {
-        atualizarIndicadorSync('syncing', 'A sincronizar...');
+        atualizarIndicadorSync('ok');
     } else {
         atualizarIndicadorSync('offline');
     }
@@ -5043,14 +5082,19 @@ function init() {
         marcarSyncNuvemOk();
     };
 
+    // Abrir já — sem atraso da nuvem
+    abrirInterfaceComDados();
+
     if (isCloudReady()) {
         carregarImediatoNuvem().then(function () {
-            abrirInterfaceComDados();
             iniciarListenersFirestore();
+            if (typeof secaoAtiva === 'string') carregarSecao(secaoAtiva);
+            if (typeof atualizarInterface === 'function') atualizarInterface();
+            marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
             iniciarListenersFirestore();
-            abrirInterfaceComDados();
+            marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
             appStorage.removeItem('naoRestaurarDaNuvem');
@@ -5060,8 +5104,6 @@ function init() {
             console.warn('Migração inicial:', err);
             garantirSincronizacaoAutomatica();
         });
-    } else {
-        abrirInterfaceComDados();
     }
 
     if (!window.__syncAutomaticoTimer) {
