@@ -352,19 +352,52 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
-/** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
+/** Entidades portuguesas — instituições típicas em processos de solicitadoria
+ *  (registos, heranças, migração, fiscalidade, imóveis, laboral e justiça). */
 const ENTIDADES_PORTUGAL = [
     { id: '', nome: '— Nenhuma / Outra —' },
+    /* Fiscalidade e aduaneiro */
     { id: 'financas_at', nome: 'Finanças (AT)' },
+    { id: 'alfandegas', nome: 'Alfândegas' },
+    /* Registos e notariado (IRN) */
     { id: 'conservatorias_irn', nome: 'Conservatórias (IRN)' },
-    { id: 'imt', nome: 'IMT' },
-    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
-    { id: 'seguranca_social', nome: 'Segurança Social' },
-    { id: 'bancos', nome: 'Bancos' },
-    { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
+    { id: 'registo_civil', nome: 'Registo Civil' },
+    { id: 'nacionalidade_irn', nome: 'Nacionalidade (IRN)' },
+    { id: 'balcao_herancas', nome: 'Balcão de Heranças (IRN)' },
     { id: 'registo_predial', nome: 'Registo Predial (Online)' },
     { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
-    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
+    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' },
+    { id: 'rcbe', nome: 'RCBE (Beneficiário Efetivo)' },
+    { id: 'cartorios_notariais', nome: 'Cartórios Notariais' },
+    /* Migração e estrangeiros */
+    { id: 'aima', nome: 'AIMA (Migrações e Asilo)' },
+    { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
+    /* Autarquias e atendimento */
+    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
+    { id: 'juntas_freguesia', nome: 'Juntas de Freguesia' },
+    { id: 'lojas_cidadao', nome: 'Lojas do Cidadão' },
+    { id: 'eportugal', nome: 'ePortugal / Serviços Públicos' },
+    /* Segurança social e laboral */
+    { id: 'seguranca_social', nome: 'Segurança Social' },
+    { id: 'iefp', nome: 'IEFP' },
+    { id: 'act', nome: 'ACT (Condições de Trabalho)' },
+    { id: 'cga', nome: 'CGA (Aposentações)' },
+    /* Justiça */
+    { id: 'tribunais', nome: 'Tribunais' },
+    { id: 'julgados_paz', nome: 'Julgados de Paz' },
+    { id: 'ministerio_publico', nome: 'Ministério Público' },
+    { id: 'agentes_execucao', nome: 'Agentes de Execução' },
+    /* Transportes, imóveis e empresas */
+    { id: 'imt', nome: 'IMT' },
+    { id: 'bancos', nome: 'Bancos' },
+    { id: 'banco_portugal', nome: 'Banco de Portugal' },
+    { id: 'ihru', nome: 'IHRU (Habitação)' },
+    { id: 'inpi', nome: 'INPI (Propriedade Industrial)' },
+    { id: 'iapmei', nome: 'IAPMEI' },
+    /* Outros úteis no dia a dia */
+    { id: 'psp_gnr', nome: 'PSP / GNR' },
+    { id: 'ctt', nome: 'CTT' },
+    { id: 'osae', nome: 'OSAE (Ordem dos Solicitadores)' }
 ];
 const CLOUD_DEBOUNCE_MS = 400;
 const SYNC_LOTE_TAMANHO = 12;
@@ -1773,7 +1806,42 @@ async function seedEntidadesSeVazio() {
     try {
         const snap = await firestoreDb.collection('entidades').limit(1).get();
         if (!snap.empty) return;
-        const tipos = { financas_at: 'financas', conservatorias_irn: 'conservatoria', imt: 'imt', camaras_municipais: 'camara_municipal', seguranca_social: 'seguranca_social', bancos: 'banco', embaixadas_consulados: 'embaixada_consulado', registo_predial: 'registo_online', registo_comercial: 'registo_online', registo_automovel: 'registo_online' };
+        const tipos = {
+            financas_at: 'financas',
+            alfandegas: 'financas',
+            conservatorias_irn: 'conservatoria',
+            registo_civil: 'registo_civil',
+            nacionalidade_irn: 'nacionalidade',
+            balcao_herancas: 'herancas',
+            registo_predial: 'registo_online',
+            registo_comercial: 'registo_online',
+            registo_automovel: 'registo_online',
+            rcbe: 'registo_online',
+            cartorios_notariais: 'notariado',
+            aima: 'migracao',
+            embaixadas_consulados: 'embaixada_consulado',
+            camaras_municipais: 'camara_municipal',
+            juntas_freguesia: 'autarquia',
+            lojas_cidadao: 'atendimento',
+            eportugal: 'atendimento',
+            seguranca_social: 'seguranca_social',
+            iefp: 'laboral',
+            act: 'laboral',
+            cga: 'seguranca_social',
+            tribunais: 'justica',
+            julgados_paz: 'justica',
+            ministerio_publico: 'justica',
+            agentes_execucao: 'justica',
+            imt: 'imt',
+            bancos: 'banco',
+            banco_portugal: 'banco',
+            ihru: 'habitacao',
+            inpi: 'empresa',
+            iapmei: 'empresa',
+            psp_gnr: 'policia',
+            ctt: 'correios',
+            osae: 'ordem_profissional'
+        };
         const origem = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
         for (let i = 0; i < origem.length; i++) {
             const e = origem[i];
@@ -1791,10 +1859,13 @@ async function seedEntidadesSeVazio() {
 /** Retorna ENTIDADES_PORTUGAL da coleção Firestore ou fallback para constante. */
 function obterEntidadesParaSelect() {
     const lista = Array.isArray(entidades) ? entidades.filter(e => e.ativo !== false) : [];
+    const fallback = typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
     if (lista.length > 0) {
-        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome }))];
+        const ids = new Set(lista.map(e => e.id));
+        const extra = fallback.filter(e => e.id && !ids.has(e.id));
+        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome })), ...extra];
     }
-    return typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
+    return fallback;
 }
 
 // === INTEGRAÇÕES EXTERNAS ===
