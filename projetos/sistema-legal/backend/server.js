@@ -66,6 +66,9 @@ const CORS_ORIGINS = [
   /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
   /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
   /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  'capacitor://localhost',
+  'ionic://localhost',
+  'https://localhost',
   /^capacitor:\/\//,
   /^ionic:\/\//,
 ];
@@ -78,7 +81,7 @@ function isAllowedCorsOrigin(origin) {
 app.use(cors({
   origin(origin, cb) { cb(null, isAllowedCorsOrigin(origin)); },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -213,7 +216,14 @@ app.post('/api/login', async (req, res) => {
     const payload = { id: user.id, nome: user.nome, email: user.email, perfil: user.perfil, must_change_password: Number(user.must_change_password) === 1 };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     res.json({ token, utilizador: payload, must_change_password: payload.must_change_password });
-  } catch (err) { console.error(err); res.status(500).json({ erro: 'Erro interno.' }); }
+  } catch (err) {
+    console.error(err);
+    const msg = String((err && err.message) || '');
+    if (/connect|timeout|ECONNREFUSED|ENOTFOUND|neon|ssl|terminat/i.test(msg)) {
+      return res.status(503).json({ erro: 'Servidor a iniciar. Aguarde uns segundos e tente outra vez.' });
+    }
+    res.status(500).json({ erro: 'Erro interno.' });
+  }
 });
 
 app.post('/api/password/recuperar', async (req, res) => {

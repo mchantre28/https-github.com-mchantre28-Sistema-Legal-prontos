@@ -766,36 +766,50 @@
 
             const data = await res.json();
             clientesPortal = aplicarCacheTelefones(data.clientes || []);
-            clientesPortal = await rehidratarTelefonesNoServidor(clientesPortal);
-            clientesPortal = aplicarCacheTelefones(clientesPortal);
+            pintarListaClientesPortal();
 
-            if (datalist) {
-                datalist.innerHTML = '';
-                clientesPortal.forEach(function (c) {
-                    const opt = document.createElement('option');
-                    opt.value = c.email || '';
-                    opt.label = (c.nome || c.email) + (c.email ? ' (' + c.email + ')' : '');
-                    datalist.appendChild(opt);
-                });
-            }
-
-            if (tbody) {
-                tbody.innerHTML = '';
-                clientesPortal.forEach(function (c) {
-                    tbody.appendChild(criarLinhaClientePortal(c));
-                });
-            }
-
-            if (loading) loading.classList.add('hidden');
-            if (clientesPortal.length) {
-                if (wrap) wrap.classList.remove('hidden');
-            } else if (vazio) {
-                vazio.classList.remove('hidden');
-            }
+            rehidratarTelefonesNoServidor(clientesPortal).then(function (lista) {
+                clientesPortal = aplicarCacheTelefones(lista);
+                pintarListaClientesPortal();
+            }).catch(function () { /* ignore */ });
         } catch (e) {
             if (loading) loading.classList.add('hidden');
             mostrarMsg(erroEl, e.message || 'Erro ao carregar clientes.', 'erro');
             console.warn('Não foi possível carregar lista de clientes:', e);
+        }
+    }
+
+    function pintarListaClientesPortal() {
+        const datalist = $('listaClientesApi');
+        const loading = $('clientesPortalLoading');
+        const wrap = $('clientesPortalWrap');
+        const vazio = $('clientesPortalVazio');
+        const tbody = $('clientesPortalBody');
+
+        if (datalist) {
+            datalist.innerHTML = '';
+            clientesPortal.forEach(function (c) {
+                const opt = document.createElement('option');
+                opt.value = c.email || '';
+                opt.label = (c.nome || c.email) + (c.email ? ' (' + c.email + ')' : '');
+                datalist.appendChild(opt);
+            });
+        }
+
+        if (tbody) {
+            tbody.innerHTML = '';
+            clientesPortal.forEach(function (c) {
+                tbody.appendChild(criarLinhaClientePortal(c));
+            });
+        }
+
+        if (loading) loading.classList.add('hidden');
+        if (clientesPortal.length) {
+            if (wrap) wrap.classList.remove('hidden');
+            if (vazio) vazio.classList.add('hidden');
+        } else if (vazio) {
+            if (wrap) wrap.classList.add('hidden');
+            vazio.classList.remove('hidden');
         }
     }
 
@@ -1345,9 +1359,8 @@
         }
 
         bindEventos();
-        await verificarPersistenciaDados();
-        await carregarClientes();
-        await carregarProcessos();
+        verificarPersistenciaDados();
+        await Promise.all([carregarClientes(), carregarProcessos()]);
     }
 
     async function verificarPersistenciaDados() {

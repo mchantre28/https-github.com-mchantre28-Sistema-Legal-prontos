@@ -5,7 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Sistema Legal',
   webDir: 'www',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    iosScheme: 'https',
+    hostname: 'localhost'
   }
 };
 

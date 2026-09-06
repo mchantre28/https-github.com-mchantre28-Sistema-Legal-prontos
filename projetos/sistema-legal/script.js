@@ -2724,7 +2724,9 @@ async function carregarImediatoNuvem() {
     marcarSyncNuvemOk();
 
     const restantes = ['honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
-    await Promise.all(restantes.map(carregarUma));
+    Promise.all(restantes.map(carregarUma)).then(function () {
+        marcarSyncNuvemOk();
+    });
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -3425,11 +3427,24 @@ async function verificarLogin() {
         console.warn('verificarLogin:', e);
         if (restaurarSessaoConvidadoSessionStorage()) return true;
     }
-    mostrarTelaLogin();
     return false;
 }
 
-function mostrarTelaLogin() {
+function estaNaPaginaLogin() {
+    return !!document.querySelector('.login-page');
+}
+
+function loginFormTemDados() {
+    const ids = ['emailAdmin', 'senhaAdmin', 'emailCliente', 'senhaCliente', 'emailClientePortal', 'senhaClientePortal', 'codigoAcesso', 'nomeConvidado'];
+    for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (el && String(el.value || '').trim()) return true;
+    }
+    return false;
+}
+
+function mostrarTelaLogin(forcar) {
+    if (!forcar && estaNaPaginaLogin()) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3474,6 +3489,7 @@ function mostrarTelaLogin() {
 }
 
 function mostrarLoginAdmin() {
+    if (document.getElementById('formLoginAdmin')) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3489,7 +3505,7 @@ function mostrarLoginAdmin() {
                 <form id="formLoginAdmin" class="space-y-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                        <input type="email" id="emailAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: solicitadora@sistema-legal.pt" required autocomplete="username">
+                        <input type="email" id="emailAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: solicitadora@sistema-legal.pt" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
                     </div>
                     
                     <div>
@@ -3500,7 +3516,7 @@ function mostrarLoginAdmin() {
                     <p id="erroLoginAdmin" class="text-sm text-red-600 hidden" role="alert"></p>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" id="btnEntrarAdmin" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
@@ -3529,6 +3545,7 @@ function mostrarLoginAdmin() {
 }
 
 function mostrarLoginCliente() {
+    if (document.getElementById('formLoginCliente')) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3555,7 +3572,7 @@ function mostrarLoginCliente() {
                     <p id="erroLoginCliente" class="text-sm text-red-600 hidden" role="alert"></p>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" id="btnEntrarCliente" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
@@ -3706,7 +3723,7 @@ function mostrarLoginConvidado() {
                     </div>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" class="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">
@@ -4724,12 +4741,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     let logado = false;
     try {
+        const temJwt = (function () {
+            try {
+                return !!(localStorage.getItem('sl_api_token') && localStorage.getItem('sl_api_user'));
+            } catch (e) { return false; }
+        }());
+        if (!temJwt) mostrarTelaLogin();
+
         // Aguardar limpeza do cache Firestore (após zero absoluto), com tempo limite
         if (window.__promiseCacheFirestoreLimpo) {
             await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
         }
-        logado = await executarComTimeout(verificarLogin(), 10000, null);
-        if (logado === null) {
+        logado = await executarComTimeout(verificarLogin(), 10000, false);
+        if (logado !== true) {
             if (restaurarSessaoRapidaPosTimeout()) {
                 logado = true;
             } else {
@@ -4737,6 +4761,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return;
             }
         }
+        if (estaNaPaginaLogin() && loginFormTemDados()) return;
         if (!logado) return;
         if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
             && SistemaLegalAuth.redirectClienteFromFullSystem()) {
@@ -4793,6 +4818,7 @@ function limparEstilosLayoutInline() {
 
 /** Mantém layout responsivo: CSS gere dimensões; evita inline !important no mobile. */
 function forcarLarguraSidebar() {
+    if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
     limparEstilosLayoutInline();
     if (typeof initAppMobile === 'function') {
         initAppMobile();
@@ -5086,14 +5112,11 @@ function init() {
     abrirInterfaceComDados();
 
     if (isCloudReady()) {
+        iniciarListenersFirestore();
         carregarImediatoNuvem().then(function () {
-            iniciarListenersFirestore();
-            if (typeof secaoAtiva === 'string') carregarSecao(secaoAtiva);
-            if (typeof atualizarInterface === 'function') atualizarInterface();
             marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
-            iniciarListenersFirestore();
             marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
@@ -7678,6 +7701,7 @@ function adaptarTabelasMobile(root) {
 }
 
 function initAppMobile() {
+    if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
     const isCap = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
     const isNarrow = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
     /* Desktop com ecrã touch mantém sidebar fixa — só mobile por largura ou Capacitor */
@@ -7723,8 +7747,10 @@ if (!window.__layoutMobileListeners) {
     window.__layoutMobileListeners = true;
     var _layoutResizeTimer;
     function onLayoutViewportChange() {
+        if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
         clearTimeout(_layoutResizeTimer);
         _layoutResizeTimer = setTimeout(function () {
+            if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
             if (typeof initAppMobile === 'function') initAppMobile();
         }, 120);
     }

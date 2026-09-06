@@ -38,6 +38,7 @@
     }
 
     function isLocalPageHost() {
+        if (isCapacitorNative()) return false;
         return isLanPageHost();
     }
 
@@ -108,10 +109,14 @@
     }
 
     function getLoginConnectionHintHtml() {
-        const pageOrigin = typeof location !== 'undefined' ? location.origin : '';
-        const apiUrl = API_BASE_URL;
         let html = '<div class="mt-6 text-center text-sm text-gray-600">';
         html += '<p><strong>Acesso Restrito</strong></p>';
+        if (isCapacitorNative()) {
+            html += '</div>';
+            return html;
+        }
+        const pageOrigin = typeof location !== 'undefined' ? location.origin : '';
+        const apiUrl = API_BASE_URL;
         if (isLocalPageHost()) {
             html += '<p>Modo local: execute <strong>START-SISTEMA.bat</strong> (backend :3001 + frontend :8000)</p>';
         }
@@ -260,15 +265,30 @@
             throw new Error('Perfil de acesso é obrigatório.');
         }
 
+        const loginUrl = API_BASE_URL + '/api/login';
+        const loginOpts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ email: emailNorm, password: passwordVal, perfil: perfilVal })
+        };
+
         let response;
-        try {
-            response = await fetch(API_BASE_URL + '/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: emailNorm, password: passwordVal, perfil: perfilVal })
-            });
-        } catch (e) {
-            throw new Error(describeFetchFailure(API_BASE_URL + '/api/login', e));
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                response = await fetch(loginUrl, loginOpts);
+                const retryable = response.status === 500 || response.status === 502
+                    || response.status === 503 || response.status === 504;
+                if (!retryable || attempt === 2) break;
+            } catch (e) {
+                if (attempt === 2) {
+                    throw new Error(describeFetchFailure(loginUrl, e));
+                }
+            }
+            await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+        }
+
+        if (!response) {
+            throw new Error(describeFetchFailure(loginUrl));
         }
 
         let data = {};
