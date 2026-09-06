@@ -1,0 +1,65 @@
+# Codemagic — build iOS (Sistema Legal / Capacitor)
+# Docs: https://docs.codemagic.io/yaml-quick-start/building-an-ionic-app/
+#
+# Antes do 1.º build:
+# 1. Conta Apple Developer (https://developer.apple.com/programs/)
+# 2. Criar app em App Store Connect (bundle id: com.sistemalegal.app)
+# 3. Em Codemagic: ligar o repositório GitHub + integração App Store Connect (chave .p8)
+# 4. Substituir APP_STORE_APP_ID pelo número da app (App Store Connect → Informações da app)
+# 5. Em integrations.app_store_connect, usar o nome exacto da chave criada na Codemagic
+
+workflows:
+  sistema-legal-ios:
+    name: Sistema Legal iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      # Nome da chave API na Codemagic (Team integrations → Developer Portal)
+      app_store_connect: Apple_Sistema_Legal
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sistemalegal.app
+      vars:
+        XCODE_PROJECT: App.xcodeproj
+        XCODE_SCHEME: App
+        APP_STORE_APP_ID: "6809179400"
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install npm dependencies
+        working_directory: projetos/sistema-legal
+        script: |
+          npm ci
+      - name: Build web assets for Capacitor
+        working_directory: projetos/sistema-legal
+        script: |
+          npm run build:cap
+          npx cap sync ios
+      - name: Set up code signing
+        working_directory: projetos/sistema-legal/ios/App
+        script: |
+          xcode-project use-profiles
+      - name: Build IPA
+        working_directory: projetos/sistema-legal/ios/App
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - projetos/sistema-legal/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      email:
+        recipients:
+          - malikchantre28@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        # TestFlight (recomendado primeiro). App Store pública: false até estar pronta.
+        submit_to_testflight: true
+        submit_to_app_store: false
