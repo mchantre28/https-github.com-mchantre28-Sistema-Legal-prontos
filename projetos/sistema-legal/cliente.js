@@ -428,12 +428,80 @@
     }
 
     function aplicarLogoBranding() {
-        const logoEl = $('headerLogo');
-        if (!logoEl) return;
         const uri = (typeof window !== 'undefined' && window.LOGO_DATA_URI) ? window.LOGO_DATA_URI : '';
-        if (uri) {
+        const logoEl = $('headerLogo');
+        if (logoEl && uri) {
             logoEl.src = uri;
             logoEl.classList.remove('hidden');
+        }
+        const loginLogo = $('loginLogo');
+        const loginFallback = $('loginLogoFallback');
+        if (loginLogo && uri) {
+            loginLogo.src = uri;
+            loginLogo.classList.remove('hidden');
+            if (loginFallback) loginFallback.classList.add('hidden');
+        }
+    }
+
+    function mostrarLoginCliente() {
+        const loading = $('loading');
+        const dash = $('dashboard');
+        const login = $('loginCliente');
+        if (loading) loading.classList.add('hidden');
+        if (dash) dash.classList.add('hidden');
+        if (login) login.classList.remove('hidden');
+        aplicarLogoBranding();
+        const email = $('emailClientePortal');
+        if (email) email.focus();
+    }
+
+    function mostrarErroLogin(texto) {
+        const el = $('erroLoginClientePortal');
+        if (!el) return;
+        el.textContent = texto || '';
+        el.classList.toggle('hidden', !texto);
+    }
+
+    async function submeterLoginCliente(ev) {
+        ev.preventDefault();
+        mostrarErroLogin('');
+
+        const email = ($('emailClientePortal') && $('emailClientePortal').value || '').trim();
+        const senha = ($('senhaClientePortal') && $('senhaClientePortal').value) || '';
+        if (!email || !senha) {
+            mostrarErroLogin('Introduza o email e a senha.');
+            return;
+        }
+
+        const api = window.SistemaLegalAPI;
+        if (!api || !api.login) {
+            mostrarErroLogin('Módulo de API não carregado. Recarregue a página.');
+            return;
+        }
+
+        const btn = $('btnEntrarClientePortal');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'A entrar...';
+        }
+
+        try {
+            const data = await api.login(email, senha, 'cliente');
+            const user = data && data.utilizador;
+            if (!user || user.perfil !== 'cliente') {
+                if (api.logout) api.logout();
+                mostrarErroLogin('Esta conta não tem acesso à área do cliente.');
+                return;
+            }
+            // Recarregar para validar sessão e entrar no painel
+            window.location.replace('cliente.html');
+        } catch (e) {
+            mostrarErroLogin((e && e.message) || 'Credenciais inválidas.');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Entrar na área do cliente';
+            }
         }
     }
 
@@ -444,23 +512,33 @@
     }
 
     function bindEventos() {
-        $('btnLogout').addEventListener('click', SistemaLegalAuth.logout);
+        $('btnLogout').addEventListener('click', function () {
+            SistemaLegalAuth.logout('cliente.html');
+        });
         $('btnDarkMode').addEventListener('click', function () {
             toggleTema();
             initIcones();
         });
         const formTrocar = $('formTrocarPassword');
         if (formTrocar) formTrocar.addEventListener('submit', submeterTrocarPassword);
+        const formLogin = $('formLoginClientePortal');
+        if (formLogin) formLogin.addEventListener('submit', submeterLoginCliente);
     }
 
     async function init() {
         initTema();
         aplicarLogoBranding();
+        bindEventos();
 
         const user = await SistemaLegalAuth.requireAuth('cliente');
-        if (!user) return;
+        if (!user) {
+            mostrarLoginCliente();
+            return;
+        }
 
         $('loading').classList.add('hidden');
+        const login = $('loginCliente');
+        if (login) login.classList.add('hidden');
         $('dashboard').classList.remove('hidden');
 
         const nomeEl = $('clienteNome');
@@ -468,7 +546,6 @@
             nomeEl.textContent = user.nome || user.email || 'Cliente';
         }
 
-        bindEventos();
         initIcones();
 
         if (user.must_change_password || SistemaLegalAuth.userMustChangePassword()) {
