@@ -766,9 +766,8 @@ function marcarSyncNuvemOk() {
         window.__syncIndicadorTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
-        // Não bloquear a UI: dados locais já estão disponíveis; a nuvem continua em fundo.
         if ((window.__cloudSyncPending || 0) === 0) {
-            atualizarIndicadorSync('ok');
+            atualizarIndicadorSync('syncing', 'A sincronizar...');
         }
         return;
     }
@@ -816,9 +815,13 @@ function iniciarSync() {
         window.__syncMaxTimer = null;
         if ((window.__cloudSyncPending || 0) > 0) {
             window.__cloudSyncPending = 0;
-            atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            if (dadosEssenciaisSincronizados()) {
+                atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            } else {
+                atualizarIndicadorSync(isCloudReady() ? 'syncing' : 'offline', isCloudReady() ? 'A sincronizar...' : undefined);
+            }
         }
-    }, SYNC_INDICADOR_MAX_MS);
+    }, isMobileApp() ? 15000 : SYNC_INDICADOR_MAX_MS);
 }
 
 function finalizarSync(erro) {
@@ -846,7 +849,7 @@ function finalizarSync(erro) {
             } catch (error) {
                 console.warn('Erro ao guardar último erro de sync:', error);
             }
-        } else {
+        } else if (dadosEssenciaisSincronizados()) {
             atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             if (isCloudReady()) {
                 try {
@@ -855,6 +858,8 @@ function finalizarSync(erro) {
                     console.warn('Erro ao guardar último sync:', error);
                 }
             }
+        } else {
+            atualizarIndicadorSync(isCloudReady() ? 'syncing' : 'offline', isCloudReady() ? 'A sincronizar...' : undefined);
         }
     }
 }
@@ -5085,7 +5090,7 @@ function init() {
     filtrarDemoDoStorageLocal();
     carregarDados();
     if (isCloudReady()) {
-        atualizarIndicadorSync('ok');
+        atualizarIndicadorSync(dadosEssenciaisSincronizados() ? 'ok' : 'syncing', dadosEssenciaisSincronizados() ? undefined : 'A sincronizar...');
     } else {
         atualizarIndicadorSync('offline');
     }
@@ -5105,7 +5110,6 @@ function init() {
             carregarSecao('dashboard');
         }
         if (typeof atualizarInterface === 'function') atualizarInterface();
-        marcarSyncNuvemOk();
     };
 
     // Abrir já — sem atraso da nuvem
