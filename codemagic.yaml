@@ -37,6 +37,14 @@ workflows:
         script: |
           npm run build:cap
           npx cap sync ios
+      - name: Increment iOS build number
+        working_directory: projetos/sistema-legal/ios/App
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo "0")
+          if ! [[ "$LATEST" =~ ^[0-9]+$ ]]; then LATEST=0; fi
+          NEXT=$((LATEST + 1))
+          agvtool new-version -all "$NEXT"
+          echo "CFBundleVersion=$NEXT (ultimo TestFlight: $LATEST)"
       - name: Set up code signing
         working_directory: projetos/sistema-legal/ios/App
         script: |
