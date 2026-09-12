@@ -356,6 +356,22 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
+const ENTIDADES_ARRANQUE = [
+    'clientes',
+    'honorarios',
+    'contratos',
+    'prazos',
+    'tarefas',
+    'pagamentos',
+    'despesas',
+    'faturas',
+    'notificacoes',
+    'herancas',
+    'migracoes',
+    'registos',
+    'documentos',
+    'convidados'
+];
 /** Entidades portuguesas — instituições típicas em processos de solicitadoria
  *  (registos, heranças, migração, fiscalidade, imóveis, laboral e justiça). */
 const ENTIDADES_PORTUGAL = [
@@ -491,7 +507,12 @@ const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
 
 function dadosEssenciaisSincronizados() {
-    return window.__snapshotsRecebidos.has('clientes');
+    const lista = (typeof ENTIDADES_ARRANQUE !== 'undefined' && ENTIDADES_ARRANQUE.length)
+        ? ENTIDADES_ARRANQUE
+        : ['clientes'];
+    return lista.every(function (entidade) {
+        return window.__snapshotsRecebidos.has(entidade);
+    });
 }
 
 function isMobileApp() {
@@ -2740,9 +2761,29 @@ function aplicarListaDaNuvem(entidade, lista) {
     window.__snapshotsRecebidos.add(entidade);
 }
 
+function mostrarEcranCargaCompleta(feitas, total) {
+    const el = document.getElementById('conteudoDinamico');
+    if (!el) return;
+    const n = Math.max(0, feitas || 0);
+    const t = Math.max(1, total || 1);
+    const pct = Math.min(100, Math.round((n / t) * 100));
+    el.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-16 text-gray-600">
+            <p class="text-lg font-semibold text-gray-800">A carregar o escritório completo</p>
+            <p class="text-sm mt-2">${n} de ${t} conjuntos de dados</p>
+            <div class="mt-4 w-full max-w-sm h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-600" style="width:${pct}%"></div>
+            </div>
+        </div>`;
+}
+
 async function carregarImediatoNuvem() {
     if (!isCloudReady()) return;
     if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
+
+    const entidades = ENTIDADES_ARRANQUE.slice();
+    let feitas = 0;
+    mostrarEcranCargaCompleta(0, entidades.length);
 
     async function carregarUma(entidade) {
         try {
@@ -2750,22 +2791,19 @@ async function carregarImediatoNuvem() {
             const pedido = nativo
                 ? firestoreDb.collection(entidade).get({ source: 'server' })
                 : firestoreDb.collection(entidade).get();
-            const snap = await executarComTimeout(pedido, 6000, null);
+            const snap = await executarComTimeout(pedido, 10000, null);
             if (!snap) return;
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
         } catch (e) {
             console.warn('Carga imediata da nuvem:', entidade, e && e.message);
+        } finally {
+            feitas += 1;
+            mostrarEcranCargaCompleta(feitas, entidades.length);
         }
     }
 
-    // Clientes primeiro — desbloqueia a UI o mais depressa possível
-    await carregarUma('clientes');
+    await Promise.all(entidades.map(carregarUma));
     marcarSyncNuvemOk();
-
-    const restantes = ['honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
-    Promise.all(restantes.map(carregarUma)).then(function () {
-        marcarSyncNuvemOk();
-    });
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -5172,7 +5210,6 @@ function init() {
     carregarDados();
     if (isCloudReady()) {
         atualizarIndicadorSync(dadosEssenciaisSincronizados() ? 'ok' : 'syncing', dadosEssenciaisSincronizados() ? undefined : 'A sincronizar...');
-        if (!dadosEssenciaisSincronizados()) agendarLimiteEsperaNuvem();
     } else {
         atualizarIndicadorSync('offline');
     }
@@ -5186,6 +5223,8 @@ function init() {
     const tipoUsuario = window.__tipoUsuario || '';
 
     const abrirInterfaceComDados = function () {
+        if (window.__slInterfaceAberta) return;
+        window.__slInterfaceAberta = true;
         if (tipoUsuario === 'convidado') {
             carregarSecao('clientes');
         } else {
@@ -5194,20 +5233,17 @@ function init() {
         if (typeof atualizarInterface === 'function') atualizarInterface();
     };
 
-    // Abrir já — sem atraso da nuvem
-    abrirInterfaceComDados();
-    setTimeout(function () {
-        if (document.getElementById('avisoCarregamento')) abrirInterfaceComDados();
-    }, 400);
-
     if (isCloudReady()) {
-        iniciarListenersFirestore(true);
-        carregarImediatoNuvem().then(function () {
-            iniciarListenersFirestore(false);
+        mostrarEcranCargaCompleta(0, ENTIDADES_ARRANQUE.length);
+        iniciarListenersFirestore(false);
+        const carga = carregarImediatoNuvem();
+        const limite = new Promise(function (resolve) { setTimeout(resolve, 15000); });
+        Promise.race([carga, limite]).then(function () {
+            abrirInterfaceComDados();
             marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
-            iniciarListenersFirestore(false);
+            abrirInterfaceComDados();
             marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
@@ -5218,6 +5254,8 @@ function init() {
             console.warn('Migração inicial:', err);
             garantirSincronizacaoAutomatica();
         });
+    } else {
+        abrirInterfaceComDados();
     }
 
     if (!window.__syncAutomaticoTimer) {
@@ -5226,12 +5264,6 @@ function init() {
             garantirSincronizacaoAutomatica();
         }, 30000);
     }
-
-    setTimeout(() => {
-        if (document.getElementById('avisoCarregamento')) {
-            abrirInterfaceComDados();
-        }
-    }, 2000);
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
