@@ -79,6 +79,23 @@
         max-width: 100% !important;
         width: 100% !important;
       }
+      body:not(.sl-autenticado) .sidebar,
+      body:not(.sl-autenticado) .main-content,
+      body:not(.sl-autenticado) #menuHamburguer,
+      body:not(.sl-autenticado) #btnVoltarTopo,
+      body:not(.sl-autenticado) .skip-link {
+        display: none !important;
+      }
+      #ecraAcesso {
+        display: none;
+        min-height: 100dvh;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+      }
+      body:not(.sl-autenticado) #ecraAcesso {
+        display: flex;
+      }
       .sidebar {
         position: fixed !important;
         top: 0 !important;
@@ -167,10 +184,34 @@
 </head>
 <body class="bg-gray-100 layout-desktop">
     <script>
-      (function(){ function rm(){ var el=document.getElementById('sidebar-logo'); if(el&&el.parentNode){ el.parentNode.removeChild(el); } }
-      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',rm); } else { rm(); } setTimeout(rm,100);
+      (function(){
+        function temSessao(){
+          try {
+            if (localStorage.getItem('sl_api_token') && localStorage.getItem('sl_api_user')) return true;
+            if (sessionStorage.getItem('usuarioLogado')) return true;
+          } catch (e) {}
+          return false;
+        }
+        if (temSessao()) document.body.classList.add('sl-autenticado');
+        function rm(){ var el=document.getElementById('sidebar-logo'); if(el&&el.parentNode){ el.parentNode.removeChild(el); } }
+        if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',rm); } else { rm(); } setTimeout(rm,100);
       })();
     </script>
+    <div id="ecraAcesso" class="login-page">
+        <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
+                <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
+                <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
+            </div>
+            <div class="space-y-4">
+                <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin();">Administrador</button>
+                <button type="button" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginCliente==='function')mostrarLoginCliente();">Cliente</button>
+                <button type="button" class="w-full bg-green-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginConvidado==='function')mostrarLoginConvidado();">Convidado (código)</button>
+            </div>
+            <p id="ecraAcessoEstado" class="mt-6 text-center text-sm text-gray-500">A preparar o acesso…</p>
+        </div>
+    </div>
     <!-- Link de saltar para leitores de ecrã (acessibilidade) -->
     <a href="#conteudoDinamico" class="skip-link">Saltar para conteúdo principal</a>
     <!-- Sistema de Notificações: abaixo do header para não sobrepor o indicador laranja "A sincronizar..." -->
@@ -344,16 +385,34 @@
     <script defer src="./api.js?v=14"></script>
     <script defer src="./app.js?v=1"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=131" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=132" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
-        // Se após 2s o conteúdo não carregou (script carregou mas falhou), mostrar aviso
-        setTimeout(function(){
-            var el = document.getElementById('conteudoDinamico');
-            var preenchido = el && (el.innerText || el.textContent || '').trim().length > 80;
-            if (el && !preenchido && typeof carregarSecao !== 'function') {
-                el.innerHTML = '<div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 max-w-2xl"><p class="font-semibold mb-2">O conteúdo não carregou.</p><p class="text-sm mb-2">O script.js carregou mas há um erro. Abra F12 → Console para ver a mensagem de erro.</p><p class="text-xs">Possíveis causas: erro de JavaScript no script, Firebase não configurado, ou ficheiro incompleto.</p></div>';
+        (function () {
+            function marcarPronto() {
+                var estado = document.getElementById('ecraAcessoEstado');
+                if (estado && typeof mostrarLoginAdmin === 'function') {
+                    estado.textContent = 'Escolha o tipo de acesso.';
+                }
             }
-        }, 2000);
+            function desbloquear() {
+                marcarPronto();
+                if (!document.getElementById('avisoCarregamento')) return;
+                if (typeof carregarSecao === 'function' && document.body.classList.contains('sl-autenticado')) {
+                    try { carregarSecao('dashboard'); } catch (e) {}
+                }
+                if (document.getElementById('avisoCarregamento') && typeof mostrarTelaLogin === 'function') {
+                    mostrarTelaLogin(true);
+                }
+            }
+            var tentativas = 0;
+            setTimeout(marcarPronto, 1200);
+            setTimeout(function tentar() {
+                desbloquear();
+                if (document.getElementById('avisoCarregamento') && tentativas++ < 8) {
+                    setTimeout(tentar, 2000);
+                }
+            }, 3000);
+        })();
     </script>
 </body>
 </html>
