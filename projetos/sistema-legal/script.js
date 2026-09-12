@@ -363,7 +363,7 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
-const ENTIDADES_ESSENCIAIS = ['clientes', 'honorarios', 'contratos', 'prazos'];
+const ENTIDADES_ESSENCIAIS = ['clientes', 'honorarios', 'contratos', 'prazos', 'documentos'];
 const ENTIDADES_ARRANQUE = ENTIDADES_ESSENCIAIS.concat([
     'tarefas',
     'pagamentos',
@@ -373,7 +373,6 @@ const ENTIDADES_ARRANQUE = ENTIDADES_ESSENCIAIS.concat([
     'herancas',
     'migracoes',
     'registos',
-    'documentos',
     'convidados'
 ]);
 /** Entidades portuguesas — instituições típicas em processos de solicitadoria
@@ -504,8 +503,8 @@ window.startAllListeners = startAllListeners;
 let __listenerRefreshTimer = null;
 const __entidadesPendentesRefresh = new Set();
 window.__snapshotsRecebidos = window.__snapshotsRecebidos || new Set();
-const LISTENER_REFRESH_DEBOUNCE_MS = 40;
-const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 60;
+const LISTENER_REFRESH_DEBOUNCE_MS = 120;
+const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 280;
 const SYNC_INDICADOR_ATRASO_MS = 350;
 const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
@@ -612,7 +611,9 @@ function cancelarRefreshListener() {
 /** Inicia os listeners Firestore em tempo real (para retomar após pause em import/backup) */
 function iniciarListenersFirestore(apenasEssenciais) {
     if (!isCloudReady()) return;
-    // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
+    if (typeof listenerManager !== 'undefined' && Array.isArray(listenerManager.activeListeners) && listenerManager.activeListeners.length > 0) {
+        return;
+    }
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
     window.__ouvirClientesUnsubscribe = ouvirClientes((lista) => {
         atualizarClientesEmMemoria(lista);
@@ -788,12 +789,15 @@ function agendarLimiteEsperaNuvem() {
     if (window.__syncLimiteTimer) return;
     window.__syncLimiteTimer = setTimeout(function () {
         window.__syncLimiteTimer = null;
+        if (window.__slCargaConcluida) {
+            marcarSyncNuvemOk();
+            return;
+        }
         ENTIDADES_ESSENCIAIS.forEach(function (e) { window.__snapshotsRecebidos.add(e); });
         window.__slCargaParcial = true;
         if (typeof window.__slConcluirCargaInicial === 'function') {
             window.__slConcluirCargaInicial();
         }
-        if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
         marcarSyncNuvemOk();
     }, 12000);
 }
@@ -803,6 +807,10 @@ function marcarSyncNuvemOk() {
     if (window.__syncIndicadorTimer) {
         clearTimeout(window.__syncIndicadorTimer);
         window.__syncIndicadorTimer = null;
+    }
+    if (window.__slInterfaceAberta && window.__syncLimiteTimer) {
+        clearTimeout(window.__syncLimiteTimer);
+        window.__syncLimiteTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
         if (window.__slInterfaceAberta) {
@@ -2742,20 +2750,39 @@ function lerListaDeSnapshotNuvem(entidade, snap) {
 }
 
 function aplicarListaDaNuvem(entidade, lista) {
-    const merged = Array.isArray(lista) ? lista : [];
+    const nuvem = Array.isArray(lista) ? lista : [];
+    if (entidade === 'documentos') {
+        const finais = typeof mesclarDocumentosLocalENuvem === 'function'
+            ? mesclarDocumentosLocalENuvem(nuvem)
+            : nuvem;
+        documentos = finais;
+        window.documentos = documentos;
+        salvarDados('documentos', finais, { skipCloudSync: true });
+        if (typeof registarSnapshotEntidade === 'function') registarSnapshotEntidade('documentos', finais);
+        window.__snapshotsRecebidos.add(entidade);
+        return;
+    }
+    if (nuvem.length === 0) {
+        const local = typeof obterListaGlobal === 'function' ? obterListaGlobal(entidade) : [];
+        if (Array.isArray(local) && local.length > 0) {
+            window.__slCargaParcial = true;
+            window.__snapshotsRecebidos.add(entidade);
+            return;
+        }
+    }
     if (entidade === 'clientes') {
-        atualizarClientesEmMemoria(merged);
+        atualizarClientesEmMemoria(nuvem);
     } else if (entidade === 'pagamentos') {
-        pagamentos = merged;
+        pagamentos = nuvem;
         window.pagamentos = pagamentos;
     } else if (entidade === 'despesas') {
-        despesas = merged;
+        despesas = nuvem;
         window.despesas = despesas;
     } else if (entidade === 'faturas') {
-        window.faturas = merged;
+        window.faturas = nuvem;
     } else {
-        salvarDados(entidade, merged, { skipCloudSync: true });
-        if (typeof registarSnapshotEntidade === 'function') registarSnapshotEntidade(entidade, merged);
+        salvarDados(entidade, nuvem, { skipCloudSync: true });
+        if (typeof registarSnapshotEntidade === 'function') registarSnapshotEntidade(entidade, nuvem);
     }
     window.__snapshotsRecebidos.add(entidade);
 }
@@ -3433,7 +3460,15 @@ async function efetuarLoginApi(email, senha, perfilEsperado, erroElId) {
         const tipoUsuario = api.mapPerfilToTipoUsuario(perfil);
         const usuarioNome = data.utilizador.nome || data.utilizador.email || 'Utilizador';
         await aplicarSessaoLogin(tipoUsuario, usuarioNome, null, data.utilizador);
-        location.href = perfil === 'admin' ? 'admin.html' : (perfil === 'cliente' ? 'cliente.html' : 'index.html');
+        if (perfil === 'cliente') {
+            location.href = 'cliente.html';
+            return true;
+        }
+        if (deveFicarNoEscritorio(perfil)) {
+            entrarNoEscritorioSemRecarregar();
+            return true;
+        }
+        location.href = perfil === 'admin' ? 'admin.html' : 'index.html';
         return true;
     } catch (err) {
         mostrarErroLogin(err && err.message ? err.message : 'Erro ao iniciar sessão.', erroElId);
@@ -5210,7 +5245,25 @@ function duplicarCliente(id) {
 }
 
 // Inicialização
+function deveFicarNoEscritorio(perfil) {
+    if (perfil === 'cliente') return false;
+    try {
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) return true;
+    } catch (e) {}
+    const path = String((typeof location !== 'undefined' && location.pathname) || '');
+    return /index\.html$/i.test(path) || /Sistema-Legal-prontos\/?$/i.test(path);
+}
+
+function entrarNoEscritorioSemRecarregar() {
+    document.body.classList.add('sl-autenticado');
+    if (typeof configurarInterfaceUsuario === 'function') configurarInterfaceUsuario();
+    if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
+    if (typeof init === 'function') init();
+}
+
 function init() {
+    if (window.__slInitFeito) return;
+    window.__slInitFeito = true;
     // getBackupLogs lê de Firestore quando há cache (preenchido ao abrir secção Backup)
     if (typeof window.getBackupLogs === 'function') {
         const _origGet = window.getBackupLogs;

@@ -70,6 +70,7 @@ jobs:
           sha = os.environ.get("GITHUB_SHA", "dev")[:7]
           texto = p.read_text(encoding="utf-8")
           texto = re.sub(r'(script\.js\?v=)[^"\']+', r'\g<1>' + sha, texto)
+          texto = re.sub(r'(app\.js\?v=)[^"\']+', r'\g<1>' + sha, texto)
           p.write_text(texto, encoding="utf-8")
           PY
 

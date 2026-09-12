@@ -61,6 +61,15 @@
                 await aplicarSessaoLogin(tipoUsuario, usuarioNome, null, user);
             }
 
+            if (userPerfil === 'cliente') {
+                global.location.href = 'cliente.html';
+                return true;
+            }
+            if (typeof deveFicarNoEscritorio === 'function' && deveFicarNoEscritorio(userPerfil)
+                && typeof entrarNoEscritorioSemRecarregar === 'function') {
+                entrarNoEscritorioSemRecarregar();
+                return true;
+            }
             global.location.href = getRedirectForPerfil(userPerfil);
             return true;
         } catch (err) {
