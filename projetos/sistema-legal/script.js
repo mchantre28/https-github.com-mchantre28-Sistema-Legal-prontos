@@ -62,6 +62,53 @@ if (typeof window !== 'undefined') window.inicializarPWA = inicializarPWA;
 // appStorage mantido como fallback para migration flags e outros (usa sessionStorage)
 const appStorage = typeof sessionStorage !== 'undefined' ? sessionStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, get length() { return 0; }, key: () => null };
 
+function storagePersistente() {
+    try { return window.localStorage; } catch (e) { return appStorage; }
+}
+
+function lerListaDoStorage(chave) {
+    try {
+        const persist = storagePersistente();
+        const raw = (persist && persist.getItem(chave)) || appStorage.getItem(chave);
+        if (!raw) return [];
+        const lista = JSON.parse(raw);
+        return Array.isArray(lista) ? lista : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function gravarListaNoStorage(chave, lista) {
+    const dados = Array.isArray(lista) ? lista : [];
+    let texto;
+    try {
+        texto = JSON.stringify(dados);
+    } catch (e) {
+        return;
+    }
+    try {
+        storagePersistente().setItem(chave, texto);
+    } catch (e) {
+        if (chave === 'documentos') {
+            try {
+                const leves = dados.map(function (d) {
+                    const copia = Object.assign({}, d);
+                    if (typeof copia.conteudo === 'string' && copia.conteudo.length > 20000 && copia.id) {
+                        if (typeof idbGuardarFicheiroDoc === 'function') {
+                            idbGuardarFicheiroDoc(copia.id, copia.conteudo);
+                        }
+                        copia.conteudo = '';
+                        copia.armazenamento = copia.armazenamento || 'idb';
+                    }
+                    return copia;
+                });
+                storagePersistente().setItem(chave, JSON.stringify(leves));
+            } catch (e2) {}
+        }
+    }
+    try { appStorage.setItem(chave, texto); } catch (e) {}
+}
+
 // IDs imutáveis (crypto.randomUUID) - evita mistura de registos entre dispositivos/sessões
 function gerarIdImutavel() {
     return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -3066,7 +3113,7 @@ const CHAVE_MIGRACAO_DOCUMENTOS = 'documentosMigrados';
 async function migrarDocumentosLocalParaFirestore() {
     if (!isCloudReady()) return;
     if (appStorage.getItem(CHAVE_MIGRACAO_DOCUMENTOS) === 'true') return;
-    const raw = appStorage.getItem('documentos');
+    const raw = (typeof storagePersistente === 'function' && storagePersistente().getItem('documentos')) || appStorage.getItem('documentos');
     let lista = [];
     try { lista = raw ? JSON.parse(raw) : []; } catch (e) { console.warn('JSON inválido em documentos:', e?.message); }
     if (!Array.isArray(lista)) lista = [];
@@ -3080,8 +3127,8 @@ async function migrarDocumentosLocalParaFirestore() {
             if (!d.id) d.id = gerarIdImutavel();
             await criarDocumentoCloud(d);
         }
-        appStorage.removeItem('documentos');
         appStorage.setItem(CHAVE_MIGRACAO_DOCUMENTOS, 'true');
+        try { storagePersistente().setItem(CHAVE_MIGRACAO_DOCUMENTOS, 'true'); } catch (e) {}
         if (typeof mostrarNotificacao === 'function') mostrarNotificacao('Documentos migrados para a nuvem.', 'success');
     } catch (err) { console.warn('Erro na migração de documentos:', err); }
 }
@@ -4922,7 +4969,7 @@ async function arrancarSistemaLegal() {
             document.body.classList.add('sl-autenticado');
             configurarInterfaceUsuario();
             forcarLarguraSidebar();
-            init();
+            try { init(); } catch (e) { console.error('init:', e); }
             verificarLogin().catch(function () {});
             if (typeof sincronizarClientesApi === 'function') {
                 sincronizarClientesApi().catch(function () {});
@@ -4952,20 +4999,23 @@ async function arrancarSistemaLegal() {
         document.body.classList.add('sl-autenticado');
         configurarInterfaceUsuario();
         forcarLarguraSidebar();
-        init();
+        try { init(); } catch (e) { console.error('init:', e); }
     } catch (err) {
         console.error('Erro na inicialização:', err);
+        if (window.__slInterfaceAberta) {
+            if (typeof mostrarNotificacao === 'function') {
+                mostrarNotificacao('O escritório está aberto. A sincronização continua em fundo.', 'warning');
+            }
+            return;
+        }
         const el = document.getElementById('conteudoDinamico');
         if (el) {
             el.innerHTML = `
                 <div class="p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl">
                     <p class="font-semibold mb-2">Não foi possível iniciar o Sistema Legal.</p>
                     <p class="text-sm mb-2">${(err && err.message) ? String(err.message).replace(/</g, '&lt;') : 'Ocorreu um erro inesperado.'}</p>
-                    <p class="text-sm">Tente recarregar a página (Ctrl+F5). Se persistir, abra o Console (F12) para mais detalhes.</p>
+                    <p class="text-sm">Feche a app por completo e volte a abrir.</p>
                 </div>`;
-        }
-        if (typeof mostrarNotificacao === 'function') {
-            mostrarNotificacao('Erro ao iniciar o sistema. Tente recarregar a página (Ctrl+F5).', 'error');
         }
     }
 }
@@ -5299,12 +5349,16 @@ function init() {
     const abrirInterfaceComDados = function () {
         if (window.__slInterfaceAberta) return;
         window.__slInterfaceAberta = true;
-        if (tipoUsuario === 'convidado') {
-            carregarSecao('clientes');
-        } else {
-            carregarSecao('dashboard');
+        try {
+            if (tipoUsuario === 'convidado') {
+                carregarSecao('clientes');
+            } else {
+                carregarSecao('dashboard');
+            }
+            if (typeof atualizarInterface === 'function') atualizarInterface();
+        } catch (e) {
+            console.error('abrirInterfaceComDados:', e);
         }
-        if (typeof atualizarInterface === 'function') atualizarInterface();
     };
 
     const concluirCargaInicial = function () {
@@ -5314,6 +5368,9 @@ function init() {
         iniciarListenersFirestore(false);
         marcarSyncNuvemOk();
         if (typeof atualizarContadoresInterfaceLeve === 'function') atualizarContadoresInterfaceLeve();
+        if (typeof agendarReenvioDocumentosLocaisParaNuvem === 'function') {
+            agendarReenvioDocumentosLocaisParaNuvem();
+        }
         setTimeout(function () {
             executarMigracoesPendentes().then(async function () {
                 appStorage.removeItem('naoRestaurarDaNuvem');
@@ -6796,40 +6853,56 @@ function salvarIntegracaoContabilidade() {
     mostrarNotificacao('Configuração de contabilidade salva com sucesso!', 'success');
 }
 
+function hidratarDocumentosIdb() {
+    if (!Array.isArray(documentos)) return;
+    documentos.forEach(function (d) {
+        if (!d || !d.id) return;
+        if (typeof documentoTemConteudoUtil === 'function' && documentoTemConteudoUtil(d)) return;
+        if (typeof idbLerFicheiroDoc !== 'function') return;
+        idbLerFicheiroDoc(d.id).then(function (c) {
+            if (c) d.conteudo = c;
+        }).catch(function () {});
+    });
+}
+
 function carregarDados() {
     try {
-        // Firestore = fonte principal. Dados vêm apenas da nuvem.
         clientes = Array.isArray(clientes) ? clientes : [];
         window.clientes = clientes;
-        honorarios = Array.isArray(honorarios) ? honorarios : [];
+        const hidratar = function (nome, atual) {
+            if (Array.isArray(atual) && atual.length > 0) return atual;
+            return lerListaDoStorage(nome);
+        };
+        honorarios = hidratar('honorarios', honorarios);
         window.honorarios = honorarios;
-        contratos = Array.isArray(contratos) ? contratos : [];
+        contratos = hidratar('contratos', contratos);
         window.contratos = contratos;
-        prazos = Array.isArray(prazos) ? prazos : [];
+        prazos = hidratar('prazos', prazos);
         window.prazos = prazos;
-        notificacoes = Array.isArray(notificacoes) ? notificacoes : [];
+        notificacoes = hidratar('notificacoes', notificacoes);
         window.notificacoes = notificacoes;
-        herancas = Array.isArray(herancas) ? herancas : [];
+        herancas = hidratar('herancas', herancas);
         window.herancas = herancas;
-        migracoes = Array.isArray(migracoes) ? migracoes : [];
+        migracoes = hidratar('migracoes', migracoes);
         window.migracoes = migracoes;
-        registos = Array.isArray(registos) ? registos : [];
+        registos = hidratar('registos', registos);
         window.registos = registos;
-        documentos = Array.isArray(documentos) ? documentos : [];
+        documentos = hidratar('documentos', documentos);
         window.documentos = documentos;
-        tarefas = Array.isArray(tarefas) ? tarefas : [];
+        hidratarDocumentosIdb();
+        tarefas = hidratar('tarefas', tarefas);
         window.tarefas = tarefas;
-        convidados = Array.isArray(convidados) ? convidados : [];
+        convidados = hidratar('convidados', convidados);
         window.convidados = convidados;
-        pagamentos = Array.isArray(pagamentos) ? pagamentos : [];
+        pagamentos = hidratar('pagamentos', pagamentos);
         window.pagamentos = pagamentos;
-        despesas = Array.isArray(despesas) ? despesas : [];
+        despesas = hidratar('despesas', despesas);
         window.despesas = despesas;
-
-        // Dados vêm apenas do Firestore (cache IndexedDB quando offline)
+        if (typeof window.faturas === 'undefined' || !Array.isArray(window.faturas) || window.faturas.length === 0) {
+            window.faturas = lerListaDoStorage('faturas');
+        }
     } catch (error) {
-        console.error('âŒ Erro ao carregar dados:', error);
-        mostrarNotificacao('Erro ao carregar dados salvos', 'error');
+        console.error('Erro ao carregar dados:', error);
     }
 }
 
@@ -6889,21 +6962,18 @@ function salvarDados(chave, dados, opcoes = {}) {
             }
         };
 
-        // Dados só no Firestore (persistência offline via IndexedDB)
         let armazenamentoOk = true;
-        const usarLocalStorage = false;
-        if (usarLocalStorage) {
+        if (chave !== 'clientes') {
             const dadosLocal = reduzirPayloadLocal(chave, dadosParaSalvar);
             try {
-                appStorage.setItem(chave, JSON.stringify(dadosLocal));
+                gravarListaNoStorage(chave, dadosLocal);
             } catch (storageError) {
                 window.__storageQuotaExceeded = true;
                 limparBackupsLocal();
                 try {
-                    appStorage.setItem(chave, JSON.stringify(reduzirPayloadLocal(chave, dadosParaSalvar)));
+                    gravarListaNoStorage(chave, reduzirPayloadLocal(chave, dadosParaSalvar));
                 } catch (e) {
                     armazenamentoOk = false;
-                    mostrarNotificacao('Sem espaço local. Dados mantidos e sincronizados na nuvem.', 'warning');
                 }
             }
         }
