@@ -64,6 +64,14 @@ jobs:
           fi
           test -f "$OUT/index.html"
           test -f "$OUT/script.js"
+          python3 - <<'PY'
+          import os, pathlib, re
+          p = pathlib.Path("_site/index.html")
+          sha = os.environ.get("GITHUB_SHA", "dev")[:7]
+          texto = p.read_text(encoding="utf-8")
+          texto = re.sub(r'(script\.js\?v=)[^"\']+', r'\g<1>' + sha, texto)
+          p.write_text(texto, encoding="utf-8")
+          PY
 
       - uses: actions/upload-pages-artifact@v3
         with:

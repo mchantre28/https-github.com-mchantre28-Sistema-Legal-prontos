@@ -335,6 +335,13 @@ function initFirebase() {
 
 initFirebase();
 
+async function garantirAuthFirebase() {
+    if (!window.__firebaseAuthPromise) return;
+    try {
+        await executarComTimeout(window.__firebaseAuthPromise, 4000, null);
+    } catch (e) {}
+}
+
 // Firestore = fonte principal dos dados (cache offline via IndexedDB)
 // Entidades de negócio que vão para Firestore:
 // - clientes | processos (herancas, migracoes, registos) | tarefas | honorarios | contratos | logs (auditoria)
@@ -596,7 +603,6 @@ function agendarRefreshListener(entidadeOrigem) {
 
 /** Cancela refresh pendente quando o utilizador navega explicitamente (evita race condition) */
 function cancelarRefreshListener() {
-    if (!dadosEssenciaisSincronizados()) return;
     if (__listenerRefreshTimer) {
         clearTimeout(__listenerRefreshTimer);
         __listenerRefreshTimer = null;
@@ -782,11 +788,13 @@ function agendarLimiteEsperaNuvem() {
     if (window.__syncLimiteTimer) return;
     window.__syncLimiteTimer = setTimeout(function () {
         window.__syncLimiteTimer = null;
-        if (dadosEssenciaisSincronizados()) {
-            marcarSyncNuvemOk();
-            return;
+        ENTIDADES_ESSENCIAIS.forEach(function (e) { window.__snapshotsRecebidos.add(e); });
+        window.__slCargaParcial = true;
+        if (typeof window.__slConcluirCargaInicial === 'function') {
+            window.__slConcluirCargaInicial();
         }
         if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
+        marcarSyncNuvemOk();
     }, 12000);
 }
 
@@ -797,6 +805,10 @@ function marcarSyncNuvemOk() {
         window.__syncIndicadorTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
+        if (window.__slInterfaceAberta) {
+            atualizarIndicadorSync('ok');
+            return;
+        }
         if ((window.__cloudSyncPending || 0) === 0) {
             atualizarIndicadorSync('syncing', 'A sincronizar...');
         }
@@ -1586,7 +1598,7 @@ function ouvirClientes(callback) {
         if (typeof callback === 'function') callback(lista);
     }, (err) => {
         console.warn('Erro na escuta em tempo real de clientes:', err);
-        atualizarIndicadorSync('error', 'Falha ao ouvir a nuvem');
+        if (window.__slInterfaceAberta) marcarSyncNuvemOk();
     });
 }
 
@@ -2700,6 +2712,7 @@ async function sincronizarEntidadeNuvem(entidade) {
         console.warn(`Erro ao sincronizar ${entidade}:`, error);
         window.__cloudSyncError = error;
     } finally {
+        finalizarSync(window.__cloudSyncError);
     }
 }
 
@@ -2774,16 +2787,21 @@ async function carregarUmaEntidadeNuvem(entidade) {
     if (!isCloudReady()) return;
     try {
         const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), 8000, null);
-        if (!snap) return;
-        aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
+        if (snap) {
+            aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
+            return;
+        }
     } catch (e) {
         console.warn('Carga imediata da nuvem:', entidade, e && e.message);
     }
+    window.__snapshotsRecebidos.add(entidade);
+    window.__slCargaParcial = true;
 }
 
 async function carregarImediatoNuvem() {
     if (!isCloudReady()) return;
     if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
+    await garantirAuthFirebase();
 
     const essenciais = ENTIDADES_ESSENCIAIS.slice();
     const restantes = ENTIDADES_ARRANQUE.filter(function (e) { return essenciais.indexOf(e) === -1; });
@@ -3505,6 +3523,15 @@ async function verificarLogin() {
 }
 
 function estaNaPaginaLogin() {
+    if (document.body.classList.contains('sl-autenticado')) return false;
+    const ecra = document.getElementById('ecraAcesso');
+    if (ecra) {
+        try {
+            return window.getComputedStyle(ecra).display !== 'none';
+        } catch (e) {
+            return true;
+        }
+    }
     return !!document.querySelector('.login-page');
 }
 
@@ -4857,21 +4884,12 @@ async function arrancarSistemaLegal() {
         if (window.__promiseCacheFirestoreLimpo) {
             await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
         }
-        if (estaNaPaginaLogin()) {
-            verificarLogin().then(function (ok) {
-                if (ok === true && !loginFormTemDados() && estaNaPaginaLogin()) {
-                    document.body.classList.add('sl-autenticado');
-                    configurarInterfaceUsuario();
-                    init();
-                }
-            }).catch(function () {});
-            return;
-        }
         logado = await executarComTimeout(verificarLogin(), 10000, false);
         if (logado !== true) {
             if (restaurarSessaoRapidaPosTimeout()) {
                 logado = true;
             } else {
+                document.body.classList.remove('sl-autenticado');
                 if (!estaNaPaginaLogin()) mostrarTelaLogin();
                 return;
             }
@@ -5230,30 +5248,37 @@ function init() {
         if (typeof atualizarInterface === 'function') atualizarInterface();
     };
 
+    const concluirCargaInicial = function () {
+        if (window.__slCargaConcluida) return;
+        window.__slCargaConcluida = true;
+        window.__slCargaInicial = false;
+        abrirInterfaceComDados();
+        iniciarListenersFirestore(false);
+        marcarSyncNuvemOk();
+        setTimeout(function () {
+            executarMigracoesPendentes().then(async function () {
+                appStorage.removeItem('naoRestaurarDaNuvem');
+                try { await migracaoAutomaticaRemoverDemo(); } catch (e) { console.warn('migracaoAutomaticaRemoverDemo:', e); }
+                marcarSyncNuvemOk();
+            }).catch(function (err) {
+                console.warn('Migração inicial:', err);
+                garantirSincronizacaoAutomatica();
+            });
+        }, 1500);
+    };
+    window.__slConcluirCargaInicial = concluirCargaInicial;
+
     if (isCloudReady()) {
         window.__slCargaInicial = true;
         mostrarEcranCargaCompleta(0, ENTIDADES_ESSENCIAIS.length);
+        agendarLimiteEsperaNuvem();
         const carga = carregarImediatoNuvem();
-        const limite = new Promise(function (resolve) { setTimeout(resolve, 10000); });
+        const limite = new Promise(function (resolve) { setTimeout(resolve, 8000); });
         Promise.race([carga, limite]).then(function () {
-            window.__slCargaInicial = false;
-            abrirInterfaceComDados();
-            iniciarListenersFirestore(false);
-            marcarSyncNuvemOk();
+            concluirCargaInicial();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
-            window.__slCargaInicial = false;
-            abrirInterfaceComDados();
-            iniciarListenersFirestore(false);
-            marcarSyncNuvemOk();
-        });
-        executarMigracoesPendentes().then(async () => {
-            appStorage.removeItem('naoRestaurarDaNuvem');
-            try { await migracaoAutomaticaRemoverDemo(); } catch (e) { console.warn('migracaoAutomaticaRemoverDemo:', e); }
-            marcarSyncNuvemOk();
-        }).catch((err) => {
-            console.warn('Migração inicial:', err);
-            garantirSincronizacaoAutomatica();
+            concluirCargaInicial();
         });
     } else {
         abrirInterfaceComDados();
@@ -5274,7 +5299,7 @@ function init() {
     
     configurarEventos();
     inicializarPesquisaGlobal();
-    atualizarInterface();
+    if (!window.__slCargaInicial) atualizarInterface();
     iniciarSistemaNotificacoes();
     iniciarSistemaBackup();
     configurarMonitorizacaoErros();
@@ -8077,6 +8102,7 @@ function carregarSecao(secao) {
     };
     requestAnimationFrame(carregarConteudo);
     setTimeout(function () {
+        if (window.__slCargaInicial) return;
         if (document.getElementById('avisoCarregamento')) carregarConteudo();
     }, 80);
 }
