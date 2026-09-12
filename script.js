@@ -2788,6 +2788,7 @@ function aplicarListaDaNuvem(entidade, lista) {
 }
 
 function mostrarEcranCargaCompleta(feitas, total) {
+    if (window.__slInterfaceAberta || window.__slCargaConcluida) return;
     const el = document.getElementById('conteudoDinamico');
     if (!el) return;
     const n = Math.max(0, feitas || 0);
@@ -2832,15 +2833,8 @@ async function carregarImediatoNuvem() {
 
     const essenciais = ENTIDADES_ESSENCIAIS.slice();
     const restantes = ENTIDADES_ARRANQUE.filter(function (e) { return essenciais.indexOf(e) === -1; });
-    let feitas = 0;
-    const total = essenciais.length;
-    mostrarEcranCargaCompleta(0, total);
 
-    await Promise.all(essenciais.map(async function (entidade) {
-        await carregarUmaEntidadeNuvem(entidade);
-        feitas += 1;
-        mostrarEcranCargaCompleta(feitas, total);
-    }));
+    await Promise.all(essenciais.map(carregarUmaEntidadeNuvem));
     marcarSyncNuvemOk();
 
     Promise.all(restantes.map(carregarUmaEntidadeNuvem)).then(function () {
@@ -4915,11 +4909,28 @@ async function arrancarSistemaLegal() {
         }());
         if (!temJwt) mostrarTelaLogin();
 
-        // Aguardar limpeza do cache Firestore (após zero absoluto), com tempo limite
         if (window.__promiseCacheFirestoreLimpo) {
-            await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
+            await executarComTimeout(window.__promiseCacheFirestoreLimpo, 3000, undefined);
         }
-        logado = await executarComTimeout(verificarLogin(), 10000, false);
+
+        const sessaoRapida = temJwt || restaurarSessaoRapidaPosTimeout();
+        if (sessaoRapida) {
+            if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
+                && SistemaLegalAuth.redirectClienteFromFullSystem()) {
+                return;
+            }
+            document.body.classList.add('sl-autenticado');
+            configurarInterfaceUsuario();
+            forcarLarguraSidebar();
+            init();
+            verificarLogin().catch(function () {});
+            if (typeof sincronizarClientesApi === 'function') {
+                sincronizarClientesApi().catch(function () {});
+            }
+            return;
+        }
+
+        logado = await executarComTimeout(verificarLogin(), 8000, false);
         if (logado !== true) {
             if (restaurarSessaoRapidaPosTimeout()) {
                 logado = true;
@@ -5305,9 +5316,9 @@ function init() {
         if (window.__slCargaConcluida) return;
         window.__slCargaConcluida = true;
         window.__slCargaInicial = false;
-        abrirInterfaceComDados();
         iniciarListenersFirestore(false);
         marcarSyncNuvemOk();
+        if (typeof atualizarContadoresInterfaceLeve === 'function') atualizarContadoresInterfaceLeve();
         setTimeout(function () {
             executarMigracoesPendentes().then(async function () {
                 appStorage.removeItem('naoRestaurarDaNuvem');
@@ -5317,24 +5328,22 @@ function init() {
                 console.warn('Migração inicial:', err);
                 garantirSincronizacaoAutomatica();
             });
-        }, 1500);
+        }, 2000);
     };
     window.__slConcluirCargaInicial = concluirCargaInicial;
 
+    if (isCloudReady()) window.__slCargaInicial = true;
+    abrirInterfaceComDados();
     if (isCloudReady()) {
-        window.__slCargaInicial = true;
-        mostrarEcranCargaCompleta(0, ENTIDADES_ESSENCIAIS.length);
-        agendarLimiteEsperaNuvem();
-        const carga = carregarImediatoNuvem();
-        const limite = new Promise(function (resolve) { setTimeout(resolve, 8000); });
-        Promise.race([carga, limite]).then(function () {
+        carregarImediatoNuvem().then(function () {
             concluirCargaInicial();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
             concluirCargaInicial();
         });
-    } else {
-        abrirInterfaceComDados();
+        setTimeout(function () {
+            if (!window.__slCargaConcluida) concluirCargaInicial();
+        }, 10000);
     }
 
     if (!window.__syncAutomaticoTimer) {
