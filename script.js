@@ -356,11 +356,8 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
-const ENTIDADES_ARRANQUE = [
-    'clientes',
-    'honorarios',
-    'contratos',
-    'prazos',
+const ENTIDADES_ESSENCIAIS = ['clientes', 'honorarios', 'contratos', 'prazos'];
+const ENTIDADES_ARRANQUE = ENTIDADES_ESSENCIAIS.concat([
     'tarefas',
     'pagamentos',
     'despesas',
@@ -371,7 +368,7 @@ const ENTIDADES_ARRANQUE = [
     'registos',
     'documentos',
     'convidados'
-];
+]);
 /** Entidades portuguesas — instituições típicas em processos de solicitadoria
  *  (registos, heranças, migração, fiscalidade, imóveis, laboral e justiça). */
 const ENTIDADES_PORTUGAL = [
@@ -507,12 +504,7 @@ const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
 
 function dadosEssenciaisSincronizados() {
-    const lista = (typeof ENTIDADES_ARRANQUE !== 'undefined' && ENTIDADES_ARRANQUE.length)
-        ? ENTIDADES_ARRANQUE
-        : ['clientes'];
-    return lista.every(function (entidade) {
-        return window.__snapshotsRecebidos.has(entidade);
-    });
+    return window.__snapshotsRecebidos.has('clientes');
 }
 
 function isMobileApp() {
@@ -563,10 +555,12 @@ function agendarRefreshListener(entidadeOrigem) {
         __entidadesPendentesRefresh.add(entidadeOrigem);
         window.__snapshotsRecebidos.add(entidadeOrigem);
     }
+    if (window.__slCargaInicial) {
+        marcarSyncNuvemOk();
+        return;
+    }
     if (__listenerRefreshTimer) clearTimeout(__listenerRefreshTimer);
-    const debounceMs = dadosEssenciaisSincronizados()
-        ? (isMobileApp() ? LISTENER_REFRESH_DEBOUNCE_MOBILE_MS : LISTENER_REFRESH_DEBOUNCE_MS)
-        : 0;
+    const debounceMs = isMobileApp() ? LISTENER_REFRESH_DEBOUNCE_MOBILE_MS : LISTENER_REFRESH_DEBOUNCE_MS;
     __listenerRefreshTimer = setTimeout(() => {
         __listenerRefreshTimer = null;
         const pendentes = Array.from(__entidadesPendentesRefresh);
@@ -582,8 +576,7 @@ function agendarRefreshListener(entidadeOrigem) {
         const secao = typeof secaoAtiva === 'string' ? secaoAtiva : 'dashboard';
         const afectaDashboard = pendentes.some(function (e) { return DASHBOARD_ENTIDADES_REFRESH.indexOf(e) !== -1; });
         if (secao === 'dashboard' && afectaDashboard) {
-            window.__ultimoHashSecao = obterHashDadosSecao(secao);
-            carregarSecao('dashboard');
+            atualizarContadoresInterfaceLeve();
             if (typeof atualizarInterface === 'function') atualizarInterface();
             return;
         }
@@ -793,13 +786,8 @@ function agendarLimiteEsperaNuvem() {
             marcarSyncNuvemOk();
             return;
         }
-        window.__syncNuvemDesistiu = true;
-        atualizarIndicadorSync('error', 'Nuvem lenta — a tentar outra vez');
         if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
-        if (typeof carregarImediatoNuvem === 'function') {
-            carregarImediatoNuvem().catch(function () {});
-        }
-    }, 8000);
+    }, 12000);
 }
 
 function marcarSyncNuvemOk() {
@@ -809,13 +797,11 @@ function marcarSyncNuvemOk() {
         window.__syncIndicadorTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
-        if ((window.__cloudSyncPending || 0) === 0 && !window.__syncNuvemDesistiu) {
+        if ((window.__cloudSyncPending || 0) === 0) {
             atualizarIndicadorSync('syncing', 'A sincronizar...');
-            agendarLimiteEsperaNuvem();
         }
         return;
     }
-    window.__syncNuvemDesistiu = false;
     if (window.__syncLimiteTimer) {
         clearTimeout(window.__syncLimiteTimer);
         window.__syncLimiteTimer = null;
@@ -2767,43 +2753,54 @@ function mostrarEcranCargaCompleta(feitas, total) {
     const n = Math.max(0, feitas || 0);
     const t = Math.max(1, total || 1);
     const pct = Math.min(100, Math.round((n / t) * 100));
-    el.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-16 text-gray-600">
-            <p class="text-lg font-semibold text-gray-800">A carregar o escritório completo</p>
-            <p class="text-sm mt-2">${n} de ${t} conjuntos de dados</p>
-            <div class="mt-4 w-full max-w-sm h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div class="h-full bg-blue-600" style="width:${pct}%"></div>
-            </div>
-        </div>`;
+    let txt = document.getElementById('slCargaTexto');
+    let barra = document.getElementById('slCargaBarra');
+    if (!txt || !barra) {
+        el.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-16 text-gray-600">
+                <p class="text-lg font-semibold text-gray-800">A carregar o escritório</p>
+                <p id="slCargaTexto" class="text-sm mt-2">${n} de ${t} conjuntos de dados</p>
+                <div class="mt-4 w-full max-w-sm h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="slCargaBarra" class="h-full bg-blue-600" style="width:${pct}%"></div>
+                </div>
+            </div>`;
+        return;
+    }
+    txt.textContent = n + ' de ' + t + ' conjuntos de dados';
+    barra.style.width = pct + '%';
+}
+
+async function carregarUmaEntidadeNuvem(entidade) {
+    if (!isCloudReady()) return;
+    try {
+        const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), 8000, null);
+        if (!snap) return;
+        aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
+    } catch (e) {
+        console.warn('Carga imediata da nuvem:', entidade, e && e.message);
+    }
 }
 
 async function carregarImediatoNuvem() {
     if (!isCloudReady()) return;
     if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
 
-    const entidades = ENTIDADES_ARRANQUE.slice();
+    const essenciais = ENTIDADES_ESSENCIAIS.slice();
+    const restantes = ENTIDADES_ARRANQUE.filter(function (e) { return essenciais.indexOf(e) === -1; });
     let feitas = 0;
-    mostrarEcranCargaCompleta(0, entidades.length);
+    const total = essenciais.length;
+    mostrarEcranCargaCompleta(0, total);
 
-    async function carregarUma(entidade) {
-        try {
-            const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-            const pedido = nativo
-                ? firestoreDb.collection(entidade).get({ source: 'server' })
-                : firestoreDb.collection(entidade).get();
-            const snap = await executarComTimeout(pedido, 10000, null);
-            if (!snap) return;
-            aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
-        } catch (e) {
-            console.warn('Carga imediata da nuvem:', entidade, e && e.message);
-        } finally {
-            feitas += 1;
-            mostrarEcranCargaCompleta(feitas, entidades.length);
-        }
-    }
-
-    await Promise.all(entidades.map(carregarUma));
+    await Promise.all(essenciais.map(async function (entidade) {
+        await carregarUmaEntidadeNuvem(entidade);
+        feitas += 1;
+        mostrarEcranCargaCompleta(feitas, total);
+    }));
     marcarSyncNuvemOk();
+
+    Promise.all(restantes.map(carregarUmaEntidadeNuvem)).then(function () {
+        marcarSyncNuvemOk();
+    }).catch(function () {});
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -5234,16 +5231,20 @@ function init() {
     };
 
     if (isCloudReady()) {
-        mostrarEcranCargaCompleta(0, ENTIDADES_ARRANQUE.length);
-        iniciarListenersFirestore(false);
+        window.__slCargaInicial = true;
+        mostrarEcranCargaCompleta(0, ENTIDADES_ESSENCIAIS.length);
         const carga = carregarImediatoNuvem();
-        const limite = new Promise(function (resolve) { setTimeout(resolve, 15000); });
+        const limite = new Promise(function (resolve) { setTimeout(resolve, 10000); });
         Promise.race([carga, limite]).then(function () {
+            window.__slCargaInicial = false;
             abrirInterfaceComDados();
+            iniciarListenersFirestore(false);
             marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
+            window.__slCargaInicial = false;
             abrirInterfaceComDados();
+            iniciarListenersFirestore(false);
             marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
