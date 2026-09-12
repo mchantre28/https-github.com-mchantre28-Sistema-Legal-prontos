@@ -269,7 +269,8 @@ function initFirebase() {
         }
         firestoreDb = firebase.firestore();
         try {
-            firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+            const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            firestoreDb.enablePersistence({ synchronizeTabs: !nativo }).catch(function () {});
         } catch (e) {}
         if (typeof firebase.storage === 'function') {
             try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
@@ -586,7 +587,7 @@ function cancelarRefreshListener() {
 }
 
 /** Inicia os listeners Firestore em tempo real (para retomar após pause em import/backup) */
-function iniciarListenersFirestore() {
+function iniciarListenersFirestore(apenasEssenciais) {
     if (!isCloudReady()) return;
     // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
@@ -595,6 +596,7 @@ function iniciarListenersFirestore() {
         agendarRefreshListener('clientes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
+    if (apenasEssenciais) return;
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
         registarSnapshotEntidade('contratos', lista);
         contratos = lista; window.contratos = contratos;
@@ -3448,8 +3450,23 @@ function loginFormTemDados() {
     return false;
 }
 
+function guardarRascunhoLogin(id, valor) {
+    try { sessionStorage.setItem('sl_draft_' + id, String(valor || '')); } catch (e) {}
+}
+function lerRascunhoLogin(id) {
+    try { return sessionStorage.getItem('sl_draft_' + id) || ''; } catch (e) { return ''; }
+}
+function restaurarRascunhosLogin() {
+    ['emailAdmin', 'emailCliente'].forEach(function (id) {
+        const el = document.getElementById(id);
+        const v = lerRascunhoLogin(id);
+        if (el && v && !el.value) el.value = v;
+    });
+}
+
 function mostrarTelaLogin(forcar) {
     if (!forcar && estaNaPaginaLogin()) return;
+    if (!forcar && loginFormTemDados()) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3493,8 +3510,18 @@ function mostrarTelaLogin(forcar) {
     }
 }
 
+function ligarRascunhoEmailLogin(id) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.rascunho === '1') return;
+    el.dataset.rascunho = '1';
+    el.addEventListener('input', function () { guardarRascunhoLogin(id, el.value); });
+}
+
 function mostrarLoginAdmin() {
-    if (document.getElementById('formLoginAdmin')) return;
+    if (document.getElementById('formLoginAdmin')) {
+        restaurarRascunhosLogin();
+        return;
+    }
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3536,6 +3563,8 @@ function mostrarLoginAdmin() {
         </div>
     `;
     
+    restaurarRascunhosLogin();
+    ligarRascunhoEmailLogin('emailAdmin');
     document.getElementById('formLoginAdmin').addEventListener('submit', async function(e) {
         e.preventDefault();
         const email = document.getElementById('emailAdmin').value;
@@ -3599,6 +3628,8 @@ function mostrarLoginCliente() {
         </div>
     `;
 
+    restaurarRascunhosLogin();
+    ligarRascunhoEmailLogin('emailCliente');
     document.getElementById('formLoginCliente').addEventListener('submit', async function(e) {
         e.preventDefault();
         const email = document.getElementById('emailCliente').value;
@@ -4757,12 +4788,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (window.__promiseCacheFirestoreLimpo) {
             await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
         }
+        if (estaNaPaginaLogin()) {
+            verificarLogin().then(function (ok) {
+                if (ok === true && !loginFormTemDados() && estaNaPaginaLogin()) {
+                    configurarInterfaceUsuario();
+                    init();
+                }
+            }).catch(function () {});
+            return;
+        }
         logado = await executarComTimeout(verificarLogin(), 10000, false);
         if (logado !== true) {
             if (restaurarSessaoRapidaPosTimeout()) {
                 logado = true;
             } else {
-                mostrarTelaLogin();
+                if (!estaNaPaginaLogin()) mostrarTelaLogin();
                 return;
             }
         }
@@ -5116,11 +5156,13 @@ function init() {
     abrirInterfaceComDados();
 
     if (isCloudReady()) {
-        iniciarListenersFirestore();
+        iniciarListenersFirestore(true);
         carregarImediatoNuvem().then(function () {
+            iniciarListenersFirestore(false);
             marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
+            iniciarListenersFirestore(false);
             marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
