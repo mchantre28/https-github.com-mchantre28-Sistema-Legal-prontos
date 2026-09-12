@@ -4969,11 +4969,6 @@ async function arrancarSistemaLegal() {
         }
     }
 }
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', arrancarSistemaLegal);
-} else {
-    arrancarSistemaLegal();
-}
 
 function limparEstilosLayoutInline() {
     const sidebar = document.getElementById('sidebar');
@@ -27490,6 +27485,12 @@ window.duplicarHonorario = duplicarHonorario;
 window.excluirHonorarioDireto = excluirHonorarioDireto;
 window.salvarHonorarioEditado = salvarHonorarioEditado;
 window.excluirClienteDireto = excluirClienteDireto;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancarSistemaLegal);
+} else {
+    arrancarSistemaLegal();
+}
 
 // Service Worker Registration REMOVIDO
 
