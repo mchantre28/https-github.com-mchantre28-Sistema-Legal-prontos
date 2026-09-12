@@ -270,7 +270,10 @@ function initFirebase() {
         firestoreDb = firebase.firestore();
         try {
             const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-            firestoreDb.enablePersistence({ synchronizeTabs: !nativo }).catch(function () {});
+            // No iPhone/Android a persistência IndexedDB pode prender os listeners para sempre.
+            if (!nativo) {
+                firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+            }
         } catch (e) {}
         if (typeof firebase.storage === 'function') {
             try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
@@ -761,6 +764,23 @@ function atualizarIndicadorSync(status, mensagem) {
     }
 }
 
+function agendarLimiteEsperaNuvem() {
+    if (window.__syncLimiteTimer) return;
+    window.__syncLimiteTimer = setTimeout(function () {
+        window.__syncLimiteTimer = null;
+        if (dadosEssenciaisSincronizados()) {
+            marcarSyncNuvemOk();
+            return;
+        }
+        window.__syncNuvemDesistiu = true;
+        atualizarIndicadorSync('error', 'Nuvem lenta — a tentar outra vez');
+        if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
+        if (typeof carregarImediatoNuvem === 'function') {
+            carregarImediatoNuvem().catch(function () {});
+        }
+    }, 8000);
+}
+
 function marcarSyncNuvemOk() {
     if (!isCloudReady()) return;
     if (window.__syncIndicadorTimer) {
@@ -768,10 +788,16 @@ function marcarSyncNuvemOk() {
         window.__syncIndicadorTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
-        if ((window.__cloudSyncPending || 0) === 0) {
+        if ((window.__cloudSyncPending || 0) === 0 && !window.__syncNuvemDesistiu) {
             atualizarIndicadorSync('syncing', 'A sincronizar...');
+            agendarLimiteEsperaNuvem();
         }
         return;
+    }
+    window.__syncNuvemDesistiu = false;
+    if (window.__syncLimiteTimer) {
+        clearTimeout(window.__syncLimiteTimer);
+        window.__syncLimiteTimer = null;
     }
     window.__cloudSyncError = null;
     try {
@@ -1553,6 +1579,7 @@ function ouvirClientes(callback) {
         if (typeof callback === 'function') callback(lista);
     }, (err) => {
         console.warn('Erro na escuta em tempo real de clientes:', err);
+        atualizarIndicadorSync('error', 'Falha ao ouvir a nuvem');
     });
 }
 
@@ -2719,7 +2746,12 @@ async function carregarImediatoNuvem() {
 
     async function carregarUma(entidade) {
         try {
-            const snap = await firestoreDb.collection(entidade).get();
+            const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            const pedido = nativo
+                ? firestoreDb.collection(entidade).get({ source: 'server' })
+                : firestoreDb.collection(entidade).get();
+            const snap = await executarComTimeout(pedido, 6000, null);
+            if (!snap) return;
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
         } catch (e) {
             console.warn('Carga imediata da nuvem:', entidade, e && e.message);
@@ -5140,6 +5172,7 @@ function init() {
     carregarDados();
     if (isCloudReady()) {
         atualizarIndicadorSync(dadosEssenciaisSincronizados() ? 'ok' : 'syncing', dadosEssenciaisSincronizados() ? undefined : 'A sincronizar...');
+        if (!dadosEssenciaisSincronizados()) agendarLimiteEsperaNuvem();
     } else {
         atualizarIndicadorSync('offline');
     }
@@ -5163,6 +5196,9 @@ function init() {
 
     // Abrir já — sem atraso da nuvem
     abrirInterfaceComDados();
+    setTimeout(function () {
+        if (document.getElementById('avisoCarregamento')) abrirInterfaceComDados();
+    }, 400);
 
     if (isCloudReady()) {
         iniciarListenersFirestore(true);
@@ -5192,18 +5228,10 @@ function init() {
     }
 
     setTimeout(() => {
-        const el = document.getElementById('conteudoDinamico');
-        const aSincronizar = document.getElementById('syncStatusBadge')?.getAttribute('data-status') === 'syncing';
-        if (el && el.textContent.trim().length < 50 && !aSincronizar) {
-            el.innerHTML = `
-                <div class="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
-                    <p class="font-semibold mb-2">A área de conteúdo não carregou.</p>
-                    <p class="text-sm mb-2">Se publicou em GitHub Pages, verifique que <strong>index.html</strong>, <strong>script.js</strong> e <strong>styles.css</strong> estão na mesma pasta no repositório.</p>
-                    <p class="text-sm">Abra as ferramentas do programador (F12) → separador Rede/Network e confirme que script.js é carregado sem erro 404.</p>
-                </div>
-            `;
+        if (document.getElementById('avisoCarregamento')) {
+            abrirInterfaceComDados();
         }
-    }, 8000);
+    }, 2000);
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
