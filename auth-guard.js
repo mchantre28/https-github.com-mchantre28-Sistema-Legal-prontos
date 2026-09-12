@@ -36,10 +36,17 @@
         return 'index.html';
     }
 
+    function loginRedirectForMissingSession(expectedPerfil) {
+        // Área do cliente: ficar em cliente.html (login só de cliente).
+        if (expectedPerfil === 'cliente') return null;
+        return 'index.html';
+    }
+
     async function requireAuth(expectedPerfil) {
         const api = global.SistemaLegalAPI;
         if (!api || !api.isApiSessionActive()) {
-            global.location.href = 'index.html';
+            const dest = loginRedirectForMissingSession(expectedPerfil);
+            if (dest) global.location.href = dest;
             return null;
         }
 
@@ -48,13 +55,15 @@
             response = await api.apiFetch('/api/me');
         } catch (e) {
             api.logout();
-            global.location.href = 'index.html';
+            const dest = loginRedirectForMissingSession(expectedPerfil);
+            if (dest) global.location.href = dest;
             return null;
         }
 
         if (!response.ok) {
             api.logout();
-            global.location.href = 'index.html';
+            const dest = loginRedirectForMissingSession(expectedPerfil);
+            if (dest) global.location.href = dest;
             return null;
         }
 
@@ -63,14 +72,16 @@
             data = await response.json();
         } catch (e) {
             api.logout();
-            global.location.href = 'index.html';
+            const dest = loginRedirectForMissingSession(expectedPerfil);
+            if (dest) global.location.href = dest;
             return null;
         }
 
         const user = data.utilizador;
         if (!user || !user.perfil) {
             api.logout();
-            global.location.href = 'index.html';
+            const dest = loginRedirectForMissingSession(expectedPerfil);
+            if (dest) global.location.href = dest;
             return null;
         }
 
@@ -86,8 +97,15 @@
         return user;
     }
 
-    function logout() {
+    function logout(redirectTo) {
         const api = global.SistemaLegalAPI;
+        let perfil = null;
+        try {
+            const user = api && api.getCurrentUser ? api.getCurrentUser() : null;
+            perfil = user && user.perfil;
+        } catch (e) {
+            /* ignorar */
+        }
         if (api && api.logout) api.logout();
         try {
             localStorage.removeItem('usuarioLogado');
@@ -98,7 +116,11 @@
         } catch (e) {
             /* ignorar */
         }
-        global.location.href = 'index.html';
+        if (redirectTo) {
+            global.location.href = redirectTo;
+            return;
+        }
+        global.location.href = perfil === 'cliente' ? 'cliente.html' : 'index.html';
     }
 
     global.SistemaLegalAuth = {

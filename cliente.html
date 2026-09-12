@@ -38,6 +38,34 @@
         A verificar sessão...
     </div>
 
+    <div id="loginCliente" class="hidden login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center px-4">
+        <div class="login-page-logo mb-6">
+            <img id="loginLogo" class="logo-fixed mx-auto hidden" alt="Ana Paula Medina Solicitadora" style="width:220px;height:auto;display:block;object-fit:contain;">
+            <div id="loginLogoFallback" class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>
+        </div>
+        <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
+                <p class="text-lg font-semibold text-indigo-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
+                <p class="text-gray-600 mt-2">Área do Cliente — introduza as suas credenciais</p>
+            </div>
+            <form id="formLoginClientePortal" class="space-y-6" novalidate>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" for="emailClientePortal">Email</label>
+                    <input type="email" id="emailClientePortal" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="o seu email" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" for="senhaClientePortal">Senha</label>
+                    <input type="password" id="senhaClientePortal" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="A sua senha" required autocomplete="current-password">
+                </div>
+                <p id="erroLoginClientePortal" class="text-sm text-red-600 hidden" role="alert"></p>
+                <button type="submit" id="btnEntrarClientePortal" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    Entrar na área do cliente
+                </button>
+            </form>
+        </div>
+    </div>
+
     <div id="dashboard" class="hidden min-h-screen">
         <header class="bg-white shadow-sm border-b admin-header">
             <div class="admin-header-inner cliente-header-inner">
@@ -104,8 +132,8 @@
         </main>
     </div>
 
-    <script src="api.js?v=11"></script>
-    <script src="auth-guard.js?v=3"></script>
-    <script src="cliente.js?v=3"></script>
+    <script src="api.js?v=14"></script>
+    <script src="auth-guard.js?v=4"></script>
+    <script src="cliente.js?v=4"></script>
 </body>
 </html>

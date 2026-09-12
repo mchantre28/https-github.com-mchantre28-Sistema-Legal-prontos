@@ -269,7 +269,8 @@ function initFirebase() {
         }
         firestoreDb = firebase.firestore();
         try {
-            firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+            const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            firestoreDb.enablePersistence({ synchronizeTabs: !nativo }).catch(function () {});
         } catch (e) {}
         if (typeof firebase.storage === 'function') {
             try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
@@ -352,22 +353,55 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
-/** Entidades portuguesas — útil para a solicitadora associar processos, tarefas e documentos às instituições corretas */
+/** Entidades portuguesas — instituições típicas em processos de solicitadoria
+ *  (registos, heranças, migração, fiscalidade, imóveis, laboral e justiça). */
 const ENTIDADES_PORTUGAL = [
     { id: '', nome: '— Nenhuma / Outra —' },
+    /* Fiscalidade e aduaneiro */
     { id: 'financas_at', nome: 'Finanças (AT)' },
+    { id: 'alfandegas', nome: 'Alfândegas' },
+    /* Registos e notariado (IRN) */
     { id: 'conservatorias_irn', nome: 'Conservatórias (IRN)' },
-    { id: 'imt', nome: 'IMT' },
-    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
-    { id: 'seguranca_social', nome: 'Segurança Social' },
-    { id: 'bancos', nome: 'Bancos' },
-    { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
+    { id: 'registo_civil', nome: 'Registo Civil' },
+    { id: 'nacionalidade_irn', nome: 'Nacionalidade (IRN)' },
+    { id: 'balcao_herancas', nome: 'Balcão de Heranças (IRN)' },
     { id: 'registo_predial', nome: 'Registo Predial (Online)' },
     { id: 'registo_comercial', nome: 'Registo Comercial (Online)' },
-    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' }
+    { id: 'registo_automovel', nome: 'Registo Automóvel (Online)' },
+    { id: 'rcbe', nome: 'RCBE (Beneficiário Efetivo)' },
+    { id: 'cartorios_notariais', nome: 'Cartórios Notariais' },
+    /* Migração e estrangeiros */
+    { id: 'aima', nome: 'AIMA (Migrações e Asilo)' },
+    { id: 'embaixadas_consulados', nome: 'Embaixadas / Consulados' },
+    /* Autarquias e atendimento */
+    { id: 'camaras_municipais', nome: 'Câmaras Municipais' },
+    { id: 'juntas_freguesia', nome: 'Juntas de Freguesia' },
+    { id: 'lojas_cidadao', nome: 'Lojas do Cidadão' },
+    { id: 'eportugal', nome: 'ePortugal / Serviços Públicos' },
+    /* Segurança social e laboral */
+    { id: 'seguranca_social', nome: 'Segurança Social' },
+    { id: 'iefp', nome: 'IEFP' },
+    { id: 'act', nome: 'ACT (Condições de Trabalho)' },
+    { id: 'cga', nome: 'CGA (Aposentações)' },
+    /* Justiça */
+    { id: 'tribunais', nome: 'Tribunais' },
+    { id: 'julgados_paz', nome: 'Julgados de Paz' },
+    { id: 'ministerio_publico', nome: 'Ministério Público' },
+    { id: 'agentes_execucao', nome: 'Agentes de Execução' },
+    /* Transportes, imóveis e empresas */
+    { id: 'imt', nome: 'IMT' },
+    { id: 'bancos', nome: 'Bancos' },
+    { id: 'banco_portugal', nome: 'Banco de Portugal' },
+    { id: 'ihru', nome: 'IHRU (Habitação)' },
+    { id: 'inpi', nome: 'INPI (Propriedade Industrial)' },
+    { id: 'iapmei', nome: 'IAPMEI' },
+    /* Outros úteis no dia a dia */
+    { id: 'psp_gnr', nome: 'PSP / GNR' },
+    { id: 'ctt', nome: 'CTT' },
+    { id: 'osae', nome: 'OSAE (Ordem dos Solicitadores)' }
 ];
-const CLOUD_DEBOUNCE_MS = 400;
-const SYNC_LOTE_TAMANHO = 12;
+const CLOUD_DEBOUNCE_MS = 120;
+const SYNC_LOTE_TAMANHO = 20;
 window.__cloudSyncTimers = window.__cloudSyncTimers || {};
 window.__cloudSyncSnapshot = window.__cloudSyncSnapshot || {};
 
@@ -447,8 +481,10 @@ window.startAllListeners = startAllListeners;
 let __listenerRefreshTimer = null;
 const __entidadesPendentesRefresh = new Set();
 window.__snapshotsRecebidos = window.__snapshotsRecebidos || new Set();
-const LISTENER_REFRESH_DEBOUNCE_MS = 150;
-const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 150;
+const LISTENER_REFRESH_DEBOUNCE_MS = 40;
+const LISTENER_REFRESH_DEBOUNCE_MOBILE_MS = 60;
+const SYNC_INDICADOR_ATRASO_MS = 350;
+const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
 
 function dadosEssenciaisSincronizados() {
@@ -551,7 +587,7 @@ function cancelarRefreshListener() {
 }
 
 /** Inicia os listeners Firestore em tempo real (para retomar após pause em import/backup) */
-function iniciarListenersFirestore() {
+function iniciarListenersFirestore(apenasEssenciais) {
     if (!isCloudReady()) return;
     // Remover listeners anteriores para evitar duplicação (ex: forcarSincronizacaoNuvem chama pause+resume)
     if (typeof listenerManager !== 'undefined' && listenerManager.pause) listenerManager.pause();
@@ -560,6 +596,7 @@ function iniciarListenersFirestore() {
         agendarRefreshListener('clientes');
     });
     (window.addListener || listenerManager.add.bind(listenerManager))(window.__ouvirClientesUnsubscribe);
+    if (apenasEssenciais) return;
     window.__ouvirContratosUnsubscribe = ouvirContratos((lista) => {
         registarSnapshotEntidade('contratos', lista);
         contratos = lista; window.contratos = contratos;
@@ -726,8 +763,14 @@ function atualizarIndicadorSync(status, mensagem) {
 
 function marcarSyncNuvemOk() {
     if (!isCloudReady()) return;
+    if (window.__syncIndicadorTimer) {
+        clearTimeout(window.__syncIndicadorTimer);
+        window.__syncIndicadorTimer = null;
+    }
     if (!dadosEssenciaisSincronizados()) {
-        atualizarIndicadorSync('syncing', 'A sincronizar...');
+        if ((window.__cloudSyncPending || 0) === 0) {
+            atualizarIndicadorSync('syncing', 'A sincronizar...');
+        }
         return;
     }
     window.__cloudSyncError = null;
@@ -761,7 +804,26 @@ function garantirSincronizacaoAutomatica() {
 
 function iniciarSync() {
     window.__cloudSyncPending = (window.__cloudSyncPending || 0) + 1;
-    atualizarIndicadorSync('syncing');
+    // Só mostrar "A sincronizar..." se demorar — syncs rápidos não piscam laranja.
+    if (window.__syncIndicadorTimer) clearTimeout(window.__syncIndicadorTimer);
+    window.__syncIndicadorTimer = setTimeout(function () {
+        window.__syncIndicadorTimer = null;
+        if ((window.__cloudSyncPending || 0) > 0) {
+            atualizarIndicadorSync('syncing');
+        }
+    }, SYNC_INDICADOR_ATRASO_MS);
+    if (window.__syncMaxTimer) clearTimeout(window.__syncMaxTimer);
+    window.__syncMaxTimer = setTimeout(function () {
+        window.__syncMaxTimer = null;
+        if ((window.__cloudSyncPending || 0) > 0) {
+            window.__cloudSyncPending = 0;
+            if (dadosEssenciaisSincronizados()) {
+                atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
+            } else {
+                atualizarIndicadorSync(isCloudReady() ? 'syncing' : 'offline', isCloudReady() ? 'A sincronizar...' : undefined);
+            }
+        }
+    }, isMobileApp() ? 15000 : SYNC_INDICADOR_MAX_MS);
 }
 
 function finalizarSync(erro) {
@@ -770,6 +832,14 @@ function finalizarSync(erro) {
         window.__cloudSyncError = erro;
     }
     if (window.__cloudSyncPending === 0) {
+        if (window.__syncIndicadorTimer) {
+            clearTimeout(window.__syncIndicadorTimer);
+            window.__syncIndicadorTimer = null;
+        }
+        if (window.__syncMaxTimer) {
+            clearTimeout(window.__syncMaxTimer);
+            window.__syncMaxTimer = null;
+        }
         if (window.__cloudSyncError) {
             atualizarIndicadorSync('error', 'A retomar a sincronização automática...');
             const msg = navigator.onLine
@@ -781,7 +851,7 @@ function finalizarSync(erro) {
             } catch (error) {
                 console.warn('Erro ao guardar último erro de sync:', error);
             }
-        } else {
+        } else if (dadosEssenciaisSincronizados()) {
             atualizarIndicadorSync(isCloudReady() ? 'ok' : 'offline');
             if (isCloudReady()) {
                 try {
@@ -790,6 +860,8 @@ function finalizarSync(erro) {
                     console.warn('Erro ao guardar último sync:', error);
                 }
             }
+        } else {
+            atualizarIndicadorSync(isCloudReady() ? 'syncing' : 'offline', isCloudReady() ? 'A sincronizar...' : undefined);
         }
     }
 }
@@ -1773,7 +1845,42 @@ async function seedEntidadesSeVazio() {
     try {
         const snap = await firestoreDb.collection('entidades').limit(1).get();
         if (!snap.empty) return;
-        const tipos = { financas_at: 'financas', conservatorias_irn: 'conservatoria', imt: 'imt', camaras_municipais: 'camara_municipal', seguranca_social: 'seguranca_social', bancos: 'banco', embaixadas_consulados: 'embaixada_consulado', registo_predial: 'registo_online', registo_comercial: 'registo_online', registo_automovel: 'registo_online' };
+        const tipos = {
+            financas_at: 'financas',
+            alfandegas: 'financas',
+            conservatorias_irn: 'conservatoria',
+            registo_civil: 'registo_civil',
+            nacionalidade_irn: 'nacionalidade',
+            balcao_herancas: 'herancas',
+            registo_predial: 'registo_online',
+            registo_comercial: 'registo_online',
+            registo_automovel: 'registo_online',
+            rcbe: 'registo_online',
+            cartorios_notariais: 'notariado',
+            aima: 'migracao',
+            embaixadas_consulados: 'embaixada_consulado',
+            camaras_municipais: 'camara_municipal',
+            juntas_freguesia: 'autarquia',
+            lojas_cidadao: 'atendimento',
+            eportugal: 'atendimento',
+            seguranca_social: 'seguranca_social',
+            iefp: 'laboral',
+            act: 'laboral',
+            cga: 'seguranca_social',
+            tribunais: 'justica',
+            julgados_paz: 'justica',
+            ministerio_publico: 'justica',
+            agentes_execucao: 'justica',
+            imt: 'imt',
+            bancos: 'banco',
+            banco_portugal: 'banco',
+            ihru: 'habitacao',
+            inpi: 'empresa',
+            iapmei: 'empresa',
+            psp_gnr: 'policia',
+            ctt: 'correios',
+            osae: 'ordem_profissional'
+        };
         const origem = (typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : []).filter(e => e.id);
         for (let i = 0; i < origem.length; i++) {
             const e = origem[i];
@@ -1791,10 +1898,13 @@ async function seedEntidadesSeVazio() {
 /** Retorna ENTIDADES_PORTUGAL da coleção Firestore ou fallback para constante. */
 function obterEntidadesParaSelect() {
     const lista = Array.isArray(entidades) ? entidades.filter(e => e.ativo !== false) : [];
+    const fallback = typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
     if (lista.length > 0) {
-        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome }))];
+        const ids = new Set(lista.map(e => e.id));
+        const extra = fallback.filter(e => e.id && !ids.has(e.id));
+        return [{ id: '', nome: '— Nenhuma / Outra —' }, ...lista.map(e => ({ id: e.id, nome: e.nome })), ...extra];
     }
-    return typeof ENTIDADES_PORTUGAL !== 'undefined' ? ENTIDADES_PORTUGAL : [{ id: '', nome: '— Nenhuma / Outra —' }];
+    return fallback;
 }
 
 // === INTEGRAÇÕES EXTERNAS ===
@@ -2284,24 +2394,74 @@ async function idbLerFicheiroDoc(id) {
     }
 }
 
+const __urlDocCache = new Map();
+
+function urlHttpDocumento(valor) {
+    return typeof valor === 'string' && /^https?:\/\//i.test(valor) ? valor : '';
+}
+
+function urlDocumentoJaPronta(doc) {
+    if (!doc) return '';
+    const cached = __urlDocCache.get(String(doc.id));
+    const doCache = urlHttpDocumento(cached);
+    if (doCache) return doCache;
+    return urlHttpDocumento(doc.conteudo);
+}
+
+function prefetchUrlDocumento(doc) {
+    if (!doc || !doc.id) return;
+    if (urlDocumentoJaPronta(doc)) return;
+    obterConteudoDocumento(doc).catch(function () {});
+}
+
 async function obterConteudoDocumento(doc) {
     if (!doc) return '';
-    if (documentoTemConteudoUtil(doc)) return doc.conteudo;
-    const partes = await lerPartesDocumentoCloud(doc.id, doc.numPartes);
-    if (partes) {
-        doc.conteudo = partes;
-        idbGuardarFicheiroDoc(doc.id, partes);
-        return partes;
+    const id = String(doc.id);
+    const cached = __urlDocCache.get(id);
+    if (urlHttpDocumento(cached)) return cached;
+    if (cached && typeof cached.then === 'function') {
+        const esperado = await cached;
+        if (esperado) return esperado;
     }
-    const daNuvem = await obterUrlStorageDocumento(doc);
-    if (daNuvem) {
-        doc.conteudo = daNuvem;
-        return daNuvem;
+
+    const httpJa = urlHttpDocumento(doc.conteudo);
+    if (httpJa) {
+        __urlDocCache.set(id, httpJa);
+        return httpJa;
     }
+
+    if (doc.storagePath && firebaseStorage) {
+        const pedido = obterUrlStorageDocumento(doc).then(function (url) {
+            if (url) {
+                doc.conteudo = url;
+                __urlDocCache.set(id, url);
+            }
+            return url || '';
+        });
+        __urlDocCache.set(id, pedido);
+        const daNuvem = await pedido;
+        if (daNuvem) return daNuvem;
+    }
+
+    if (typeof doc.conteudo === 'string' && doc.conteudo.indexOf('data:') === 0 && doc.conteudo.length > 20) {
+        return doc.conteudo;
+    }
+
     const local = await idbLerFicheiroDoc(doc.id);
     if (local) {
         doc.conteudo = local;
+        if (urlHttpDocumento(local)) __urlDocCache.set(id, local);
         return local;
+    }
+
+    const numPartes = parseInt(doc.numPartes, 10) || 0;
+    if (numPartes > 0) {
+        const partes = await lerPartesDocumentoCloud(doc.id, numPartes);
+        if (partes) {
+            doc.conteudo = partes;
+            idbGuardarFicheiroDoc(doc.id, partes);
+            return partes;
+        }
     }
     return '';
 }
@@ -2556,15 +2716,24 @@ function aplicarListaDaNuvem(entidade, lista) {
 async function carregarImediatoNuvem() {
     if (!isCloudReady()) return;
     if (appStorage.getItem('naoRestaurarDaNuvem') === 'true') return;
-    const essenciais = ['clientes', 'honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
-    await Promise.all(essenciais.map(async function (entidade) {
+
+    async function carregarUma(entidade) {
         try {
             const snap = await firestoreDb.collection(entidade).get();
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
         } catch (e) {
             console.warn('Carga imediata da nuvem:', entidade, e && e.message);
         }
-    }));
+    }
+
+    // Clientes primeiro — desbloqueia a UI o mais depressa possível
+    await carregarUma('clientes');
+    marcarSyncNuvemOk();
+
+    const restantes = ['honorarios', 'contratos', 'prazos', 'tarefas', 'pagamentos', 'despesas', 'notificacoes'];
+    Promise.all(restantes.map(carregarUma)).then(function () {
+        marcarSyncNuvemOk();
+    });
 }
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
@@ -3265,11 +3434,39 @@ async function verificarLogin() {
         console.warn('verificarLogin:', e);
         if (restaurarSessaoConvidadoSessionStorage()) return true;
     }
-    mostrarTelaLogin();
     return false;
 }
 
-function mostrarTelaLogin() {
+function estaNaPaginaLogin() {
+    return !!document.querySelector('.login-page');
+}
+
+function loginFormTemDados() {
+    const ids = ['emailAdmin', 'senhaAdmin', 'emailCliente', 'senhaCliente', 'emailClientePortal', 'senhaClientePortal', 'codigoAcesso', 'nomeConvidado'];
+    for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (el && String(el.value || '').trim()) return true;
+    }
+    return false;
+}
+
+function guardarRascunhoLogin(id, valor) {
+    try { sessionStorage.setItem('sl_draft_' + id, String(valor || '')); } catch (e) {}
+}
+function lerRascunhoLogin(id) {
+    try { return sessionStorage.getItem('sl_draft_' + id) || ''; } catch (e) { return ''; }
+}
+function restaurarRascunhosLogin() {
+    ['emailAdmin', 'emailCliente'].forEach(function (id) {
+        const el = document.getElementById(id);
+        const v = lerRascunhoLogin(id);
+        if (el && v && !el.value) el.value = v;
+    });
+}
+
+function mostrarTelaLogin(forcar) {
+    if (!forcar && estaNaPaginaLogin()) return;
+    if (!forcar && loginFormTemDados()) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3313,7 +3510,18 @@ function mostrarTelaLogin() {
     }
 }
 
+function ligarRascunhoEmailLogin(id) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.rascunho === '1') return;
+    el.dataset.rascunho = '1';
+    el.addEventListener('input', function () { guardarRascunhoLogin(id, el.value); });
+}
+
 function mostrarLoginAdmin() {
+    if (document.getElementById('formLoginAdmin')) {
+        restaurarRascunhosLogin();
+        return;
+    }
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3329,7 +3537,7 @@ function mostrarLoginAdmin() {
                 <form id="formLoginAdmin" class="space-y-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                        <input type="email" id="emailAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: solicitadora@sistema-legal.pt" required autocomplete="username">
+                        <input type="email" id="emailAdmin" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: solicitadora@sistema-legal.pt" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
                     </div>
                     
                     <div>
@@ -3340,7 +3548,7 @@ function mostrarLoginAdmin() {
                     <p id="erroLoginAdmin" class="text-sm text-red-600 hidden" role="alert"></p>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" id="btnEntrarAdmin" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
@@ -3355,6 +3563,8 @@ function mostrarLoginAdmin() {
         </div>
     `;
     
+    restaurarRascunhosLogin();
+    ligarRascunhoEmailLogin('emailAdmin');
     document.getElementById('formLoginAdmin').addEventListener('submit', async function(e) {
         e.preventDefault();
         const email = document.getElementById('emailAdmin').value;
@@ -3369,6 +3579,7 @@ function mostrarLoginAdmin() {
 }
 
 function mostrarLoginCliente() {
+    if (document.getElementById('formLoginCliente')) return;
     document.body.innerHTML = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
@@ -3395,7 +3606,7 @@ function mostrarLoginCliente() {
                     <p id="erroLoginCliente" class="text-sm text-red-600 hidden" role="alert"></p>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" id="btnEntrarCliente" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
@@ -3417,6 +3628,8 @@ function mostrarLoginCliente() {
         </div>
     `;
 
+    restaurarRascunhosLogin();
+    ligarRascunhoEmailLogin('emailCliente');
     document.getElementById('formLoginCliente').addEventListener('submit', async function(e) {
         e.preventDefault();
         const email = document.getElementById('emailCliente').value;
@@ -3546,7 +3759,7 @@ function mostrarLoginConvidado() {
                     </div>
                     
                     <div class="flex space-x-4">
-                        <button type="button" onclick="mostrarTelaLogin()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
+                        <button type="button" onclick="mostrarTelaLogin(true)" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600">
                             Voltar
                         </button>
                         <button type="submit" class="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">
@@ -4564,19 +4777,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     let logado = false;
     try {
+        const temJwt = (function () {
+            try {
+                return !!(localStorage.getItem('sl_api_token') && localStorage.getItem('sl_api_user'));
+            } catch (e) { return false; }
+        }());
+        if (!temJwt) mostrarTelaLogin();
+
         // Aguardar limpeza do cache Firestore (após zero absoluto), com tempo limite
         if (window.__promiseCacheFirestoreLimpo) {
             await executarComTimeout(window.__promiseCacheFirestoreLimpo, 5000, undefined);
         }
-        logado = await executarComTimeout(verificarLogin(), 10000, null);
-        if (logado === null) {
+        if (estaNaPaginaLogin()) {
+            verificarLogin().then(function (ok) {
+                if (ok === true && !loginFormTemDados() && estaNaPaginaLogin()) {
+                    configurarInterfaceUsuario();
+                    init();
+                }
+            }).catch(function () {});
+            return;
+        }
+        logado = await executarComTimeout(verificarLogin(), 10000, false);
+        if (logado !== true) {
             if (restaurarSessaoRapidaPosTimeout()) {
                 logado = true;
             } else {
-                mostrarTelaLogin();
+                if (!estaNaPaginaLogin()) mostrarTelaLogin();
                 return;
             }
         }
+        if (estaNaPaginaLogin() && loginFormTemDados()) return;
         if (!logado) return;
         if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
             && SistemaLegalAuth.redirectClienteFromFullSystem()) {
@@ -4633,6 +4863,7 @@ function limparEstilosLayoutInline() {
 
 /** Mantém layout responsivo: CSS gere dimensões; evita inline !important no mobile. */
 function forcarLarguraSidebar() {
+    if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
     limparEstilosLayoutInline();
     if (typeof initAppMobile === 'function') {
         initAppMobile();
@@ -4895,11 +5126,11 @@ function init() {
         };
     }
     
-    // Firestore = fonte principal. Sync traz dados da nuvem e atualiza.
+    // Firestore em fundo: abrir a interface já com dados locais (sem esperar a nuvem).
     filtrarDemoDoStorageLocal();
     carregarDados();
     if (isCloudReady()) {
-        atualizarIndicadorSync('syncing', 'A sincronizar...');
+        atualizarIndicadorSync(dadosEssenciaisSincronizados() ? 'ok' : 'syncing', dadosEssenciaisSincronizados() ? undefined : 'A sincronizar...');
     } else {
         atualizarIndicadorSync('offline');
     }
@@ -4919,17 +5150,20 @@ function init() {
             carregarSecao('dashboard');
         }
         if (typeof atualizarInterface === 'function') atualizarInterface();
-        marcarSyncNuvemOk();
     };
 
+    // Abrir já — sem atraso da nuvem
+    abrirInterfaceComDados();
+
     if (isCloudReady()) {
+        iniciarListenersFirestore(true);
         carregarImediatoNuvem().then(function () {
-            abrirInterfaceComDados();
-            iniciarListenersFirestore();
+            iniciarListenersFirestore(false);
+            marcarSyncNuvemOk();
         }).catch(function (err) {
             console.warn('Carga imediata da nuvem:', err);
-            iniciarListenersFirestore();
-            abrirInterfaceComDados();
+            iniciarListenersFirestore(false);
+            marcarSyncNuvemOk();
         });
         executarMigracoesPendentes().then(async () => {
             appStorage.removeItem('naoRestaurarDaNuvem');
@@ -4939,8 +5173,6 @@ function init() {
             console.warn('Migração inicial:', err);
             garantirSincronizacaoAutomatica();
         });
-    } else {
-        abrirInterfaceComDados();
     }
 
     if (!window.__syncAutomaticoTimer) {
@@ -7515,6 +7747,7 @@ function adaptarTabelasMobile(root) {
 }
 
 function initAppMobile() {
+    if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
     const isCap = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
     const isNarrow = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
     /* Desktop com ecrã touch mantém sidebar fixa — só mobile por largura ou Capacitor */
@@ -7560,8 +7793,10 @@ if (!window.__layoutMobileListeners) {
     window.__layoutMobileListeners = true;
     var _layoutResizeTimer;
     function onLayoutViewportChange() {
+        if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
         clearTimeout(_layoutResizeTimer);
         _layoutResizeTimer = setTimeout(function () {
+            if (typeof estaNaPaginaLogin === 'function' && estaNaPaginaLogin()) return;
             if (typeof initAppMobile === 'function') initAppMobile();
         }, 120);
     }
@@ -9301,6 +9536,36 @@ function navegarSecaoClienteFicha(secao, clienteId, clienteNome) {
     }, 250);
 }
 
+function obterDocumentosDoCliente(cliente) {
+    const lista = (typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos) || [];
+    const clienteId = cliente && cliente.id;
+    const nome = cliente && cliente.nome;
+    return lista.filter(function (item) {
+        if (!item) return false;
+        if (clienteId && String(item.clienteId) === String(clienteId)) return true;
+        return !!(nome && (item.clienteNome === nome || item.cliente === nome));
+    });
+}
+
+function htmlListaDocumentosFicha(docs) {
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (!docs || !docs.length) {
+        return '<p style="font-size:12px;color:#6b7280;margin:10px 0 0;">Ainda não há documentos neste cliente.</p>';
+    }
+    return docs.map(function (doc) {
+        const idEsc = String(doc.id).replace(/"/g, '&quot;');
+        const data = doc.dataCriacao ? new Date(doc.dataCriacao).toLocaleDateString('pt-PT') : '';
+        const extra = [doc.descricao, data].filter(Boolean).join(' · ');
+        return '<div style="padding:8px 0;border-top:1px solid #e5e7eb;">' +
+            '<div style="font-size:13px;font-weight:600;color:#111827;word-break:break-word;">' + esc(doc.nomeArquivo || 'Documento') + '</div>' +
+            (extra ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + esc(extra) + '</div>' : '') +
+            '<div style="display:flex;gap:12px;margin-top:6px;">' +
+            '<button type="button" data-documento-acao="abrir" data-documento-id="' + idEsc + '" style="font-size:12px;color:#2563eb;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">Abrir</button>' +
+            '<button type="button" data-documento-acao="baixar" data-documento-id="' + idEsc + '" style="font-size:12px;color:#0f766e;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">Guardar</button>' +
+            '</div></div>';
+    }).join('');
+}
+
 function mostrarInformacoesCompletasCliente(cliente) {
     const modalExistente = document.querySelector('.modal');
     if (modalExistente) modalExistente.remove();
@@ -9311,13 +9576,14 @@ function mostrarInformacoesCompletasCliente(cliente) {
         if (clienteId && String(item.clienteId) === String(clienteId)) return true;
         return item.clienteNome === cliente.nome || item.cliente === cliente.nome;
     };
+    const docsCliente = obterDocumentosDoCliente(cliente);
     const contadores = {
         honorarios: honorarios ? honorarios.filter(correspondeCliente).length : 0,
         contratos: contratos ? contratos.filter(correspondeCliente).length : 0,
         herancas: herancas ? herancas.filter(correspondeCliente).length : 0,
         prazos: prazos ? prazos.filter(correspondeCliente).length : 0,
         tarefas: tarefas ? tarefas.filter(correspondeCliente).length : 0,
-        documentos: documentos ? documentos.filter(correspondeCliente).length : 0
+        documentos: docsCliente.length
     };
 
     const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -9343,14 +9609,14 @@ function mostrarInformacoesCompletasCliente(cliente) {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 50 !important;
+        z-index: 110 !important;
     `;
     modal.innerHTML = `
         <div class="modal-content" style="
             background: white;
             padding: 14px 16px;
             border-radius: 8px;
-            max-width: min(92vw, 520px);
+            max-width: min(92vw, 560px);
             width: auto;
             max-height: 85vh;
             overflow-y: auto;
@@ -9434,15 +9700,6 @@ function mostrarInformacoesCompletasCliente(cliente) {
                             <div style="font-size: 13px; font-weight: 600; color: #1f2937;">Documentos</div>
                             <div data-ficha-documentos-resumo="${esc(clienteId)}" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${contadores.documentos} documento${contadores.documentos === 1 ? '' : 's'} associado${contadores.documentos === 1 ? '' : 's'}</div>
                         </div>
-                        <button type="button" class="js-ficha-ver-documentos" style="
-                            font-size: 13px;
-                            color: #2563eb;
-                            background: transparent;
-                            border: none;
-                            cursor: pointer;
-                            text-decoration: underline;
-                            white-space: nowrap;
-                        ">Ver documentos</button>
                         <button type="button" class="js-ficha-anexar-documentos" style="
                             font-size: 13px;
                             color: #0f766e;
@@ -9452,6 +9709,16 @@ function mostrarInformacoesCompletasCliente(cliente) {
                             text-decoration: underline;
                             white-space: nowrap;
                         ">Anexar mais</button>
+                    </div>
+                    <div data-ficha-anexar-painel style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
+                        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">Anexar foto ou PDF</label>
+                        ${htmlSeletorFicheiroComFoto('anexoClienteArquivo', 'accept=".pdf,.jpg,.jpeg,.png,.webp"')}
+                        <button type="button" class="js-guardar-anexos-cliente btn btn-primary" data-cliente-id="${esc(clienteId)}" style="margin-top:10px;padding:8px 14px;font-size:13px;">
+                            Guardar documentos
+                        </button>
+                    </div>
+                    <div data-ficha-documentos-lista="${esc(clienteId)}" style="max-height: 220px; overflow-y: auto; margin-top: 4px;">
+                        ${htmlListaDocumentosFicha(docsCliente)}
                     </div>
                 </div>
             </div>
@@ -9497,16 +9764,24 @@ function mostrarInformacoesCompletasCliente(cliente) {
             navegarSecaoClienteFicha(btn.getAttribute('data-secao'), clienteId, cliente.nome);
         });
     });
-    const btnVerDocs = modal.querySelector('.js-ficha-ver-documentos');
-    if (btnVerDocs) {
-        btnVerDocs.addEventListener('click', () => {
-            abrirAnexosCliente(clienteId);
+    const btnAnexarDocs = modal.querySelector('.js-ficha-anexar-documentos');
+    const painelAnexar = modal.querySelector('[data-ficha-anexar-painel]');
+    if (btnAnexarDocs && painelAnexar) {
+        btnAnexarDocs.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const aberto = painelAnexar.style.display !== 'none';
+            painelAnexar.style.display = aberto ? 'none' : 'block';
+            btnAnexarDocs.textContent = aberto ? 'Anexar mais' : 'Ocultar';
+            if (!aberto && typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
         });
     }
-    const btnAnexarDocs = modal.querySelector('.js-ficha-anexar-documentos');
-    if (btnAnexarDocs) {
-        btnAnexarDocs.addEventListener('click', () => {
-            abrirAnexosCliente(clienteId);
+    const btnGuardarAnexos = modal.querySelector('.js-guardar-anexos-cliente');
+    if (btnGuardarAnexos) {
+        btnGuardarAnexos.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            guardarAnexosClienteAgora(clienteId);
         });
     }
     const btnEditar = modal.querySelector('.js-ficha-editar-cliente');
@@ -9515,6 +9790,7 @@ function mostrarInformacoesCompletasCliente(cliente) {
     }
 
     if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    (docsCliente || []).forEach(prefetchUrlDocumento);
     requestAnimationFrame(() => {
         requestAnimationFrame(() => modal.classList.add('show'));
     });
@@ -9673,70 +9949,75 @@ function baixarDocumentoUrl(url, nome) {
     document.body.removeChild(link);
 }
 
+function mostrarPaginaAAbrirDocumento(win, titulo) {
+    if (!win) return;
+    try {
+        win.document.open();
+        win.document.write('<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>' +
+            String(titulo || 'A abrir…').replace(/[<>&]/g, '') +
+            '</title></head><body style="margin:0;font-family:sans-serif;background:#f3f4f6;color:#374151;display:flex;align-items:center;justify-content:center;height:100vh"><p>A abrir documento…</p></body></html>');
+        win.document.close();
+    } catch (e) { /* ignorar */ }
+}
+
+async function colocarUrlNoSeparador(win, url) {
+    if (!win || win.closed || !url) return false;
+    try {
+        if (url.startsWith('data:')) {
+            const blob = await fetch(url).then(function (res) { return res.blob(); });
+            const blobUrl = URL.createObjectURL(blob);
+            win.location.replace(blobUrl);
+            setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 120000);
+        } else {
+            win.location.replace(url);
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function abrirDocumentoEmNovaAba(doc) {
     if (!doc) return;
     if (doc.faturaId && (doc.processoTipo === 'fatura_recibo' || doc.tipoArquivo === 'text/html')) {
         abrirFaturaGuardadaComoHtml(doc, false);
         return;
     }
-    const url = await obterConteudoDocumento(doc);
-    if (!url) {
-        mostrarNotificacao('Documento sem conteúdo neste telemóvel. No computador, abra o Sistema Legal, volte a guardar o ficheiro e depois abra de novo aqui.', 'warning');
-        return;
+
+    const urlPronta = urlDocumentoJaPronta(doc);
+    const noTelemovel = isMobileApp();
+    let win = null;
+    if (!noTelemovel) {
+        win = window.open(urlPronta || 'about:blank', '_blank');
+        if (win && !urlPronta) mostrarPaginaAAbrirDocumento(win, doc.nomeArquivo);
+        if (win && urlPronta) return;
     }
+    if (!win) mostrarVisualizadorDocumentoAAbrir(doc);
+
     try {
+        const url = urlPronta || await obterConteudoDocumento(doc);
+        if (!url) {
+            if (win && !win.closed) win.close();
+            fecharVisualizadorDocumentoApp();
+            mostrarNotificacao('Documento sem conteúdo neste telemóvel. No computador, abra o Sistema Legal, volte a guardar o ficheiro e depois abra de novo aqui.', 'warning');
+            return;
+        }
         const tipoArquivo = (doc.tipoArquivo || '').toLowerCase();
         const isImagem = tipoArquivo.startsWith('image/') || url.startsWith('data:image/');
-        if (isImagem && isMobileApp()) {
+        if (isImagem && !win) {
             const htmlImg = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaparHtml(doc.nomeArquivo || 'Imagem')}</title><style>body{margin:0;background:#111827;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto}</style></head><body><img src="${url}" alt="Imagem"></body></html>`;
             abrirHtmlDocumentoNoApp(htmlImg, doc.nomeArquivo || 'Imagem', 'ver');
             return;
         }
-        if (isImagem) {
-            const win = window.open('', '_blank');
-            if (win) {
-                win.document.title = doc.nomeArquivo || 'Imagem';
-                win.document.body.style.margin = '0';
-                win.document.body.style.display = 'block';
-                win.document.body.style.overflow = 'auto';
-                win.document.body.style.background = '#111827';
-                win.document.body.innerHTML = `<div style="padding: 16px; text-align: center;"><img src="${url}" alt="Imagem" style="max-width: none; max-height: none; width: auto; height: auto; display: inline-block;" /></div>`;
-                return;
-            }
-            baixarDocumentoUrl(url, doc.nomeArquivo);
-            return;
+        if (win && !win.closed) {
+            const ok = await colocarUrlNoSeparador(win, url);
+            if (ok) return;
         }
-        if (url.startsWith('data:text/plain')) {
-            if (isMobileApp()) {
-                let texto = '';
-                try { texto = decodeURIComponent(url.split(',')[1] || ''); } catch (e) { texto = 'Conteúdo indisponível.'; }
-                const corpo = `<div class="minuta-doc">${formatarConteudoDocumentoHtml(texto)}</div>`;
-                const htmlDoc = await montarHtmlDocumentoProfissional(doc.nomeArquivo || 'Documento', corpo, ESTILOS_DOCUMENTO_PDF);
-                abrirHtmlDocumentoNoApp(htmlDoc, doc.nomeArquivo || 'Documento', 'ver');
-                return;
-            }
-        }
-        if (isMobileApp()) {
-            await abrirFicheiroDocumentoNoApp(doc, url);
-            return;
-        }
-        if (url.startsWith('data:')) {
-            const blob = await fetch(url).then(res => res.blob());
-            const blobUrl = URL.createObjectURL(blob);
-            const win = window.open(blobUrl, '_blank');
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-            if (!win) {
-                baixarDocumentoUrl(blobUrl, doc.nomeArquivo);
-            }
-            return;
-        }
-        const win = window.open(url, '_blank');
-        if (!win) {
-            baixarDocumentoUrl(url, doc.nomeArquivo);
-        }
+        await abrirFicheiroDocumentoNoApp(doc, url);
     } catch (error) {
         console.warn('Falha ao abrir documento:', error);
-        baixarDocumentoUrl(url, doc.nomeArquivo);
+        fecharVisualizadorDocumentoApp();
+        mostrarNotificacao('Não foi possível abrir o documento.', 'error');
     }
 }
 
@@ -15504,6 +15785,34 @@ function prepararHtmlImpressaoDocumento(htmlCompleto, nomeArquivo, opcoes) {
     return html;
 }
 
+function mostrarVisualizadorDocumentoAAbrir(doc) {
+    if (document.getElementById('docViewerApp')) return;
+    const titulo = (doc && doc.nomeArquivo) || 'Documento';
+    const overlay = document.createElement('div');
+    overlay.id = 'docViewerApp';
+    overlay.className = 'doc-viewer-app';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', titulo);
+    overlay.innerHTML =
+        '<header class="doc-viewer-app-bar">' +
+        '<button type="button" class="doc-viewer-btn-voltar" id="docViewerBtnVoltar" aria-label="Voltar"><span aria-hidden="true">←</span> Voltar</button>' +
+        '<span class="doc-viewer-title">' + escaparHtml(titulo) + '</span>' +
+        '<button type="button" class="doc-viewer-btn-acao" id="docViewerBtnGuardar" aria-label="Guardar ficheiro">Guardar</button>' +
+        '</header>' +
+        '<div id="docViewerLoading" class="doc-viewer-loading"><div class="doc-viewer-spinner"></div><p>A abrir documento…</p></div>';
+    document.body.appendChild(overlay);
+    document.body.classList.add('doc-viewer-open');
+    const btnVoltar = document.getElementById('docViewerBtnVoltar');
+    if (btnVoltar) btnVoltar.addEventListener('click', fecharVisualizadorDocumentoApp);
+    const btnGuardar = document.getElementById('docViewerBtnGuardar');
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', function () {
+            if (window.__docViewerUrlAtual) baixarDocumentoUrl(window.__docViewerUrlAtual, window.__docViewerNomeArquivo);
+        });
+    }
+}
+
 function fecharVisualizadorDocumentoApp() {
     const overlay = document.getElementById('docViewerApp');
     if (overlay) {
@@ -15529,7 +15838,6 @@ function fecharVisualizadorDocumentoApp() {
 }
 
 async function abrirFicheiroDocumentoNoApp(doc, url) {
-    fecharVisualizadorDocumentoApp();
     if (!url) return false;
 
     let viewUrl = url;
@@ -15547,45 +15855,42 @@ async function abrirFicheiroDocumentoNoApp(doc, url) {
     }
 
     const titulo = doc.nomeArquivo || 'Documento';
-    const tituloSeguro = escaparHtml(titulo);
     const isPdf = documentoEhPdf(doc);
 
     window.__docViewerUrlAtual = viewUrl;
     window.__docViewerBlobRevoke = blobRevoke;
     window.__docViewerNomeArquivo = titulo;
 
-    const overlay = document.createElement('div');
-    overlay.id = 'docViewerApp';
-    overlay.className = 'doc-viewer-app';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', titulo);
-    overlay.innerHTML = `
-        <header class="doc-viewer-app-bar">
-            <button type="button" class="doc-viewer-btn-voltar" id="docViewerBtnVoltar" aria-label="Voltar">
-                <span aria-hidden="true">←</span> Voltar
-            </button>
-            <span class="doc-viewer-title">${tituloSeguro}</span>
-            <button type="button" class="doc-viewer-btn-acao" id="docViewerBtnGuardar" aria-label="Guardar ficheiro">${isPdf ? 'Guardar PDF' : 'Guardar'}</button>
-        </header>
-        ${isPdf
-            ? `<object id="docViewerAppObject" data="${viewUrl}" type="application/pdf" class="doc-viewer-app-frame"><p style="padding:16px;text-align:center">Não foi possível mostrar o PDF neste telemóvel. Toque em «Guardar PDF».</p></object>`
-            : `<iframe id="docViewerAppFrame" class="doc-viewer-app-frame" title="${tituloSeguro}"></iframe>`}
-    `;
-    document.body.appendChild(overlay);
-    document.body.classList.add('doc-viewer-open');
+    if (!document.getElementById('docViewerApp')) {
+        mostrarVisualizadorDocumentoAAbrir(doc);
+    }
+    const overlay = document.getElementById('docViewerApp');
+    if (!overlay) return false;
 
-    if (!isPdf) {
-        const iframe = document.getElementById('docViewerAppFrame');
-        if (iframe) iframe.src = viewUrl;
+    const loading = document.getElementById('docViewerLoading');
+    if (loading) loading.remove();
+    const antigoPdf = document.getElementById('docViewerAppObject');
+    const antigoFrame = document.getElementById('docViewerAppFrame');
+    if (antigoPdf) antigoPdf.remove();
+    if (antigoFrame) antigoFrame.remove();
+
+    if (isPdf) {
+        const obj = document.createElement('object');
+        obj.id = 'docViewerAppObject';
+        obj.setAttribute('data', viewUrl);
+        obj.setAttribute('type', 'application/pdf');
+        obj.className = 'doc-viewer-app-frame';
+        overlay.appendChild(obj);
+    } else {
+        const iframe = document.createElement('iframe');
+        iframe.id = 'docViewerAppFrame';
+        iframe.className = 'doc-viewer-app-frame';
+        iframe.title = titulo;
+        iframe.src = viewUrl;
+        overlay.appendChild(iframe);
     }
 
-    document.getElementById('docViewerBtnVoltar').addEventListener('click', fecharVisualizadorDocumentoApp);
-    document.getElementById('docViewerBtnGuardar').addEventListener('click', function () {
-        baixarDocumentoUrl(window.__docViewerUrlAtual, window.__docViewerNomeArquivo);
-    });
-
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && !window.__docViewerBackHandler) {
         window.__docViewerBackHandler = function () {
             fecharVisualizadorDocumentoApp();
         };
@@ -16664,16 +16969,41 @@ function aguardarAuthFirebase(ms) {
     });
 }
 
+function mensagemErroStorage(err) {
+    const code = (err && err.code) || '';
+    if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled') {
+        return 'O envio para a nuvem excedeu o tempo. No Firebase, abra Storage e clique em Começar (Get started). Depois tente guardar o PDF outra vez.';
+    }
+    if (code === 'storage/unauthorized' || code === 'storage/unauthenticated') {
+        return 'Sem permissão para gravar ficheiros na nuvem. Active o login anónimo e publique as regras do Storage.';
+    }
+    if (code === 'storage/quota-exceeded') {
+        return 'A cota do Firebase Storage foi excedida.';
+    }
+    return (err && err.message) || 'Falhou o envio do documento para a nuvem. Verifique a internet e tente novamente.';
+}
+
 async function enviarFicheiroParaStorage(id, ficheiro) {
     if (!firebaseStorage || !ficheiro) return null;
+    try {
+        firebaseStorage.setMaxUploadRetryTime(40000);
+        firebaseStorage.setMaxOperationRetryTime(40000);
+    } catch (e) {}
     const user = await aguardarAuthFirebase(8000);
-    if (!user) return null;
+    if (!user) {
+        throw new Error('A nuvem de ficheiros não autenticou. No Firebase, em Authentication, active o provedor Anónimo.');
+    }
     const nome = String(ficheiro.name || 'ficheiro').replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'ficheiro';
     const path = 'documentos/' + id + '/' + nome;
     const ref = firebaseStorage.ref(path);
-    await ref.put(ficheiro, { contentType: ficheiro.type || 'application/octet-stream' });
-    const url = await ref.getDownloadURL();
-    return { url: url, path: path };
+    try {
+        await ref.put(ficheiro, { contentType: ficheiro.type || 'application/octet-stream' });
+        const url = await ref.getDownloadURL();
+        return { url: url, path: path };
+    } catch (err) {
+        console.error('Firebase Storage:', err && err.code, err && err.message);
+        throw new Error(mensagemErroStorage(err));
+    }
 }
 
 async function prepararFicheiroDocumento(arquivo, idDocumento) {
@@ -16745,6 +17075,9 @@ async function guardarFicheirosComoDocumentosCliente(clienteId, clienteNome, fic
             marcarSnapshotItem('documentos', documento);
         }
         lista.unshift(documento);
+        if (urlHttpDocumento(documento.conteudo)) {
+            __urlDocCache.set(String(documento.id), documento.conteudo);
+        }
         idbGuardarFicheiroDoc(documento.id, documento.conteudo);
         registrarAuditoria('criar', 'documento', `Documento adicionado: ${documento.nomeArquivo}`, null, {
             ...documento,
@@ -24335,9 +24668,7 @@ function abrirAnexosCliente(clienteId) {
         mostrarNotificacao('Cliente não encontrado.', 'error');
         return;
     }
-    const docs = (typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos).filter(function (d) {
-        return String(d.clienteId) === String(clienteId);
-    });
+    const docs = obterDocumentosDoCliente(cliente);
     const listaHtml = docs.length === 0
         ? '<p class="text-sm text-gray-500">Ainda não há documentos neste cliente. Anexe fotos ou PDF abaixo.</p>'
         : docs.map(function (doc) {
@@ -24351,7 +24682,7 @@ function abrirAnexosCliente(clienteId) {
                 '</div></div>';
         }).join('');
     const modal = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="fecharModalRobusto()">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index:200 !important" onclick="fecharModalRobusto()">
             <div class="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto modal-content" onclick="event.stopPropagation()">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
@@ -24386,13 +24717,18 @@ function abrirAnexosCliente(clienteId) {
 }
 
 function atualizarResumoDocumentosClienteNoModal(clienteId) {
-    const listaAtual = (typeof obterDocumentosAtual === 'function' ? obterDocumentosAtual() : documentos) || [];
-    const total = listaAtual.filter(function (doc) {
-        return String(doc && doc.clienteId) === String(clienteId);
-    }).length;
+    const cliente = (typeof obterClientesAtual === 'function' ? obterClientesAtual() : clientes).find(function (c) {
+        return String(c.id) === String(clienteId);
+    });
+    const docs = cliente ? obterDocumentosDoCliente(cliente) : [];
+    const total = docs.length;
     const alvo = document.querySelector('[data-ficha-documentos-resumo="' + String(clienteId).replace(/"/g, '&quot;') + '"]');
-    if (!alvo) return;
-    alvo.textContent = total + ' documento' + (total === 1 ? '' : 's') + ' associado' + (total === 1 ? '' : 's');
+    if (alvo) {
+        alvo.textContent = total + ' documento' + (total === 1 ? '' : 's') + ' associado' + (total === 1 ? '' : 's');
+    }
+    const listaEl = document.querySelector('[data-ficha-documentos-lista="' + String(clienteId).replace(/"/g, '&quot;') + '"]');
+    if (listaEl) listaEl.innerHTML = htmlListaDocumentosFicha(docs);
+    docs.forEach(prefetchUrlDocumento);
 }
 
 async function guardarAnexosClienteAgora(clienteId) {
@@ -24423,7 +24759,15 @@ async function guardarAnexosClienteAgora(clienteId) {
         }
         atualizarResumoDocumentosClienteNoModal(clienteId);
         mostrarNotificacao(n === 1 ? 'Documento guardado neste cliente.' : n + ' documentos guardados neste cliente.', 'success');
-        abrirAnexosCliente(clienteId);
+        const fichaAberta = document.querySelector('body > .modal');
+        if (fichaAberta && fichaAberta.querySelector('[data-ficha-documentos-lista]')) {
+            const painel = fichaAberta.querySelector('[data-ficha-anexar-painel]');
+            const btnAnexar = fichaAberta.querySelector('.js-ficha-anexar-documentos');
+            if (painel) painel.style.display = 'none';
+            if (btnAnexar) btnAnexar.textContent = 'Anexar mais';
+        } else {
+            abrirAnexosCliente(clienteId);
+        }
     } catch (err) {
         console.error(err);
         mostrarNotificacao(err.message || 'Não foi possível guardar os documentos.', 'error');
