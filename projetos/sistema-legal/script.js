@@ -4765,7 +4765,9 @@ function abrirClientePorIdOuNome(clienteId, clienteNome) {
 }
 
 // Verificar login após o DOM estar carregado
-document.addEventListener('DOMContentLoaded', async function() {
+async function arrancarSistemaLegal() {
+    if (window.__slArranqueIniciado) return;
+    window.__slArranqueIniciado = true;
     if (typeof initAppMobile === 'function') initAppMobile();
     if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
     window.addEventListener('load', function () {
@@ -4791,6 +4793,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (estaNaPaginaLogin()) {
             verificarLogin().then(function (ok) {
                 if (ok === true && !loginFormTemDados() && estaNaPaginaLogin()) {
+                    document.body.classList.add('sl-autenticado');
                     configurarInterfaceUsuario();
                     init();
                 }
@@ -4815,6 +4818,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (typeof sincronizarClientesApi === 'function') {
             sincronizarClientesApi().catch(function () {});
         }
+        document.body.classList.add('sl-autenticado');
         configurarInterfaceUsuario();
         forcarLarguraSidebar();
         init();
@@ -4833,7 +4837,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             mostrarNotificacao('Erro ao iniciar o sistema. Tente recarregar a página (Ctrl+F5).', 'error');
         }
     }
-});
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancarSistemaLegal);
+} else {
+    arrancarSistemaLegal();
+}
 
 function limparEstilosLayoutInline() {
     const sidebar = document.getElementById('sidebar');
@@ -8006,6 +8015,9 @@ function carregarSecao(secao) {
     window.__ultimoHashSecao = obterHashDadosSecao(secao);
     };
     requestAnimationFrame(carregarConteudo);
+    setTimeout(function () {
+        if (document.getElementById('avisoCarregamento')) carregarConteudo();
+    }, 80);
 }
 
 function atualizarNavegacao() {
