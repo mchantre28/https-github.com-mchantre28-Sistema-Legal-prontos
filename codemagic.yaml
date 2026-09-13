@@ -71,3 +71,6 @@ workflows:
         # TestFlight (recomendado primeiro). App Store pública: false até estar pronta.
         submit_to_testflight: true
         submit_to_app_store: false
+        beta_groups:
+          - Testadores
+          - Publico
