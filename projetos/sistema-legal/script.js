@@ -448,6 +448,7 @@ const CLOUD_ENTIDADES = [
     'integracoes_externas',
     'representantes'
 ];
+const ENTIDADES_ENVIO_FIREBASE = ['clientes'].concat(CLOUD_ENTIDADES).concat(['pagamentos', 'despesas', 'faturas']);
 const ENTIDADES_ESSENCIAIS = ['clientes', 'honorarios', 'contratos', 'prazos', 'documentos'];
 const ENTIDADES_ARRANQUE = ENTIDADES_ESSENCIAIS.concat([
     'tarefas',
@@ -595,7 +596,8 @@ const SYNC_INDICADOR_MAX_MS = 2000;
 const DASHBOARD_ENTIDADES_REFRESH = ['clientes', 'honorarios', 'contratos', 'prazos', 'notificacoes', 'tarefas', 'pagamentos', 'despesas'];
 
 function dadosEssenciaisSincronizados() {
-    return window.__snapshotsRecebidos.has('clientes');
+    const temClientes = Array.isArray(window.clientes) && window.clientes.length > 0;
+    return temClientes || window.__slNuvemClientesConfirmada === true;
 }
 
 function isMobileApp() {
@@ -899,13 +901,7 @@ function marcarSyncNuvemOk() {
         window.__syncLimiteTimer = null;
     }
     if (!dadosEssenciaisSincronizados()) {
-        if (window.__slInterfaceAberta) {
-            atualizarIndicadorSync('ok');
-            return;
-        }
-        if ((window.__cloudSyncPending || 0) === 0) {
-            atualizarIndicadorSync('syncing', 'A sincronizar...');
-        }
+        atualizarIndicadorSync('syncing', 'A sincronizar com o Firebase...');
         return;
     }
     if (window.__syncLimiteTimer) {
@@ -2658,6 +2654,9 @@ function obterListaGlobal(entidade) {
     if (entidade === 'entidades') return obterEntidadesAtual();
     if (entidade === 'integracoes_externas') return obterIntegracoesExternasAtual();
     if (entidade === 'representantes') return representantes || [];
+    if (entidade === 'pagamentos') return pagamentos || [];
+    if (entidade === 'despesas') return despesas || [];
+    if (entidade === 'faturas') return window.faturas || [];
     return [];
 }
 
@@ -2706,7 +2705,7 @@ function excluirEntidadeCloud(entidade, id) {
 }
 
 function agendarSyncEntidade(entidade, lista, removidos = [], syncIds = null) {
-    if (!CLOUD_ENTIDADES.includes(entidade)) return;
+    if (CLOUD_ENTIDADES.indexOf(entidade) === -1 && entidade !== 'clientes') return;
     if (window.__cloudSyncTimers[entidade]) {
         clearTimeout(window.__cloudSyncTimers[entidade]);
     }
@@ -2747,14 +2746,33 @@ function obterTimestampItem(item) {
 }
 
 function mesclarListasPorId(entidade, local, cloud) {
-    // Firestore = fonte absoluta. Usar APENAS cloud para evitar que dados apagados reapareçam do localStorage antigo.
-    if (Array.isArray(cloud)) return cloud;
-    return Array.isArray(local) ? local : [];
+    const origem = Array.isArray(local) ? local : [];
+    const nuvem = Array.isArray(cloud) ? cloud : [];
+    if (nuvem.length === 0) return origem;
+    if (origem.length === 0) return nuvem;
+    const mapa = new Map();
+    origem.forEach(function (item) {
+        if (!item || item.deleted === true) return;
+        const id = typeof obterIdEntidade === 'function' ? obterIdEntidade(entidade, item) : (item.id || item.codigo);
+        if (id == null || String(id).trim() === '') return;
+        mapa.set(String(id), item);
+    });
+    nuvem.forEach(function (item) {
+        if (!item) return;
+        const id = typeof obterIdEntidade === 'function' ? obterIdEntidade(entidade, item) : (item.id || item.codigo);
+        if (id == null || String(id).trim() === '') return;
+        if (item.deleted === true) {
+            mapa.delete(String(id));
+            return;
+        }
+        mapa.set(String(id), item);
+    });
+    return Array.from(mapa.values());
 }
 
 async function sincronizarEntidadeNuvem(entidade) {
     if (!isCloudReady()) return;
-    if (!CLOUD_ENTIDADES.includes(entidade)) return;
+    if (ENTIDADES_ENVIO_FIREBASE.indexOf(entidade) === -1) return;
     iniciarSync();
     try {
         const local = Array.isArray(obterListaGlobal(entidade)) ? obterListaGlobal(entidade) : [];
@@ -2906,6 +2924,7 @@ async function carregarUmaEntidadeNuvem(entidade) {
         const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), limiteMs, null);
         if (snap) {
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
+            if (entidade === 'clientes') window.__slNuvemClientesConfirmada = true;
             return;
         }
     } catch (e) {
@@ -2932,10 +2951,61 @@ async function carregarImediatoNuvem() {
 
 const CHAVE_MIGRACAO_CLIENTES = 'clientesMigradosParaFirestore';
 
-/** Migração clientes: desativada. Clientes apenas do Firestore. */
+/** Envia clientes da memória e do storage local para o Firestore. */
 async function migrarClientesLocalParaFirestore() {
     if (!isCloudReady()) return;
+    await enviarListaCompletaParaFirebase('clientes');
     try { appStorage.setItem(CHAVE_MIGRACAO_CLIENTES, 'true'); } catch (e) {}
+}
+
+function coletarListaParaEnvioFirebase(entidade) {
+    const memoria = typeof obterListaGlobal === 'function' ? obterListaGlobal(entidade) : [];
+    const disco = typeof lerListaDoStorage === 'function' ? lerListaDoStorage(entidade) : [];
+    if (typeof mesclarListasPorId === 'function') return mesclarListasPorId(entidade, memoria, disco);
+    return (Array.isArray(memoria) && memoria.length) ? memoria : disco;
+}
+
+async function enviarListaCompletaParaFirebase(entidade) {
+    if (!isCloudReady()) return 0;
+    const lista = coletarListaParaEnvioFirebase(entidade);
+    if (!Array.isArray(lista) || lista.length === 0) return 0;
+    let enviados = 0;
+    for (let i = 0; i < lista.length; i++) {
+        const item = lista[i];
+        if (!item || item.deleted === true) continue;
+        if (typeof isItemDemonstracao === 'function' && isItemDemonstracao(entidade, item)) continue;
+        if (!item.id && entidade !== 'convidados') item.id = gerarIdImutavel();
+        try {
+            if (entidade === 'clientes' && typeof criarClienteCloud === 'function') {
+                await criarClienteCloud(item);
+            } else if (typeof salvarEntidadeCloud === 'function') {
+                await salvarEntidadeCloud(entidade, item);
+            }
+            enviados++;
+        } catch (e) {
+            console.warn('Envio Firebase falhou:', entidade, e && e.message);
+        }
+    }
+    return enviados;
+}
+
+async function migrarTodosDadosParaFirebase() {
+    if (!isCloudReady()) return 0;
+    try {
+        appStorage.removeItem(CHAVE_LOCALSTORAGE_MIGRADO);
+        appStorage.removeItem(CHAVE_MIGRACAO_CLIENTES);
+        appStorage.removeItem('honorariosMigrados');
+        appStorage.removeItem('contratosMigrados');
+        appStorage.removeItem('tarefasMigrados');
+        appStorage.removeItem('prazosMigrados');
+        appStorage.removeItem('notificacoesMigrados');
+    } catch (e) {}
+    let total = 0;
+    for (let i = 0; i < ENTIDADES_ENVIO_FIREBASE.length; i++) {
+        total += await enviarListaCompletaParaFirebase(ENTIDADES_ENVIO_FIREBASE[i]);
+    }
+    try { appStorage.setItem(CHAVE_LOCALSTORAGE_MIGRADO, 'true'); } catch (e) {}
+    return total;
 }
 
 /** Migração: envia dados do localStorage (e sessionStorage) para Firestore e limpa o storage. Executa uma vez. */
@@ -3277,7 +3347,7 @@ async function sincronizarTodasEntidadesNuvem() {
         return;
     }
     await executarMigracoesPendentes();
-    for (const entidade of CLOUD_ENTIDADES) {
+    for (const entidade of ENTIDADES_ENVIO_FIREBASE) {
         await sincronizarEntidadeNuvem(entidade);
     }
 }
@@ -3300,7 +3370,9 @@ async function sincronizarAparelhoComFirebase() {
                 return;
             }
             try { appStorage.removeItem('naoRestaurarDaNuvem'); } catch (e) {}
-            atualizarIndicadorSync('syncing', 'A sincronizar com o Firebase...');
+            atualizarIndicadorSync('syncing', 'A enviar dados para o Firebase...');
+            if (typeof carregarDados === 'function') carregarDados();
+            const enviados = await migrarTodosDadosParaFirebase();
             await carregarImediatoNuvem();
             await sincronizarTodasEntidadesNuvem();
             if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
@@ -3310,9 +3382,22 @@ async function sincronizarAparelhoComFirebase() {
                 try { carregarSecao(secao); } catch (e) {}
             }
             if (typeof atualizarInterface === 'function') atualizarInterface();
-            marcarSyncNuvemOk();
-            if (typeof mostrarNotificacao === 'function') {
-                mostrarNotificacao('Dados sincronizados com o Firebase.', 'success');
+            const temDados = Array.isArray(window.clientes) && window.clientes.length > 0;
+            if (temDados) {
+                marcarSyncNuvemOk();
+                if (typeof mostrarNotificacao === 'function') {
+                    mostrarNotificacao(
+                        enviados > 0
+                            ? ('Enviados ' + enviados + ' registos para o Firebase.')
+                            : 'Dados sincronizados com o Firebase.',
+                        'success'
+                    );
+                }
+            } else {
+                atualizarIndicadorSync('syncing', 'A aguardar dados do Firebase...');
+                if (typeof mostrarNotificacao === 'function') {
+                    mostrarNotificacao('Ainda sem clientes no Firebase. Abra a app no telemóvel que tem os dados e volte a entrar.', 'warning');
+                }
             }
         } catch (err) {
             console.warn('sincronizarAparelhoComFirebase:', err);
@@ -6936,8 +7021,9 @@ function hidratarDocumentosIdb() {
 
 function carregarDados() {
     try {
-        clientes = Array.isArray(clientes) ? clientes : [];
-        window.clientes = clientes;
+        clientes = Array.isArray(clientes) && clientes.length > 0 ? clientes : lerListaDoStorage('clientes');
+        if (typeof atualizarClientesEmMemoria === 'function') atualizarClientesEmMemoria(clientes);
+        else { window.clientes = clientes; }
         const hidratar = function (nome, atual) {
             if (Array.isArray(atual) && atual.length > 0) return atual;
             return lerListaDoStorage(nome);
@@ -6984,7 +7070,12 @@ function salvarDados(chave, dados, opcoes = {}) {
     try {
         // clientes: APENAS memória (Firestore via ouvirClientes + CRUD). NUNCA appStorage.
         if (chave === 'clientes') {
-            if (Array.isArray(dados)) atualizarClientesEmMemoria(dados);
+            if (Array.isArray(dados)) {
+                atualizarClientesEmMemoria(dados);
+                if (!opcoes.skipCloudSync && typeof agendarSyncEntidade === 'function') {
+                    agendarSyncEntidade('clientes', dados);
+                }
+            }
             return;
         }
         // Verificar se os dados são válidos
@@ -13785,6 +13876,7 @@ function atualizarClientesEmMemoria(lista) {
     if (!Array.isArray(lista)) return;
     clientes = lista.filter(function (c) { return !isClienteApiTeste(c) && !isClienteDemonstracao(c); });
     window.clientes = clientes;
+    if (typeof gravarListaNoStorage === 'function') gravarListaNoStorage('clientes', clientes);
 }
 
 /** Lista tarefas: Firestore (global) ou appStorage só offline. */
