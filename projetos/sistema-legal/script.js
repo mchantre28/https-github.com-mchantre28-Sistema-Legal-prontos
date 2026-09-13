@@ -41,22 +41,56 @@ const CHAVE_LEGACY_DEMO_PURGE = 'legacyDemoPurgeVersion';
 function inicializarPWA() {}
 if (typeof window !== 'undefined') window.inicializarPWA = inicializarPWA;
 
-/** Bloqueia perfil cliente API no index.html antes de Firebase/dashboard. */
-(function bloquearClienteApiNoIndex() {
-    if (typeof location === 'undefined') return;
+/** Sessão antiga não entra sozinha: cada abertura pede email e palavra-passe. */
+function eAppNativaSistemaLegal() {
     try {
-        if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem) {
-            if (SistemaLegalAuth.redirectClienteFromFullSystem()) return;
+        return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    } catch (e) {
+        return false;
+    }
+}
+
+function voltarAoEcranLogin() {
+    try { document.body.classList.remove('sl-autenticado'); } catch (e) {}
+    const ecra = document.getElementById('ecraAcesso');
+    const estado = document.getElementById('ecraAcessoEstado');
+    if (estado) estado.textContent = 'Inicie sessão com email e palavra-passe.';
+    ['senhaAdmin', 'senhaCliente'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    if (ecra && typeof mostrarLoginAdmin === 'function' && !document.getElementById('formLoginAdmin')) {
+        mostrarLoginAdmin();
+    }
+}
+
+function instalarRegressoAoLoginAoAbrirApp() {
+    if (window.__slRegressoLoginInstalado) return;
+    window.__slRegressoLoginInstalado = true;
+    let esteveEmFundo = false;
+    const regressar = function () {
+        if (!esteveEmFundo) return;
+        esteveEmFundo = false;
+        voltarAoEcranLogin();
+    };
+    document.addEventListener('visibilitychange', function () {
+        if (!eAppNativaSistemaLegal()) return;
+        if (document.visibilityState === 'hidden') esteveEmFundo = true;
+        else if (document.visibilityState === 'visible') regressar();
+    });
+    try {
+        const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+        if (App && typeof App.addListener === 'function') {
+            App.addListener('appStateChange', function (state) {
+                if (!state || !state.isActive) {
+                    esteveEmFundo = true;
+                    return;
+                }
+                regressar();
+            });
         }
-        var token = localStorage.getItem('sl_api_token');
-        var raw = localStorage.getItem('sl_api_user');
-        if (!token || !raw) return;
-        var user = JSON.parse(raw);
-        if (user && user.perfil === 'cliente') {
-            location.replace('cliente.html');
-        }
-    } catch (e) { /* ignorar */ }
-})();
+    } catch (e) {}
+}
 
 // Armazenamento: sessão e config vão para Firestore (sistema/sessao, sistema/config)
 // appStorage mantido como fallback para migration flags e outros (usa sessionStorage)
@@ -3643,7 +3677,35 @@ function restaurarRascunhosLogin() {
     });
 }
 
+function colocarHtmlLogin(html) {
+    const ecra = document.getElementById('ecraAcesso');
+    if (!ecra) return false;
+    document.body.classList.remove('sl-autenticado');
+    ecra.innerHTML = html;
+    return true;
+}
+
 function mostrarTelaLogin(forcar) {
+    const ecra = document.getElementById('ecraAcesso');
+    if (ecra) {
+        if (!forcar && estaNaPaginaLogin() && document.getElementById('ecraAcessoEstado')) return;
+        document.body.classList.remove('sl-autenticado');
+        ecra.innerHTML = `
+            <div class="login-card bg-white p-6 sm:p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
+                    <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
+                    <p class="text-gray-600 mt-2">Inicie sessão com email e palavra-passe</p>
+                </div>
+                <div class="space-y-4">
+                    <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin();">Administrador</button>
+                    <button type="button" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginCliente==='function')mostrarLoginCliente();">Cliente</button>
+                    <button type="button" class="w-full bg-green-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginConvidado==='function')mostrarLoginConvidado();">Convidado (código)</button>
+                </div>
+                <p id="ecraAcessoEstado" class="mt-6 text-center text-sm text-gray-500">Cada abertura pede as credenciais.</p>
+            </div>`;
+        return;
+    }
     if (!forcar && estaNaPaginaLogin()) return;
     if (!forcar && loginFormTemDados()) return;
     document.body.innerHTML = `
@@ -3699,9 +3761,10 @@ function ligarRascunhoEmailLogin(id) {
 function mostrarLoginAdmin() {
     if (document.getElementById('formLoginAdmin')) {
         restaurarRascunhosLogin();
+        document.body.classList.remove('sl-autenticado');
         return;
     }
-    document.body.innerHTML = `
+    const htmlLoginAdmin = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
@@ -3741,6 +3804,7 @@ function mostrarLoginAdmin() {
             </div>
         </div>
     `;
+    if (!colocarHtmlLogin(htmlLoginAdmin)) document.body.innerHTML = htmlLoginAdmin;
     
     restaurarRascunhosLogin();
     ligarRascunhoEmailLogin('emailAdmin');
@@ -3758,8 +3822,11 @@ function mostrarLoginAdmin() {
 }
 
 function mostrarLoginCliente() {
-    if (document.getElementById('formLoginCliente')) return;
-    document.body.innerHTML = `
+    if (document.getElementById('formLoginCliente')) {
+        document.body.classList.remove('sl-autenticado');
+        return;
+    }
+    const htmlLoginCliente = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
@@ -3806,6 +3873,7 @@ function mostrarLoginCliente() {
             </div>
         </div>
     `;
+    if (!colocarHtmlLogin(htmlLoginCliente)) document.body.innerHTML = htmlLoginCliente;
 
     restaurarRascunhosLogin();
     ligarRascunhoEmailLogin('emailCliente');
@@ -3823,7 +3891,7 @@ function mostrarLoginCliente() {
 }
 
 function mostrarRecuperarPasswordCliente() {
-    document.body.innerHTML = `
+    const htmlRecuperarPassword = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
@@ -3854,6 +3922,7 @@ function mostrarRecuperarPasswordCliente() {
             </div>
         </div>
     `;
+    if (!colocarHtmlLogin(htmlRecuperarPassword)) document.body.innerHTML = htmlRecuperarPassword;
 
     document.getElementById('formRecuperarPassword').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -3914,7 +3983,7 @@ function mostrarRecuperarPasswordCliente() {
 window.mostrarRecuperarPasswordCliente = mostrarRecuperarPasswordCliente;
 
 function mostrarLoginConvidado() {
-    document.body.innerHTML = `
+    const htmlLoginConvidado = `
         <div class="login-page min-h-screen bg-gray-100 flex flex-col items-center justify-center">
             <div class="login-page-logo mb-6">
                 ${(typeof getBrandedLogoHTML==='function'?getBrandedLogoHTML():((typeof LOGO_DATA_URI!=='undefined'&&LOGO_DATA_URI)?'<img src="'+LOGO_DATA_URI.replace(/"/g,'&quot;')+'" alt="Ana Paula Medina Solicitadora" class="logo-fixed mx-auto" style="width:220px;height:auto;display:block;object-fit:contain;image-rendering:crisp-edges;margin-bottom:14px">':'<div class="text-center font-bold text-gray-800" style="margin-bottom:14px">ANA PAULA MEDINA<br/><span class="text-sm font-normal text-gray-600">SOLICITADORA</span></div>'))}
@@ -3953,6 +4022,7 @@ function mostrarLoginConvidado() {
             </div>
         </div>
     `;
+    if (!colocarHtmlLogin(htmlLoginConvidado)) document.body.innerHTML = htmlLoginConvidado;
     
     // Restringir o campo código a aceitar apenas letras e números (máx. 8)
     const inputCodigo = document.getElementById('codigoAcesso');
@@ -4952,81 +5022,10 @@ async function arrancarSistemaLegal() {
     window.addEventListener('load', function () {
         if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
     }, { once: true });
-    if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
-        && SistemaLegalAuth.redirectClienteFromFullSystem()) {
-        return;
-    }
-    let logado = false;
-    try {
-        const temJwt = (function () {
-            try {
-                return !!(localStorage.getItem('sl_api_token') && localStorage.getItem('sl_api_user'));
-            } catch (e) { return false; }
-        }());
-        if (!temJwt) mostrarTelaLogin();
-
-        if (window.__promiseCacheFirestoreLimpo) {
-            await executarComTimeout(window.__promiseCacheFirestoreLimpo, 3000, undefined);
-        }
-
-        const sessaoRapida = temJwt || restaurarSessaoRapidaPosTimeout();
-        if (sessaoRapida) {
-            if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
-                && SistemaLegalAuth.redirectClienteFromFullSystem()) {
-                return;
-            }
-            document.body.classList.add('sl-autenticado');
-            configurarInterfaceUsuario();
-            forcarLarguraSidebar();
-            try { init(); } catch (e) { console.error('init:', e); }
-            verificarLogin().catch(function () {});
-            if (typeof sincronizarClientesApi === 'function') {
-                sincronizarClientesApi().catch(function () {});
-            }
-            return;
-        }
-
-        logado = await executarComTimeout(verificarLogin(), 8000, false);
-        if (logado !== true) {
-            if (restaurarSessaoRapidaPosTimeout()) {
-                logado = true;
-            } else {
-                document.body.classList.remove('sl-autenticado');
-                if (!estaNaPaginaLogin()) mostrarTelaLogin();
-                return;
-            }
-        }
-        if (estaNaPaginaLogin() && loginFormTemDados()) return;
-        if (!logado) return;
-        if (typeof SistemaLegalAuth !== 'undefined' && SistemaLegalAuth.redirectClienteFromFullSystem
-            && SistemaLegalAuth.redirectClienteFromFullSystem()) {
-            return;
-        }
-        if (typeof sincronizarClientesApi === 'function') {
-            sincronizarClientesApi().catch(function () {});
-        }
-        document.body.classList.add('sl-autenticado');
-        configurarInterfaceUsuario();
-        forcarLarguraSidebar();
-        try { init(); } catch (e) { console.error('init:', e); }
-    } catch (err) {
-        console.error('Erro na inicialização:', err);
-        if (window.__slInterfaceAberta) {
-            if (typeof mostrarNotificacao === 'function') {
-                mostrarNotificacao('O escritório está aberto. A sincronização continua em fundo.', 'warning');
-            }
-            return;
-        }
-        const el = document.getElementById('conteudoDinamico');
-        if (el) {
-            el.innerHTML = `
-                <div class="p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl">
-                    <p class="font-semibold mb-2">Não foi possível iniciar o Sistema Legal.</p>
-                    <p class="text-sm mb-2">${(err && err.message) ? String(err.message).replace(/</g, '&lt;') : 'Ocorreu um erro inesperado.'}</p>
-                    <p class="text-sm">Feche a app por completo e volte a abrir.</p>
-                </div>`;
-        }
-    }
+    document.body.classList.remove('sl-autenticado');
+    instalarRegressoAoLoginAoAbrirApp();
+    if (typeof mostrarLoginAdmin === 'function') mostrarLoginAdmin();
+    else if (!estaNaPaginaLogin()) mostrarTelaLogin(true);
 }
 
 function limparEstilosLayoutInline() {
@@ -5321,6 +5320,7 @@ function deveFicarNoEscritorio(perfil) {
 
 function entrarNoEscritorioSemRecarregar() {
     document.body.classList.add('sl-autenticado');
+    if (typeof initAppMobile === 'function') initAppMobile();
     if (typeof configurarInterfaceUsuario === 'function') configurarInterfaceUsuario();
     if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
     if (typeof init === 'function') init();

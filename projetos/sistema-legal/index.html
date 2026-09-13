@@ -19,20 +19,6 @@
     <!-- Meta Tags Básicas -->
     <meta name="description" content="Sistema completo de gestão jurídica para Solicitadores">
     <meta name="api-base-url" content="https://sistema-legal-api-eu.onrender.com">
-    <!-- Bloquear perfil cliente antes de Firebase/script.js (sessão JWT em localStorage) -->
-    <script>
-      (function(){
-        try {
-          var token = localStorage.getItem('sl_api_token');
-          var raw = localStorage.getItem('sl_api_user');
-          if (!token || !raw) return;
-          var user = JSON.parse(raw);
-          if (user && user.perfil === 'cliente') {
-            location.replace('cliente.html');
-          }
-        } catch (e) { /* ignorar */ }
-      })();
-    </script>
     <script>
       // Silenciar aviso "cdn.tailwindcss.com should not be used in production"
       (function(){var o=console.warn;console.warn=function(m){if(typeof m==='string'&&(m.includes('cdn.tailwindcss.com')||m.includes('enableIndexedDbPersistence')||m.includes('enablePersistence')))return;o.apply(console,arguments)}})();
@@ -185,14 +171,7 @@
 <body class="bg-gray-100 layout-desktop">
     <script>
       (function(){
-        function temSessao(){
-          try {
-            if (localStorage.getItem('sl_api_token') && localStorage.getItem('sl_api_user')) return true;
-            if (sessionStorage.getItem('usuarioLogado')) return true;
-          } catch (e) {}
-          return false;
-        }
-        if (temSessao()) document.body.classList.add('sl-autenticado');
+        try { document.body.classList.remove('sl-autenticado'); } catch (e) {}
         function rm(){ var el=document.getElementById('sidebar-logo'); if(el&&el.parentNode){ el.parentNode.removeChild(el); } }
         if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',rm); } else { rm(); } setTimeout(rm,100);
       })();
@@ -202,14 +181,14 @@
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                 <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
-                <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
+                <p class="text-gray-600 mt-2">Inicie sessão com email e palavra-passe</p>
             </div>
             <div class="space-y-4">
                 <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin();">Administrador</button>
                 <button type="button" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginCliente==='function')mostrarLoginCliente();">Cliente</button>
                 <button type="button" class="w-full bg-green-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginConvidado==='function')mostrarLoginConvidado();">Convidado (código)</button>
             </div>
-            <p id="ecraAcessoEstado" class="mt-6 text-center text-sm text-gray-500">A preparar o acesso…</p>
+            <p id="ecraAcessoEstado" class="mt-6 text-center text-sm text-gray-500">Cada abertura pede as credenciais.</p>
         </div>
     </div>
     <!-- Link de saltar para leitores de ecrã (acessibilidade) -->
@@ -385,13 +364,13 @@
     <script defer src="./api.js?v=14"></script>
     <script defer src="./app.js?v=2"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=141" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=142" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         (function () {
             function marcarPronto() {
                 var estado = document.getElementById('ecraAcessoEstado');
                 if (estado && typeof mostrarLoginAdmin === 'function') {
-                    estado.textContent = 'Escolha o tipo de acesso.';
+                    estado.textContent = 'Inicie sessão com email e palavra-passe.';
                 }
             }
             function desbloquear() {
