@@ -2917,9 +2917,7 @@ function mostrarEcranCargaCompleta(feitas, total) {
 
 async function carregarUmaEntidadeNuvem(entidade) {
     if (!isCloudReady()) return;
-    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-    const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    const limiteMs = (ios || nativo) ? 20000 : 8000;
+    const limiteMs = 8000;
     try {
         const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), limiteMs, null);
         if (snap) {
@@ -3370,11 +3368,18 @@ async function sincronizarAparelhoComFirebase() {
                 return;
             }
             try { appStorage.removeItem('naoRestaurarDaNuvem'); } catch (e) {}
-            atualizarIndicadorSync('syncing', 'A enviar dados para o Firebase...');
             if (typeof carregarDados === 'function') carregarDados();
-            const enviados = await migrarTodosDadosParaFirebase();
+            const temLocal = ENTIDADES_ENVIO_FIREBASE.some(function (e) {
+                const lista = coletarListaParaEnvioFirebase(e);
+                return Array.isArray(lista) && lista.length > 0;
+            });
+            let enviados = 0;
+            if (temLocal) {
+                atualizarIndicadorSync('syncing', 'A enviar dados para o Firebase...');
+                enviados = await migrarTodosDadosParaFirebase();
+            }
+            atualizarIndicadorSync('syncing', 'A receber dados do Firebase...');
             await carregarImediatoNuvem();
-            await sincronizarTodasEntidadesNuvem();
             if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
             if (typeof carregarDados === 'function') carregarDados();
             if (window.__slInterfaceAberta && typeof carregarSecao === 'function') {
@@ -3394,10 +3399,7 @@ async function sincronizarAparelhoComFirebase() {
                     );
                 }
             } else {
-                atualizarIndicadorSync('syncing', 'A aguardar dados do Firebase...');
-                if (typeof mostrarNotificacao === 'function') {
-                    mostrarNotificacao('Ainda sem clientes no Firebase. Abra a app no telemóvel que tem os dados e volte a entrar.', 'warning');
-                }
+                atualizarIndicadorSync('syncing', 'A receber dados do Firebase...');
             }
         } catch (err) {
             console.warn('sincronizarAparelhoComFirebase:', err);
