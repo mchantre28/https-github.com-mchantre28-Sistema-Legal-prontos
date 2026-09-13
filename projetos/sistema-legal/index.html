@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
     <title>Sistema Legal - Gestão Jurídica</title>
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
     <meta name="theme-color" content="#111827">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -181,10 +183,10 @@
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                 <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
-                <p class="text-gray-600 mt-2">Inicie sessão com email e palavra-passe</p>
+                <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
             </div>
             <div class="space-y-4">
-                <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin();">Administrador</button>
+                <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin(true);">Administrador</button>
                 <button type="button" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginCliente==='function')mostrarLoginCliente();">Cliente</button>
                 <button type="button" class="w-full bg-green-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginConvidado==='function')mostrarLoginConvidado();">Convidado (código)</button>
             </div>
@@ -364,7 +366,7 @@
     <script defer src="./api.js?v=14"></script>
     <script defer src="./app.js?v=2"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=143" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./script.js?v=144" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         (function () {
             function marcarPronto() {

@@ -3693,10 +3693,10 @@ function mostrarTelaLogin(forcar) {
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">Sistema Legal</h1>
                     <p class="text-lg font-semibold text-blue-600 mt-2">ANA PAULA MEDINA - SOLICITADORA</p>
-                    <p class="text-gray-600 mt-2">Inicie sessão com email e palavra-passe</p>
+                    <p class="text-gray-600 mt-2">Selecione o tipo de acesso</p>
                 </div>
                 <div class="space-y-4">
-                    <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin();">Administrador</button>
+                    <button type="button" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginAdmin==='function')mostrarLoginAdmin(true);">Administrador</button>
                     <button type="button" class="w-full bg-indigo-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginCliente==='function')mostrarLoginCliente();">Cliente</button>
                     <button type="button" class="w-full bg-green-600 text-white py-3 px-4 rounded-md" onclick="if(typeof mostrarLoginConvidado==='function')mostrarLoginConvidado();">Convidado (código)</button>
                 </div>
@@ -3719,7 +3719,7 @@ function mostrarTelaLogin(forcar) {
                 </div>
                 
                 <div class="space-y-4">
-                    <button onclick="mostrarLoginAdmin()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center">
+                    <button onclick="mostrarLoginAdmin(true)" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center">
                         <i data-lucide="shield-check" class="w-5 h-5 mr-2"></i>
                         Administrador
                     </button>
@@ -3756,7 +3756,15 @@ function ligarRascunhoEmailLogin(id) {
     el.addEventListener('input', function () { guardarRascunhoLogin(id, el.value); });
 }
 
-function mostrarLoginAdmin() {
+function pedidoExplicitoDeAcesso(origem) {
+    return origem === true || !!(origem && origem.isTrusted);
+}
+
+function mostrarLoginAdmin(origem) {
+    if (!pedidoExplicitoDeAcesso(origem)) {
+        if (typeof mostrarTelaLogin === 'function') mostrarTelaLogin(true);
+        return;
+    }
     if (document.getElementById('formLoginAdmin')) {
         restaurarRascunhosLogin();
         document.body.classList.remove('sl-autenticado');

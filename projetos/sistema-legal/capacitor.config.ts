@@ -10,7 +10,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     iosScheme: 'https',
     hostname: 'mchantre28.github.io',
-    url: SITE_URL,
+    url: SITE_URL + '?acesso=opcoes',
     allowNavigation: [
       'mchantre28.github.io',
       '*.onrender.com',
