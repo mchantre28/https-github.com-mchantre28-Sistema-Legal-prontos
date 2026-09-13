@@ -3282,6 +3282,52 @@ async function sincronizarTodasEntidadesNuvem() {
     }
 }
 
+/** Em cada login, neste ou noutro aparelho: recebe a nuvem e envia o que ainda estiver só no telemóvel. */
+async function sincronizarAparelhoComFirebase() {
+    if (window.__slSyncAparelhoEmCurso) return window.__slSyncAparelhoPromise;
+    window.__slSyncAparelhoEmCurso = true;
+    window.__slSyncAparelhoPromise = (async function () {
+        try {
+            try { if (typeof initFirebase === 'function') initFirebase(); } catch (e) {}
+            if (typeof garantirAuthFirebase === 'function') {
+                await garantirAuthFirebase();
+            }
+            if (!isCloudReady()) {
+                atualizarIndicadorSync('offline');
+                if (typeof mostrarNotificacao === 'function') {
+                    mostrarNotificacao('Firebase indisponível. Verifique a internet.', 'error');
+                }
+                return;
+            }
+            try { appStorage.removeItem('naoRestaurarDaNuvem'); } catch (e) {}
+            atualizarIndicadorSync('syncing', 'A sincronizar com o Firebase...');
+            await carregarImediatoNuvem();
+            await sincronizarTodasEntidadesNuvem();
+            if (typeof iniciarListenersFirestore === 'function') iniciarListenersFirestore(false);
+            if (typeof carregarDados === 'function') carregarDados();
+            if (window.__slInterfaceAberta && typeof carregarSecao === 'function') {
+                const secao = typeof secaoAtiva === 'string' ? secaoAtiva : 'dashboard';
+                try { carregarSecao(secao); } catch (e) {}
+            }
+            if (typeof atualizarInterface === 'function') atualizarInterface();
+            marcarSyncNuvemOk();
+            if (typeof mostrarNotificacao === 'function') {
+                mostrarNotificacao('Dados sincronizados com o Firebase.', 'success');
+            }
+        } catch (err) {
+            console.warn('sincronizarAparelhoComFirebase:', err);
+            atualizarIndicadorSync('error', 'A retomar a sincronização...');
+            if (typeof mostrarNotificacao === 'function') {
+                mostrarNotificacao('Não foi possível concluir a sincronização. A tentar outra vez em fundo.', 'warning');
+            }
+        }
+    })().finally(function () {
+        window.__slSyncAparelhoEmCurso = false;
+    });
+    return window.__slSyncAparelhoPromise;
+}
+window.sincronizarAparelhoComFirebase = sincronizarAparelhoComFirebase;
+
 /** Após sincronização com a nuvem, atualiza dados locais e refresca a interface (para ver dados vindos da nuvem). */
 function refrescarInterfaceAposSync() {
     carregarDados();
@@ -5329,6 +5375,9 @@ function entrarNoEscritorioSemRecarregar() {
     if (typeof configurarInterfaceUsuario === 'function') configurarInterfaceUsuario();
     if (typeof forcarLarguraSidebar === 'function') forcarLarguraSidebar();
     if (typeof init === 'function') init();
+    if (typeof sincronizarAparelhoComFirebase === 'function') {
+        sincronizarAparelhoComFirebase();
+    }
 }
 
 function init() {
