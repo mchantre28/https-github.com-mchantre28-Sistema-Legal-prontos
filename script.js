@@ -317,10 +317,16 @@ function initFirebase() {
         firestoreDb = firebase.firestore();
         try {
             const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-            // No iPhone/Android a persistência IndexedDB pode prender os listeners para sempre.
-            if (!nativo) {
-                firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+            const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+            // No WKWebView do iPhone o canal normal do Firestore falha em silêncio.
+            if (nativo || ios) {
+                try {
+                    firestoreDb.settings({ experimentalAutoDetectLongPolling: true });
+                } catch (e1) {
+                    try { firestoreDb.settings({ experimentalForceLongPolling: true }); } catch (e2) {}
+                }
             }
+            firestoreDb.enablePersistence({ synchronizeTabs: !nativo && !ios }).catch(function () {});
         } catch (e) {}
         if (typeof firebase.storage === 'function') {
             try { firebaseStorage = firebase.storage(); } catch (e) { firebaseStorage = null; }
@@ -583,7 +589,8 @@ const REFRESH_LEVE_POR_SECAO = {
     herancas: () => { if (typeof aplicarFiltrosHerancas === 'function') aplicarFiltrosHerancas(); },
     migracoes: () => { if (typeof aplicarFiltrosMigracoes === 'function') aplicarFiltrosMigracoes(); },
     registos: () => { if (typeof aplicarFiltrosRegistos === 'function') aplicarFiltrosRegistos(); },
-    prazos: () => { if (typeof aplicarFiltrosPrazos === 'function') aplicarFiltrosPrazos(); }
+    prazos: () => { if (typeof aplicarFiltrosPrazos === 'function') aplicarFiltrosPrazos(); },
+    documentos: () => { if (typeof aplicarFiltrosDocumentos === 'function') aplicarFiltrosDocumentos(); }
 };
 
 function atualizarContadoresInterfaceLeve() {
@@ -2860,8 +2867,11 @@ function mostrarEcranCargaCompleta(feitas, total) {
 
 async function carregarUmaEntidadeNuvem(entidade) {
     if (!isCloudReady()) return;
+    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const limiteMs = (ios || nativo) ? 20000 : 8000;
     try {
-        const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), 8000, null);
+        const snap = await executarComTimeout(firestoreDb.collection(entidade).get(), limiteMs, null);
         if (snap) {
             aplicarListaDaNuvem(entidade, lerListaDeSnapshotNuvem(entidade, snap));
             return;
@@ -2869,7 +2879,6 @@ async function carregarUmaEntidadeNuvem(entidade) {
     } catch (e) {
         console.warn('Carga imediata da nuvem:', entidade, e && e.message);
     }
-    window.__snapshotsRecebidos.add(entidade);
     window.__slCargaParcial = true;
 }
 
@@ -5368,6 +5377,12 @@ function init() {
         iniciarListenersFirestore(false);
         marcarSyncNuvemOk();
         if (typeof atualizarContadoresInterfaceLeve === 'function') atualizarContadoresInterfaceLeve();
+        if (!window.__slPinturaNuvemFeita) {
+            window.__slPinturaNuvemFeita = true;
+            const secao = typeof secaoAtiva === 'string' ? secaoAtiva : 'dashboard';
+            try { carregarSecao(secao); } catch (e) { console.warn('pintura após nuvem:', e); }
+            if (typeof atualizarInterface === 'function') atualizarInterface();
+        }
         if (typeof agendarReenvioDocumentosLocaisParaNuvem === 'function') {
             agendarReenvioDocumentosLocaisParaNuvem();
         }
