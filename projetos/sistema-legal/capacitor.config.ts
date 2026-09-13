@@ -15,9 +15,26 @@ const config: CapacitorConfig = {
       'mchantre28.github.io',
       '*.onrender.com',
       '*.googleapis.com',
+      '*.google.com',
+      '*.gstatic.com',
       '*.firebaseapp.com',
       '*.firebasestorage.app',
+      'firestore.googleapis.com',
+      'identitytoolkit.googleapis.com',
+      'securetoken.googleapis.com',
+      'firebaseinstallations.googleapis.com',
+      'cdn.jsdelivr.net',
+      'cdnjs.cloudflare.com',
+      'unpkg.com',
     ],
+  },
+  ios: {
+    contentInset: 'automatic',
+    scrollEnabled: true,
+    limitsNavigationsToAppBoundDomains: false,
+  },
+  android: {
+    allowMixedContent: false,
   },
 };
 
