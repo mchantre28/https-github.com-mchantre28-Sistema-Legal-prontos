@@ -59,9 +59,7 @@ function voltarAoEcranLogin() {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    if (ecra && typeof mostrarLoginAdmin === 'function' && !document.getElementById('formLoginAdmin')) {
-        mostrarLoginAdmin();
-    }
+    if (typeof mostrarTelaLogin === 'function') mostrarTelaLogin(true);
 }
 
 function instalarRegressoAoLoginAoAbrirApp() {
@@ -5024,8 +5022,7 @@ async function arrancarSistemaLegal() {
     }, { once: true });
     document.body.classList.remove('sl-autenticado');
     instalarRegressoAoLoginAoAbrirApp();
-    if (typeof mostrarLoginAdmin === 'function') mostrarLoginAdmin();
-    else if (!estaNaPaginaLogin()) mostrarTelaLogin(true);
+    if (typeof mostrarTelaLogin === 'function') mostrarTelaLogin(true);
 }
 
 function limparEstilosLayoutInline() {
