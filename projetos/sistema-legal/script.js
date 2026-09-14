@@ -2426,6 +2426,61 @@ async function obterUrlStorageDocumento(doc) {
     }
 }
 
+async function obterBlobDocumento(doc, url) {
+    if (url && url.indexOf('data:') === 0) {
+        try { return await fetch(url).then(function (r) { return r.blob(); }); } catch (e) { return null; }
+    }
+    const path = doc && doc.storagePath;
+    if (path && firebaseStorage) {
+        try {
+            const ref = firebaseStorage.ref(path);
+            const maxBytes = 80 * 1024 * 1024;
+            if (typeof ref.getBlob === 'function') {
+                return await ref.getBlob(maxBytes);
+            }
+            if (typeof ref.getBytes === 'function') {
+                const bytes = await ref.getBytes(maxBytes);
+                return new Blob([bytes], { type: (doc && doc.tipoArquivo) || 'application/octet-stream' });
+            }
+        } catch (e) {
+            console.warn('Leitura do ficheiro na nuvem:', e && e.message);
+        }
+    }
+    if (url && /^https?:\/\//i.test(url)) {
+        try {
+            const r = await fetch(url, { mode: 'cors' });
+            if (r.ok) return await r.blob();
+        } catch (e) { /* CORS no browser; no telemóvel tenta-se abertura directa */ }
+    }
+    return null;
+}
+
+function abrirUrlDocumentoExterna(url) {
+    if (!url) return false;
+    try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser && typeof window.Capacitor.Plugins.Browser.open === 'function') {
+            window.Capacitor.Plugins.Browser.open({ url: url });
+            return true;
+        }
+    } catch (e) { /* seguir para window.open */ }
+    try {
+        const win = window.open(url, '_blank', 'noopener');
+        if (win) return true;
+    } catch (e) { /* iOS por vezes bloqueia window.open após await */ }
+    try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return true;
+    } catch (e2) {
+        return false;
+    }
+}
+
 function lerDocumentoDoFirestore(data) {
     if (!data) return data;
     const doc = { ...data, dataCriacao: data.dataCriacao ?? data.createdAt };
@@ -10374,11 +10429,16 @@ async function abrirDocumentoEmNovaAba(doc) {
 
     const urlPronta = urlDocumentoJaPronta(doc);
     const noTelemovel = isMobileApp();
+    const imagemPronta = documentoEhImagem(doc) || (urlPronta && urlPronta.indexOf('data:image/') === 0);
     let win = null;
     if (!noTelemovel) {
         win = window.open(urlPronta || 'about:blank', '_blank');
         if (win && !urlPronta) mostrarPaginaAAbrirDocumento(win, doc.nomeArquivo);
         if (win && urlPronta) return;
+    }
+    window.__docViewerJaAbriuExterno = false;
+    if (noTelemovel && urlPronta && !imagemPronta) {
+        window.__docViewerJaAbriuExterno = abrirUrlDocumentoExterna(urlPronta);
     }
     if (!win) mostrarVisualizadorDocumentoAAbrir(doc);
 
@@ -10390,8 +10450,7 @@ async function abrirDocumentoEmNovaAba(doc) {
             mostrarNotificacao('Documento sem conteúdo neste telemóvel. No computador, abra o Sistema Legal, volte a guardar o ficheiro e depois abra de novo aqui.', 'warning');
             return;
         }
-        const tipoArquivo = (doc.tipoArquivo || '').toLowerCase();
-        const isImagem = tipoArquivo.startsWith('image/') || url.startsWith('data:image/');
+        const isImagem = documentoEhImagem(doc) || url.indexOf('data:image/') === 0;
         if (isImagem && !win) {
             const htmlImg = `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaparHtml(doc.nomeArquivo || 'Imagem')}</title><style>body{margin:0;background:#111827;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto}</style></head><body><img src="${url}" alt="Imagem"></body></html>`;
             abrirHtmlDocumentoNoApp(htmlImg, doc.nomeArquivo || 'Imagem', 'ver');
@@ -16219,6 +16278,7 @@ function fecharVisualizadorDocumentoApp() {
     window.__docViewerHtmlAtual = null;
     window.__docViewerNomeArquivo = null;
     window.__docViewerUrlAtual = null;
+    window.__docViewerJaAbriuExterno = false;
     if (window.__docViewerBlobRevoke) {
         try { URL.revokeObjectURL(window.__docViewerBlobRevoke); } catch (e) { /* ignorar */ }
         window.__docViewerBlobRevoke = null;
@@ -16226,27 +16286,69 @@ function fecharVisualizadorDocumentoApp() {
     restaurarInteracaoPagina();
 }
 
+function ligarBotaoVoltarVisualizadorDocumento() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && !window.__docViewerBackHandler) {
+        window.__docViewerBackHandler = function () {
+            fecharVisualizadorDocumentoApp();
+        };
+        try {
+            window.Capacitor.Plugins.App.addListener('backButton', window.__docViewerBackHandler);
+        } catch (e) { /* ignorar */ }
+    }
+}
+
+function mostrarPainelAbrirDocumentoNoApp(overlay, url) {
+    const antigo = document.getElementById('docViewerFallback');
+    if (antigo) antigo.remove();
+    const box = document.createElement('div');
+    box.id = 'docViewerFallback';
+    box.className = 'doc-viewer-fallback';
+    box.innerHTML =
+        '<p>O documento está pronto. Toque abaixo para o ver de imediato.</p>' +
+        '<button type="button" class="doc-viewer-btn-acao" id="docViewerBtnAbrirExterno">Abrir documento</button>';
+    overlay.appendChild(box);
+    const btn = document.getElementById('docViewerBtnAbrirExterno');
+    if (btn) {
+        btn.addEventListener('click', function () {
+            abrirUrlDocumentoExterna(url);
+        });
+    }
+    if (!window.__docViewerJaAbriuExterno) {
+        window.__docViewerJaAbriuExterno = abrirUrlDocumentoExterna(url);
+    }
+}
+
 async function abrirFicheiroDocumentoNoApp(doc, url) {
     if (!url) return false;
 
+    const titulo = (doc && doc.nomeArquivo) || 'Documento';
+    const isPdf = documentoEhPdf(doc);
+    const isImagem = documentoEhImagem(doc) || url.indexOf('data:image/') === 0;
+    const isRemoto = /^https?:\/\//i.test(url);
+    const isLocal = url.indexOf('data:') === 0 || url.indexOf('blob:') === 0;
+
     let viewUrl = url;
     let blobRevoke = null;
-    if (url.startsWith('data:')) {
+    let blob = null;
+
+    if (isLocal) {
         try {
-            const blob = await fetch(url).then(function (r) { return r.blob(); });
-            viewUrl = URL.createObjectURL(blob);
-            blobRevoke = viewUrl;
+            blob = await fetch(url).then(function (r) { return r.blob(); });
         } catch (err) {
             console.warn('Falha a preparar documento para visualização:', err);
-            mostrarNotificacao('Não foi possível abrir o documento.', 'error');
-            return false;
         }
     }
+    if (!blob && isRemoto) {
+        blob = await obterBlobDocumento(doc, url);
+    }
+    if (blob) {
+        viewUrl = URL.createObjectURL(blob);
+        blobRevoke = viewUrl;
+    }
 
-    const titulo = doc.nomeArquivo || 'Documento';
-    const isPdf = documentoEhPdf(doc);
+    const temVisorLocal = !!blobRevoke || isLocal;
 
-    window.__docViewerUrlAtual = viewUrl;
+    window.__docViewerUrlAtual = url;
     window.__docViewerBlobRevoke = blobRevoke;
     window.__docViewerNomeArquivo = titulo;
 
@@ -16260,34 +16362,43 @@ async function abrirFicheiroDocumentoNoApp(doc, url) {
     if (loading) loading.remove();
     const antigoPdf = document.getElementById('docViewerAppObject');
     const antigoFrame = document.getElementById('docViewerAppFrame');
+    const antigoImg = document.getElementById('docViewerAppImgWrap');
+    const antigoFallback = document.getElementById('docViewerFallback');
     if (antigoPdf) antigoPdf.remove();
     if (antigoFrame) antigoFrame.remove();
+    if (antigoImg) antigoImg.remove();
+    if (antigoFallback) antigoFallback.remove();
 
-    if (isPdf) {
-        const obj = document.createElement('object');
-        obj.id = 'docViewerAppObject';
-        obj.setAttribute('data', viewUrl);
-        obj.setAttribute('type', 'application/pdf');
-        obj.className = 'doc-viewer-app-frame';
-        overlay.appendChild(obj);
-    } else {
+    if (isImagem) {
+        const wrap = document.createElement('div');
+        wrap.id = 'docViewerAppImgWrap';
+        wrap.className = 'doc-viewer-app-frame doc-viewer-img-wrap';
+        const img = document.createElement('img');
+        img.src = blobRevoke || url;
+        img.alt = titulo;
+        wrap.appendChild(img);
+        overlay.appendChild(wrap);
+    } else if (isPdf && temVisorLocal) {
         const iframe = document.createElement('iframe');
         iframe.id = 'docViewerAppFrame';
         iframe.className = 'doc-viewer-app-frame';
         iframe.title = titulo;
         iframe.src = viewUrl;
+        if (blobRevoke) iframe.dataset.blobUrl = blobRevoke;
         overlay.appendChild(iframe);
+    } else if (!isPdf && temVisorLocal) {
+        const iframe = document.createElement('iframe');
+        iframe.id = 'docViewerAppFrame';
+        iframe.className = 'doc-viewer-app-frame';
+        iframe.title = titulo;
+        iframe.src = viewUrl;
+        if (blobRevoke) iframe.dataset.blobUrl = blobRevoke;
+        overlay.appendChild(iframe);
+    } else {
+        mostrarPainelAbrirDocumentoNoApp(overlay, url);
     }
 
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && !window.__docViewerBackHandler) {
-        window.__docViewerBackHandler = function () {
-            fecharVisualizadorDocumentoApp();
-        };
-        try {
-            window.Capacitor.Plugins.App.addListener('backButton', window.__docViewerBackHandler);
-        } catch (e) { /* ignorar */ }
-    }
-
+    ligarBotaoVoltarVisualizadorDocumento();
     restaurarInteracaoPagina();
     return true;
 }
@@ -25297,10 +25408,21 @@ function visualizarAnexo(anexoId) {
     }
     
     // Determinar tipo de arquivo
-    const extensao = anexo.nome.split('.').pop().toLowerCase();
+    const extensao = (anexo.nome || '').split('.').pop().toLowerCase();
     const isImagem = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extensao);
     const isPDF = extensao === 'pdf';
     const isDocumento = ['doc', 'docx', 'txt', 'rtf'].includes(extensao);
+
+    if ((isImagem || isPDF) && (anexo.conteudo || anexo.storagePath || anexo.dataURL || anexo.dados)) {
+        abrirDocumentoEmNovaAba({
+            id: anexo.id,
+            nomeArquivo: anexo.nome,
+            tipoArquivo: isPDF ? 'application/pdf' : ('image/' + (extensao === 'jpg' ? 'jpeg' : extensao)),
+            conteudo: anexo.conteudo || anexo.dataURL || anexo.dados || '',
+            storagePath: anexo.storagePath || ''
+        });
+        return;
+    }
     
     // Criar modal de visualização
     const modal = `
