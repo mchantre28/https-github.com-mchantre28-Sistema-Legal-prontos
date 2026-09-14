@@ -8,7 +8,6 @@ import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const bg = { r: 243, g: 244, b: 246 };
 const src = path.join(root, 'resources', 'icon-only.png');
 
 if (!fs.existsSync(src)) {
@@ -18,6 +17,9 @@ if (!fs.existsSync(src)) {
 
 const iconDir = path.join(root, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
 const splashDir = path.join(root, 'ios', 'App', 'App', 'Assets.xcassets', 'Splash.imageset');
+
+const { data } = await sharp(src).raw().toBuffer({ resolveWithObject: true });
+const bg = { r: data[0], g: data[1], b: data[2] };
 
 const iconOut = path.join(iconDir, 'AppIcon-512@2x.png');
 await sharp(src)

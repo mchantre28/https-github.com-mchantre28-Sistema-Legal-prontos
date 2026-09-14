@@ -1,7 +1,6 @@
 ﻿/**
- * Gera resources/icon-only.png com a marca a preencher o quadrado.
- * Corta o fundo vazio da logo e deixa só uma margem mínima para
- * os cantos arredondados do iOS/Android não comerem o monograma.
+ * Gera resources/icon-only.png com a marca a preencher o quadrado
+ * e o mesmo cinzento da logo em todo o fundo.
  */
 import fs from 'fs';
 import path from 'path';
@@ -12,8 +11,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const out = path.join(root, 'resources', 'icon-only.png');
 const size = 1024;
-const fill = 0.98;
-const bg = { r: 243, g: 244, b: 246 };
 
 const candidates = [
   path.join(root, 'assets', 'logo-solicitadora.png'),
@@ -26,13 +23,32 @@ if (!src) {
   process.exit(1);
 }
 
+const { data, info } = await sharp(src)
+  .ensureAlpha()
+  .raw()
+  .toBuffer({ resolveWithObject: true });
+
+const sample = (x, y) => {
+  const i = (y * info.width + x) * info.channels;
+  return [data[i], data[i + 1], data[i + 2]];
+};
+
+const corners = [sample(0, 0), sample(info.width - 1, 0), sample(0, info.height - 1)];
+const bg = {
+  r: Math.round(corners.reduce((s, c) => s + c[0], 0) / corners.length),
+  g: Math.round(corners.reduce((s, c) => s + c[1], 0) / corners.length),
+  b: Math.round(corners.reduce((s, c) => s + c[2], 0) / corners.length),
+};
+
 const trimmed = await sharp(src)
   .trim({ threshold: 40 })
   .png()
   .toBuffer();
 
+const fill = 0.98;
 const logoSize = Math.round(size * fill);
 const logoBuf = await sharp(trimmed)
+  .flatten({ background: bg })
   .resize(logoSize, logoSize, {
     fit: 'contain',
     background: { ...bg, alpha: 1 },
@@ -55,7 +71,8 @@ await sharp({
   .png()
   .toFile(out);
 
+const hex = '#' + [bg.r, bg.g, bg.b].map((n) => n.toString(16).padStart(2, '0')).join('');
 console.log(`Icone gerado: ${out}`);
 console.log(`Fonte: ${src}`);
-console.log(`Preenchimento: ${Math.round(fill * 100)}% do quadrado apos corte do fundo`);
-
+console.log(`Cinzento: ${hex} (${bg.r},${bg.g},${bg.b})`);
+console.log('Preenchimento: logo completa, fundo no cinzento da marca');
