@@ -22,9 +22,6 @@
     ];
 
     var FONTES = [
-        { nome: 'Diário da República', desc: 'Texto oficial dos atos publicados', url: 'https://diariodarepublica.pt/dr/home' },
-        { nome: 'Pesquisa DRE', desc: 'Pesquisa por diploma, número ou palavra', url: 'https://diariodarepublica.pt/dr/pesquisa' },
-        { nome: 'Legislação consolidada', desc: 'Leitura atualizada (sem valor legal)', url: 'https://diariodarepublica.pt/dr/legislacao-consolidada' },
         { nome: 'PGE', desc: 'Texto articulado para consulta', url: 'https://www.pgdlisboa.pt/' },
         { nome: 'IRN', desc: 'Nacionalidade, heranças e conservatórias', url: 'https://irn.justica.gov.pt/' },
         { nome: 'AIMA', desc: 'Migração, asilo e estrangeiros', url: 'https://aima.gov.pt/' },
