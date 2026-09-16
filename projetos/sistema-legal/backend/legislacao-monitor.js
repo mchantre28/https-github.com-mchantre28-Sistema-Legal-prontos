@@ -7,13 +7,14 @@ const path = require('path');
 
 const FEEDS = [
   'https://files.diariodarepublica.pt/rss/serie1-html.xml',
+  'https://files.diariodarepublica.pt/rss/serie2-html.xml',
 ];
 
 const FILTROS = [
-  { area: 'nacionalidade', termos: ['nacionalidade', 'naturalizacao', 'lei da nacionalidade', '37/81', '237-a/2006'] },
-  { area: 'herancas', termos: ['heranca', 'sucessoes', 'habilitacao de herdeiros', 'partilha', 'balcao das herancas', 'inventario notarial'] },
-  { area: 'registos', termos: ['registo civil', 'registo predial', 'registo comercial', 'rcbe', 'beneficiario efetivo', 'conservatoria', 'notariado', '131/95', '89/2017'] },
-  { area: 'migracao', termos: ['aima', 'estrangeiro', 'imigracao', 'asilo', 'autorizacao de residencia', '23/2007'] },
+  { area: 'nacionalidade', termos: ['nacionalidade', 'naturalizacao', 'lei da nacionalidade', '37/81', '237-a/2006', 'registos centrais'] },
+  { area: 'herancas', termos: ['heranca', 'sucessoes', 'habilitacao de herdeiros', 'balcao das herancas', 'inventario notarial'] },
+  { area: 'registos', termos: ['registo civil', 'registo predial', 'registo comercial', 'rcbe', 'beneficiario efetivo', 'conservatoria', 'codigo do notariado', 'instituto dos registos', '131/95', '89/2017', 'identificacao civil'] },
+  { area: 'migracao', termos: ['aima', 'cidadaos estrangeiros', 'imigracao', 'asilo', 'autorizacao de residencia', 'titulo de residencia', '23/2007'] },
   { area: 'justica', termos: ['processo civil', 'agente de execucao', 'acao executiva'] },
   { area: 'profissional', termos: ['solicitador', 'osae', 'ordem dos solicitadores'] },
 ];
@@ -60,12 +61,14 @@ function parseItensRss(xml) {
     const resumo = stripXml((corpo.match(/<description[^>]*>([\s\S]*?)<\/description>/i) || [])[1]);
     const dataMatch = titulo.match(/(\d{4}-\d{2}-\d{2})/);
     const diplomaMatch = titulo.match(/^(.+?)\s+-\s+Diário/i) || titulo.match(/^(.+?)\s{2,}/);
+    const serie = /s[eé]rie\s*ii\b/i.test(titulo) ? 'II' : 'I';
     return {
       titulo,
       url,
       resumo,
       dataPublicacao: dataMatch ? dataMatch[1] : null,
       diploma: diplomaMatch ? diplomaMatch[1].trim() : titulo,
+      serie,
     };
   }).filter((item) => item.titulo && item.url);
 }
@@ -158,6 +161,7 @@ async function verificarAgora(opcoes = {}) {
       impacto: impactoPorArea(area),
       url: item.url,
       dataPublicacao: item.dataPublicacao,
+      serie: item.serie || 'I',
     };
     relevantes.push(atualizacao);
     if (!vistos.has(item.url)) novos.push(atualizacao);

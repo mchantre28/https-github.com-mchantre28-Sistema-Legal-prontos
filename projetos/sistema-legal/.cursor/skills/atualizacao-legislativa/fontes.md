@@ -16,6 +16,11 @@ URLs oficiais. Confirmar sempre a redação atual no DRE.
 | ePortugal | https://eportugal.gov.pt/ |
 | OSAE | https://www.osae.pt/ |
 | AT | https://www.portaldasfinancas.gov.pt/ |
+| DGSI | https://www.dgsi.pt/ |
+| EUR-Lex | https://eur-lex.europa.eu/ |
+| Notícias IRN | https://irn.justica.gov.pt/Noticias-do-IRN |
+
+A monitorização automática lê a **1.ª série** (leis) e a **2.ª série** (atos administrativos) do DRE.
 
 ## Diplomas por área
 

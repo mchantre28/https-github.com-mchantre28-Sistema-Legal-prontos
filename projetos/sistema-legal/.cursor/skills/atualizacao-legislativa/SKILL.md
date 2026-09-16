@@ -14,6 +14,7 @@ O texto vigente confirma-se em fonte oficial. A memória do modelo não substitu
 1. **DRE** — valor oficial: [diariodarepublica.pt](https://diariodarepublica.pt/dr/home)
    - Pesquisa: https://diariodarepublica.pt/dr/pesquisa
    - Consolidada (sem valor legal): https://diariodarepublica.pt/dr/legislacao-consolidada
+   - Monitorização automática: 1.ª e 2.ª série
 2. **PGE** — leitura articulada: https://www.pgdlisboa.pt/
 3. **IRN** — nacionalidade, heranças, conservatórias: https://irn.justica.gov.pt/
 4. **AIMA** — migração e asilo: https://aima.gov.pt/

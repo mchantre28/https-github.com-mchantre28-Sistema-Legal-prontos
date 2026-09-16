@@ -29,7 +29,11 @@
         { nome: 'IRN', desc: 'Nacionalidade, heranças e conservatórias', url: 'https://irn.justica.gov.pt/' },
         { nome: 'AIMA', desc: 'Migração, asilo e estrangeiros', url: 'https://aima.gov.pt/' },
         { nome: 'ePortugal', desc: 'Serviços públicos e procedimentos', url: 'https://eportugal.gov.pt/' },
-        { nome: 'OSAE', desc: 'Ordem dos Solicitadores e Agentes de Execução', url: 'https://www.osae.pt/' }
+        { nome: 'OSAE', desc: 'Ordem dos Solicitadores e Agentes de Execução', url: 'https://www.osae.pt/' },
+        { nome: 'Notícias IRN', desc: 'Comunicados de nacionalidade, heranças e conservatórias', url: 'https://irn.justica.gov.pt/Noticias-do-IRN' },
+        { nome: 'DGSI', desc: 'Jurisprudência dos tribunais portugueses', url: 'https://www.dgsi.pt/' },
+        { nome: 'Finanças (AT)', desc: 'Orientações fiscais e procedimentos tributários', url: 'https://www.portaldasfinancas.gov.pt/' },
+        { nome: 'EUR-Lex', desc: 'Direito da União Europeia, incluindo o RGPD', url: 'https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679' }
     ];
 
     var DIPLOMAS = [
@@ -46,7 +50,8 @@
         { area: 'migracao', diploma: 'AIMA', titulo: 'Procedimentos de migração e asilo', pesquisa: 'AIMA migração', url: 'https://aima.gov.pt/' },
         { area: 'justica', diploma: 'Código de Processo Civil', titulo: 'Processo executivo', pesquisa: 'Código de Processo Civil execução' },
         { area: 'profissional', diploma: 'Estatuto da OSAE', titulo: 'Solicitadores e agentes de execução', pesquisa: 'Estatuto Ordem dos Solicitadores', url: 'https://www.osae.pt/' },
-        { area: 'profissional', diploma: 'Lei n.º 58/2019', titulo: 'Proteção de dados pessoais', pesquisa: 'Lei 58/2019 proteção de dados' }
+        { area: 'profissional', diploma: 'Regulamento (UE) 2016/679', titulo: 'RGPD — proteção de dados', pesquisa: 'RGPD', url: 'https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679' },
+        { area: 'profissional', diploma: 'Lei n.º 58/2019', titulo: 'Proteção de dados pessoais (lei nacional)', pesquisa: 'Lei 58/2019 proteção de dados' }
     ];
 
     function drePesquisa(query) {
@@ -142,7 +147,7 @@
         return (
             '<article class="sl-leg-alerta">' +
                 '<div class="sl-leg-alerta-topo">' +
-                    '<p class="sl-leg-kicker">' + escaparHtml(areaNome(item.area) || 'Geral') + '</p>' +
+                    '<p class="sl-leg-kicker">' + escaparHtml(areaNome(item.area) || 'Geral') + (item.serie ? ' · Série ' + escaparHtml(item.serie) : '') + '</p>' +
                     (item.dataPublicacao ? '<time>' + escaparHtml(item.dataPublicacao) + '</time>' : '') +
                 '</div>' +
                 '<h4>' + escaparHtml(item.titulo || 'Atualização') + '</h4>' +
@@ -191,7 +196,7 @@
                     '<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">' +
                         '<div>' +
                             '<h3 class="text-lg font-semibold text-gray-900">Acompanhamento legislativo</h3>' +
-                            '<p class="text-sm text-gray-600 mt-1">A verificação do Diário da República é automática. Não é necessário qualquer passo manual. O texto vigente confirma-se na fonte oficial.</p>' +
+                            '<p class="text-sm text-gray-600 mt-1">A verificação automática cobre a 1.ª e a 2.ª série do Diário da República. Não é necessário qualquer passo manual. O texto vigente confirma-se na fonte oficial.</p>' +
                             '<p class="text-sm text-gray-500 mt-2">Última verificação automática: <strong>' + escaparHtml(formatarDataIso(ultima)) + '</strong></p>' +
                         '</div>' +
                         '<div class="flex flex-wrap gap-2">' +
@@ -210,7 +215,7 @@
                 '</div>' +
                 '<div class="card p-6">' +
                     '<h3 class="text-lg font-semibold mb-2">Alertas de atualização</h3>' +
-                    '<p class="text-sm text-gray-600 mb-4">Atualizações detetadas automaticamente no Diário da República. Opcionalmente pode acrescentar uma nota local neste computador.</p>' +
+                    '<p class="text-sm text-gray-600 mb-4">Atualizações detetadas automaticamente na 1.ª série (leis) e na 2.ª série (atos administrativos). Opcionalmente pode acrescentar uma nota local neste computador.</p>' +
                     '<div id="legislacaoAlertasLista" class="space-y-3">' + htmlAlertas + '</div>' +
                 '</div>' +
                 '<div class="card p-6">' +

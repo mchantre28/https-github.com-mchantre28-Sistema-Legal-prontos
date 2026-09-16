@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-16T11:18:00.616Z",
+  "ultimaVerificacao": "2026-09-16T16:48:32.981Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -11,5 +11,17 @@
     "justica",
     "profissional"
   ],
-  "atualizacoes": []
+  "atualizacoes": [
+    {
+      "id": "dre-313335323339",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 22844/2026/2 - Diário da República n.º 180/2026, Série II de 2026-09-16",
+      "diploma": "Aviso (extrato) n.º 22844/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Comissão de Recrutamento e Seleção para a Administração Pública Abertura do procedimento concursal n.º 1754_CRESAP_36_06/26 de recrutamento e seleção para o cargo de presidente do conselho diretivo do Instituto dos Registos e do Notariado, I. P. (IRN, I. P.).",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/22844-2026-1171135239",
+      "dataPublicacao": "2026-09-16",
+      "serie": "II"
+    }
+  ]
 }
