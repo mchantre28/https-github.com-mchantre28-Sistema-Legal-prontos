@@ -1,4 +1,4 @@
-# Build release AAB — Sistema Legal (Capacitor Android)
+# Build release AAB - Sistema Legal (Capacitor Android)
 # Uso: .\scripts\build-release.ps1
 # Requer: release-signing.properties em android/ (ver PLAY-STORE.md)
 
@@ -6,9 +6,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-Write-Host "== Sistema Legal — build release AAB ==" -ForegroundColor Cyan
+Write-Host "== Sistema Legal - build release AAB ==" -ForegroundColor Cyan
 
-# JAVA_HOME — Android Studio JBR (bundled JDK)
+# JAVA_HOME - Android Studio JBR (bundled JDK)
 if (-not $env:JAVA_HOME) {
     $jbrCandidates = @(
         "$env:LOCALAPPDATA\Programs\Android Studio\jbr",
@@ -29,15 +29,17 @@ if (-not $env:JAVA_HOME) {
 
 $signingFile = Join-Path $Root "android\release-signing.properties"
 if (-not (Test-Path $signingFile)) {
-    Write-Warning "Falta android\release-signing.properties — o AAB sera gerado SEM assinatura de release."
+    Write-Warning "Falta android\release-signing.properties - o AAB sera gerado SEM assinatura de release."
     Write-Warning "Copie android\release-signing.properties.example e configure a keystore (ver PLAY-STORE.md)."
 }
 
-Write-Host "`n1/3 — cap sync (www -> android)..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "1/3 - cap sync (www -> android)..." -ForegroundColor Yellow
 npm run cap:sync
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "`n2/3 — bundleRelease..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "2/3 - bundleRelease..." -ForegroundColor Yellow
 Push-Location (Join-Path $Root "android")
 try {
     & .\gradlew.bat bundleRelease
@@ -47,7 +49,8 @@ try {
 }
 
 $aab = Join-Path $Root "android\app\build\outputs\bundle\release\app-release.aab"
-Write-Host "`n3/3 — Concluido." -ForegroundColor Green
+Write-Host ""
+Write-Host "3/3 - Concluido." -ForegroundColor Green
 if (Test-Path $aab) {
     Write-Host "AAB: $aab" -ForegroundColor Green
 } else {

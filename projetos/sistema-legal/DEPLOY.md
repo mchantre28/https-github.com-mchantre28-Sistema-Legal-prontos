@@ -92,12 +92,28 @@ railway up
 
 Ficheiro de referência: `backend/render.yaml`.
 
-1. Painel Render → **New Web Service** → repositório GitHub
-2. **Root Directory:** `projetos/sistema-legal/backend`
-3. **Build:** `npm install`
-4. **Start:** `npm start`
-5. **Disk** persistente para `data/` e `uploads/` (plano pago)
-6. Variável `JWT_SECRET` (obrigatória em produção)
+O plano **Free** não admite Persistent Disk. É necessário **Starter** (~7 USD/mês) + disco 1 GB (~0,25 USD/mês).
+
+**Serviço já existente (`sistema-legal-api`):**
+
+1. [dashboard.render.com](https://dashboard.render.com) → serviço `sistema-legal-api`
+2. **Settings → Instance Type** → **Starter** → Save
+3. **Disks** → **Add disk**
+   - Name: `sistema-legal-data`
+   - Mount path: `/data`
+   - Size: `1 GB`
+4. **Environment** — confirmar ou criar:
+   - `DATA_DIR` = `/data`
+   - `HAS_PERSISTENT_DISK` = `true`
+   - `JWT_SECRET` (obrigatório)
+   - `SEED_TEST_CLIENTES` = `false`
+5. Aguardar o redeploy automático
+6. Verificar: `https://<url-do-servico>/api/health`  
+   Esperado: `"persistente": true`, `"data_dir": "/data"`
+
+A SQLite fica em `/data/sistema-legal.db`. Os uploads ficam em `/data/uploads`.
+
+**Serviço novo:** New Web Service → Root Directory `projetos/sistema-legal/backend` → Build `npm install` → Start `npm start` → plano Starter → disco `/data` (1 GB). Ou aplicar o Blueprint `backend/render.yaml`.
 
 ### Arranque local (referência)
 

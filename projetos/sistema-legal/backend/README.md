@@ -164,7 +164,7 @@ O painel `admin.html` permite registar o **telefone WhatsApp** de cada cliente (
 - `tramites` — id, processo_id, data_tramite, titulo, descricao
 - `documentos` — id, processo_id, nome_ficheiro, url_ficheiro, visivel_cliente
 
-Ficheiro SQLite: `backend/data/sistema-legal.db`
+Ficheiro SQLite: `backend/data/sistema-legal.db` (em produção no Render: `/var/data/sistema-legal.db`). Uploads: `backend/data/uploads` (produção: `/var/data/uploads`).
 
 ## Deploy em produção
 
@@ -179,7 +179,7 @@ Ver [DEPLOY.md](../DEPLOY.md) na raiz do frontend para:
 No **plano Free** da Render não há acesso à Shell. O seed corre **automaticamente no arranque** (`npm start`) quando a base de dados não tem utilizadores — não é necessário `npm run seed` manual.
 
 1. Garantir que `JWT_SECRET` está definido nas variáveis de ambiente do serviço (obrigatório em produção; independente do seed).
-2. O `render.yaml` usa `buildCommand: npm install` — o seed **não** corre no build, apenas no start.
+2. O `render.yaml` usa `buildCommand: npm install` (sem seed no build — o disco só existe em runtime). O seed corre no `npm start` se a base estiver vazia.
 3. Após o primeiro deploy com disco persistente vazio, o login funciona com as credenciais de teste da tabela acima.
 
 **Repovoar:** apagar `data/sistema-legal.db` no disco persistente e reiniciar o serviço (ou usar Shell num plano pago: `npm run seed`).

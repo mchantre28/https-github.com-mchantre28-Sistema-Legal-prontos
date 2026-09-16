@@ -8,6 +8,7 @@ function resolveDataDir() {
   }
   // Render: preferir /var/data (ver render.yaml) ou caminho legado do Blueprint
   const candidates = [
+    '/data',
     '/var/data',
     '/opt/render/project/src/projetos/sistema-legal/backend/data',
   ];
@@ -23,15 +24,28 @@ function resolveDataDir() {
 
 const DATA_DIR = resolveDataDir();
 const DB_PATH = path.join(DATA_DIR, 'sistema-legal.db');
+
+function isPersistentDiskMounted() {
+  if (String(process.env.HAS_PERSISTENT_DISK || '').toLowerCase() === 'true') return true;
+  if (process.env.RENDER_DISK_MOUNT_PATH) return true;
+  if (process.platform !== 'linux' || !fs.existsSync('/proc/mounts')) return false;
+  try {
+    const mounts = fs.readFileSync('/proc/mounts', 'utf8');
+    const targets = new Set(['/data', '/var/data', DATA_DIR]);
+    return mounts.split('\n').some((line) => {
+      const mountPoint = line.split(/\s+/)[1];
+      return mountPoint && targets.has(mountPoint);
+    });
+  } catch (_e) {
+    return false;
+  }
+}
+
 /**
- * Persistente só com Persistent Disk no Render (mount tipicamente /var/data)
- * ou HAS_PERSISTENT_DISK=true. Só definir DATA_DIR no Free NÃO evita perda de dados.
+ * Persistente só com Persistent Disk montado (tipicamente /var/data)
+ * ou HAS_PERSISTENT_DISK=true. Definir DATA_DIR no Free NÃO evita perda de dados.
  */
-const IS_EPHEMERAL = !(
-  process.env.RENDER_DISK_MOUNT_PATH
-  || String(process.env.HAS_PERSISTENT_DISK || '').toLowerCase() === 'true'
-  || (process.env.DATA_DIR && String(process.env.DATA_DIR).startsWith('/var/data'))
-);
+const IS_EPHEMERAL = !isPersistentDiskMounted();
 
 let db = null;
 

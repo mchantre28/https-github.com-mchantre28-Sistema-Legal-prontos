@@ -2,6 +2,23 @@
 
 Guia prático para assinar, gerar o AAB e publicar a app **Sistema Legal** (`com.sistemalegal.app`).
 
+**Ordem acordada:** Play Store em pausa; Persistent Disk no Render em curso.
+
+Textos prontos a copiar: [`PLAY-STORE-LISTAGEM.md`](./PLAY-STORE-LISTAGEM.md)  
+Política de privacidade: [`privacidade.html`](./privacidade.html)
+
+---
+
+## 0. Ordem de trabalho (checklist rápido)
+
+1. Conta [Google Play Console](https://play.google.com/console) (taxa única ~25 USD)
+2. Criar keystore de release (secção 3) + `release-signing.properties` (secção 4)
+3. Gerar AAB: `.\scripts\build-release.ps1`
+4. Criar app na Console → upload AAB em **Teste interno** (recomendado antes de produção)
+5. Preencher listagem + URL da política de privacidade
+6. Questionários Data safety / IARC
+7. Só depois: upgrade Render + Persistent Disk e demais ajustes
+
 ---
 
 ## 1. Pré-requisitos
@@ -65,7 +82,7 @@ copy android\release-signing.properties.example android\release-signing.properti
 Edite `android/release-signing.properties`:
 
 ```properties
-storeFile=keystore/sistema-legal-release.keystore
+storeFile=../keystore/sistema-legal-release.keystore
 storePassword=SUA_PASSWORD_DA_KEYSTORE
 keyAlias=sistema-legal
 keyPassword=SUA_PASSWORD_DA_CHAVE
@@ -81,8 +98,8 @@ Em `android/app/build.gradle`:
 
 | Campo | Valor actual | Regra |
 |-------|--------------|-------|
-| `versionCode` | `1` | Inteiro — **incrementar** a cada upload na Play Store |
-| `versionName` | `1.0.0` | Texto visível ao utilizador (ex.: `1.0.1`) |
+| `versionCode` | `2` | Inteiro — **incrementar** a cada upload na Play Store |
+| `versionName` | `1.0.1` | Texto visível ao utilizador |
 
 ---
 

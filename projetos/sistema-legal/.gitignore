@@ -17,6 +17,7 @@ android/keystore/
 # Backend SQLite
 backend/data/*.db
 backend/data/*.db-*
+backend/data/uploads/*
 
 # Ficheiros carregados (manter pasta uploads/)
 backend/uploads/*
