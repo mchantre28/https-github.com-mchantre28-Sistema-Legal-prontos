@@ -644,6 +644,16 @@ app.delete('/api/documentos/:id', authMiddleware, requireAdmin, async (req, res)
 
 // ─── Health ────────────────────────────────────────────────────────────────
 
+app.get('/api/legislacao/atualizacoes', (_req, res) => {
+  try {
+    const monitor = require('./legislacao-monitor');
+    res.json(monitor.lerEstado());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: 'Não foi possível ler a monitorização legislativa.' });
+  }
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const stats = (await query('SELECT COUNT(*) AS utilizadores FROM utilizadores')).rows[0];
@@ -675,6 +685,11 @@ async function startServer() {
   await seedIfEmpty();
   app.listen(PORT, () => {
     console.log(`Sistema Legal API (PostgreSQL/Neon) a correr em http://localhost:${PORT}`);
+    try {
+      require('./legislacao-monitor').iniciarAgendamento();
+    } catch (err) {
+      console.warn('[legislacao] Agendamento não iniciado:', err.message);
+    }
   });
 }
 

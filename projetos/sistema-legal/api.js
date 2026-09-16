@@ -425,6 +425,13 @@
         });
     }
 
+    async function getLegislacaoAtualizacoes() {
+        const url = API_BASE_URL + '/api/legislacao/atualizacoes';
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Monitorização legislativa indisponível.');
+        return response.json();
+    }
+
     async function getEmailStatus() {
         return apiFetch('/api/email/status');
     }
@@ -518,6 +525,7 @@
         sendPortalCredentials: sendPortalCredentials,
         getEmailStatus: getEmailStatus,
         lookupClienteByEmail: lookupClienteByEmail,
+        getLegislacaoAtualizacoes: getLegislacaoAtualizacoes,
         changePassword: changePassword,
         recoverPassword: recoverPassword,
         updateCurrentUser: updateCurrentUser,

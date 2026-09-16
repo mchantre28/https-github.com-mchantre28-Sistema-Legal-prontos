@@ -5311,6 +5311,7 @@ function ocultarSecoesConvidado() {
         'nav-tarefas',
         'nav-calendario',
         'nav-documentos',
+        'nav-legislacao',
         'nav-notificacoes'
     ];
     secoesPermitidas.forEach(id => {
@@ -5337,6 +5338,7 @@ function mostrarTodasSecoes() {
         'nav-tarefas',
         'nav-calendario',
         'nav-documentos',
+        'nav-legislacao',
         'nav-relatorios',
         'nav-backup',
         'nav-historico',
@@ -6329,7 +6331,7 @@ function inicializarGestosTouch() {
 }
 
 function navegarSecaoAnterior() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'legislacao', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual > 0) {
         carregarSecao(secoes[indiceAtual - 1]);
@@ -6337,7 +6339,7 @@ function navegarSecaoAnterior() {
 }
 
 function navegarProximaSecao() {
-    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'relatorios', 'backup', 'historico'];
+    const secoes = ['dashboard', 'clientes', 'honorarios', 'pagamentos', 'contratos', 'herancas', 'migracoes', 'registos', 'prazos', 'tarefas', 'documentos', 'legislacao', 'relatorios', 'backup', 'historico'];
     const indiceAtual = secoes.indexOf(secaoAtiva === 'calendario' ? 'prazos' : secaoAtiva);
     if (indiceAtual < secoes.length - 1) {
         carregarSecao(secoes[indiceAtual + 1]);
@@ -8303,6 +8305,7 @@ function carregarSecao(secao) {
             'tarefas',
             'calendario',
             'documentos',
+            'legislacao',
             'notificacoes'
         ];
         if (!secoesPermitidas.includes(secao)) {
@@ -8440,6 +8443,7 @@ function carregarSecao(secao) {
             criarGraficosAvancados();
             if (typeof sincronizarClientesApi === 'function') sincronizarClientesApi().catch(function () {});
             if (typeof carregarWidgetProcessosApi === 'function') carregarWidgetProcessosApi();
+            if (typeof carregarLegislacaoMonitorizacao === 'function') carregarLegislacaoMonitorizacao();
         }, 500);
     }
     window.__ultimoHashSecao = obterHashDadosSecao(secao);
@@ -8484,6 +8488,7 @@ function atualizarTitulo(secao) {
         migracoes: 'Gestão de Migração',
         registos: 'Gestão de Registos',
         documentos: 'Minutas',
+        legislacao: 'Legislação',
         integracoes: 'Integrações Externas',
         tarefas: 'Sistema de Tarefas',
         calendario: 'Calendário de Prazos',
@@ -8526,6 +8531,7 @@ function gerarConteudoSecao(secao) {
         migracoes: gerarMigracao(),
         registos: gerarRegistos(),
         documentos: gerarDocumentos(),
+        legislacao: (typeof gerarLegislacao === 'function') ? gerarLegislacao() : '<p>Módulo de legislação indisponível.</p>',
         integracoes: gerarIntegracoes(),
         tarefas: gerarTarefas(),
         calendario: gerarCalendarioPrazos(),
@@ -11375,6 +11381,11 @@ function gerarDashboard() {
                         <i data-lucide="calendar" class="w-4 h-4 ${prazosHoje > 0 ? 'text-yellow-600' : 'text-gray-400'}"></i>
                         <span class="text-gray-600">Prazos hoje:</span>
                         <span class="font-bold ${prazosHoje > 0 ? 'text-yellow-600' : 'text-gray-900'}">${prazosHoje}</span>
+                    </button>
+                    <span class="hidden sm:inline text-gray-300" aria-hidden="true">|</span>
+                    <button type="button" onclick="carregarSecao('legislacao')" class="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+                        <i data-lucide="scale" class="w-4 h-4 text-gray-500"></i>
+                        <span class="text-gray-600">Legislação</span>
                     </button>
                     <span class="hidden sm:inline text-gray-300" aria-hidden="true">|</span>
                     <span class="inline-flex items-center gap-2">
@@ -18618,6 +18629,11 @@ function inicializarSecao(secao) {
     }
     if (secao === 'backup') {
         setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+    }
+    if (secao === 'legislacao') {
+        setTimeout(() => {
+            if (typeof inicializarLegislacao === 'function') inicializarLegislacao();
+        }, 50);
     }
 }
 

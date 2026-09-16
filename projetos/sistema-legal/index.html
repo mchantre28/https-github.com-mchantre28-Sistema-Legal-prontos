@@ -58,7 +58,7 @@
         document.write('<script src="' + base + 'logo-data.js"><\/script>');
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=26">
+    <link rel="stylesheet" href="styles.css?v=27">
     <!-- deploy-trigger: 2026-08-06 -->
     <style>
       /* Layout crítico — sidebar + conteúdo centrado (cache antigo) */
@@ -258,6 +258,11 @@
                 <i data-lucide="folder" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                 Minutas
                 </a>
+            <a href="javascript:void(0)" onclick="carregarSecao('legislacao'); return false;" class="sidebar-item" id="nav-legislacao" aria-label="Legislação e fontes oficiais">
+                <i data-lucide="scale" class="w-5 h-5 mr-3" aria-hidden="true"></i>
+                Legislação
+                <span id="badgeLegislacao" class="hidden ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">0</span>
+                </a>
                 <a href="javascript:void(0)" onclick="abrirSecaoFaturaRecibo(); return false;" class="sidebar-item" id="nav-fatura" aria-label="Gerar e ver faturas e recibos" title="Gerar e ver faturas profissionais com dados reais">
                     <i data-lucide="receipt" class="w-5 h-5 mr-3" aria-hidden="true"></i>
                     Fatura/Recibo
@@ -363,10 +368,11 @@
     <div id="modalContainer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Janela de diálogo"></div>
 
     <!-- api.js: autenticação JWT com backend Node.js; app.js: login; script.js: aplicação principal -->
-    <script defer src="./api.js?v=14"></script>
+    <script defer src="./api.js?v=15"></script>
     <script defer src="./app.js?v=2"></script>
     <script defer src="./auth-guard.js?v=2"></script>
-    <script defer src="./script.js?v=148" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
+    <script defer src="./legislacao.js?v=4"></script>
+    <script defer src="./script.js?v=150" onerror="(function(){var e=document.getElementById('conteudoDinamico');if(e){var u=location.href.replace(/[#?].*$/,'').replace(/\/[^/]*$/,'/')+'script.js';e.innerHTML='<div class=\"p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 max-w-2xl\"><p class=\"font-bold mb-2\">Erro: script.js não carregou.</p><p class=\"text-sm mb-2\">O ficheiro pode não existir ou está na pasta errada.</p><p class=\"text-sm mb-2\">URL esperada: <a href=\"'+u+'\" target=\"_blank\" class=\"underline\">'+u+'</a></p><p class=\"text-xs\">Abra o link acima. Se der 404, copie os ficheiros (index.html, script.js, styles.css) para a raiz do repositório e faça push.</p></div>';}})();"></script>
     <script>
         (function () {
             function marcarPronto() {

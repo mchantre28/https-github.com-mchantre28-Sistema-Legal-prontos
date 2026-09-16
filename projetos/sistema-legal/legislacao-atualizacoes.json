@@ -1,0 +1,15 @@
+{
+  "versao": 1,
+  "ultimaVerificacao": "2026-09-16T11:18:00.616Z",
+  "fonteOficial": "https://diariodarepublica.pt/dr/home",
+  "origem": "rss-dre",
+  "areasVigiadas": [
+    "nacionalidade",
+    "herancas",
+    "registos",
+    "migracao",
+    "justica",
+    "profissional"
+  ],
+  "atualizacoes": []
+}

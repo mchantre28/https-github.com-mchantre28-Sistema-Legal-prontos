@@ -449,11 +449,54 @@ async function sendProcessUpdateNotification({
   });
 }
 
+async function sendLegislacaoDigest(atualizacoes) {
+  const lista = Array.isArray(atualizacoes) ? atualizacoes.filter(Boolean) : [];
+  if (!lista.length) return false;
+  if (!isConfigured()) return false;
+  const to = String(process.env.LEGISLACAO_EMAIL || process.env.EMAIL_ALERTAS || '').trim()
+    || parseFromAddress(getSharedConfig().fromRaw, '').email;
+  if (!to) return false;
+
+  const linhas = lista.slice(0, 12).map((item) => {
+    const titulo = escapeHtml(item.titulo || 'Ato publicado');
+    const url = escapeHtml(item.url || 'https://diariodarepublica.pt/dr/home');
+    const impacto = escapeHtml(item.impacto || '');
+    return `<li style="margin:0 0 12px;"><a href="${url}" style="color:#111827;font-weight:600;">${titulo}</a><br><span style="color:#4b5563;font-size:13px;">${impacto}</span></li>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="pt"><head><meta charset="UTF-8"><title>Atualização legislativa</title></head>
+<body style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6;margin:0;padding:24px;background:#f3f4f6;">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:32px;">
+    <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280;">Sistema Legal</p>
+    <h1 style="margin:0 0 16px;font-size:20px;">Atualização no Diário da República</h1>
+    <p style="margin:0 0 16px;">Foram identificados atos com possível impacto nas áreas da solicitadoria. O texto vigente confirma-se no DRE.</p>
+    <ul style="padding-left:18px;margin:0;">${linhas}</ul>
+    <p style="margin:24px 0 0;font-size:13px;color:#6b7280;">A secção Legislação do sistema é atualizada automaticamente.</p>
+  </div>
+</body></html>`;
+
+  const text = ['Atualização no Diário da República', '']
+    .concat(lista.slice(0, 12).map((item) => `- ${item.titulo || 'Ato'}\n  ${item.url || ''}`))
+    .join('\n');
+
+  await sendEmail({
+    to,
+    subject: lista.length === 1
+      ? 'DRE: 1 ato relevante para a solicitadoria'
+      : `DRE: ${lista.length} atos relevantes para a solicitadoria`,
+    html,
+    text,
+  });
+  return true;
+}
+
 module.exports = {
   isConfigured,
   getPublicStatus,
   sendPortalCredentials,
   sendProcessUpdateNotification,
+  sendLegislacaoDigest,
   resolveProvider,
   isOutlookLikeAddress,
 };

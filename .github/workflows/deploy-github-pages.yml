@@ -9,6 +9,9 @@ on:
       - 'projetos/sistema-legal/**'
       - '.github/workflows/deploy-github-pages.yml'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Monitorização DRE — Sistema Legal"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -21,6 +24,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     name: Publicar frontend
     runs-on: ubuntu-latest
     environment:

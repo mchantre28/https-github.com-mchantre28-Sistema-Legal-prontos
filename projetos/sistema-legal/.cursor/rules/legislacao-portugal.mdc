@@ -1,0 +1,15 @@
+---
+description: Consultar fontes oficiais (DRE, PGE, IRN, AIMA) antes de citar ou aplicar lei portuguesa neste projeto.
+alwaysApply: true
+---
+
+# Legislação portuguesa — fontes oficiais
+
+Ao gerar minutas, procurações, citações legais ou aconselhar procedimentos neste sistema:
+
+1. **Não uses memória de treino como texto vigente.** Confirma o diploma no Diário da República (`https://diariodarepublica.pt/dr/home`) ou na legislação consolidada (`https://diariodarepublica.pt/dr/legislacao-consolidada`).
+2. **PGE** (`https://www.pgdlisboa.pt/`) serve para leitura articulada; o texto com valor oficial é o do DRE.
+3. **IRN** (`https://irn.justica.gov.pt/`) para nacionalidade, heranças e registos; **AIMA** (`https://aima.gov.pt/`) para migração e asilo.
+4. Indica sempre: diploma, número, data, artigo e URL oficial. Se não confirmares, declara a lacuna — nunca inventes artigos.
+5. Áreas da solicitadoria neste projeto: nacionalidade, heranças, registos (civil, predial, comercial), migração, contratos, execuções e Estatuto da OSAE.
+6. Segue a skill `atualizacao-legislativa` quando houver alteração legislativa, minuta ou citação de normas.

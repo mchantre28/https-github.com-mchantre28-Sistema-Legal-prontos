@@ -2332,3 +2332,90 @@ html.app-native .mobile-nav-toggle {
         border-radius: var(--app-radius);
     }
 }
+
+/* Legislação — grelha estável, sem saltos de layout */
+.sl-leg-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+@media (min-width: 768px) {
+    .sl-leg-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (min-width: 1024px) {
+    .sl-leg-grid {
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+}
+.sl-leg-fonte,
+.sl-leg-diploma,
+.sl-leg-alerta {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fff;
+    min-height: 8.5rem;
+}
+.sl-leg-alerta { min-height: 0; }
+.sl-leg-fonte h4,
+.sl-leg-diploma h4,
+.sl-leg-alerta h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 0.35rem;
+}
+.sl-leg-fonte p,
+.sl-leg-diploma p,
+.sl-leg-alerta p {
+    font-size: 0.875rem;
+    color: #4b5563;
+    margin: 0;
+}
+.sl-leg-kicker {
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 0.35rem;
+}
+.sl-leg-meta { color: #374151; font-weight: 500; margin-top: 0.25rem; }
+.sl-leg-link {
+    color: #1d4ed8;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.sl-leg-link:hover { text-decoration: underline; }
+.sl-leg-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.sl-leg-chip {
+    min-height: 40px;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    background: #fff;
+    color: #111827;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.sl-leg-chip.is-active {
+    background: #111827;
+    border-color: #111827;
+    color: #fff;
+}
+.sl-leg-alerta-topo,
+.sl-leg-alerta-acoes {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.sl-leg-alerta-acoes { margin-top: 0.75rem; }
+.sl-leg-btn-rem { min-height: 36px; }

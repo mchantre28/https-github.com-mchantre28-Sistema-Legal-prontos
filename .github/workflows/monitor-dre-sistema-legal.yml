@@ -1,0 +1,48 @@
+# Lê o RSS oficial do Diário da República e atualiza o JSON da secção Legislação.
+# Corre sozinho em dias úteis, após a publicação das 09:00.
+name: Monitorização DRE — Sistema Legal
+
+on:
+  schedule:
+    - cron: '30 8 * * 1-5'
+    - cron: '30 10 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: legislacao-dre
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Verificar Diário da República
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projetos/sistema-legal/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Consultar RSS oficial e gravar JSON
+        run: node legislacao-monitor.js --out ../legislacao-atualizacoes.json
+
+      - name: Publicar atualização no repositório
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add projetos/sistema-legal/legislacao-atualizacoes.json
+          if git diff --cached --quiet; then
+            echo "Sem alterações legislativas a gravar."
+            exit 0
+          fi
+          git commit -m "Atualizar monitorização legislativa do Diário da República"
+          git push
