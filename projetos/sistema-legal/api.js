@@ -265,30 +265,46 @@
             throw new Error('Perfil de acesso é obrigatório.');
         }
 
-        const loginUrl = API_BASE_URL + '/api/login';
         const loginOpts = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
             body: JSON.stringify({ email: emailNorm, password: passwordVal, perfil: perfilVal })
         };
 
-        let response;
-        for (let attempt = 1; attempt <= 2; attempt++) {
-            try {
-                response = await fetch(loginUrl, loginOpts);
-                const retryable = response.status === 500 || response.status === 502
-                    || response.status === 503 || response.status === 504;
-                if (!retryable || attempt === 2) break;
-            } catch (e) {
-                if (attempt === 2) {
-                    throw new Error(describeFetchFailure(loginUrl, e));
-                }
+        const urls = [API_BASE_URL + '/api/login'];
+        if (isLocalApiUrl(API_BASE_URL)) {
+            const prod = (typeof document !== 'undefined'
+                && document.querySelector('meta[name="api-base-url"]')
+                && normalizeBaseUrl(document.querySelector('meta[name="api-base-url"]').content)) || '';
+            if (prod && prod !== API_BASE_URL.replace(/\/$/, '')) {
+                urls.push(prod.replace(/\/$/, '') + '/api/login');
             }
-            await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+        }
+
+        let response;
+        let loginUrl = urls[0];
+        let lastFetchError = null;
+        for (let u = 0; u < urls.length; u++) {
+            loginUrl = urls[u];
+            lastFetchError = null;
+            response = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    response = await fetch(loginUrl, loginOpts);
+                    const retryable = response.status === 500 || response.status === 502
+                        || response.status === 503 || response.status === 504;
+                    if (!retryable || attempt === 2) break;
+                } catch (e) {
+                    lastFetchError = e;
+                    if (attempt === 2) break;
+                }
+                await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+            }
+            if (response) break;
         }
 
         if (!response) {
-            throw new Error(describeFetchFailure(loginUrl));
+            throw new Error(describeFetchFailure(loginUrl, lastFetchError));
         }
 
         let data = {};
