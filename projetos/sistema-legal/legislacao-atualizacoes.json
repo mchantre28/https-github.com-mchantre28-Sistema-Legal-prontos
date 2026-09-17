@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-16T16:48:32.981Z",
+  "ultimaVerificacao": "2026-09-17T13:41:13.847Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,28 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-353335323234",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 22925/2026/2 - Diário da República n.º 181/2026, Série II de 2026-09-17",
+      "diploma": "Aviso (extrato) n.º 22925/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Consolidação definitiva de mobilidade intercarreiras.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/22925-2026-1171535224",
+      "dataPublicacao": "2026-09-17",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353335323235",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 11414/2026 - Diário da República n.º 181/2026, Série II de 2026-09-17",
+      "diploma": "Despacho (extrato) n.º 11414/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Conclusão com sucesso do período experimental na carreira e categoria de técnico superior.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11414-2026-1171535225",
+      "dataPublicacao": "2026-09-17",
+      "serie": "II"
+    },
     {
       "id": "dre-313335323339",
       "area": "registos",
