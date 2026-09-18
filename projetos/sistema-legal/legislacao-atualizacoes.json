@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-17T15:12:35.890Z",
+  "ultimaVerificacao": "2026-09-18T13:04:01.617Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-373339363332",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 11523/2026 - Diário da República n.º 182/2026, Série II de 2026-09-18",
+      "diploma": "Despacho (extrato) n.º 11523/2026",
+      "resumo": "Conselho Superior dos Tribunais Administrativos e Fiscais Revogação parcial da subdelegação de poderes referente à autorização de residência dos juízes em local diverso da sede do tribunal de colocação.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11523-2026-1171739632",
+      "dataPublicacao": "2026-09-18",
+      "serie": "II"
+    },
     {
       "id": "dre-353335323234",
       "area": "migracao",
