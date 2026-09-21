@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-18T14:36:09.527Z",
+  "ultimaVerificacao": "2026-09-21T15:15:05.050Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-323038343833",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 11549/2026 - Diário da República n.º 183/2026, Série II de 2026-09-21",
+      "diploma": "Despacho (extrato) n.º 11549/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Consolidação da mobilidade na categoria da técnica superior Patrícia Maria Teixeira Santos de Oliveira Soares.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11549-2026-1172208483",
+      "dataPublicacao": "2026-09-21",
+      "serie": "II"
+    },
     {
       "id": "dre-373339363332",
       "area": "migracao",
