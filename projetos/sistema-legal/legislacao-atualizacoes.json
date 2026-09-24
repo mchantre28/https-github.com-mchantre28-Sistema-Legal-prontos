@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-23T15:09:24.141Z",
+  "ultimaVerificacao": "2026-09-24T13:41:16.402Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-313230353139",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 23580/2026/2 - Diário da República n.º 186/2026, Série II de 2026-09-24",
+      "diploma": "Aviso (extrato) n.º 23580/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Obras do Departamento Patrimonial.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/23580-2026-1173120519",
+      "dataPublicacao": "2026-09-24",
+      "serie": "II"
+    },
     {
       "id": "dre-373930353432",
       "area": "profissional",
