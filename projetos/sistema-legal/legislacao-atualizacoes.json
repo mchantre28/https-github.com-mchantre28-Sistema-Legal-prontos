@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-25T14:02:51.545Z",
+  "ultimaVerificacao": "2026-09-25T15:27:15.334Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-343931383638",
+      "area": "nacionalidade",
+      "titulo": "Anúncio de procedimento n.º 23821/2026 - Diário da República n.º 187/2026, Série II de 2026-09-25",
+      "diploma": "Anúncio de procedimento n.º 23821/2026",
+      "resumo": "Município de Bragança Preservar Montesinho - Projeto integrado de renaturalização e salvaguarda de espaços naturais e de revitalização e valorização de recursos patrimoniais - Lote 1, Lote 2 e Lote 3",
+      "impacto": "Pode afetar processos de nacionalidade e minutas associadas.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/23821-2026-1173491868",
+      "dataPublicacao": "2026-09-25",
+      "serie": "II"
+    },
     {
       "id": "dre-313230353139",
       "area": "registos",
