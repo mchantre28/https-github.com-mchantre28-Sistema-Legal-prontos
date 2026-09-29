@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-28T18:14:06.470Z",
+  "ultimaVerificacao": "2026-09-29T14:57:06.887Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-333430373734",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 11854/2026 - Diário da República n.º 189/2026, Série II de 2026-09-29",
+      "diploma": "Despacho (extrato) n.º 11854/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Conclusão do período experimental na carreira e categoria de técnico superior.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11854-2026-1174340774",
+      "dataPublicacao": "2026-09-29",
+      "serie": "II"
+    },
     {
       "id": "dre-343931383638",
       "area": "nacionalidade",
