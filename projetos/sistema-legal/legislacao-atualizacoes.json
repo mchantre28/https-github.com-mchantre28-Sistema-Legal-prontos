@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-29T14:57:06.887Z",
+  "ultimaVerificacao": "2026-09-29T16:35:59.015Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -20,6 +20,17 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Conclusão do período experimental na carreira e categoria de técnico superior.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11854-2026-1174340774",
+      "dataPublicacao": "2026-09-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-383430393133",
+      "area": "registos",
+      "titulo": "Anúncio de procedimento n.º 24126/2026 - Diário da República n.º 189/2026, Série II de 2026-09-29",
+      "diploma": "Anúncio de procedimento n.º 24126/2026",
+      "resumo": "Instituto dos Registos e do Notariado, IP Contratação de empreitada de obras públicas das instalações do IRN de Lagoa (Lote 1), Calheta (Lote 2) e São Roque do Pico (Lote 3)",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24126-2026-1174840913",
       "dataPublicacao": "2026-09-29",
       "serie": "II"
     },
