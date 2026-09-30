@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-29T16:35:59.015Z",
+  "ultimaVerificacao": "2026-09-30T15:05:47.366Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,94 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393737303233",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1118/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Deliberação n.º 1118/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa a designação, em regime de substituição, do licenciado Tiago Filipe da Silva Marques, no cargo de coordenador de unidade da Unidade de Gestão de Integração, por extinção da unidade, e designa o mesmo, em regime de substituição, no cargo de diretor do Departamento de Integração de Migrantes (DIM), cargo de direção intermédia do 1.º grau.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1118-2026-1174977023",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303234",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1119/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Deliberação n.º 1119/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa a designação em regime de substituição da licenciada Maria Isabel Dias Gomes Cunha no cargo de diretora de serviços de Promoção da Língua Portuguesa, por extinção da unidade, e designa a mesma, em regime de substituição, no cargo de diretora de serviços de Língua Portuguesa, Emprego e Cidadania Inclusiva (DSLPECI), do Departamento de Integração de Migrantes (DIM), cargo de direção intermédia do 2.º grau.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1119-2026-1174977024",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303336",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 24067/2026/2 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Aviso (extrato) n.º 24067/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Gabinete de Acompanhamento de Gestão, Comunicação, Imagem e Design.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24067-2026-1174977036",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303337",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 24068/2026/2 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Aviso (extrato) n.º 24068/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Apoio Jurídico aos Recursos Humanos.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24068-2026-1174977037",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303338",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 11921/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Despacho (extrato) n.º 11921/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação e delegação de competências na diretora do Departamento Financeiro.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11921-2026-1174977038",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303339",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 11922/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Despacho (extrato) n.º 11922/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico de Daniel Alexandre Augusto Andrade no mapa de pessoal da Conservatória dos Registos Civil e Predial de Penedono.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11922-2026-1174977039",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393737303430",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 11923/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Despacho (extrato) n.º 11923/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico de Ana Marisa da Silva e Almeida, no mapa de pessoal da Conservatória do Registo Predial da Figueira da Foz.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11923-2026-1174977040",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333535373634",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 24214/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
+      "diploma": "Anúncio de procedimento n.º 24214/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Empreitada de obras públicas para a remodelação e adaptação das novas instalações do CNAR e de vários Departamentos da AIMA, I.P., no edifício sito na Rua Nova da Trindade n.º 14, Lisboa.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24214-2026-1176355764",
+      "dataPublicacao": "2026-09-30",
+      "serie": "II"
+    },
     {
       "id": "dre-333430373734",
       "area": "migracao",
