@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-09-30T16:28:54.803Z",
+  "ultimaVerificacao": "2026-10-01T15:34:21.912Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-373630373139",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 24428/2026 - Diário da República n.º 191/2026, Série II de 2026-10-01",
+      "diploma": "Anúncio de procedimento n.º 24428/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de serviços de manutenção e assistência técnica aos sistemas aplicacionais SIGAP e SIGAP 2 da AIMA  Bolsa de Horas",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24428-2026-1176760719",
+      "dataPublicacao": "2026-10-01",
+      "serie": "II"
+    },
     {
       "id": "dre-393737303233",
       "area": "migracao",
