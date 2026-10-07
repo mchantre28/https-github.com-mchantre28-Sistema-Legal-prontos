@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-06T16:53:39.223Z",
+  "ultimaVerificacao": "2026-10-07T15:40:46.126Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,50 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393739333137",
+      "area": "registos",
+      "titulo": "Portaria n.º 449/2026/1 - Diário da República n.º 194/2026, Série I de 2026-10-07",
+      "diploma": "Portaria n.º 449/2026/1",
+      "resumo": "Finanças e Justiça Autoriza o conselho diretivo do Instituto dos Registos e do Notariado, I. P., a assumir, para o ano de 2027, os encargos orçamentais decorrentes do contrato de aquisição de serviços de implementação de infraestrutura de plataforma como serviço (IaaS, PaaS e SaaS) e serviços de consultoria para a operação e monitorização da plataforma BUPi Cloud.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/portaria/449-2026-1177979317",
+      "dataPublicacao": "2026-10-07",
+      "serie": "I"
+    },
+    {
+      "id": "dre-393738343931",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 24580/2026/2 - Diário da República n.º 194/2026, Série II de 2026-10-07",
+      "diploma": "Aviso (extrato) n.º 24580/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Gabinete de Contratação Pública.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24580-2026-1177978491",
+      "dataPublicacao": "2026-10-07",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393738343932",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 24581/2026/2 - Diário da República n.º 194/2026, Série II de 2026-10-07",
+      "diploma": "Aviso (extrato) n.º 24581/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Programação Financeira e Planeamento do Departamento Financeiro.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24581-2026-1177978492",
+      "dataPublicacao": "2026-10-07",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393738343933",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 24582/2026/2 - Diário da República n.º 194/2026, Série II de 2026-10-07",
+      "diploma": "Aviso (extrato) n.º 24582/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Operações Contabilísticas do Departamento Financeiro.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24582-2026-1177978493",
+      "dataPublicacao": "2026-10-07",
+      "serie": "II"
+    },
     {
       "id": "dre-393937323639",
       "area": "migracao",
