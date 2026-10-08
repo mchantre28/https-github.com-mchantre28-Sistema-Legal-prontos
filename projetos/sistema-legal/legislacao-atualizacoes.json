@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-07T17:30:31.985Z",
+  "ultimaVerificacao": "2026-10-08T15:46:27.960Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,171 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393739333533",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 24707/2026/2 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Aviso (extrato) n.º 24707/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa o vínculo de emprego público, na modalidade de contrato de trabalho em funções públicas por tempo indeterminado, por denúncia do respetivo contrato, Ana Paula Gonçalves de Sousa.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24707-2026-1177979353",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333534",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 24708/2026/2 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Aviso (extrato) n.º 24708/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Consolidação definitiva de mobilidade intercarreiras.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24708-2026-1177979354",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333535",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1141/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Deliberação n.º 1141/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa, a pedido do próprio, a nomeação em regime de substituição do licenciado João Carlos Batista Torres no cargo de coordenador da Unidade de Assessoria de Imprensa.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1141-2026-1177979355",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333536",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1142/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Deliberação n.º 1142/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Procede à anulação da deliberação de 12 de maio de 2026, publicada no Diário da República, 2.ª série, n.º 102, de 27 de maio de 2026, sob o n.º 616/2026, com efeitos a 1 de outubro de 2026.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1142-2026-1177979356",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333537",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12197/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12197/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12197-2026-1177979357",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333538",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12198/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12198/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12198-2026-1177979358",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333539",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12199/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12199/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12199-2026-1177979359",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333630",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12200/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12200/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12200-2026-1177979360",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333631",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12201/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12201/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12201-2026-1177979361",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333632",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12202/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12202/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12202-2026-1177979362",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333633",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12203/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12203/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12203-2026-1177979363",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333634",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12204/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12204/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12204-2026-1177979364",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333635",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12205/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12205/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12205-2026-1177979365",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739333636",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12206/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Despacho (extrato) n.º 12206/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12206-2026-1177979366",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
+    {
+      "id": "dre-323633303330",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 24920/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
+      "diploma": "Anúncio de procedimento n.º 24920/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de subscrição de serviços OCI",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24920-2026-1178263030",
+      "dataPublicacao": "2026-10-08",
+      "serie": "II"
+    },
     {
       "id": "dre-393739333137",
       "area": "registos",
