@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-08T17:32:10.878Z",
+  "ultimaVerificacao": "2026-10-09T15:28:06.691Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-353835313535",
+      "area": "migracao",
+      "titulo": "Despacho (extrato) n.º 12287/2026 - Diário da República n.º 196/2026, Série II de 2026-10-09",
+      "diploma": "Despacho (extrato) n.º 12287/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12287-2026-1178585155",
+      "dataPublicacao": "2026-10-09",
+      "serie": "II"
+    },
     {
       "id": "dre-393739333533",
       "area": "migracao",
