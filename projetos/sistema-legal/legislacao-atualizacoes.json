@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-09T17:08:20.796Z",
+  "ultimaVerificacao": "2026-10-12T18:06:14.508Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,28 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-333330383037",
+      "area": "registos",
+      "titulo": "Despacho n.º 12340/2026 - Diário da República n.º 197/2026, Série II de 2026-10-12",
+      "diploma": "Despacho n.º 12340/2026",
+      "resumo": "Justiça e Agricultura e Mar - Estrutura de Missão para a Expansão do Sistema de Informação Cadastral Simplificado Designação como técnica especialista da Estrutura de Missão para a Expansão do Sistema de Informação Cadastral Simplificado, para exercer funções na sua área de especialidade, da licenciada Maria de Fátima Pereira Simões, da carreira de conservador do Instituto dos Registos e do Notariado, I. P., com efeitos a partir de 1 de março de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/12340-2026-1179330807",
+      "dataPublicacao": "2026-10-12",
+      "serie": "II"
+    },
+    {
+      "id": "dre-343137393834",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 25079/2026 - Diário da República n.º 197/2026, Série II de 2026-10-12",
+      "diploma": "Anúncio de procedimento n.º 25079/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de serviços de manutenção e assistência técnica aos sistemas aplicacionais SIGAP e SIGAP 2 da AIMA  Bolsa de Horas",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/25079-2026-1179417984",
+      "dataPublicacao": "2026-10-12",
+      "serie": "II"
+    },
     {
       "id": "dre-353835313535",
       "area": "migracao",
