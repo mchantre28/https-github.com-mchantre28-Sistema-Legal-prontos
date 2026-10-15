@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-14T15:22:18.360Z",
+  "ultimaVerificacao": "2026-10-15T13:35:57.659Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,72 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-333337393432",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 25436/2026/2 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Aviso (extrato) n.º 25436/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 1.º grau ― diretor/a do Departamento Financeiro.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25436-2026-1180337942",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333337393433",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 25437/2026/2 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Aviso (extrato) n.º 25437/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 1.º grau ― diretor/a de Departamento Patrimonial.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25437-2026-1180337943",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333337393434",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 25438/2026/2 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Aviso (extrato) n.º 25438/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 1.º grau ― diretor/a do Departamento de Recursos Humanos.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25438-2026-1180337944",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333337393435",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 12542/2026 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Despacho (extrato) n.º 12542/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação de competências para a concessão e emissão de passaportes.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12542-2026-1180337945",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333337393436",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 12543/2026 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Despacho (extrato) n.º 12543/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação de competências do Departamento de Recursos Humanos.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12543-2026-1180337946",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
+    {
+      "id": "dre-333337393437",
+      "area": "nacionalidade",
+      "titulo": "Despacho (extrato) n.º 12544/2026 - Diário da República n.º 200/2026, Série II de 2026-10-15",
+      "diploma": "Despacho (extrato) n.º 12544/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação de competências na diretora do Departamento de Gestão e Apoio Técnico-Jurídico aos Serviços de Registos, nas áreas de registo civil, da nacionalidade e da identificação civil.",
+      "impacto": "Pode afetar processos de nacionalidade e minutas associadas.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12544-2026-1180337947",
+      "dataPublicacao": "2026-10-15",
+      "serie": "II"
+    },
     {
       "id": "dre-333330383037",
       "area": "registos",
