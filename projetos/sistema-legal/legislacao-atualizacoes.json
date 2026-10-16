@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-15T15:15:37.565Z",
+  "ultimaVerificacao": "2026-10-16T13:24:39.564Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,28 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-303831373834",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 25598/2026/2 - Diário da República n.º 201/2026, Série II de 2026-10-16",
+      "diploma": "Aviso (extrato) n.º 25598/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 1.º grau ― diretor/a do Departamento de Identificação Civil.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25598-2026-1182081784",
+      "dataPublicacao": "2026-10-16",
+      "serie": "II"
+    },
+    {
+      "id": "dre-303831373835",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 25599/2026/2 - Diário da República n.º 201/2026, Série II de 2026-10-16",
+      "diploma": "Aviso (extrato) n.º 25599/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 1.º grau ― diretor/a do Departamento de Gestão e Apoio Técnico-Jurídico.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25599-2026-1182081785",
+      "dataPublicacao": "2026-10-16",
+      "serie": "II"
+    },
     {
       "id": "dre-333337393432",
       "area": "registos",
