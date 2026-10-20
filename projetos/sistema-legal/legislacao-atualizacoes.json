@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-19T17:06:12.483Z",
+  "ultimaVerificacao": "2026-10-20T13:45:05.410Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,28 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393739363138",
+      "area": "migracao",
+      "titulo": "Despacho n.º 12719/2026 - Diário da República n.º 203/2026, Série II de 2026-10-20",
+      "diploma": "Despacho n.º 12719/2026",
+      "resumo": "Presidência do Conselho de Ministros - Autoridade de Gestão do Programa do Fundo para o Asilo, a Migração e a Integração 2030 Designa Vera Lúcia Dias Machado para exercer funções de consultora no secretariado técnico da Autoridade de Gestão do Programa do Fundo para o Asilo, a Migração e a Integração.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/12719-2026-1182979618",
+      "dataPublicacao": "2026-10-20",
+      "serie": "II"
+    },
+    {
+      "id": "dre-393739363231",
+      "area": "migracao",
+      "titulo": "Declaração de Retificação n.º 894/2026/2 - Diário da República n.º 203/2026, Série II de 2026-10-20",
+      "diploma": "Declaração de Retificação n.º 894/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Retifica o Despacho (extrato) n.º 5050/2026, publicado no Diário da República, 2.ª série, n.º 75, de 17 de abril de 2026.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/894-2026-1182979621",
+      "dataPublicacao": "2026-10-20",
+      "serie": "II"
+    },
     {
       "id": "dre-323638303333",
       "area": "migracao",
