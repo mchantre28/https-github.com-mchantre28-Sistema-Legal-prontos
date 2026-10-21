@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-20T15:17:35.004Z",
+  "ultimaVerificacao": "2026-10-21T14:00:29.628Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,61 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-383937313632",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 25993/2026/2 - Diário da República n.º 204/2026, Série II de 2026-10-21",
+      "diploma": "Aviso (extrato) n.º 25993/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Procedimento concursal comum para recrutamento de quatro assistentes operacionais para o Departamento de Administração Geral, da Agência para a Integração, Migrações e Asilo, I. P.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25993-2026-1182897162",
+      "dataPublicacao": "2026-10-21",
+      "serie": "II"
+    },
+    {
+      "id": "dre-383937313633",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 25994/2026/2 - Diário da República n.º 204/2026, Série II de 2026-10-21",
+      "diploma": "Aviso (extrato) n.º 25994/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Procedimento concursal comum para recrutamento de quatro assistentes técnicos para a Direção de Serviços de Património da Agência para a Integração, Migrações e Asilo, I. P., destinado a candidatos com vínculo de emprego público.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25994-2026-1182897163",
+      "dataPublicacao": "2026-10-21",
+      "serie": "II"
+    },
+    {
+      "id": "dre-383937313634",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 25995/2026/2 - Diário da República n.º 204/2026, Série II de 2026-10-21",
+      "diploma": "Aviso (extrato) n.º 25995/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Homologa a lista de ordenação final referente ao procedimento concursal comum aberto pelo Aviso n.º 15846/2026/2.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25995-2026-1182897164",
+      "dataPublicacao": "2026-10-21",
+      "serie": "II"
+    },
+    {
+      "id": "dre-383937313635",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 25996/2026/2 - Diário da República n.º 204/2026, Série II de 2026-10-21",
+      "diploma": "Aviso (extrato) n.º 25996/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Homologa da lista de ordenação final referente ao procedimento concursal comum aberto pelo Aviso n.º 15846/2026/2.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/25996-2026-1182897165",
+      "dataPublicacao": "2026-10-21",
+      "serie": "II"
+    },
+    {
+      "id": "dre-383937313636",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1178/2026 - Diário da República n.º 204/2026, Série II de 2026-10-21",
+      "diploma": "Deliberação n.º 1178/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa, a pedido da própria, a designação em regime de substituição da licenciada Sandra de Fátima da Silva Semedo Garcia Leonardo, no cargo de diretora de serviços de Proteção Internacional.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1178-2026-1182897166",
+      "dataPublicacao": "2026-10-21",
+      "serie": "II"
+    },
     {
       "id": "dre-393739363138",
       "area": "migracao",
