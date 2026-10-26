@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-23T15:22:59.239Z",
+  "ultimaVerificacao": "2026-10-26T15:21:23.243Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,28 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-323233333831",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 26438/2026/2 - Diário da República n.º 207/2026, Série II de 2026-10-26",
+      "diploma": "Aviso (extrato) n.º 26438/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessação do vínculo de emprego público, na modalidade de contrato de trabalho em funções públicas por tempo indeterminado, por denúncia do respetivo contrato pelo Daniel Filipe de Moura Marques.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26438-2026-1185223381",
+      "dataPublicacao": "2026-10-26",
+      "serie": "II"
+    },
+    {
+      "id": "dre-303331383430",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 25903/2026 - Diário da República n.º 207/2026, Série II de 2026-10-26",
+      "diploma": "Anúncio de procedimento n.º 25903/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de serviços de auditoria externa às Entidades de Acolhimento.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/25903-2026-1185031840",
+      "dataPublicacao": "2026-10-26",
+      "serie": "II"
+    },
     {
       "id": "dre-343135323433",
       "area": "migracao",
@@ -868,28 +890,6 @@
       "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
       "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24126-2026-1174840913",
       "dataPublicacao": "2026-09-29",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343931383638",
-      "area": "nacionalidade",
-      "titulo": "Anúncio de procedimento n.º 23821/2026 - Diário da República n.º 187/2026, Série II de 2026-09-25",
-      "diploma": "Anúncio de procedimento n.º 23821/2026",
-      "resumo": "Município de Bragança Preservar Montesinho - Projeto integrado de renaturalização e salvaguarda de espaços naturais e de revitalização e valorização de recursos patrimoniais - Lote 1, Lote 2 e Lote 3",
-      "impacto": "Pode afetar processos de nacionalidade e minutas associadas.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/23821-2026-1173491868",
-      "dataPublicacao": "2026-09-25",
-      "serie": "II"
-    },
-    {
-      "id": "dre-313230353139",
-      "area": "registos",
-      "titulo": "Aviso (extrato) n.º 23580/2026/2 - Diário da República n.º 186/2026, Série II de 2026-09-24",
-      "diploma": "Aviso (extrato) n.º 23580/2026/2",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Obras do Departamento Patrimonial.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/23580-2026-1173120519",
-      "dataPublicacao": "2026-09-24",
       "serie": "II"
     }
   ]
