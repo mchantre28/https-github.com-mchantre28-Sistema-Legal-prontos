@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-26T16:53:14.723Z",
+  "ultimaVerificacao": "2026-10-27T14:47:28.962Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,39 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-343632343430",
+      "area": "registos",
+      "titulo": "Despacho n.º 13094/2026 - Diário da República n.º 208/2026, Série II de 2026-10-27",
+      "diploma": "Despacho n.º 13094/2026",
+      "resumo": "Justiça - Gabinete da Secretária de Estado da Justiça Subdelega competência no conselho diretivo do Instituto dos Registos e do Notariado, I. P., para autorizar a despesa e praticar atos relativos à formação e execução do contrato de aquisição de serviços de implementação de infraestrutura e plataforma como serviço (IaaS, PaaS e SaaS) e serviços de consultoria para a operação e monitorização da plataforma BUPi Cloud.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/13094-2026-1186462440",
+      "dataPublicacao": "2026-10-27",
+      "serie": "II"
+    },
+    {
+      "id": "dre-343632343431",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 26595/2026/2 - Diário da República n.º 208/2026, Série II de 2026-10-27",
+      "diploma": "Aviso (extrato) n.º 26595/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Celebração de contratos de trabalho em funções públicas, por tempo indeterminado, na carreira e categoria de assistente técnico, para o exercício de funções no Departamento de Recursos Humanos, de Ana Filipa Gomes do Carmo, Ana Margarida Morgado Cascalheira Marçal Vieira, Clara Maria Oliveira Bilhau, Cristina Maria Franco Cruz Pedro, Filipa Alexandra Antunes Moreira, Isabel Cristina Baptista Bernardo António, Lídia Maria Jesus Lopes, Marta Alexandra Falé Caeiro, Vanessa Marisa Conceição Sousa Magalhães Rodrigues e Tatiane Santos Fernandes.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26595-2026-1186462441",
+      "dataPublicacao": "2026-10-27",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353335343138",
+      "area": "registos",
+      "titulo": "Anúncio de procedimento n.º 26024/2026 - Diário da República n.º 208/2026, Série II de 2026-10-27",
+      "diploma": "Anúncio de procedimento n.º 26024/2026",
+      "resumo": "Instituto dos Registos e do Notariado, IP Aquisição de serviços de implementação de infraestrutura de plataforma como serviço (IAAS, PAAS E SAAS) e serviços de consultoria para a operação e monitorização da plataforma BUPI CLOUD 2027",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/26024-2026-1186535418",
+      "dataPublicacao": "2026-10-27",
+      "serie": "II"
+    },
     {
       "id": "dre-323233333831",
       "area": "migracao",
@@ -857,39 +890,6 @@
       "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11923-2026-1174977040",
       "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-333535373634",
-      "area": "migracao",
-      "titulo": "Anúncio de procedimento n.º 24214/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Anúncio de procedimento n.º 24214/2026",
-      "resumo": "Agência para a Integração, Migrações e Asilo, IP Empreitada de obras públicas para a remodelação e adaptação das novas instalações do CNAR e de vários Departamentos da AIMA, I.P., no edifício sito na Rua Nova da Trindade n.º 14, Lisboa.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24214-2026-1176355764",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-333430373734",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 11854/2026 - Diário da República n.º 189/2026, Série II de 2026-09-29",
-      "diploma": "Despacho (extrato) n.º 11854/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Conclusão do período experimental na carreira e categoria de técnico superior.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11854-2026-1174340774",
-      "dataPublicacao": "2026-09-29",
-      "serie": "II"
-    },
-    {
-      "id": "dre-383430393133",
-      "area": "registos",
-      "titulo": "Anúncio de procedimento n.º 24126/2026 - Diário da República n.º 189/2026, Série II de 2026-09-29",
-      "diploma": "Anúncio de procedimento n.º 24126/2026",
-      "resumo": "Instituto dos Registos e do Notariado, IP Contratação de empreitada de obras públicas das instalações do IRN de Lagoa (Lote 1), Calheta (Lote 2) e São Roque do Pico (Lote 3)",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24126-2026-1174840913",
-      "dataPublicacao": "2026-09-29",
       "serie": "II"
     }
   ]
