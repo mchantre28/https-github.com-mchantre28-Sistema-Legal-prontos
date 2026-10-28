@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-27T15:58:32.042Z",
+  "ultimaVerificacao": "2026-10-28T15:18:32.482Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,83 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-333937353536",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 26774/2026/2 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Aviso (extrato) n.º 26774/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Procedimento concursal comum para recrutamento de um assistente técnico para a Direção de Serviços de Comunicação, Marketing e Assessoria de Imprensa da Agência para a Integração, Migrações e Asilo, I. P., destinado a candidatos com vínculo de emprego público.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26774-2026-1185397556",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363838",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 26785/2026/2 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Aviso (extrato) n.º 26785/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Celebração de contratos de trabalho em funções públicas, por tempo indeterminado, na carreira e categoria de técnico superior, para o exercício de funções nos serviços centrais deste Instituto/Unidade de Apoio, Planeamento Estratégico e Relações Internacionais, com Ana Cristina Miranda Inácio Palhinhas e Mário Miguel Manso Machado.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26785-2026-1187133688",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363839",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 26786/2026/2 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Aviso (extrato) n.º 26786/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Celebração de contratos de trabalho em funções públicas, por tempo indeterminado, na carreira e categoria de técnico superior, para o exercício de funções nos serviços centrais deste instituto/departamento financeiro, com Ana Isabel Mourão Neves, Ana Mafalda Jesus Marujo, Ana Rosa Carvalho Galvão, Cátia Raquel Martins Parreira da Silva Rocha, Dora Maria da Cruz Calado, Karen Elizabeth de Carvalho Higa, Maria Helena Marques Santos, Miriam Paula Pinto de Albuquerque, Mónica Cristina Pereira Veredas, Paula Bragagnollo de Godoy, Ricardo Miguel Figueiredo da Cruz, Rosália Maria Jorge Varela, Rute Isabel Almeida Quaresma, Sofia Belém Santiago.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26786-2026-1187133689",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363930",
+      "area": "registos",
+      "titulo": "Despacho n.º 13155/2026 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Despacho n.º 13155/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação de competências nos coordenadores do Departamento de Recursos Humanos.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/13155-2026-1187133690",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363931",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 13156/2026 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Despacho (extrato) n.º 13156/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico, no mapa de pessoal da Conservatória dos Registos Civil e Predial de Alcochete, de Margarida Maria da Cruz Veloso Balegas.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/13156-2026-1187133691",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363932",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 13157/2026 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Despacho (extrato) n.º 13157/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico, no mapa de pessoal da Loja do Cidadão de Coimbra, de Olga Maria Figueiredo Bernardo.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/13157-2026-1187133692",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
+    {
+      "id": "dre-313333363933",
+      "area": "registos",
+      "titulo": "Despacho (extrato) n.º 13158/2026 - Diário da República n.º 209/2026, Série II de 2026-10-28",
+      "diploma": "Despacho (extrato) n.º 13158/2026",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico no mapa de pessoal da Conservatória do Registo Predial de Esposende, de Dulce Nádia da Costa Pereira Vieira.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/13158-2026-1187133693",
+      "dataPublicacao": "2026-10-28",
+      "serie": "II"
+    },
     {
       "id": "dre-343632343430",
       "area": "registos",
@@ -813,83 +890,6 @@
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24428-2026-1176760719",
       "dataPublicacao": "2026-10-01",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303233",
-      "area": "migracao",
-      "titulo": "Deliberação n.º 1118/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Deliberação n.º 1118/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa a designação, em regime de substituição, do licenciado Tiago Filipe da Silva Marques, no cargo de coordenador de unidade da Unidade de Gestão de Integração, por extinção da unidade, e designa o mesmo, em regime de substituição, no cargo de diretor do Departamento de Integração de Migrantes (DIM), cargo de direção intermédia do 1.º grau.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1118-2026-1174977023",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303234",
-      "area": "migracao",
-      "titulo": "Deliberação n.º 1119/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Deliberação n.º 1119/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Cessa a designação em regime de substituição da licenciada Maria Isabel Dias Gomes Cunha no cargo de diretora de serviços de Promoção da Língua Portuguesa, por extinção da unidade, e designa a mesma, em regime de substituição, no cargo de diretora de serviços de Língua Portuguesa, Emprego e Cidadania Inclusiva (DSLPECI), do Departamento de Integração de Migrantes (DIM), cargo de direção intermédia do 2.º grau.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1119-2026-1174977024",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303336",
-      "area": "registos",
-      "titulo": "Aviso (extrato) n.º 24067/2026/2 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Aviso (extrato) n.º 24067/2026/2",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Gabinete de Acompanhamento de Gestão, Comunicação, Imagem e Design.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24067-2026-1174977036",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303337",
-      "area": "registos",
-      "titulo": "Aviso (extrato) n.º 24068/2026/2 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Aviso (extrato) n.º 24068/2026/2",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Abertura de procedimento concursal para provimento, em comissão de serviço, de um lugar para o cargo de direção intermédia de 2.º grau ― coordenador/a do Setor de Apoio Jurídico aos Recursos Humanos.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/24068-2026-1174977037",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303338",
-      "area": "registos",
-      "titulo": "Despacho (extrato) n.º 11921/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Despacho (extrato) n.º 11921/2026",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Subdelegação e delegação de competências na diretora do Departamento Financeiro.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11921-2026-1174977038",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303339",
-      "area": "registos",
-      "titulo": "Despacho (extrato) n.º 11922/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Despacho (extrato) n.º 11922/2026",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico de Daniel Alexandre Augusto Andrade no mapa de pessoal da Conservatória dos Registos Civil e Predial de Penedono.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11922-2026-1174977039",
-      "dataPublicacao": "2026-09-30",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393737303430",
-      "area": "registos",
-      "titulo": "Despacho (extrato) n.º 11923/2026 - Diário da República n.º 190/2026, Série II de 2026-09-30",
-      "diploma": "Despacho (extrato) n.º 11923/2026",
-      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Consolidação definitiva da mobilidade na carreira e categoria de assistente técnico de Ana Marisa da Silva e Almeida, no mapa de pessoal da Conservatória do Registo Predial da Figueira da Foz.",
-      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/11923-2026-1174977040",
-      "dataPublicacao": "2026-09-30",
       "serie": "II"
     }
   ]
