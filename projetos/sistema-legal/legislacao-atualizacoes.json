@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-28T16:46:40.527Z",
+  "ultimaVerificacao": "2026-10-29T15:23:10.319Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,72 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-353631373330",
+      "area": "registos",
+      "titulo": "Aviso (extrato) n.º 26939/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Aviso (extrato) n.º 26939/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Celebração de contratos de trabalho em funções públicas, por tempo indeterminado, na categoria de técnico superior, para o exercício de funções no Departamento de Recursos Humanos, com Carla Marina Azenha Santos, Lina Maria da Costa Machado e Vânia Sofia Pinheiro Oliveira.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/26939-2026-1187561730",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353631373331",
+      "area": "registos",
+      "titulo": "Declaração de Retificação n.º 927/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Declaração de Retificação n.º 927/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Retifica o Aviso (extrato) n.º 25436/2026/2, publicado no Diário da República, 2.ª série, n.º 200, de 15 de outubro de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/927-2026-1187561731",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353631373332",
+      "area": "registos",
+      "titulo": "Declaração de Retificação n.º 928/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Declaração de Retificação n.º 928/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Retifica o Aviso (extrato) n.º 25437/2026/2, publicado no Diário da República, 2.ª série, n.º 200, de 15 de outubro de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/928-2026-1187561732",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353631373333",
+      "area": "registos",
+      "titulo": "Declaração de Retificação n.º 929/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Declaração de Retificação n.º 929/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Retifica o Aviso (extrato) n.º 25438/2026/2, publicado no Diário da República, 2.ª série, n.º 200, de 15 de outubro de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/929-2026-1187561733",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353631373334",
+      "area": "registos",
+      "titulo": "Declaração de Retificação n.º 930/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Declaração de Retificação n.º 930/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Retifica o Aviso (extrato) n.º 25598/2026/2, publicado no Diário da República, 2.ª série, n.º 201, de 16 de outubro de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/930-2026-1187561734",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
+    {
+      "id": "dre-353631373335",
+      "area": "registos",
+      "titulo": "Declaração de Retificação n.º 931/2026/2 - Diário da República n.º 210/2026, Série II de 2026-10-29",
+      "diploma": "Declaração de Retificação n.º 931/2026/2",
+      "resumo": "Justiça - Instituto dos Registos e do Notariado, IP Retifica o Aviso (extrato) n.º 25599/2026/2, publicado no Diário da República, 2.ª série, n.º 201, de 16 de outubro de 2026.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/declaracao-retificacao/931-2026-1187561735",
+      "dataPublicacao": "2026-10-29",
+      "serie": "II"
+    },
     {
       "id": "dre-333937353536",
       "area": "migracao",
@@ -824,72 +890,6 @@
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12057-2026-1177471075",
       "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303736",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12058/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12058/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12058-2026-1177471076",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303737",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12059/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12059/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres e de direitos políticos a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12059-2026-1177471077",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303738",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12060/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12060/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12060-2026-1177471078",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303739",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12061/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12061/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12061-2026-1177471079",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303830",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12062/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12062/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12062-2026-1177471080",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-373630373139",
-      "area": "migracao",
-      "titulo": "Anúncio de procedimento n.º 24428/2026 - Diário da República n.º 191/2026, Série II de 2026-10-01",
-      "diploma": "Anúncio de procedimento n.º 24428/2026",
-      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de serviços de manutenção e assistência técnica aos sistemas aplicacionais SIGAP e SIGAP 2 da AIMA  Bolsa de Horas",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/24428-2026-1176760719",
-      "dataPublicacao": "2026-10-01",
       "serie": "II"
     }
   ]
