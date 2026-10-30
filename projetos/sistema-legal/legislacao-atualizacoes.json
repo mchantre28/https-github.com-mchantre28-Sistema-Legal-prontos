@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-29T17:01:54.630Z",
+  "ultimaVerificacao": "2026-10-30T15:10:31.268Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,39 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-373333303038",
+      "area": "migracao",
+      "titulo": "Aviso (extrato) n.º 27068/2026/2 - Diário da República n.º 211/2026, Série II de 2026-10-30",
+      "diploma": "Aviso (extrato) n.º 27068/2026/2",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Consolidação definitiva de mobilidade intercarreiras.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/aviso-extrato/27068-2026-1188733008",
+      "dataPublicacao": "2026-10-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-373333303039",
+      "area": "migracao",
+      "titulo": "Deliberação n.º 1223/2026 - Diário da República n.º 211/2026, Série II de 2026-10-30",
+      "diploma": "Deliberação n.º 1223/2026",
+      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Altera a estrutura orgânica da Agência para a Integração, Migrações e Asilo, I. P., mediante a extinção da Direção de Serviços para a Promoção da Igualdade e de Combate ao Racismo, à Xenofobia e à Discriminação (IGUAL) e a criação da Direção de Serviços de Migração Laboral (DSML).",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1223-2026-1188733009",
+      "dataPublicacao": "2026-10-30",
+      "serie": "II"
+    },
+    {
+      "id": "dre-373333303131",
+      "area": "migracao",
+      "titulo": "Despacho n.º 13289/2026 - Diário da República n.º 211/2026, Série II de 2026-10-30",
+      "diploma": "Despacho n.º 13289/2026",
+      "resumo": "Presidência do Conselho de Ministros - Gabinete da Secretária-Geral do Sistema de Segurança Interna Renova as comissões de serviço dos inspetores da carreira de investigação criminal da Polícia Judiciária e dos trabalhadores do mapa de pessoal da Agência para a Integração, Migrações e Asilo, I. P., que exercem funções na Unidade de Coordenação de Fronteiras e Estrangeiros.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/13289-2026-1188733011",
+      "dataPublicacao": "2026-10-30",
+      "serie": "II"
+    },
     {
       "id": "dre-353631373330",
       "area": "registos",
@@ -856,39 +889,6 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12054-2026-1176997272",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393937323733",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12055/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12055/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12055-2026-1176997273",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393937323734",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12056/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12056/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12056-2026-1176997274",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-343731303735",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12057/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12057/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12057-2026-1177471075",
       "dataPublicacao": "2026-10-06",
       "serie": "II"
     }
