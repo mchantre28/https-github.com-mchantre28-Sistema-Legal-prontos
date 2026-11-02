@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-10-30T16:47:20.060Z",
+  "ultimaVerificacao": "2026-11-02T18:40:21.111Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393632333830",
+      "area": "migracao",
+      "titulo": "Despacho n.º 13348/2026 - Diário da República n.º 212/2026, Série II de 2026-11-02",
+      "diploma": "Despacho n.º 13348/2026",
+      "resumo": "Presidência do Conselho de Ministros - Gabinete do Secretário de Estado Adjunto e da Presidência e Imigração Exonera e louva Frederico Pamplona Ramos de Oliveira Pontes, adjunto do Gabinete do Secretário de Estado Adjunto e da Presidência e Imigração.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/13348-2026-1189962380",
+      "dataPublicacao": "2026-11-02",
+      "serie": "II"
+    },
     {
       "id": "dre-373333303038",
       "area": "migracao",
@@ -878,17 +889,6 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12053-2026-1176997271",
-      "dataPublicacao": "2026-10-06",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393937323732",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12054/2026 - Diário da República n.º 193/2026, Série II de 2026-10-06",
-      "diploma": "Despacho (extrato) n.º 12054/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12054-2026-1176997272",
       "dataPublicacao": "2026-10-06",
       "serie": "II"
     }
