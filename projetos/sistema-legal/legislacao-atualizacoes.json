@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-11-04T18:11:00.724Z",
+  "ultimaVerificacao": "2026-11-05T16:38:57.144Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-333436323734",
+      "area": "migracao",
+      "titulo": "Anúncio de procedimento n.º 26704/2026 - Diário da República n.º 215/2026, Série II de 2026-11-05",
+      "diploma": "Anúncio de procedimento n.º 26704/2026",
+      "resumo": "Agência para a Integração, Migrações e Asilo, IP Aquisição de serviços de desenho de Experiência da Loja do Futuro AIMA.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/anuncio-procedimento/26704-2026-1191346274",
+      "dataPublicacao": "2026-11-05",
+      "serie": "II"
+    },
     {
       "id": "dre-383235323135",
       "area": "migracao",
@@ -878,17 +889,6 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12204-2026-1177979364",
-      "dataPublicacao": "2026-10-08",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393739333635",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12205/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
-      "diploma": "Despacho (extrato) n.º 12205/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12205-2026-1177979365",
       "dataPublicacao": "2026-10-08",
       "serie": "II"
     }
