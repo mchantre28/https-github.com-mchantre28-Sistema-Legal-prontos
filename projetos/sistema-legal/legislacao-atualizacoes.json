@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-11-10T18:06:24.114Z",
+  "ultimaVerificacao": "2026-11-11T16:27:01.732Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-383234303135",
+      "area": "migracao",
+      "titulo": "Despacho n.º 13775/2026 - Diário da República n.º 219/2026, Série II de 2026-11-11",
+      "diploma": "Despacho n.º 13775/2026",
+      "resumo": "Presidência do Conselho de Ministros - Gabinete do Secretário de Estado Adjunto e da Presidência e Imigração Designa Paulo Jorge Batista Ramos para exercer funções de técnico especialista do Gabinete do Secretário de Estado Adjunto e da Presidência e Imigração.",
+      "impacto": "Pode afetar processos AIMA e títulos de residência.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/despacho/13775-2026-1193824015",
+      "dataPublicacao": "2026-11-11",
+      "serie": "II"
+    },
     {
       "id": "dre-313538353031",
       "area": "migracao",
@@ -878,17 +889,6 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Procede à anulação da deliberação de 12 de maio de 2026, publicada no Diário da República, 2.ª série, n.º 102, de 27 de maio de 2026, sob o n.º 616/2026, com efeitos a 1 de outubro de 2026.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/deliberacao/1142-2026-1177979356",
-      "dataPublicacao": "2026-10-08",
-      "serie": "II"
-    },
-    {
-      "id": "dre-393739333537",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12197/2026 - Diário da República n.º 195/2026, Série II de 2026-10-08",
-      "diploma": "Despacho (extrato) n.º 12197/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12197-2026-1177979357",
       "dataPublicacao": "2026-10-08",
       "serie": "II"
     }
