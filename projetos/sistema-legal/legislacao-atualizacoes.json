@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "ultimaVerificacao": "2026-11-12T18:31:06.758Z",
+  "ultimaVerificacao": "2026-11-13T16:39:32.914Z",
   "fonteOficial": "https://diariodarepublica.pt/dr/home",
   "origem": "rss-dre",
   "areasVigiadas": [
@@ -12,6 +12,17 @@
     "profissional"
   ],
   "atualizacoes": [
+    {
+      "id": "dre-393433353238",
+      "area": "registos",
+      "titulo": "Portaria n.º 500/2026/1 - Diário da República n.º 221/2026, Série I de 2026-11-13",
+      "diploma": "Portaria n.º 500/2026/1",
+      "resumo": "Presidência do Conselho de Ministros e Justiça Regula o registo predial do ónus de sujeição a autorização para a transmissão de imóveis afetos a arrendamento no âmbito de um contrato de investimento para arrendamento (CIA), nos termos previstos no artigo 9.º do anexo I ao Decreto-Lei n.º 97/2026, de 20 de maio.",
+      "impacto": "Pode afetar conservatórias, predial, comercial ou RCBE.",
+      "url": "https://diariodarepublica.pt/dr/detalhe/portaria/500-2026-1194943528",
+      "dataPublicacao": "2026-11-13",
+      "serie": "I"
+    },
     {
       "id": "dre-383335383936",
       "area": "registos",
@@ -878,17 +889,6 @@
       "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
       "impacto": "Pode afetar processos AIMA e títulos de residência.",
       "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12663-2026-1182268036",
-      "dataPublicacao": "2026-10-19",
-      "serie": "II"
-    },
-    {
-      "id": "dre-323638303337",
-      "area": "migracao",
-      "titulo": "Despacho (extrato) n.º 12664/2026 - Diário da República n.º 202/2026, Série II de 2026-10-19",
-      "diploma": "Despacho (extrato) n.º 12664/2026",
-      "resumo": "Presidência do Conselho de Ministros - Agência para a Integração, Migrações e Asilo, IP Concede o estatuto de igualdade de direitos e deveres a vários cidadãos brasileiros.",
-      "impacto": "Pode afetar processos AIMA e títulos de residência.",
-      "url": "https://diariodarepublica.pt/dr/detalhe/despacho-extrato/12664-2026-1182268037",
       "dataPublicacao": "2026-10-19",
       "serie": "II"
     }
